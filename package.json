@@ -1,0 +1,13 @@
+{
+  "name": "anypay-tahsilat",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Güzel Teknoloji tahsilat paneli — React + Node.js",
+  "scripts": {
+    "dev": "npm run dev --prefix backend & npm run dev --prefix frontend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "build": "npm run build --prefix frontend && npm run build --prefix backend",
+    "install:all": "npm install --prefix frontend && npm install --prefix backend"
+  }
+}

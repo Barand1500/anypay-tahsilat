@@ -1,0 +1,46 @@
+---
+description: AnyPay Tahsilat — her oturumda geçerli proje kuralları
+alwaysApply: true
+---
+
+# AnyPay Tahsilat — Temel Kurallar
+
+## Ürün (kilitli — docs/KARARLAR.md)
+
+- Marka: **Güzel Teknoloji** + mevcut logo
+- Canlı: `tahsilat.anypay.com.tr` (CloudPanel: anypay-tahsilat)
+- Referans PHP: https://tahsilat.guzelteknoloji.com/
+- Stack: React (Vite) + Tailwind + Express + Prisma + JWT
+- Auth: e-posta + şifre (sonradan değişebilir)
+- DB dump referans; %100 doğru kabul etme (`docs/db/`)
+
+## Çalışma temposu
+
+- Sayfa sayfa; tüm paneli bir anda yazma
+- Sıra: docs → iskelet → login → layout → özet → diğerleri
+- Kullanıcı onayı olmadan sonraki büyük faza geçme
+
+## Kod kalitesi
+
+- Tekrar yok; ortak ui / widgets / hooks / services
+- Türkçe kısa yorum; bariz yorum yazma
+- Kod İngilizce; UI metinleri Türkçe
+- **Kalıntı yok:** revize sonrası eski/kullanılmayan kod, dead import, `*Old*` dosyaları silinir
+
+## Deploy & git
+
+- Repo: https://github.com/Barand1500/anypay-tahsilat.git
+- Deploy: `scripts/server-deploy.sh` (anypay-tahsilat yolları)
+- Commit: `v0.1: ...`, `v0.2: login ...`
+- `.env` ve `docs/db/*.sql` commit etme
+
+## Belirsizlik
+
+- Tahminle şişirme; kısa soru sor
+- Detay: `docs/KARARLAR.md`, `docs/PROJE.md`, `docs/KOD_STANDARTLARI.md`
+
+## Modal davranışı (kilitli)
+
+- Modal **dışına** (overlay / sağ-sol boşluk) tıklanınca **kapanmaz**
+- Kapanış yalnızca: **Esc** veya modal içindeki **X / Kapat**
+- Arka plan tıklaması ile dismiss yok — tüm panellerde aynı

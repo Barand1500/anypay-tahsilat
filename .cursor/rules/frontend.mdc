@@ -1,0 +1,15 @@
+---
+description: Frontend React bileşen ve widget kuralları
+globs: frontend/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Frontend Kuralları
+
+- Stack: React + Vite + Tailwind + kendi `components/ui` ve `components/widgets`
+- Sayfalar ince kalsın; UI parçaları `components/` altında
+- Aynı kart/form markup’ını kopyalama
+- Marka: Güzel Teknoloji; logo `public/brand/`
+- Türkçe kullanıcı metinleri; kod İngilizce
+- Kritik bloklara kısa Türkçe yorum
+- **Kalıntı yok:** revize sonrası eski/kullanılmayan kod silinir

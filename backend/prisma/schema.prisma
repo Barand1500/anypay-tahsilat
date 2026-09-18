@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Mevcut `user` tablosu — dump referans; alanlar ihtiyaca göre genişletilir
+model User {
+  id               Int       @id @default(autoincrement())
+  musteriId        Int?      @map("musteri_id")
+  email            String    @unique @db.VarChar(180)
+  isVerified       Boolean   @map("is_verified")
+  isPassword       Boolean   @map("is_password")
+  roles            Json
+  password         String    @db.VarChar(255)
+  adsoyad          String?   @db.VarChar(255)
+  unvan            String?   @db.VarChar(255)
+  telefon          String    @db.VarChar(255)
+  resim            String?   @db.VarChar(255)
+  remove           Boolean?
+  resetToken       String?   @map("reset_token") @db.VarChar(255)
+  karMarji         Float?    @map("kar_marji")
+  dogrulama        String?   @db.VarChar(255)
+  fbToken          String?   @map("fb_token") @db.VarChar(255)
+  lastLogin        DateTime? @map("last_login")
+  appleId          String?   @map("apple_id") @db.LongText
+  googleId         String?   @map("google_id") @db.LongText
+  vegaEntegre      Boolean?  @map("vega_entegre")
+  twoFactor        Boolean?  @map("two_factor")
+  twoFactorType    Int?      @map("two_factor_type")
+  subeDepartmanId  Int?      @map("sube_departman_id")
+  rolId            Int?      @map("rol_id")
+  izinliTaksitler  String?   @map("izinli_taksitler") @db.LongText
+
+  @@map("user")
+}

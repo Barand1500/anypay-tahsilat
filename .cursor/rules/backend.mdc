@@ -1,0 +1,15 @@
+---
+description: Backend API ve Prisma kuralları
+globs: backend/**/*.{ts,js,prisma}
+alwaysApply: false
+---
+
+# Backend Kuralları
+
+- Route ince; iş kuralı service katmanında
+- Tutarlı JSON cevap: success / message / data
+- Auth merkezi middleware
+- Prisma ile MySQL; legacy tablo adları `@@map` ile bağlanabilir
+- DB dump’ı körü körüne doğru sayma; şüpheli alanı belirt
+- Secret’ları koda gömme; `.env` kullan
+- POS / SMS / SMTP entegrasyonları ayrı modül
