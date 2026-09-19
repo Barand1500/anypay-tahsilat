@@ -6,9 +6,10 @@ import { ThemeBurstToggle } from './ThemeBurstToggle';
 type Props = {
   autoHide?: boolean;
   onHeaderDoubleClick?: (e: MouseEvent) => void;
+  onOpenSearch?: () => void;
 };
 
-export function Header({ autoHide = false, onHeaderDoubleClick }: Props) {
+export function Header({ autoHide = false, onHeaderDoubleClick, onOpenSearch }: Props) {
   return (
     <header
       onDoubleClick={onHeaderDoubleClick}
@@ -19,18 +20,22 @@ export function Header({ autoHide = false, onHeaderDoubleClick }: Props) {
       }
       className="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-header)] px-4 sm:gap-4 sm:px-6"
     >
-      <div className="relative w-full max-w-[220px] shrink-0 sm:max-w-[260px]">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--panel-muted)]">
+      <button
+        type="button"
+        onClick={onOpenSearch}
+        className="group relative w-full max-w-[220px] shrink-0 text-left sm:max-w-[280px]"
+        aria-label="Ara (Ctrl+K)"
+      >
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--panel-muted)] transition group-hover:text-[var(--color-brand-600)]">
           <SearchIcon />
         </span>
-        <input
-          type="search"
-          placeholder="Ara [CTRL + K]"
-          className="w-full rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2 pl-9 pr-3 text-sm text-[var(--panel-ink)] outline-none transition placeholder:text-[var(--panel-muted)] focus:border-[var(--color-brand-500)] focus:bg-[var(--panel-elevated)]"
-          readOnly
-          title="Arama sonraki adımda gelecek"
-        />
-      </div>
+        <span className="flex w-full items-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2 pl-9 pr-2 text-sm text-[var(--panel-muted)] outline-none transition group-hover:border-[var(--color-brand-500)]/45 group-hover:bg-[var(--panel-elevated)] group-hover:text-[var(--panel-ink)]/70">
+          <span className="min-w-0 flex-1 truncate">Ara…</span>
+          <kbd className="ml-2 hidden shrink-0 rounded-md border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)] sm:inline">
+            Ctrl+K
+          </kbd>
+        </span>
+      </button>
 
       <QuickAccessSlots />
 

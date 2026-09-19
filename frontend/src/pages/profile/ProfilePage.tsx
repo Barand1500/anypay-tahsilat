@@ -1,8 +1,9 @@
 import gsap from 'gsap';
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
+import { emailSuggestions } from '../../lib/emailSuggestions';
 
 type ProfileDraft = {
   adsoyad: string;
@@ -282,13 +283,31 @@ function InlineField({
   kmJump?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const suggestions = useMemo(
+    () => (type === 'email' ? emailSuggestions(empty && value === 'Eklenmedi' ? '' : value) : []),
+    [type, value, empty],
+  );
 
   useEffect(() => {
     if (editing) {
       inputRef.current?.focus();
       inputRef.current?.select();
+      if (type === 'email') setEmailOpen(true);
+    } else {
+      setEmailOpen(false);
     }
-  }, [editing]);
+  }, [editing, type]);
+
+  useEffect(() => {
+    if (!editing || type !== 'email') return;
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setEmailOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [editing, type]);
 
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') onDone();
@@ -296,17 +315,52 @@ function InlineField({
   }
 
   if (editing) {
+    const shown = empty && value === 'Eklenmedi' ? '' : value;
     return (
-      <TextInput
-        ref={inputRef}
-        label={inputLabel}
-        type={type}
-        value={empty && value === 'Eklenmedi' ? '' : value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onDone}
-        onKeyDown={onKey}
-        {...(kmJump ? { 'data-km-jump': true } : {})}
-      />
+      <div ref={wrapRef} className="relative">
+        <TextInput
+          ref={inputRef}
+          label={inputLabel}
+          type={type}
+          value={shown}
+          onChange={(e) => {
+            onChange(e.target.value);
+            if (type === 'email') setEmailOpen(true);
+          }}
+          onFocus={() => {
+            if (type === 'email') setEmailOpen(true);
+          }}
+          onBlur={() => {
+            // öneri tıklanınca blur olmasın diye gecikme
+            window.setTimeout(() => {
+              if (!wrapRef.current?.contains(document.activeElement)) onDone();
+            }, 120);
+          }}
+          onKeyDown={onKey}
+          autoComplete={type === 'email' ? 'off' : undefined}
+          {...(kmJump ? { 'data-km-jump': true } : {})}
+        />
+        {type === 'email' && emailOpen && suggestions.length > 0 ? (
+          <ul className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
+            {suggestions.map((s) => (
+              <li key={s}>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onChange(s);
+                    setEmailOpen(false);
+                    onDone();
+                  }}
+                >
+                  {s}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     );
   }
 
@@ -316,7 +370,6 @@ function InlineField({
       {...(kmJump ? { 'data-km-jump': true } : {})}
       onDoubleClick={onStartEdit}
       onClick={(e) => {
-        // Klavye modu / programmatic click (detail === 0)
         if (e.detail === 0) onStartEdit();
       }}
       title="Düzenlemek için çift tıkla"

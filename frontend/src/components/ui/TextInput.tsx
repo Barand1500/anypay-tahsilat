@@ -40,14 +40,14 @@ export const TextInput = forwardRef<HTMLInputElement, Props>(function TextInput(
           {...rest}
         />
 
-        {/* Etiket — yüzerken çentik rengi = arka plan (kart), beyaz kutu olmasın */}
+        {/* Etiket — yüzerken sadece çizgi kesilir (dikdörtgen dolgu yok) */}
         <label
           htmlFor={inputId}
           className={[
-            'pointer-events-none absolute left-3 top-1/2 z-10 origin-left -translate-y-1/2',
-            'bg-transparent px-1.5 text-sm text-[var(--panel-muted)] transition-all duration-200',
-            'peer-focus:top-0 peer-focus:translate-y-[-50%] peer-focus:bg-[var(--input-notch)] peer-focus:text-xs peer-focus:font-medium peer-focus:text-[var(--input-label)]',
-            'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:translate-y-[-50%] peer-[:not(:placeholder-shown)]:bg-[var(--input-notch)] peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:font-medium peer-[:not(:placeholder-shown)]:text-[var(--panel-muted)]',
+            'input-label-gap pointer-events-none absolute left-3 top-1/2 z-10 origin-left -translate-y-1/2',
+            'px-1.5 text-sm text-[var(--panel-muted)] transition-all duration-200',
+            'peer-focus:top-0 peer-focus:translate-y-[-50%] peer-focus:text-xs peer-focus:font-medium peer-focus:text-[var(--input-label)]',
+            'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:translate-y-[-50%] peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:font-medium peer-[:not(:placeholder-shown)]:text-[var(--panel-muted)]',
             'peer-[:not(:placeholder-shown)]:peer-focus:text-[var(--input-label)]',
             error ? 'peer-focus:!text-red-500' : '',
           ].join(' ')}

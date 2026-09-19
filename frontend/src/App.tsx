@@ -3,6 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AppShell } from './components/layout/AppShell';
 import ComingSoonPage from './pages/ComingSoonPage';
+import CustomersPage from './pages/customers/CustomersPage';
+import CustomerFormPage from './pages/customers/CustomerFormPage';
+import CustomerDetailPage from './pages/customers/CustomerDetailPage';
+import PaymentCollectPage from './pages/payments/PaymentCollectPage';
+import PaymentRequestPage from './pages/payments/PaymentRequestPage';
 import LoginPage from './pages/login/LoginPage';
 import ModulesPage from './pages/modules/ModulesPage';
 import OverviewPage from './pages/overview/OverviewPage';
@@ -61,7 +66,11 @@ export default function App() {
       >
         <Route index element={<OverviewPage />} />
         <Route path="profil" element={<ProfilePage />} />
-        <Route path="musteriler" element={<ComingSoonPage title="Müşteriler" />} />
+        <Route path="musteriler" element={<CustomersPage />} />
+        <Route path="musteriler/yeni" element={<CustomerFormPage />} />
+        <Route path="musteriler/:id/odeme-al" element={<PaymentCollectPage />} />
+        <Route path="musteriler/:id/odeme-istegi" element={<PaymentRequestPage />} />
+        <Route path="musteriler/:id" element={<CustomerDetailPage />} />
         <Route path="hareketler" element={<ComingSoonPage title="Hareketler" />} />
         <Route path="odeme-istekleri" element={<ComingSoonPage title="Ödeme İstekleri" />} />
         <Route path="raporlar" element={<ComingSoonPage title="Raporlar" />} />

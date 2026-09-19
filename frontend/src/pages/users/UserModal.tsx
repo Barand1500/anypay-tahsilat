@@ -333,7 +333,7 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
                   pulse === 'installments' ? 'field-focus-pulse' : '',
                 ].join(' ')}
               >
-                <span className="absolute left-3 top-0 -translate-y-1/2 bg-[var(--input-notch)] px-1.5 text-xs font-medium text-[var(--input-label)]">
+                <span className="input-label-gap is-gapped absolute left-3 top-0 -translate-y-1/2 px-1.5 text-xs font-medium text-[var(--input-label)]">
                   İzin Verilen Taksitler
                 </span>
                 <span

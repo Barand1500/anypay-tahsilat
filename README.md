@@ -39,8 +39,8 @@ Eski PHP tahsilat panelini referans alarak **daha sade, modern ve tutarlı** bir
 | Layout (sidebar kitap kenarı, header, tema, profil) | Hazır |
 | Modüller · Roller · Kullanıcılar | Hazır (mock) |
 | Sürümler · Loglar · Sistem Sıfırlama | Hazır (mock) |
-| **Müşteriler** | Sıradaki |
-| Hareketler · Ödeme · Rapor · Tanım · Ayar | Yakında |
+| **Müşteriler** | Hazır (mock: liste, form, detay, Excel CSV, ödeme al/iste) |
+| Hareketler · Rapor · Tanım · Ayar | Yakında |
 
 <p align="center">
   <img src="docs/screenshots/role-add-hero.png" alt="Roller — Rol Ekle illüstrasyonu" width="480" />

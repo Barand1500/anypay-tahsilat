@@ -118,10 +118,10 @@ export function FloatingSearchSelect({
       >
         <span
           className={[
-            'pointer-events-none absolute left-3 z-10 px-1.5 transition-all duration-200',
+            'input-label-gap pointer-events-none absolute left-3 z-10 px-1.5 transition-all duration-200',
             floating
-              ? 'top-0 -translate-y-1/2 bg-[var(--input-notch)] text-xs font-medium text-[var(--input-label)]'
-              : 'top-1/2 -translate-y-1/2 bg-transparent text-sm text-[var(--panel-muted)]',
+              ? 'is-gapped top-0 -translate-y-1/2 text-xs font-medium text-[var(--input-label)]'
+              : 'top-1/2 -translate-y-1/2 text-sm text-[var(--panel-muted)]',
           ].join(' ')}
         >
           {label}

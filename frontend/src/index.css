@@ -519,6 +519,32 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
+/*
+ * Yüzen etiket çentiği: dolgu dikdörtgen yok.
+ * Sadece border çizgisini (~3px) keser; yazı şeffaf zeminde kalır.
+ */
+.input-label-gap {
+  isolation: isolate;
+}
+.input-label-gap::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  z-index: -1;
+  height: 3px;
+  transform: translateY(-50%);
+  background: var(--input-notch);
+  opacity: 0;
+  pointer-events: none;
+}
+.input-label-gap.is-gapped::before,
+.peer:focus ~ .input-label-gap::before,
+.peer:not(:placeholder-shown) ~ .input-label-gap::before {
+  opacity: 1;
+}
+
 /* Çift tık → modal alan odak yanıp sönme */
 .field-focus-pulse {
   animation: field-focus-pulse 0.5s ease-in-out 3;

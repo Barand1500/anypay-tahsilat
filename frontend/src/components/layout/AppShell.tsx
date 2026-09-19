@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { Outlet } from 'react-router-dom';
 import { KeyboardModeProvider } from '../../keyboard/KeyboardModeContext';
 import { PermissionProvider } from '../../permissions/PermissionContext';
+import { GlobalSearch } from './GlobalSearch';
 import { Header } from './Header';
 import { QuickAccessProvider } from './QuickAccessContext';
 import { Sidebar } from './Sidebar';
@@ -13,12 +14,24 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [autoHide, setAutoHide] = useState(false);
   const [peek, setPeek] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const headerOpen = !autoHide || peek;
 
   useEffect(() => {
     if (!autoHide) setPeek(false);
   }, [autoHide]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, []);
 
   function onHeaderDoubleClick(e: MouseEvent) {
     const t = e.target as HTMLElement;
@@ -56,7 +69,11 @@ export function AppShell() {
                   if (autoHide) setPeek(false);
                 }}
               >
-                <Header autoHide={autoHide} onHeaderDoubleClick={onHeaderDoubleClick} />
+                <Header
+                  autoHide={autoHide}
+                  onHeaderDoubleClick={onHeaderDoubleClick}
+                  onOpenSearch={() => setSearchOpen(true)}
+                />
               </div>
 
               <main className="flex-1 overflow-y-auto p-4 transition-[padding] duration-300 sm:p-5 lg:p-6">
@@ -64,6 +81,8 @@ export function AppShell() {
               </main>
             </div>
           </div>
+
+          <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
         </KeyboardModeProvider>
       </PermissionProvider>
     </QuickAccessProvider>
