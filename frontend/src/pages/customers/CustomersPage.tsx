@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { usePermission } from '../../permissions/PermissionContext';
 import { CustomerExcelModal } from './CustomerExcelModal';
 import {
@@ -75,7 +76,6 @@ export default function CustomersPage() {
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
   const [page, setPage] = useState(1);
-  const [exportOpen, setExportOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -84,7 +84,6 @@ export default function CustomersPage() {
   const [overCol, setOverCol] = useState<ColId | null>(null);
   const [hoverRowId, setHoverRowId] = useState<string | null>(null);
   const [kmRowId, setKmRowId] = useState<string | null>(null);
-  const exportRef = useRef<HTMLDivElement>(null);
 
   // Formdan dönüşte liste + toast
   useEffect(() => {
@@ -150,14 +149,6 @@ export default function CustomersPage() {
   useEffect(() => {
     setPage(1);
   }, [query, pageSize]);
-
-  useEffect(() => {
-    function onDoc(e: globalThis.MouseEvent) {
-      if (!exportRef.current?.contains(e.target as Node)) setExportOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -308,7 +299,6 @@ export default function CustomersPage() {
       c.taxOffice,
     ]);
     downloadCsv([header, ...rows], 'musteriler.csv');
-    setExportOpen(false);
   }
 
   function copyList() {
@@ -316,7 +306,6 @@ export default function CustomersPage() {
       .map((c) => `${c.code}\t${c.title}\t${formatPhoneLive(c.phone)}\t${c.email}`)
       .join('\n');
     void navigator.clipboard.writeText(text);
-    setExportOpen(false);
     flash('Liste panoya kopyalandı');
   }
 
@@ -565,41 +554,7 @@ export default function CustomersPage() {
             Excel&apos;den Yükle
           </button>
 
-          <div ref={exportRef} className="relative">
-            <button
-              type="button"
-              data-km-jump
-              onClick={() => setExportOpen((v) => !v)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
-            >
-              <ExportIcon />
-              Dışa Aktar
-              <Chevron open={exportOpen} />
-            </button>
-            {exportOpen ? (
-              <div className="absolute right-0 top-[calc(100%+6px)] z-30 min-w-[160px] overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[var(--panel-shadow)]">
-                {[
-                  { label: 'Yazdır', fn: () => window.print() },
-                  { label: 'Csv', fn: exportCsv },
-                  { label: 'Excel', fn: exportCsv },
-                  { label: 'Pdf', fn: () => window.print() },
-                  { label: 'Kopyala', fn: copyList },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      item.fn();
-                      setExportOpen(false);
-                    }}
-                    className="flex w-full px-3 py-2 text-left text-sm text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <ExportDropdown onCsv={exportCsv} onCopy={copyList} />
 
           <button
             type="button"
@@ -1120,35 +1075,6 @@ function SearchIcon() {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.7" />
       <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      className={open ? 'rotate-180' : ''}
-      aria-hidden
-    >
-      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ExportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }

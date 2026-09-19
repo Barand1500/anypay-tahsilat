@@ -8,6 +8,7 @@ import CustomerFormPage from './pages/customers/CustomerFormPage';
 import CustomerDetailPage from './pages/customers/CustomerDetailPage';
 import PaymentCollectPage from './pages/payments/PaymentCollectPage';
 import PaymentRequestPage from './pages/payments/PaymentRequestPage';
+import TransactionsPage from './pages/transactions/TransactionsPage';
 import LoginPage from './pages/login/LoginPage';
 import ModulesPage from './pages/modules/ModulesPage';
 import OverviewPage from './pages/overview/OverviewPage';
@@ -71,7 +72,7 @@ export default function App() {
         <Route path="musteriler/:id/odeme-al" element={<PaymentCollectPage />} />
         <Route path="musteriler/:id/odeme-istegi" element={<PaymentRequestPage />} />
         <Route path="musteriler/:id" element={<CustomerDetailPage />} />
-        <Route path="hareketler" element={<ComingSoonPage title="Hareketler" />} />
+        <Route path="hareketler" element={<TransactionsPage />} />
         <Route path="odeme-istekleri" element={<ComingSoonPage title="Ödeme İstekleri" />} />
         <Route path="raporlar" element={<ComingSoonPage title="Raporlar" />} />
         <Route path="tanimlamalar" element={<ComingSoonPage title="Tanımlamalar" />} />
