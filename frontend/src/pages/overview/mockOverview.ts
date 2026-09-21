@@ -42,7 +42,7 @@ export const mockOverview = {
       current: '0,00 ₺',
       previous: '0,00 ₺',
       changePct: 100,
-      banks: [] as { name: string; amount: string }[],
+      banks: [] as { id?: string; name: string; amount: string; logo?: string }[],
     },
     {
       id: 'week',
@@ -50,7 +50,7 @@ export const mockOverview = {
       current: '0,00 ₺',
       previous: '155.618,34 ₺',
       changePct: -100,
-      banks: [] as { name: string; amount: string }[],
+      banks: [] as { id?: string; name: string; amount: string; logo?: string }[],
     },
     {
       id: 'month',
@@ -59,8 +59,8 @@ export const mockOverview = {
       previous: '192.347,95 ₺',
       changePct: 5.9,
       banks: [
-        { name: 'QNB', amount: '197.208,34 ₺' },
-        { name: 'AKBANK', amount: '6.490,00 ₺' },
+        { id: 'qnb', name: 'QNB', amount: '197.208,34 ₺' },
+        { id: 'akbank', name: 'AKBANK', amount: '6.490,00 ₺' },
       ],
     },
     {
@@ -70,9 +70,9 @@ export const mockOverview = {
       previous: '0,00 ₺',
       changePct: 100,
       banks: [
-        { name: 'QNB', amount: '344.438,29 ₺' },
-        { name: 'AKBANK', amount: '197.039,00 ₺' },
-        { name: 'Tosla', amount: '13.362,02 ₺' },
+        { id: 'qnb', name: 'QNB', amount: '344.438,29 ₺' },
+        { id: 'akbank', name: 'AKBANK', amount: '197.039,00 ₺' },
+        { id: 'tosla', name: 'Tosla', amount: '13.362,02 ₺' },
       ],
     },
   ],

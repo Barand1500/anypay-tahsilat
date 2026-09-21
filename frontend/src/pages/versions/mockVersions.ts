@@ -87,3 +87,17 @@ export function formatVersionDate(iso: string) {
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${day} ${month} ${year} ${hh}:${mm}`;
 }
+
+/** Tarih kutusu parçaları */
+export function splitVersionDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return { day: '—', month: '', year: '', time: '' };
+  }
+  return {
+    day: String(d.getDate()).padStart(2, '0'),
+    month: TR_MONTHS[d.getMonth()].slice(0, 3),
+    year: String(d.getFullYear()),
+    time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+  };
+}

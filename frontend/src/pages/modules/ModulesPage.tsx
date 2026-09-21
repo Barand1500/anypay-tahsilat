@@ -37,7 +37,7 @@ export default function ModulesPage() {
   const [deleteTarget, setDeleteTarget] = useState<AppModule | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const exportRef = useRef<HTMLDivElement>(null);
-  const firstRowRef = useRef<HTMLLIElement | null>(null);
+  const firstCardRef = useRef<HTMLElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -237,43 +237,23 @@ export default function ModulesPage() {
         </div>
       </div>
 
-      {/* Liste */}
-      <div
-        ref={listRef}
-        className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"
-      >
-        <div className="hidden grid-cols-[1fr_auto_140px_40px] gap-3 border-b border-[var(--panel-line)] px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--panel-muted)] sm:grid">
-          <span>Adı</span>
-          <span className="text-right">Atanan roller</span>
-          <span className="text-right">Oluşturma</span>
-          <span className="flex justify-end">
-            <button
-              type="button"
-              data-km-page
-              aria-label="Sonraki sayfa"
-              title="Sonraki sayfa"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-30"
-            >
-              <ChevronRightIcon />
-            </button>
-          </span>
-        </div>
-
+      {/* Kart grid */}
+      <div ref={listRef}>
         {slice.length === 0 ? (
-          <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Kayıt bulunamadı.</p>
+          <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-14 text-center text-sm text-[var(--panel-muted)] shadow-[var(--panel-shadow)]">
+            Kayıt bulunamadı.
+          </div>
         ) : (
-          <ul>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {slice.map((m, i) => (
-              <li
+              <article
                 key={m.id}
-                ref={i === 0 ? firstRowRef : undefined}
+                ref={i === 0 ? (el) => { firstCardRef.current = el; } : undefined}
                 data-row
                 data-km-row
                 tabIndex={-1}
-                className="modules-row-in group relative grid cursor-pointer grid-cols-1 gap-2 border-b border-[var(--panel-line)] px-4 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/50 sm:grid-cols-[1fr_auto_140px_40px] sm:items-center sm:gap-3"
-                style={{ animationDelay: `${Math.min(i, 12) * 18}ms` }}
+                style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}
+                title="Çift tıkla veya klavye Enter: düzenle"
                 onDoubleClick={() => {
                   if (!guard('m-moduller', 'save', 'Modüller')) return;
                   setModal({ type: 'edit', module: m });
@@ -284,27 +264,15 @@ export default function ModulesPage() {
                     setModal({ type: 'edit', module: m });
                   }
                 }}
-                title="Çift tıkla veya klavye Enter: düzenle"
+                className="panel-card-in group flex cursor-pointer flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] hover:shadow-[0_14px_36px_color-mix(in_srgb,var(--color-brand-500)_14%,transparent)]"
               >
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-[var(--panel-ink)]">{m.name}</p>
-                  <p className="truncate text-xs text-[var(--panel-muted)]">{m.dbTable}</p>
-                  <p className="truncate font-mono text-[11px] text-[var(--panel-muted)]/80">{m.urlPrefix}</p>
-                </div>
-
-                <div className="flex flex-wrap gap-1 sm:justify-end">
-                  {m.roles.length === 0 ? (
-                    <span className="text-xs text-[var(--panel-muted)]">—</span>
-                  ) : (
-                    m.roles.map((r) => <RoleChip key={r} role={r} />)
-                  )}
-                </div>
-
-                <p className="text-xs tabular-nums text-[var(--panel-muted)] sm:text-right">
-                  {formatModuleDate(m.createdAt)}
-                </p>
-
-                <div className="flex justify-end">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-bold text-[var(--panel-ink)] transition group-hover:text-[var(--color-brand-600)]">
+                      {m.name}
+                    </h2>
+                    <p className="mt-0.5 truncate text-xs text-[var(--panel-muted)]">{m.dbTable}</p>
+                  </div>
                   <button
                     type="button"
                     aria-label="Sil"
@@ -314,14 +282,30 @@ export default function ModulesPage() {
                       if (!guard('m-moduller', 'remove', 'Modüller')) return;
                       setDeleteTarget(m);
                     }}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                   >
                     <TrashIcon />
                   </button>
                 </div>
-              </li>
+
+                <code className="mt-3 block truncate rounded-lg bg-[var(--panel-surface)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--panel-muted)] ring-1 ring-[var(--panel-line)]">
+                  {m.urlPrefix}
+                </code>
+
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {m.roles.length === 0 ? (
+                    <span className="text-xs text-[var(--panel-muted)]">Rol atanmamış</span>
+                  ) : (
+                    m.roles.map((r) => <RoleChip key={r} role={r} />)
+                  )}
+                </div>
+
+                <p className="mt-auto pt-4 text-[11px] tabular-nums text-[var(--panel-muted)]">
+                  {formatModuleDate(m.createdAt)}
+                </p>
+              </article>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
@@ -376,7 +360,7 @@ export default function ModulesPage() {
         />
       ) : null}
 
-      <ModulesDblClickHint targetRef={firstRowRef} />
+      <ModulesDblClickHint targetRef={firstCardRef} />
     </div>
   );
 }
@@ -588,14 +572,6 @@ function Chevron({ open }: { open: boolean }) {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className={open ? 'rotate-180' : ''} aria-hidden>
       <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -33,6 +33,26 @@ export function AppShell() {
     return () => document.removeEventListener('keydown', onKey, true);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      void import('../../pages/roles/roleHero').then((m) => m.prefetchRoleHero());
+    };
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(run);
+    } else {
+      timeoutId = setTimeout(run, 1200);
+    }
+    return () => {
+      cancelled = true;
+      if (idleId != null) window.cancelIdleCallback(idleId);
+      if (timeoutId != null) clearTimeout(timeoutId);
+    };
+  }, []);
+
   function onHeaderDoubleClick(e: MouseEvent) {
     const t = e.target as HTMLElement;
     if (t.closest('button, input, a, select, textarea, label, [data-quick-slot]')) return;
@@ -50,7 +70,10 @@ export function AppShell() {
     <QuickAccessProvider>
       <PermissionProvider>
         <KeyboardModeProvider>
-          <div className="flex h-screen overflow-hidden bg-[var(--panel-bg)] text-[var(--panel-ink)]">
+          <div
+            data-app-shell
+            className="flex h-screen overflow-hidden bg-[var(--panel-bg)] text-[var(--panel-ink)]"
+          >
             <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
 
             <div className="relative flex min-w-0 flex-1 flex-col">

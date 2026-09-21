@@ -6,6 +6,7 @@ import { AvatarStack } from '../../components/ui/AvatarStack';
 import { usePermission } from '../../permissions/PermissionContext';
 import { countGranted, type AppRole } from './mockRoles';
 import { RoleModal } from './RoleModal';
+import { ROLE_HERO_SRC, prefetchRoleHero } from './roleHero';
 
 /**
  * Roller — kart grid + izin modalı (mock).
@@ -106,16 +107,11 @@ export default function RolesPage() {
           data-km-jump
           data-role-card
           onClick={openCreate}
-          style={{ animationDelay: `${Math.min(roles.length, 8) * 40}ms` }}
           className="panel-card-in group relative flex min-h-[200px] flex-col overflow-hidden rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-elevated)] text-left shadow-[var(--panel-shadow)] transition hover:border-[var(--color-brand-500)] hover:shadow-[var(--panel-shadow)]"
         >
           <div className="flex flex-1 items-stretch overflow-hidden">
-            <div className="relative hidden w-[42%] overflow-hidden sm:block">
-              <img
-                src="/illustrations/role-add-hero.png"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center opacity-90 transition duration-500 group-hover:scale-105"
-              />
+            <div className="relative hidden w-[42%] overflow-hidden bg-[var(--panel-surface)] sm:block">
+              <RoleHeroImage />
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[var(--panel-elevated)]" />
             </div>
             <div className="flex flex-1 flex-col justify-center gap-3 p-5 sm:pl-2">
@@ -297,5 +293,37 @@ function TrashIcon({ large }: { large?: boolean }) {
       />
       <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** Rol Ekle hero — WebP + hızlı yükleme / soft fade */
+function RoleHeroImage() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    prefetchRoleHero();
+    const img = new Image();
+    img.src = ROLE_HERO_SRC;
+    if (img.complete) {
+      setReady(true);
+      return;
+    }
+    img.onload = () => setReady(true);
+  }, []);
+
+  return (
+    <img
+      src={ROLE_HERO_SRC}
+      alt=""
+      width={1024}
+      height={1024}
+      decoding="async"
+      fetchPriority="high"
+      className={[
+        'absolute inset-0 h-full w-full object-cover object-center transition duration-500 group-hover:scale-105',
+        ready ? 'opacity-90' : 'opacity-0',
+      ].join(' ')}
+      onLoad={() => setReady(true)}
+    />
   );
 }

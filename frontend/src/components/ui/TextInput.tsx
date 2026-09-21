@@ -27,7 +27,6 @@ export const TextInput = forwardRef<HTMLInputElement, Props>(function TextInput(
           ref={ref}
           id={inputId}
           disabled={disabled}
-          placeholder=" "
           className={[
             'peer w-full rounded-xl border bg-[var(--input-bg)] px-3.5 pb-2.5 pt-5 text-sm outline-none transition-colors',
             'border-[var(--input-border)] text-[var(--panel-ink)]',
@@ -38,6 +37,8 @@ export const TextInput = forwardRef<HTMLInputElement, Props>(function TextInput(
             className,
           ].join(' ')}
           {...rest}
+          /* Yüzen etiket için boş placeholder — rest’teki placeholder ezmesin */
+          placeholder=" "
         />
 
         {/* Etiket — yüzerken sadece çizgi kesilir (dikdörtgen dolgu yok) */}

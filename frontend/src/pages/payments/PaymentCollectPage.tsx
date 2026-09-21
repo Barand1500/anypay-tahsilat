@@ -11,8 +11,10 @@ import {
   detectBank,
   digitsOnly,
   formatCardNumber,
+  formatExpiryInput,
   formatMoneyTr,
-  type BankInfo,
+  getCardExpiryError,
+  isValidLuhn,
 } from './mockBanks';
 
 type PayType = '' | 'ch' | 'fatura';
@@ -56,6 +58,9 @@ export default function PaymentCollectPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** Yazma bitince (blur / submit) rozet kontrolü */
+  const [cardChecked, setCardChecked] = useState(false);
+  const [expiryChecked, setExpiryChecked] = useState(false);
 
   useEffect(() => {
     if (!customer) return;
@@ -100,6 +105,13 @@ export default function PaymentCollectPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
+
+  const cardFaulty =
+    cardChecked &&
+    cardDigits.length > 0 &&
+    (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
+  const expiryFaulty =
+    expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
   const selected = useMemo(() => {
     if (!amount || amount <= 0) return null;
     const rows = buildInstallments(amount, 'bireysel', bank?.id);
@@ -117,17 +129,32 @@ export default function PaymentCollectPage() {
     }
     const mock = payType === 'fatura' ? 4250.0 : 12850.75;
     setBalance(mock);
-    flash(`Bakiye sorgulandı: ${formatMoneyTr(mock)} ₺`);
+    setAmountText(formatMoneyTr(mock));
+    setErrors((prev) => {
+      if (!prev.amount) return prev;
+      const { amount: _, ...rest } = prev;
+      return rest;
+    });
   }
 
   function onCardChange(raw: string) {
     setCard(formatCardNumber(raw));
+    setCardChecked(false);
+    setErrors((prev) => {
+      if (!prev.card) return prev;
+      const { card: _, ...rest } = prev;
+      return rest;
+    });
   }
 
   function onExpiryChange(raw: string) {
-    const d = digitsOnly(raw).slice(0, 4);
-    if (d.length <= 2) setExpiry(d);
-    else setExpiry(`${d.slice(0, 2)}/${d.slice(2)}`);
+    setExpiry(formatExpiryInput(raw));
+    setExpiryChecked(false);
+    setErrors((prev) => {
+      if (!prev.expiry) return prev;
+      const { expiry: _, ...rest } = prev;
+      return rest;
+    });
   }
 
   function validate(): boolean {
@@ -139,9 +166,13 @@ export default function PaymentCollectPage() {
     if (tc && tc.length !== 11) next.tc = 'TC 11 hane olmalı';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
     if (cardDigits.length < 15) next.card = 'Kart numarası eksik';
-    if (digitsOnly(expiry).length !== 4) next.expiry = 'SKT AA/YY';
+    else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
+    const expiryErr = getCardExpiryError(expiry);
+    if (expiryErr) next.expiry = expiryErr;
     if (cvc.length < 3) next.cvc = 'CVC gerekli';
     if (!agree) next.agree = 'Sözleşmeyi kabul edin';
+    setCardChecked(true);
+    setExpiryChecked(true);
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -155,12 +186,6 @@ export default function PaymentCollectPage() {
       flash('Ödeme alındı (mock) — POS bağlantısı sonraki adımda');
       window.setTimeout(() => navigate('/musteriler'), 900);
     }, 500);
-  }
-
-  function pickFromModal(b: BankInfo, n: number) {
-    setInstallment(n);
-    setCompareOpen(false);
-    flash(`${b.name} · ${n} taksit seçildi`);
   }
 
   const payTypeLabel =
@@ -452,11 +477,14 @@ export default function PaymentCollectPage() {
                   value={card}
                   error={errors.card}
                   onChange={(e) => onCardChange(e.target.value)}
+                  onBlur={() => setCardChecked(true)}
                   inputMode="numeric"
                   autoComplete="cc-number"
                   className="!pr-[7rem] font-mono tabular-nums"
                   endAdornment={
-                    bank ? (
+                    cardFaulty ? (
+                      <FaultBadge />
+                    ) : bank ? (
                       <img
                         src={bank.logo}
                         alt=""
@@ -478,8 +506,11 @@ export default function PaymentCollectPage() {
                   value={expiry}
                   error={errors.expiry}
                   onChange={(e) => onExpiryChange(e.target.value)}
+                  onBlur={() => setExpiryChecked(true)}
                   inputMode="numeric"
-                  className="font-mono tabular-nums"
+                  autoComplete="cc-exp"
+                  className="!pr-16 font-mono tabular-nums"
+                  endAdornment={expiryFaulty ? <FaultBadge /> : null}
                 />
                 <TextInput
                   data-km-jump
@@ -670,7 +701,6 @@ export default function PaymentCollectPage() {
           amount={amount}
           preferredBankId={bank?.id}
           onClose={() => setCompareOpen(false)}
-          onPick={pickFromModal}
         />
       ) : null}
 
@@ -684,6 +714,14 @@ export default function PaymentCollectPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function FaultBadge() {
+  return (
+    <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-600">
+      Hatalı
+    </span>
   );
 }
 

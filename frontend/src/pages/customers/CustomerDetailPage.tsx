@@ -202,7 +202,6 @@ function InfoTab({
   const [accountType, setAccountType] = useState(customer.accountType);
   const [accountTypes, setAccountTypes] = useState(() => getAccountTypes());
   const [kind, setKind] = useState<CustomerKind>(customer.kind);
-  const [code, setCode] = useState(customer.code);
   const [identityNo, setIdentityNo] = useState(customer.identityNo);
   const [taxNo, setTaxNo] = useState(customer.taxNo);
   const [taxOffice, setTaxOffice] = useState<string | null>(customer.taxOffice);
@@ -247,7 +246,7 @@ function InfoTab({
       parentId,
       accountType: trimmed,
       kind,
-      code: code.trim() || customer.code,
+      code: customer.code,
       title: title.trim().toLocaleUpperCase('tr'),
       phone: phone.replace(/\D/g, '').slice(0, 10),
       email: email.trim().toLocaleLowerCase('tr'),
@@ -269,6 +268,7 @@ function InfoTab({
           <h1 className="text-lg font-bold tracking-tight text-[var(--panel-ink)]">Müşteri Bilgileri</h1>
         </div>
         <div className="space-y-4 px-5 py-5 sm:px-6 sm:py-6">
+          {/* 1 — tam genişlik */}
           <FloatingSearchSelect
             label="Üst Müşteri"
             options={parents}
@@ -277,37 +277,34 @@ function InfoTab({
             placeholder="Üst Müşteri seçiniz."
             kmJump
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <CreatableFilterInput
-              label="Cari Tipi"
-              value={accountType}
-              onChange={setAccountType}
-              options={accountTypes}
-              placeholder="Belirtilmemiş"
-              kmJump
-            />
-            <FloatingSearchSelect
-              label="Müşteri Tipi *"
-              options={kindOptions}
-              value={kind}
-              onChange={(v) => setKind((v as CustomerKind) || 'gercek')}
-              required
-              kmJump
-            />
-          </div>
+
+          {/* Gerçek/yabancı: 3 kolon | Tüzel: 4 kolon */}
           {kind === 'tuzel' ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextInput data-km-jump label="Müşteri Kodu" value={code} onChange={(e) => setCode(e.target.value)} />
-                <TextInput
-                  data-km-jump
-                  label="Vergi Numarası"
-                  value={taxNo}
-                  onChange={(e) => setTaxNo(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  inputMode="numeric"
-                  className="font-mono tabular-nums"
-                />
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CreatableFilterInput
+                label="Cari Tipi"
+                value={accountType}
+                onChange={setAccountType}
+                options={accountTypes}
+                placeholder="Belirtilmemiş"
+                kmJump
+              />
+              <FloatingSearchSelect
+                label="Müşteri Tipi *"
+                options={kindOptions}
+                value={kind}
+                onChange={(v) => setKind((v as CustomerKind) || 'gercek')}
+                required
+                kmJump
+              />
+              <TextInput
+                data-km-jump
+                label="Vergi Numarası"
+                value={taxNo}
+                onChange={(e) => setTaxNo(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                inputMode="numeric"
+                className="font-mono tabular-nums"
+              />
               <FloatingSearchSelect
                 label="Vergi Dairesi"
                 options={TAX_OFFICE_OPTIONS}
@@ -315,10 +312,25 @@ function InfoTab({
                 onChange={setTaxOffice}
                 kmJump
               />
-            </>
+            </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextInput data-km-jump label="Müşteri Kodu" value={code} onChange={(e) => setCode(e.target.value)} />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <CreatableFilterInput
+                label="Cari Tipi"
+                value={accountType}
+                onChange={setAccountType}
+                options={accountTypes}
+                placeholder="Belirtilmemiş"
+                kmJump
+              />
+              <FloatingSearchSelect
+                label="Müşteri Tipi *"
+                options={kindOptions}
+                value={kind}
+                onChange={(v) => setKind((v as CustomerKind) || 'gercek')}
+                required
+                kmJump
+              />
               <TextInput
                 data-km-jump
                 label={kind === 'yabanci' ? 'Pasaport No' : 'TC Kimlik No'}
@@ -334,6 +346,8 @@ function InfoTab({
               />
             </div>
           )}
+
+          {/* 1 — ad / ünvan */}
           <TextInput
             data-km-jump
             label={nameLabel}
@@ -342,6 +356,8 @@ function InfoTab({
             onChange={(e) => setTitle(e.target.value)}
             required
           />
+
+          {/* 2 — telefon + e-posta */}
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInput
               data-km-jump
@@ -428,6 +444,7 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('5');
+  const [passwordUser, setPasswordUser] = useState<CustomerUser | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -492,11 +509,24 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
       {addOpen ? (
         <form
           onSubmit={addUser}
-          className="space-y-3 border-b border-[var(--panel-line)] bg-[var(--panel-surface)]/50 px-5 py-4 sm:px-6"
+          className="border-b border-[var(--panel-line)] bg-[var(--panel-surface)]/50 px-5 py-4 sm:px-6"
         >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <TextInput label="Ad Soyad" value={name} onChange={(e) => setName(e.target.value)} required data-km-jump />
-            <TextInput label="E-posta" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-km-jump />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+            <TextInput
+              label="Ad Soyad"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              data-km-jump
+            />
+            <TextInput
+              label="E-posta"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              data-km-jump
+            />
             <TextInput
               label="Telefon"
               value={formatPhoneLive(phone)}
@@ -504,18 +534,21 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
               className="font-mono"
               data-km-jump
             />
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-bold text-white">
-              Kaydet
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddOpen(false)}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--panel-muted)]"
-            >
-              İptal
-            </button>
+            <div className="flex shrink-0 gap-2 sm:col-span-2 lg:col-span-1 lg:pb-0.5">
+              <button
+                type="submit"
+                className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)]"
+              >
+                Kaydet
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddOpen(false)}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+              >
+                İptal
+              </button>
+            </div>
           </div>
         </form>
       ) : null}
@@ -585,10 +618,21 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeUser(u.id)}
-                        className="rounded-lg px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10"
+                        aria-label="Şifre gönder"
+                        title="Şifre gönder"
+                        onClick={() => setPasswordUser(u)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3e8dc] text-[#5c4a3a] transition hover:bg-[#ead9c8]"
                       >
-                        Sil
+                        <LockIcon />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Sil"
+                        title="Sil"
+                        onClick={() => removeUser(u.id)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
+                      >
+                        <TrashIcon />
                       </button>
                     </div>
                   </td>
@@ -598,6 +642,10 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
           </tbody>
         </table>
       </div>
+
+      {passwordUser ? (
+        <SendPasswordModal user={passwordUser} onClose={() => setPasswordUser(null)} />
+      ) : null}
     </section>
   );
 }
@@ -801,32 +849,34 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
             onChange={(e) => setDirections(e.target.value)}
             data-km-jump
           />
-          <TextInput
-            label="Yetkililer"
-            value={contactName}
-            onChange={(e) => setContactName(e.target.value)}
-            data-km-jump
-          />
-          {formError ? <p className="text-xs text-rose-500">{formError}</p> : null}
-          <div className="flex gap-2 pt-1">
-            <button
-              type="submit"
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <TextInput
+              label="Yetkililer"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)]"
-            >
-              Kaydet
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAddOpen(false);
-                resetForm();
-              }}
-              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)]"
-            >
-              İptal
-            </button>
+            />
+            <div className="flex shrink-0 gap-2 sm:pb-0.5">
+              <button
+                type="submit"
+                data-km-jump
+                className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)]"
+              >
+                Kaydet
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddOpen(false);
+                  resetForm();
+                }}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)]"
+              >
+                İptal
+              </button>
+            </div>
           </div>
+          {formError ? <p className="text-xs text-rose-500">{formError}</p> : null}
         </form>
       ) : null}
 
@@ -933,6 +983,156 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
         strokeWidth="1.7"
       />
       <circle cx="12" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function SendPasswordModal({
+  user,
+  onClose,
+}: {
+  user: CustomerUser;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    gsap.fromTo(
+      el,
+      { autoAlpha: 0, y: 12, scale: 0.96 },
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.28, ease: 'power3.out' },
+    );
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const channels = [
+    { id: 'mail', label: 'E-posta', hint: user.email, icon: 'mail' as const },
+    { id: 'sms', label: 'SMS', hint: formatPhoneLive(user.phone), icon: 'sms' as const },
+    { id: 'wp', label: 'WhatsApp', hint: formatPhoneLive(user.phone), icon: 'wp' as const },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" aria-hidden />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal
+        aria-labelledby="send-pass-title"
+        className="relative w-full max-w-[380px] overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--panel-line)] px-5 py-4">
+          <div>
+            <h2 id="send-pass-title" className="text-base font-bold text-[var(--panel-ink)]">
+              Şifre gönder
+            </h2>
+            <p className="mt-0.5 text-xs text-[var(--panel-muted)]">{user.name}</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Kapat"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+          >
+            <span className="text-lg leading-none">×</span>
+          </button>
+        </div>
+
+        <div className="space-y-2 p-4">
+          <p className="mb-1 px-1 text-xs text-[var(--panel-muted)]">Kanal seçin</p>
+          {channels.map((ch) => (
+            <button
+              key={ch.id}
+              type="button"
+              onClick={onClose}
+              className="flex w-full items-center gap-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3 text-left transition hover:border-[var(--color-brand-500)]/40 hover:bg-[var(--panel-hover)]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f3e8dc] text-[#5c4a3a]">
+                <ChannelIcon kind={ch.icon} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-[var(--panel-ink)]">{ch.label}</span>
+                <span className="block truncate text-xs text-[var(--panel-muted)]">{ch.hint || '—'}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M8 11V8a4 4 0 0 1 8 0v3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="16" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChannelIcon({ kind }: { kind: 'mail' | 'sms' | 'wp' }) {
+  if (kind === 'mail') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        <path d="m3 7 9 7 9-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === 'sms') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4 3v-3H6a2 2 0 0 1-2-2V6Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.2 9.5c.3-.6.5-.6.8-.6h.6c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .5-.2.6l-.5.4c-.2.1-.2.3 0 .5.5.7 1.2 1.3 2 1.7.2.1.4.1.5-.1l.4-.5c.2-.2.4-.2.6-.1l1.7.7c.3.1.4.3.4.5v.6c0 .3 0 .5-.6.8A6 6 0 0 1 9.2 9.5Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }

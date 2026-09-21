@@ -1,6 +1,6 @@
 /** Hareketler — mock; API sonrası canlı bağlanacak */
 
-export type TxStatus = 'paid' | 'cancelled' | 'pending' | 'failed';
+export type TxStatus = 'paid' | 'cancelled' | 'refunded' | 'pending' | 'failed';
 
 export type TxDekont = {
   merchantTitle: string;
@@ -40,9 +40,35 @@ export type Transaction = {
 export const TX_STATUS_LABEL: Record<TxStatus, string> = {
   paid: 'Ödendi',
   cancelled: 'İptal',
+  refunded: 'İade',
   pending: 'Beklemede',
   failed: 'Başarısız',
 };
+
+/**
+ * POS mantığı: gün sonu öncesi aynı takvim günü (TR) → iptal (void).
+ * Gün değiştiyse / gün sonu sonrası → iade (refund).
+ * Kaynak: banka POS (aynı gün + batch açık = iptal; aksi = iade).
+ */
+export function isVoidWindowOpen(atIso: string, now = new Date()): boolean {
+  const tz = 'Europe/Istanbul';
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  return dayKey(new Date(atIso)) === dayKey(now);
+}
+
+function stampToday(h: number, m: number, s: number) {
+  const n = new Date();
+  const y = n.getFullYear();
+  const mo = String(n.getMonth() + 1).padStart(2, '0');
+  const da = String(n.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 export const MERCHANT_DEFAULT = {
   merchantTitle: 'GÜZEL İÇ VE DIŞ TİCARET LİMİTED ŞİRKETİ',
@@ -69,7 +95,7 @@ function dekontBase(
 export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: '2025T0000087',
-    at: '2026-09-19T09:36:27',
+    at: stampToday(9, 36, 27),
     status: 'paid',
     bankId: 'qnb',
     bankName: 'QNB BANK A.Ş.',

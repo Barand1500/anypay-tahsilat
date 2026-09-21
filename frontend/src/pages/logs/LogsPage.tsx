@@ -13,6 +13,7 @@ import {
   type AppLog,
   type LogActionKind,
 } from './mockLogs';
+import { LogThanosSnap } from './LogThanosSnap';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
@@ -46,6 +47,8 @@ export default function LogsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteScope | null>(null);
+  const [snapIds, setSnapIds] = useState<string[] | null>(null);
+  const [snapping, setSnapping] = useState(false);
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
   const exportRef = useRef<HTMLDivElement>(null);
@@ -139,38 +142,65 @@ export default function LogsPage() {
     setDeleteConfirm(scope);
   }
 
+  function idsForScope(scope: DeleteScope, list: AppLog[]): string[] {
+    const now = Date.now();
+    if (scope === 'all') return list.map((l) => l.id);
+    if (scope === 'day') {
+      const cut = now - 1 * 86400000;
+      return list.filter((l) => new Date(l.at).getTime() >= cut).map((l) => l.id);
+    }
+    if (scope === 'week') {
+      const cut = now - 7 * 86400000;
+      return list.filter((l) => new Date(l.at).getTime() >= cut).map((l) => l.id);
+    }
+    if (scope === 'month') {
+      const cut = now - 30 * 86400000;
+      return list.filter((l) => new Date(l.at).getTime() >= cut).map((l) => l.id);
+    }
+    const from = new Date(rangeFrom).setHours(0, 0, 0, 0);
+    const to = new Date(rangeTo).setHours(23, 59, 59, 999);
+    return list
+      .filter((l) => {
+        const t = new Date(l.at).getTime();
+        return t >= from && t <= to;
+      })
+      .map((l) => l.id);
+  }
+
   function confirmDelete() {
     if (!deleteConfirm) return;
     if (!guard('m-log', 'remove', 'Log Kayıtları')) {
       setDeleteConfirm(null);
       return;
     }
-    const now = Date.now();
-    setLogs((prev) => {
-      if (deleteConfirm === 'all') return [];
-      if (deleteConfirm === 'day') {
-        const cut = now - 1 * 86400000;
-        return prev.filter((l) => new Date(l.at).getTime() < cut);
-      }
-      if (deleteConfirm === 'week') {
-        const cut = now - 7 * 86400000;
-        return prev.filter((l) => new Date(l.at).getTime() < cut);
-      }
-      if (deleteConfirm === 'month') {
-        const cut = now - 30 * 86400000;
-        return prev.filter((l) => new Date(l.at).getTime() < cut);
-      }
-      // range: sil aralıktakileri
-      const from = new Date(rangeFrom).setHours(0, 0, 0, 0);
-      const to = new Date(rangeTo).setHours(23, 59, 59, 999);
-      return prev.filter((l) => {
-        const t = new Date(l.at).getTime();
-        return t < from || t > to;
-      });
-    });
+    const ids = idsForScope(deleteConfirm, logs);
     setDeleteConfirm(null);
     setRangeFrom('');
     setRangeTo('');
+
+    if (ids.length === 0) return;
+
+    // Görünür satırlar varsa Thanos; yoksa (başka sayfada) doğrudan sil
+    const visibleHit = ids.some((id) => document.querySelector(`[data-log-id="${CSS.escape(id)}"]`));
+    if (!visibleHit) {
+      const idSet = new Set(ids);
+      setLogs((prev) => prev.filter((l) => !idSet.has(l.id)));
+      return;
+    }
+
+    setSnapIds(ids);
+    setSnapping(true);
+  }
+
+  function finishSnap() {
+    if (!snapIds) {
+      setSnapping(false);
+      return;
+    }
+    const idSet = new Set(snapIds);
+    setLogs((prev) => prev.filter((l) => !idSet.has(l.id)));
+    setSnapIds(null);
+    setSnapping(false);
   }
 
   const filtersActive = kind !== 'all' || !!dateFrom || !!dateTo || !!query.trim();
@@ -197,11 +227,12 @@ export default function LogsPage() {
             <button
               type="button"
               data-km-jump
+              disabled={snapping}
               onClick={() => {
                 if (!guard('m-log', 'remove', 'Log Kayıtları')) return;
                 setDeleteOpen((v) => !v);
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-500/15"
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-500/15 disabled:opacity-50"
             >
               <TrashIcon />
               Kayıtları Sil
@@ -374,6 +405,7 @@ export default function LogsPage() {
             {slice.map((l, i) => (
               <li
                 key={l.id}
+                data-log-id={l.id}
                 data-km-row
                 tabIndex={-1}
                 style={{ animationDelay: `${Math.min(i, 12) * 18}ms` }}
@@ -446,9 +478,14 @@ export default function LogsPage() {
           }}
           onConfirm={confirmDelete}
           canConfirm={
-            deleteConfirm !== 'range' || (!!rangeFrom && !!rangeTo && rangeFrom <= rangeTo)
+            !snapping &&
+            (deleteConfirm !== 'range' || (!!rangeFrom && !!rangeTo && rangeFrom <= rangeTo))
           }
         />
+      ) : null}
+
+      {snapping && snapIds ? (
+        <LogThanosSnap targetIds={snapIds} onDone={finishSnap} />
       ) : null}
     </div>
   );

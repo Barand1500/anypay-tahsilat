@@ -32,7 +32,7 @@ const DEFAULT_COLS: ColId[] = ['actions', 'identity', 'contact', 'tax'];
 
 const COL_META: Record<ColId, { label: string; min: string }> = {
   actions: { label: 'İşlem tipi', min: '210px' },
-  identity: { label: 'Müşteri kodu / ünvan / ad soyad', min: '220px' },
+  identity: { label: 'Ünvan / ad soyad', min: '220px' },
   contact: { label: 'Telefon / e-posta', min: '200px' },
   tax: { label: 'Vergi bilgileri', min: '180px' },
 };
@@ -451,7 +451,6 @@ export default function CustomersPage() {
     if (id === 'identity') {
       return (
         <div key={id} className="flex min-w-0 flex-col gap-0.5 pl-1">
-          <CopyLine value={c.code} onCopied={flash} className="font-mono text-[13px] tabular-nums text-[var(--panel-muted)]" />
           <CopyLine
             value={c.title}
             onCopied={flash}

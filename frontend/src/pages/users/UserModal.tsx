@@ -115,14 +115,12 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
     const btn = taksitBtnRef.current;
     if (!btn) return;
     const r = btn.getBoundingClientRect();
-    const maxH = 240;
-    const spaceBelow = window.innerHeight - r.bottom - 12;
-    const up = spaceBelow < maxH && r.top > spaceBelow;
+    // Modal altında kaldığı için her zaman yukarı aç
     setTaksitPos({
-      top: up ? r.top - 6 : r.bottom + 6,
+      top: r.top - 6,
       left: r.left,
       width: r.width,
-      up,
+      up: true,
     });
   }
 

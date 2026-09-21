@@ -15,7 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/musteriler', label: 'Müşteriler', icon: 'briefcase' },
   { to: '/hareketler', label: 'Hareketler', icon: 'pulse' },
   { to: '/odeme-istekleri', label: 'Ödeme İstekleri', icon: 'pay' },
-  { to: '/raporlar', label: 'Raporlar', icon: 'chart', soon: true },
+  { to: '/raporlar', label: 'Raporlar', icon: 'chart' },
   { to: '/tanimlamalar', label: 'Tanımlamalar', icon: 'sliders', soon: true },
   { to: '/ayarlar', label: 'Ayarlar', icon: 'gear', soon: true },
 ];

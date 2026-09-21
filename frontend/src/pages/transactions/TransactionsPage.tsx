@@ -3,9 +3,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { CopyLine } from '../../components/ui/CopyLine';
+import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
-import { TextInput } from '../../components/ui/TextInput';
 import { usePermission } from '../../permissions/PermissionContext';
 import { getLiveCustomers } from '../customers/mockCustomers';
 import { BANKS } from '../payments/mockBanks';
@@ -15,6 +15,7 @@ import {
   formatMoneyTr,
   formatTxDate,
   INITIAL_TRANSACTIONS,
+  isVoidWindowOpen,
   TX_STATUS_LABEL,
   type Transaction,
   type TxStatus,
@@ -47,7 +48,7 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
   const [dekontTx, setDekontTx] = useState<Transaction | null>(null);
-  const [cancelTx, setCancelTx] = useState<Transaction | null>(null);
+  const [reverseTx, setReverseTx] = useState<Transaction | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
 
   const [branch, setBranch] = useState<string | null>(null);
@@ -219,26 +220,32 @@ export default function TransactionsPage() {
     flash('Liste panoya kopyalandı');
   }
 
-  function askCancel(tx: Transaction) {
+  function askReverse(tx: Transaction) {
     if (!guard('m-hareketler', 'remove', 'Hareketler')) return;
-    if (tx.status === 'cancelled') {
-      flash('Bu hareket zaten iptal');
+    if (tx.status === 'cancelled' || tx.status === 'refunded') {
+      flash(tx.status === 'cancelled' ? 'Bu hareket zaten iptal' : 'Bu hareket zaten iade');
       return;
     }
-    setCancelTx(tx);
+    if (tx.status !== 'paid') {
+      flash('Yalnızca ödenmiş hareketler iptal/iade edilebilir');
+      return;
+    }
+    setReverseTx(tx);
   }
 
-  function confirmCancel() {
-    if (!cancelTx) return;
+  function confirmReverse() {
+    if (!reverseTx) return;
     if (!guard('m-hareketler', 'remove', 'Hareketler')) {
-      setCancelTx(null);
+      setReverseTx(null);
       return;
     }
+    const asVoid = isVoidWindowOpen(reverseTx.at);
+    const nextStatus: TxStatus = asVoid ? 'cancelled' : 'refunded';
     setRows((prev) =>
-      prev.map((r) => (r.id === cancelTx.id ? { ...r, status: 'cancelled' as const } : r)),
+      prev.map((r) => (r.id === reverseTx.id ? { ...r, status: nextStatus } : r)),
     );
-    flash(`İptal edildi — ${cancelTx.id}`);
-    setCancelTx(null);
+    flash(asVoid ? `İptal edildi — ${reverseTx.id}` : `İade edildi — ${reverseTx.id}`);
+    setReverseTx(null);
   }
 
   function onArchive(tx: Transaction) {
@@ -330,17 +337,17 @@ export default function TransactionsPage() {
               />
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <TextInput
+              <DateField
                 label="Başlangıç Tarihi"
-                type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={setDateFrom}
+                kmJump
               />
-              <TextInput
+              <DateField
                 label="Bitiş Tarihi"
-                type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={setDateTo}
+                kmJump
               />
               <FloatingSearchSelect
                 label="Müşteri"
@@ -495,14 +502,27 @@ export default function TransactionsPage() {
                   </div>
 
                   <div className="flex items-start justify-end gap-1.5">
-                    <IconBtn
-                      title="İptal Et"
-                      bg="bg-rose-100 dark:bg-rose-500/20"
-                      fg="text-rose-600 dark:text-rose-400"
-                      onClick={() => askCancel(tx)}
-                    >
-                      <CancelIcon />
-                    </IconBtn>
+                    {tx.status === 'paid' ? (
+                      isVoidWindowOpen(tx.at) ? (
+                        <IconBtn
+                          title="İptal Et"
+                          bg="bg-rose-100 dark:bg-rose-500/20"
+                          fg="text-rose-600 dark:text-rose-400"
+                          onClick={() => askReverse(tx)}
+                        >
+                          <CancelIcon />
+                        </IconBtn>
+                      ) : (
+                        <IconBtn
+                          title="İade Et"
+                          bg="bg-amber-100 dark:bg-amber-500/20"
+                          fg="text-amber-800 dark:text-amber-400"
+                          onClick={() => askReverse(tx)}
+                        >
+                          <RefundIcon />
+                        </IconBtn>
+                      )
+                    ) : null}
                     <IconBtn
                       title="Dekont"
                       bg="bg-orange-100 dark:bg-orange-500/20"
@@ -556,12 +576,13 @@ export default function TransactionsPage() {
       </section>
 
       {dekontTx ? <DekontModal tx={dekontTx} onClose={() => setDekontTx(null)} /> : null}
-      {cancelTx ? (
-        <CancelTxModal
-          id={cancelTx.id}
-          title={cancelTx.customerTitle}
-          onCancel={() => setCancelTx(null)}
-          onConfirm={confirmCancel}
+      {reverseTx ? (
+        <ReverseTxModal
+          id={reverseTx.id}
+          title={reverseTx.customerTitle}
+          mode={isVoidWindowOpen(reverseTx.at) ? 'void' : 'refund'}
+          onCancel={() => setReverseTx(null)}
+          onConfirm={confirmReverse}
         />
       ) : null}
 
@@ -574,18 +595,21 @@ export default function TransactionsPage() {
   );
 }
 
-function CancelTxModal({
+function ReverseTxModal({
   id,
   title,
+  mode,
   onCancel,
   onConfirm,
 }: {
   id: string;
   title: string;
+  mode: 'void' | 'refund';
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const asVoid = mode === 'void';
 
   useEffect(() => {
     const el = panelRef.current;
@@ -624,14 +648,26 @@ function CancelTxModal({
         >
           <XSm />
         </button>
-        <div className="mb-3 flex justify-center text-rose-500">
-          <CancelIcon large />
+        <div
+          className={[
+            'mb-3 flex justify-center',
+            asVoid ? 'text-rose-500' : 'text-amber-600',
+          ].join(' ')}
+        >
+          {asVoid ? <CancelIcon large /> : <RefundIcon large />}
         </div>
-        <h2 className="text-center text-lg font-bold text-[var(--panel-ink)]">Hareketi iptal et?</h2>
+        <h2 className="text-center text-lg font-bold text-[var(--panel-ink)]">
+          {asVoid ? 'Hareketi iptal et?' : 'Hareketi iade et?'}
+        </h2>
         <p className="mt-2 text-center text-sm text-[var(--panel-muted)]">
           <span className="font-semibold text-[var(--panel-ink)]">{id}</span>
           <br />
           {title}
+        </p>
+        <p className="mt-2 text-center text-[12px] leading-snug text-[var(--panel-muted)]">
+          {asVoid
+            ? 'Aynı gün (gün sonu öncesi) işlemler iptal edilir; kart ekstresinde görünmez.'
+            : 'Gün sonu geçmiş işlemler iade edilir; tutar kartına birkaç iş gününde yansır.'}
         </p>
         <div className="mt-5 flex gap-2">
           <button
@@ -644,9 +680,12 @@ function CancelTxModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white"
+            className={[
+              'flex-1 rounded-xl py-2.5 text-sm font-semibold text-white',
+              asVoid ? 'bg-rose-600' : 'bg-amber-600',
+            ].join(' ')}
           >
-            İptal Et
+            {asVoid ? 'İptal Et' : 'İade Et'}
           </button>
         </div>
       </div>
@@ -659,6 +698,7 @@ function StatusBadge({ status }: { status: TxStatus }) {
   const map: Record<TxStatus, string> = {
     paid: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
     cancelled: 'bg-rose-500/15 text-rose-700 dark:text-rose-400',
+    refunded: 'bg-amber-500/15 text-amber-800 dark:text-amber-400',
     pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
     failed: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300',
   };
@@ -766,6 +806,37 @@ function CancelIcon({ large }: { large?: boolean }) {
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RefundIcon({ large }: { large?: boolean }) {
+  const s = large ? 36 : 16;
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="2"
+        y="7"
+        width="14"
+        height="10"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <circle cx="9" cy="12" r="2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M22 12H16.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M18.5 9l-3 3 3 3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

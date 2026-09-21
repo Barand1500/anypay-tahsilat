@@ -13,11 +13,12 @@ type Props = {
   amount: number;
   preferredBankId?: string | null;
   onClose: () => void;
-  onPick: (bank: BankInfo, installment: number) => void;
+  /** İleride satır seçimi / alt limit sayfası; şimdilik opsiyonel */
+  onPick?: (bank: BankInfo, installment: number) => void;
 };
 
 /** Taksit karşılaştırma — Esc / X */
-export function InstallmentOptionsModal({ amount, preferredBankId, onClose, onPick }: Props) {
+export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [segment, setSegment] = useState<CardSegment>('bireysel');
   const banks = banksForCompare(preferredBankId);
@@ -53,50 +54,53 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose, onPi
         aria-labelledby="taksit-title"
         className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--panel-line)] px-5 py-4">
-          <div>
-            <h2 id="taksit-title" className="text-lg font-bold text-[var(--panel-ink)]">
-              Taksit Seçenekleri
-            </h2>
-            <p className="text-sm text-[var(--panel-muted)]">
-              Tutar: <strong className="text-[var(--panel-ink)]">{formatMoneyTr(amount)} ₺</strong>
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
-            aria-label="Kapat"
-          >
-            <span className="text-base leading-none">×</span>
-            Esc
-          </button>
-        </header>
+        <header className="shrink-0 border-b border-[var(--panel-line)] px-5 py-3">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="min-w-0">
+              <h2 id="taksit-title" className="text-lg font-bold leading-tight text-[var(--panel-ink)]">
+                Taksit Seçenekleri
+              </h2>
+              <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
+                Tutar: <strong className="text-[var(--panel-ink)]">{formatMoneyTr(amount)} ₺</strong>
+              </p>
+            </div>
 
-        <div className="flex justify-center border-b border-[var(--panel-line)] px-5 py-3">
-          <div className="inline-flex rounded-full border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1">
-            {(
-              [
-                ['bireysel', 'Bireysel Kartlar'],
-                ['ticari', 'Ticari Kartlar'],
-              ] as const
-            ).map(([id, label]) => (
+            <div className="inline-flex rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1 shadow-sm">
+              {(
+                [
+                  ['bireysel', 'Bireysel Kartlar'],
+                  ['ticari', 'Ticari Kartlar'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSegment(id)}
+                  className={[
+                    'rounded-lg px-4 py-1.5 text-sm font-semibold transition',
+                    segment === id
+                      ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
+                      : 'text-[var(--color-brand-600)] hover:bg-[var(--brand-soft-bg)]',
+                  ].join(' ')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
               <button
-                key={id}
                 type="button"
-                onClick={() => setSegment(id)}
-                className={[
-                  'rounded-full px-4 py-2 text-sm font-semibold transition',
-                  segment === id
-                    ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                    : 'text-[var(--color-brand-600)] hover:bg-[var(--brand-soft-bg)]',
-                ].join(' ')}
+                onClick={onClose}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+                aria-label="Kapat"
               >
-                {label}
+                <span className="text-base leading-none">×</span>
+                Esc
               </button>
-            ))}
+            </div>
           </div>
-        </div>
+        </header>
 
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -107,7 +111,7 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose, onPi
                   key={bank.id}
                   className="overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)]"
                 >
-                  <div className="flex items-center gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-3">
+                  <div className="flex items-center gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5">
                     <img
                       src={bank.logo}
                       alt=""
@@ -123,7 +127,12 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose, onPi
                           <th className="px-3 py-2 font-semibold">Komisyon</th>
                           <th className="px-3 py-2 font-semibold">Taksit tutarı</th>
                           <th className="px-3 py-2 font-semibold">Toplam</th>
-                          <th className="px-3 py-2 font-semibold" />
+                          <th
+                            className="px-3 py-2 font-semibold"
+                            title="Yakında ayarlardan bağlanacak"
+                          >
+                            Taksit Alt Limiti
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -144,15 +153,7 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose, onPi
                             <td className="px-3 py-2 font-semibold tabular-nums text-[var(--panel-ink)]">
                               {formatMoneyTr(r.totalAmount)} ₺
                             </td>
-                            <td className="px-2 py-1.5">
-                              <button
-                                type="button"
-                                onClick={() => onPick(bank, r.n)}
-                                className="rounded-lg bg-[var(--color-brand-600)] px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-[var(--color-brand-500)]"
-                              >
-                                Seç
-                              </button>
-                            </td>
+                            <td className="px-3 py-2 tabular-nums text-[var(--panel-muted)]">—</td>
                           </tr>
                         ))}
                       </tbody>

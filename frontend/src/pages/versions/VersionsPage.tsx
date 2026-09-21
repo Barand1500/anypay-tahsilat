@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  formatVersionDate,
   INITIAL_VERSIONS,
+  splitVersionDate,
   VERSION_KIND_LABEL,
   type VersionChangeKind,
   type VersionEntry,
@@ -127,53 +127,65 @@ function TimelineItem({
       ].join(' ')}
     >
       {/* Sol kolon */}
-      <div
-        className={[
-          'order-2 md:order-1',
-                side === 'left' ? 'md:pr-5 md:text-right' : 'md:invisible md:pr-5',
-              ].join(' ')}
-            >
-              {side === 'left' ? <VersionCard entry={entry} align="right" kindClass={kindClass} /> : null}
-              {side === 'right' ? (
-                <p className="hidden pt-3 text-xs tabular-nums text-[var(--panel-muted)] md:block md:text-right">
-                  {formatVersionDate(entry.at)}
-                </p>
-              ) : null}
-            </div>
-
-            {/* Orta düğüm */}
-            <div className="absolute left-4 top-1 z-10 flex -translate-x-1/2 justify-center md:static md:order-2 md:translate-x-0">
-              <span
-                className={[
-                  'flex h-9 w-9 items-center justify-center rounded-full border-2 border-[var(--panel-elevated)] shadow-sm',
-                  kindClass.node,
-                ].join(' ')}
-                aria-hidden
-              >
-                <CheckIcon />
-              </span>
-            </div>
-
-            {/* Sağ kolon */}
-            <div
-              className={[
-                'order-3 pl-10 md:order-3 md:pl-5',
-                side === 'right' ? '' : 'md:invisible',
-              ].join(' ')}
-            >
-        {side === 'right' ? <VersionCard entry={entry} align="left" kindClass={kindClass} /> : null}
+      <div className="order-2 md:order-1 md:pr-5 md:text-right">
         {side === 'left' ? (
-          <p className="hidden pt-3 text-xs tabular-nums text-[var(--panel-muted)] md:block">
-            {formatVersionDate(entry.at)}
-          </p>
-        ) : null}
+          <VersionCard entry={entry} align="right" kindClass={kindClass} />
+        ) : (
+          <div className="hidden justify-end pt-2 md:flex">
+            <DateBox iso={entry.at} />
+          </div>
+        )}
+      </div>
+
+      {/* Orta düğüm */}
+      <div className="absolute left-4 top-1 z-10 flex -translate-x-1/2 justify-center md:static md:order-2 md:translate-x-0">
+        <span
+          className={[
+            'flex h-9 w-9 items-center justify-center rounded-full border-2 border-[var(--panel-elevated)] shadow-sm',
+            kindClass.node,
+          ].join(' ')}
+          aria-hidden
+        >
+          <CheckIcon />
+        </span>
+      </div>
+
+      {/* Sağ kolon */}
+      <div className="order-3 pl-10 md:order-3 md:pl-5">
+        {side === 'right' ? (
+          <VersionCard entry={entry} align="left" kindClass={kindClass} />
+        ) : (
+          <div className="hidden justify-start pt-2 md:flex">
+            <DateBox iso={entry.at} />
+          </div>
+        )}
       </div>
 
       {/* Mobil tarih */}
-      <p className="order-4 pl-10 text-xs tabular-nums text-[var(--panel-muted)] md:hidden">
-        {formatVersionDate(entry.at)}
-      </p>
+      <div className="order-4 pl-10 md:hidden">
+        <DateBox iso={entry.at} />
+      </div>
     </li>
+  );
+}
+
+function DateBox({ iso }: { iso: string }) {
+  const parts = splitVersionDate(iso);
+  return (
+    <time
+      dateTime={iso}
+      className="inline-flex min-w-[5.5rem] flex-col items-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-2.5 py-2 text-center shadow-[var(--panel-shadow)] ring-1 ring-[color-mix(in_srgb,var(--color-brand-500)_12%,transparent)]"
+    >
+      <span className="text-[11px] font-bold tabular-nums leading-none text-[var(--panel-ink)]">
+        {parts.day} {parts.month}
+      </span>
+      <span className="mt-1 text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
+        {parts.year}
+      </span>
+      <span className="mt-1 rounded-md bg-[var(--panel-surface)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--brand-on-soft)]">
+        {parts.time}
+      </span>
+    </time>
   );
 }
 
@@ -188,12 +200,17 @@ function VersionCard({
 }) {
   return (
     <article
-        className={[
-          'w-full rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] transition',
-          'hover:border-[color-mix(in_srgb,var(--color-brand-500)_30%,var(--panel-line))]',
-        ].join(' ')}
+      className={[
+        'w-full rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] transition',
+        'hover:border-[color-mix(in_srgb,var(--color-brand-500)_30%,var(--panel-line))]',
+      ].join(' ')}
     >
-      <div className={['flex items-baseline gap-2', align === 'right' ? 'md:justify-end' : ''].join(' ')}>
+      <div
+        className={[
+          'flex flex-wrap items-center gap-2',
+          align === 'right' ? 'md:justify-end' : '',
+        ].join(' ')}
+      >
         <h2 className="text-3xl font-bold tracking-tight text-[var(--panel-ink)]">{entry.version}</h2>
         <span
           className={[

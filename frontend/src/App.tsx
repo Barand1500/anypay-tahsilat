@@ -8,11 +8,14 @@ import CustomerFormPage from './pages/customers/CustomerFormPage';
 import CustomerDetailPage from './pages/customers/CustomerDetailPage';
 import PaymentCollectPage from './pages/payments/PaymentCollectPage';
 import PaymentRequestPage from './pages/payments/PaymentRequestPage';
+import QuickPayPage from './pages/payments/QuickPayPage';
 import TransactionsPage from './pages/transactions/TransactionsPage';
+import PaymentRequestsPage from './pages/payment-requests/PaymentRequestsPage';
 import LoginPage from './pages/login/LoginPage';
 import ModulesPage from './pages/modules/ModulesPage';
 import OverviewPage from './pages/overview/OverviewPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import StatisticsPage from './pages/reports/StatisticsPage';
 import RolesPage from './pages/roles/RolesPage';
 import UserDetailPage from './pages/users/UserDetailPage';
 import UsersPage from './pages/users/UsersPage';
@@ -73,8 +76,11 @@ export default function App() {
         <Route path="musteriler/:id/odeme-istegi" element={<PaymentRequestPage />} />
         <Route path="musteriler/:id" element={<CustomerDetailPage />} />
         <Route path="hareketler" element={<TransactionsPage />} />
-        <Route path="odeme-istekleri" element={<ComingSoonPage title="Ödeme İstekleri" />} />
-        <Route path="raporlar" element={<ComingSoonPage title="Raporlar" />} />
+        <Route path="odeme-istekleri" element={<PaymentRequestsPage />} />
+        <Route path="odeme-istekleri/yeni" element={<PaymentRequestPage forPanel />} />
+        <Route path="hizli-odeme" element={<QuickPayPage />} />
+        <Route path="raporlar" element={<Navigate to="/raporlar/istatistikler" replace />} />
+        <Route path="raporlar/istatistikler" element={<StatisticsPage />} />
         <Route path="tanimlamalar" element={<ComingSoonPage title="Tanımlamalar" />} />
         <Route path="ayarlar" element={<ComingSoonPage title="Ayarlar" />} />
         <Route path="moduller" element={<ModulesPage />} />

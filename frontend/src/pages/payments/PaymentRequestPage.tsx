@@ -2,7 +2,13 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getLiveCustomers } from '../customers/mockCustomers';
+import {
+  addLivePaymentRequest,
+  panelCompanyAsCustomer,
+  type PayRequestType,
+} from '../payment-requests/mockPaymentRequests';
 import { formatMoneyTr } from './mockBanks';
+import { InstallmentPaintGrid } from './InstallmentPaintGrid';
 
 type PayType = '' | 'ch' | 'fatura';
 type Currency = '' | 'TRY';
@@ -33,9 +39,9 @@ const READY_DESCRIPTIONS = [
 ] as const;
 
 /**
- * Ödeme İsteği Oluştur — iki sütun, ortak stil; mock kayıt.
+ * Ödeme İsteği Oluştur — müşteri satırından veya panel şirketi adına (Ekle).
  */
-export default function PaymentRequestPage() {
+export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -44,10 +50,13 @@ export default function PaymentRequestPage() {
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const customer = useMemo(
-    () => getLiveCustomers().find((c) => c.id === id) ?? null,
-    [id],
-  );
+  const customer = useMemo(() => {
+    if (forPanel) return panelCompanyAsCustomer();
+    return getLiveCustomers().find((c) => c.id === id) ?? null;
+  }, [forPanel, id]);
+
+  const backTo = forPanel ? '/odeme-istekleri' : '/musteriler';
+  const backLabel = forPanel ? 'Ödeme İstekleri' : 'Müşteriler';
 
   const [payType, setPayType] = useState<PayType>('ch');
   const [payTypeOpen, setPayTypeOpen] = useState(false);
@@ -113,12 +122,6 @@ export default function PaymentRequestPage() {
     flash(`Bakiye sorgulandı: ${formatMoneyTr(mock)} ₺`);
   }
 
-  function toggleInstallment(n: number) {
-    setInstallments((prev) =>
-      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n].sort((a, b) => a - b),
-    );
-  }
-
   function selectAllInstallments() {
     setInstallments([...INSTALLMENTS]);
   }
@@ -168,20 +171,34 @@ export default function PaymentRequestPage() {
     e.preventDefault();
     if (!validate() || !customer) return;
     setSaving(true);
-    const descHtml = editorRef.current?.innerHTML ?? '';
-    console.info('[mock] ödeme isteği', {
+    const descText = editorRef.current?.innerText?.trim() ?? '';
+    const token = Math.random().toString(16).slice(2, 15);
+    const typeMap: Record<string, PayRequestType> = {
+      ch: 'ch',
+      fatura: 'fatura',
+    };
+    addLivePaymentRequest({
+      id: `pr-${Date.now()}`,
+      token,
+      type: typeMap[payType] ?? 'diger',
+      status: 'pending',
       customerId: customer.id,
-      payType,
+      customerTitle: customer.title,
       amount,
-      currency,
       commissionIncluded,
-      installments,
-      fileName,
-      descHtml,
+      createdAt: new Date().toISOString(),
+      paidAt: null,
+      branch: 'Merkez',
+      userId: 'u4',
+      userName: 'Ercan Güzel',
+      phone: customer.phone,
+      email: customer.email,
+      whatsapp: customer.phone,
+      description: descText,
     });
     window.setTimeout(() => {
       setSaving(false);
-      navigate('/musteriler', {
+      navigate(backTo, {
         replace: true,
         state: { flash: `Ödeme isteği oluşturuldu — ${customer.title}` },
       });
@@ -193,7 +210,7 @@ export default function PaymentRequestPage() {
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
         <p className="text-[var(--panel-ink)]">Müşteri bulunamadı.</p>
         <Link
-          to="/musteriler"
+          to={backTo}
           className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]"
         >
           Listeye dön
@@ -209,8 +226,8 @@ export default function PaymentRequestPage() {
           Anasayfa
         </Link>
         <span className="mx-1.5 opacity-50">›</span>
-        <Link to="/musteriler" className="font-medium hover:text-[var(--color-brand-600)]">
-          Müşteriler
+        <Link to={backTo} className="font-medium hover:text-[var(--color-brand-600)]">
+          {backLabel}
         </Link>
         <span className="mx-1.5 opacity-50">›</span>
         <span className="font-semibold text-[var(--panel-ink)]">
@@ -233,7 +250,7 @@ export default function PaymentRequestPage() {
           </p>
         </div>
         <Link
-          to="/musteriler"
+          to={backTo}
           className="rounded-xl border border-[var(--panel-line)] px-3.5 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
         >
           Vazgeç
@@ -448,27 +465,12 @@ export default function PaymentRequestPage() {
                       Seçili: {installments.join(', ')}
                     </p>
                   )}
-                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
-                    {INSTALLMENTS.map((n) => {
-                      const on = installments.includes(n);
-                      return (
-                        <button
-                          key={n}
-                          type="button"
-                          data-km-jump
-                          onClick={() => toggleInstallment(n)}
-                          className={[
-                            'rounded-lg py-2 text-sm font-bold tabular-nums transition',
-                            on
-                              ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                              : 'bg-[var(--panel-elevated)] text-[var(--panel-ink)] ring-1 ring-[var(--panel-line)] hover:ring-[var(--color-brand-500)]/40',
-                          ].join(' ')}
-                        >
-                          {n}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <InstallmentPaintGrid
+                    options={INSTALLMENTS}
+                    value={installments}
+                    onChange={setInstallments}
+                    kmJump
+                  />
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"

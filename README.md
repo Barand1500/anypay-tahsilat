@@ -41,7 +41,8 @@ Eski PHP tahsilat panelini referans alarak **daha sade, modern ve tutarlı** bir
 | Sürümler · Loglar · Sistem Sıfırlama | Hazır (mock) |
 | **Müşteriler** | Hazır (mock: liste, form, detay, Excel CSV, ödeme al/iste) |
 | **Hareketler** | Hazır (mock: filtre, liste, dekont) |
-| Rapor · Tanım · Ayar · Ödeme İstekleri | Yakında |
+| **Ödeme İstekleri** | Hazır (mock: liste, link kopya, iletişim butonları) |
+| Rapor · Tanım · Ayar | Yakında |
 
 <p align="center">
   <img src="docs/screenshots/role-add-hero.png" alt="Roller — Rol Ekle illüstrasyonu" width="480" />

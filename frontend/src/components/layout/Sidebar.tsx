@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   useEffect,
   useLayoutEffect,
@@ -179,7 +179,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       ].join(' ');
     }
     return [
-      'relative z-[1] flex items-center gap-3 py-2.5 pl-4 pr-4 text-sm font-medium transition-colors select-none',
+      'relative z-[1] flex items-center gap-3 py-2.5 pl-7 pr-4 text-sm font-medium transition-colors select-none',
       isActive
         ? 'is-nav-active text-[var(--sidebar-active-text)]'
         : 'text-[var(--sidebar-open-ink)]/90 hover:bg-[var(--sidebar-open-hover)]',
@@ -271,13 +271,13 @@ export function Sidebar({ collapsed, onToggle }: Props) {
           </button>
         </div>
         <div className="px-2 pb-3">
-          <button
-            type="button"
+          <Link
+            to="/hizli-odeme"
             className="flex h-11 w-full items-center justify-center rounded-xl bg-[var(--color-brand-600)] text-white hover:brightness-110"
             title="Hızlı Ödeme"
           >
             <BoltIcon />
-          </button>
+          </Link>
         </div>
         {navBlock}
         <div className="border-t border-[var(--panel-line)] px-1 py-3">{kmBtn}</div>
@@ -311,14 +311,14 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       </div>
 
       <div className="px-3 pb-4">
-        <button
-          type="button"
+        <Link
+          to="/hizli-odeme"
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--sidebar-cta-bg)] font-semibold text-[var(--sidebar-cta-text)] shadow-sm transition hover:brightness-110"
           title="Hızlı Ödeme"
         >
           <BoltIcon />
           <span>Hızlı Ödeme</span>
-        </button>
+        </Link>
       </div>
 
       {navBlock}

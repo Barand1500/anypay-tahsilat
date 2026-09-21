@@ -23,7 +23,7 @@ export const QUICK_ACTION_CATALOG: QuickActionDef[] = [
     id: 'new-collection',
     title: 'Yeni Tahsilat',
     hint: 'Hızlı tahsilat başlat',
-    to: '/hareketler',
+    to: '/hizli-odeme',
     tone: 'orange',
     icon: 'plus',
   },

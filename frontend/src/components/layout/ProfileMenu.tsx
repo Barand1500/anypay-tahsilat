@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { prefetchRoleHero } from '../../pages/roles/roleHero';
+import { dismissLogoutPortal, playLogoutPortal } from './logoutPortal';
 
 const MENU = [
   { to: '/moduller', label: 'Modüller', icon: 'modules' },
@@ -57,6 +59,7 @@ export function ProfileMenu() {
   useLayoutEffect(() => {
     if (!open) return;
     updatePos();
+    prefetchRoleHero();
   }, [open]);
 
   useEffect(() => {
@@ -134,10 +137,21 @@ export function ProfileMenu() {
     };
   }, [open]);
 
+  const [loggingOut, setLoggingOut] = useState(false);
+
   async function onLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
     setOpen(false);
-    await logout();
-    navigate('/login', { replace: true });
+    try {
+      await playLogoutPortal();
+      await logout();
+      navigate('/login', { replace: true });
+      window.setTimeout(() => dismissLogoutPortal(), 80);
+    } catch {
+      dismissLogoutPortal();
+      setLoggingOut(false);
+    }
   }
 
   function go(to: string) {
@@ -181,6 +195,9 @@ export function ProfileMenu() {
                     type="button"
                     role="menuitem"
                     {...(item.to === '/kullanicilar' ? { 'data-nav-kullanicilar': true } : {})}
+                    onMouseEnter={() => {
+                      if (item.to === '/roller') prefetchRoleHero();
+                    }}
                     onClick={() => go(item.to)}
                     className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
                   >
@@ -199,8 +216,9 @@ export function ProfileMenu() {
               <button
                 type="button"
                 role="menuitem"
+                disabled={loggingOut}
                 onClick={() => void onLogout()}
-                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-500 transition hover:bg-rose-500/10"
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-500 transition hover:bg-rose-500/10 disabled:opacity-60"
               >
                 <span className="transition group-hover:translate-x-0.5">
                   <LogoutIcon />

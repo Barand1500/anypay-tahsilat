@@ -64,8 +64,74 @@ export function formatCardNumber(raw: string) {
   return d.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
 }
 
+/** Luhn (mod 10) — kart numarası checksum */
+export function isValidLuhn(cardDigits: string): boolean {
+  const d = digitsOnly(cardDigits);
+  if (d.length < 13 || d.length > 19) return false;
+  let sum = 0;
+  let doubleIt = false;
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = d.charCodeAt(i) - 48;
+    if (n < 0 || n > 9) return false;
+    if (doubleIt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    doubleIt = !doubleIt;
+  }
+  return sum % 10 === 0;
+}
+
+/** SKT girişi — ay 01–12’ye sıkıştırır, AA/YY formatlar */
+export function formatExpiryInput(raw: string): string {
+  let d = digitsOnly(raw).slice(0, 4);
+  if (d.length >= 1) {
+    const first = Number(d[0]);
+    // 2–9 ile başlarsa ay tek hane → 0X
+    if (d.length === 1 && first > 1) d = `0${d}`;
+  }
+  if (d.length >= 2) {
+    let mm = Number(d.slice(0, 2));
+    if (Number.isNaN(mm) || mm < 1) mm = 1;
+    if (mm > 12) mm = 12;
+    d = `${String(mm).padStart(2, '0')}${d.slice(2)}`;
+  }
+  if (d.length <= 2) return d;
+  return `${d.slice(0, 2)}/${d.slice(2)}`;
+}
+
+/** SKT hata metni; geçerliyse null */
+export function getCardExpiryError(expiry: string): string | null {
+  const d = digitsOnly(expiry);
+  if (d.length !== 4) return 'SKT AA/YY girin';
+  const mm = Number(d.slice(0, 2));
+  const yy = Number(d.slice(2, 4));
+  if (mm < 1 || mm > 12) return 'Ay 01–12 olmalı';
+  const now = new Date();
+  const curY = now.getFullYear() % 100;
+  const curM = now.getMonth() + 1;
+  if (yy < curY || (yy === curY && mm < curM)) return 'Geçmiş tarih olamaz';
+  return null;
+}
+
 export function formatMoneyTr(n: number) {
   return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** İsim veya id ile logo bul — özet kartları / API sonrası */
+export function findBankLogo(query: { id?: string; name?: string; logo?: string }): string | null {
+  if (query.logo) return query.logo;
+  const q = (query.id || query.name || '').trim().toLowerCase();
+  if (!q) return null;
+  const hit = BANKS.find(
+    (b) =>
+      b.id === q ||
+      b.name.toLowerCase() === q ||
+      b.name.toLowerCase().includes(q) ||
+      q.includes(b.id),
+  );
+  return hit?.logo ?? null;
 }
 
 export function detectBank(cardDigits: string): BankInfo | null {

@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
 import { emailSuggestions } from '../../lib/emailSuggestions';
+import { getLoginTheme, setLoginTheme, getLoginBrandWords, setLoginBrandWords, type LoginTheme, type LoginBrandWords } from '../login/loginTheme';
 
 type ProfileDraft = {
   adsoyad: string;
@@ -32,15 +33,24 @@ export default function ProfilePage() {
   }));
   const [baseline, setBaseline] = useState(draft);
   const [editing, setEditing] = useState<EditKey>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [loginTheme, setLoginThemeDraft] = useState<LoginTheme>(() => getLoginTheme());
+  const [loginThemeBase, setLoginThemeBase] = useState<LoginTheme>(() => getLoginTheme());
+  const [brandWords, setBrandWordsDraft] = useState<LoginBrandWords>(() => getLoginBrandWords());
+  const [brandWordsBase, setBrandWordsBase] = useState<LoginBrandWords>(() => getLoginBrandWords());
 
   const dirty =
     draft.adsoyad !== baseline.adsoyad ||
     draft.email !== baseline.email ||
     draft.telefon !== baseline.telefon ||
     draft.sifre !== '' ||
-    draft.twoFa !== baseline.twoFa;
+    draft.twoFa !== baseline.twoFa ||
+    loginTheme !== loginThemeBase ||
+    brandWords.word1 !== brandWordsBase.word1 ||
+    brandWords.word2 !== brandWordsBase.word2;
+
+  const showSaveBar = dirty || saveSuccess;
 
   const initials = (draft.adsoyad || draft.email || 'U')
     .split(' ')
@@ -70,8 +80,14 @@ export default function ProfilePage() {
     setBaseline({ ...draft, sifre: '' });
     setDraft((d) => ({ ...d, sifre: '' }));
     setEditing(null);
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 1800);
+
+    setLoginTheme(loginTheme);
+    setLoginThemeBase(loginTheme);
+    setLoginBrandWords(brandWords);
+    setBrandWordsBase({ ...brandWords });
+
+    setSaveSuccess(true);
+    window.setTimeout(() => setSaveSuccess(false), 1800);
   }
 
   return (
@@ -222,26 +238,94 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Giriş teması — sonra Ayarlar’a taşınacak */}
+        <div
+          data-anim
+          className="mb-6 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] sm:p-5"
+        >
+          <h2 className="mb-1 text-sm font-semibold text-[var(--panel-ink)]">Giriş ekranı teması</h2>
+          <p className="mb-4 text-xs text-[var(--panel-muted)]">
+            Çıkış sonrası giriş sayfasında görünür. Şimdilik bu cihazda saklanır.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                { id: 'classic' as const, title: 'Klasik', hint: 'Maskotlu açık tema' },
+                { id: 'globe' as const, title: 'Dünya', hint: 'Canlı 3D küre' },
+              ] as const
+            ).map((opt) => {
+              const active = loginTheme === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  data-km-jump
+                  onClick={() => setLoginThemeDraft(opt.id)}
+                  className={[
+                    'rounded-xl border px-4 py-3 text-left transition',
+                    active
+                      ? 'border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_14%,var(--panel-elevated))]'
+                      : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-[var(--color-brand-500)]/40',
+                  ].join(' ')}
+                >
+                  <p className="text-sm font-semibold text-[var(--panel-ink)]">{opt.title}</p>
+                  <p className="mt-0.5 text-xs text-[var(--panel-muted)]">{opt.hint}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {loginTheme === 'globe' ? (
+            <div className="mt-4 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-3 sm:p-4">
+              <p className="mb-1 text-sm font-semibold text-[var(--panel-ink)]">Yan şerit yazısı</p>
+              <p className="mb-3 text-xs text-[var(--panel-muted)]">
+                Girişte solda kayan iki kelime. Kaydet’e basınca uygulanır.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextInput
+                  label="1. kelime"
+                  name="brand-word-1"
+                  value={brandWords.word1}
+                  maxLength={16}
+                  data-km-jump
+                  onChange={(e) =>
+                    setBrandWordsDraft((prev) => ({ ...prev, word1: e.target.value.slice(0, 16) }))
+                  }
+                />
+                <TextInput
+                  label="2. kelime"
+                  name="brand-word-2"
+                  value={brandWords.word2}
+                  maxLength={16}
+                  data-km-jump
+                  onChange={(e) =>
+                    setBrandWordsDraft((prev) => ({ ...prev, word2: e.target.value.slice(0, 16) }))
+                  }
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         {/* Kaydet */}
         <div
           data-anim
           className={[
             'sticky bottom-4 transition duration-300',
-            dirty ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0',
+            showSaveBar ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0',
           ].join(' ')}
         >
           <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]/95 p-3 shadow-[var(--panel-shadow)] backdrop-blur">
-            <Button onClick={save} className="!w-full sm:!w-auto sm:min-w-[200px]">
+            <Button
+              onClick={save}
+              success={saveSuccess}
+              successLabel="Kaydedildi"
+              className="!w-full sm:!w-auto sm:min-w-[200px]"
+            >
               Değişikliği kaydet
             </Button>
           </div>
         </div>
-
-        {savedFlash ? (
-          <p className="mt-3 text-center text-sm font-medium text-emerald-600 animate-[fade_0.3s_ease]">
-            Kaydedildi (şimdilik lokal)
-          </p>
-        ) : null}
       </div>
     </div>
   );
