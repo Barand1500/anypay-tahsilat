@@ -4,6 +4,14 @@ type ApiEnvelope<T> = {
   data?: T;
 };
 
+/** Statik yayın / API yok — yanıt JSON değil */
+export class ApiUnavailableError extends Error {
+  constructor(message = 'API kullanılamıyor') {
+    super(message);
+    this.name = 'ApiUnavailableError';
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -13,8 +21,21 @@ async function request<T>(
   headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const res = await fetch(path, { ...options, headers });
-  const json = (await res.json()) as ApiEnvelope<T>;
+  let res: Response;
+  try {
+    res = await fetch(path, { ...options, headers });
+  } catch {
+    throw new ApiUnavailableError();
+  }
+
+  const text = await res.text();
+  let json: ApiEnvelope<T>;
+  try {
+    json = JSON.parse(text) as ApiEnvelope<T>;
+  } catch {
+    // SPA / nginx HTML döndü — gerçek API yok
+    throw new ApiUnavailableError();
+  }
 
   if (!res.ok || !json.success) {
     throw new Error(json.message || 'İstek başarısız');

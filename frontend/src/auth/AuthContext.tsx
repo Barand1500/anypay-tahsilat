@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api } from '../lib/api';
+import { api, ApiUnavailableError } from '../lib/api';
 
 export type AuthUser = {
   id: number;
@@ -38,20 +38,23 @@ const DEV_USER: AuthUser = {
   roles: ['ROLE_SUPERAPP'],
 };
 
-function isDevCreds(email: string, password: string) {
+function isDemoCreds(email: string, password: string) {
   return (
-    import.meta.env.DEV &&
     email.trim().toLowerCase() === 'admin@guzelteknoloji.com' &&
     password === '123456'
   );
 }
 
-function isDevOtp(email: string, code: string) {
+function isDemoOtp(email: string, code: string) {
   return (
-    import.meta.env.DEV &&
     email.trim().toLowerCase() === 'admin@guzelteknoloji.com' &&
     code.trim() === '123456'
   );
+}
+
+/** Lokal DEV veya API henüz yokken (statik yayın) demo girişe izin */
+function canUseDemoLogin(err: unknown) {
+  return import.meta.env.DEV || err instanceof ApiUnavailableError;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -107,14 +110,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(result.token);
       setUser(result.user);
     } catch (err) {
-      // API yoksa / hata varsa yalnızca DEV hesap
-      if (isDevCreds(email, password)) {
+      if (canUseDemoLogin(err) && isDemoCreds(email, password)) {
         localStorage.setItem(TOKEN_KEY, DEV_TOKEN);
         setToken(DEV_TOKEN);
         setUser(DEV_USER);
         return;
       }
-      throw err;
+      if (err instanceof ApiUnavailableError) {
+        throw new Error('Sunucu API henüz hazır değil. Demo: admin@guzelteknoloji.com / 123456');
+      }
+      throw err instanceof Error ? err : new Error('Giriş başarısız');
     }
   }, []);
 
@@ -128,14 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(result.token);
       setUser(result.user);
     } catch (err) {
-      if (isDevOtp(email, code)) {
+      if (canUseDemoLogin(err) && isDemoOtp(email, code)) {
         localStorage.setItem(TOKEN_KEY, DEV_TOKEN);
         setToken(DEV_TOKEN);
         setUser(DEV_USER);
         return;
       }
-      if (import.meta.env.DEV) {
-        throw new Error('Geçersiz kod. Geliştirme: admin@guzelteknoloji.com / 123456');
+      if (err instanceof ApiUnavailableError || import.meta.env.DEV) {
+        throw new Error('Geçersiz kod. Demo: admin@guzelteknoloji.com / 123456');
       }
       throw err instanceof Error ? err : new Error('Geçersiz kod');
     }
