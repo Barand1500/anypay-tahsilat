@@ -194,7 +194,7 @@ export function DateField({ label, value, onChange, error, kmJump }: Props) {
           className={[
             'input-label-gap pointer-events-none absolute left-3 z-10 origin-left px-1.5 transition-all duration-200',
             floating
-              ? 'top-0 -translate-y-1/2 text-xs font-medium'
+              ? 'is-gapped top-0 -translate-y-1/2 text-xs font-medium'
               : 'top-1/2 -translate-y-1/2 text-sm text-[var(--panel-muted)]',
             floating
               ? open

@@ -27,7 +27,6 @@ html[data-theme='light'] {
   --panel-shadow: 0 8px 24px rgba(26, 29, 35, 0.06);
   --nav-active-bg: #e8f1ff;
   --nav-active-text: #1859b0;
-  --theme-burst: #1a1d23;
   --chart-bg: #f7f9fc;
   /* Ortak outlined input — login + panel */
   --input-bg: #ffffff;
@@ -63,7 +62,6 @@ html[data-theme='dark'] {
   --panel-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
   --nav-active-bg: color-mix(in srgb, var(--color-brand-500) 22%, transparent);
   --nav-active-text: color-mix(in srgb, var(--color-brand-500) 70%, white);
-  --theme-burst: #f5f7fa;
   --chart-bg: #121820;
   --color-brand-50: #152033;
   --color-brand-100: #1a2a44;
@@ -76,7 +74,7 @@ html[data-theme='dark'] {
   --sidebar-cta-bg: var(--color-brand-600);
   --sidebar-cta-text: #ffffff;
   --brand-soft-bg: color-mix(in srgb, var(--color-brand-500) 26%, var(--panel-surface));
-  --brand-on-soft: color-mix(in srgb, var(--color-brand-500) 42%, white);
+  --brand-on-soft: color-mix(in srgb, var(--color-brand-500) 55%, white);
   --input-bg: #171e29;
   --input-border: #2a3444;
   --input-border-focus: var(--color-brand-500);
@@ -117,7 +115,7 @@ html[data-theme='dark'][data-accent='blue'] {
   --color-brand-600: #1a4fa3;
   --color-brand-700: #143d7a;
   --brand-soft-bg: color-mix(in srgb, #2563c7 28%, #1c2430);
-  --brand-on-soft: #93c5fd;
+  --brand-on-soft: #bfdbfe;
   --sidebar-open-bg: #07090c;
   --sidebar-active-bg: var(--panel-bg);
   --sidebar-active-text: var(--panel-ink);
@@ -132,7 +130,7 @@ html[data-theme='dark'][data-accent='green'] {
   --color-brand-600: #166534;
   --color-brand-700: #14532d;
   --brand-soft-bg: color-mix(in srgb, #16a34a 28%, #1c2430);
-  --brand-on-soft: #86efac;
+  --brand-on-soft: #bbf7d0;
   --sidebar-open-bg: #07090c;
   --sidebar-active-bg: var(--panel-bg);
   --sidebar-active-text: var(--panel-ink);
@@ -147,7 +145,7 @@ html[data-theme='dark'][data-accent='purple'] {
   --color-brand-600: #6d28b0;
   --color-brand-700: #581c8d;
   --brand-soft-bg: color-mix(in srgb, #a855f7 28%, #1c2430);
-  --brand-on-soft: #d8b4fe;
+  --brand-on-soft: #e9d5ff;
   --sidebar-open-bg: #07090c;
   --sidebar-active-bg: var(--panel-bg);
   --sidebar-active-text: var(--panel-ink);
@@ -183,41 +181,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.theme-burst {
-  background: radial-gradient(circle, var(--theme-burst) 0%, transparent 70%);
-}
-
-.theme-burst[data-mode='dark'] {
-  background: radial-gradient(circle, #0b1220 0%, #1a2740 40%, transparent 70%);
-}
-
-.theme-burst[data-mode='light'] {
-  background: radial-gradient(circle, #ffffff 0%, #dbe7f5 45%, transparent 70%);
-}
-
-.theme-venom-layer {
-  background: transparent;
-}
-
-.theme-venom-blob {
-  position: absolute;
-  border-radius: 45% 55% 50% 50% / 50% 45% 55% 50%;
-  filter: blur(28px);
-  will-change: transform, opacity;
-  mix-blend-mode: normal;
-}
-
-.theme-venom-core {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 120px;
-  height: 120px;
-  margin: -60px 0 0 -60px;
-  border-radius: 9999px;
-  filter: blur(8px);
-  will-change: transform, opacity;
-}
 
 .chart-line-anim {
   stroke-dashoffset: 1;
@@ -739,5 +702,27 @@ html[data-theme='dark'] .log-chip--other {
 
 .sidebar-nav:hover::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--sidebar-open-ink, #fff) 22%, transparent);
+}
+
+/* Özet — düzenleme modu (titreme yok; yumuşak vurgu) */
+@keyframes overview-ios-edit-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand-500) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  }
+}
+
+.overview-ios-edit {
+  border-radius: 1rem;
+  animation: overview-ios-edit-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overview-ios-edit {
+    animation: none;
+  }
 }
 

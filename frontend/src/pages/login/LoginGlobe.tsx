@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { BrandSideScroll } from './BrandSideScroll';
 import Globe from './globe/Globe';
 import { getLoginBrandWords, type LoginBrandWords } from './loginTheme';
+import { LoginModeActions, useLoginModeFlow } from './useLoginModeFlow';
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
@@ -14,15 +14,22 @@ function sleep(ms: number) {
 
 /** Dünya temalı giriş — Variant 2 (solid yeşil kara / cyan okyanus) */
 export function LoginGlobe() {
-  const { login } = useAuth();
+  const { login, loginWithOtp } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [dotCount, setDotCount] = useState(1);
   const [brandWords, setBrandWords] = useState<LoginBrandWords>(() => getLoginBrandWords());
+
+  const flow = useLoginModeFlow({
+    onPasswordLogin: async (email, password) => {
+      await sleep(1200);
+      await login(email, password);
+    },
+    onOtpLogin: async (email, code) => {
+      await sleep(1200);
+      await loginWithOtp(email, code);
+    },
+  });
 
   useEffect(() => {
     function sync() {
@@ -43,7 +50,7 @@ export function LoginGlobe() {
   }, []);
 
   useEffect(() => {
-    if (!loading) {
+    if (!flow.loading) {
       setDotCount(1);
       return;
     }
@@ -51,7 +58,7 @@ export function LoginGlobe() {
       setDotCount((n) => (n % 3) + 1);
     }, 420);
     return () => window.clearInterval(id);
-  }, [loading]);
+  }, [flow.loading]);
 
   const markerConfig = useMemo(
     () => ({
@@ -62,21 +69,10 @@ export function LoginGlobe() {
     [],
   );
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (loading) return;
-    setError(null);
-    setLoading(true);
-    try {
-      await sleep(2000);
-      await login(email.trim(), password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Giriş başarısız');
-      setLoading(false);
-    }
-  }
-
   const statusText = `Giriş yapılıyor${'.'.repeat(dotCount)}`;
+  const inputClass =
+    'w-full rounded-xl border border-white/25 bg-white/10 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-white/50 focus:bg-white/14 disabled:opacity-55';
+  const busy = flow.loading || flow.transitioning;
 
   return (
     <div
@@ -140,97 +136,224 @@ export function LoginGlobe() {
       <div className="relative z-30 flex min-h-screen w-full flex-col justify-end px-6 pb-10 pt-24 sm:px-10 lg:ml-auto lg:w-1/4 lg:justify-center lg:px-8 lg:pb-0 lg:pt-0 xl:px-10">
         <form
           ref={formRef}
-          onSubmit={onSubmit}
-          className="relative z-10 mx-auto w-full max-w-[320px] space-y-4 rounded-2xl bg-black/20 p-5 backdrop-blur-[3px] lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+          onSubmit={flow.submit}
+          className="relative z-10 mx-auto w-full max-w-[320px] space-y-4 overflow-visible rounded-2xl bg-black/20 p-5 backdrop-blur-[3px] lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
         >
-          <fieldset disabled={loading} className="min-w-0 space-y-4 border-0 p-0">
-            <div>
-              <label htmlFor="globe-email" className="sr-only">
-                E-posta
-              </label>
-              <input
-                id="globe-email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-posta"
-                className="w-full rounded-xl border border-white/25 bg-white/10 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-white/50 focus:bg-white/14 disabled:opacity-55"
-              />
-            </div>
+          {flow.mode === 'forgot' ? (
+            <div ref={flow.forgotStageRef} className="space-y-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => flow.leaveForgot('password')}
+                className="text-xs font-medium text-white/55 transition hover:text-white disabled:opacity-50"
+              >
+                ← Geri
+              </button>
 
-            <div className="space-y-1.5">
-              <div className="flex justify-end">
-                <Link
-                  to="/login"
-                  onClick={(e) => e.preventDefault()}
-                  className="text-xs font-medium text-[#9fd4ff] hover:text-white"
-                >
-                  Şifremi unuttum?
-                </Link>
-              </div>
+              <input
+                type="email"
+                value={flow.email}
+                readOnly
+                className={`${inputClass} opacity-70`}
+                aria-label="E-posta"
+              />
+
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={flow.resetCode}
+                onChange={(e) => flow.setResetCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                placeholder="E-postanıza gönderdiğimiz şifreyi giriniz"
+                disabled={busy || flow.codeVerified}
+                className={inputClass}
+              />
+
+              <button
+                type="button"
+                disabled={busy || flow.codeVerified}
+                onClick={flow.verifyResetCode}
+                className="w-full rounded-xl border border-white/30 bg-white/12 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/18 disabled:opacity-45"
+              >
+                {flow.codeVerified ? 'Doğrulandı' : 'Doğrula'}
+              </button>
+
               <div className="relative">
-                <label htmlFor="globe-password" className="sr-only">
-                  Şifre
-                </label>
                 <input
-                  id="globe-password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Şifre"
-                  className="w-full rounded-xl border border-white/25 bg-white/10 px-4 py-3.5 pr-12 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-white/50 focus:bg-white/14 disabled:opacity-55"
+                  type={flow.showNewPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={flow.newPassword}
+                  onChange={(e) => flow.setNewPassword(e.target.value)}
+                  placeholder="Yeni şifre"
+                  disabled={busy || !flow.codeVerified}
+                  className={`${inputClass} pr-12`}
                 />
                 <button
                   type="button"
-                  aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                  disabled={!flow.codeVerified}
+                  aria-label={flow.showNewPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-white/50 hover:text-white"
+                  onClick={() => flow.setShowNewPassword((v) => !v)}
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-white/50 hover:text-white disabled:opacity-30"
                 >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  {flow.showNewPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
-            </div>
-          </fieldset>
 
-          {error ? (
-            <div
-              role="alert"
-              className="rounded-xl border border-red-400/35 bg-red-500/15 px-3 py-2 text-sm text-red-200"
-            >
-              {error}
-            </div>
-          ) : null}
+              {flow.error ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-400/35 bg-red-500/15 px-3 py-2 text-sm text-red-200"
+                >
+                  {flow.error}
+                </div>
+              ) : null}
 
-          <div className="relative z-30 w-full overflow-visible">
-            <p
-              aria-live="polite"
-              className={[
-                'mb-1.5 min-h-[1.1rem] text-center text-[11px] font-medium tracking-wide text-white/70 transition-opacity duration-300',
-                loading ? 'opacity-100' : 'opacity-0',
-              ].join(' ')}
-            >
-              {loading ? statusText : '\u00a0'}
-            </p>
-            <div className="overflow-visible py-2">
-              <Button
-                type="button"
-                disabled={loading}
-                onClick={() => {
-                  if (loading) return;
-                  formRef.current?.requestSubmit();
-                }}
-              >
-                GİRİŞ YAP
-              </Button>
+              <div className="overflow-visible py-2">
+                <Button
+                  type="button"
+                  disabled={busy || !flow.codeVerified}
+                  loading={flow.loading}
+                  loadingLabel="Kaydediliyor…"
+                  onClick={flow.saveNewPassword}
+                >
+                  Kaydet
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div ref={flow.loginStageRef} className="space-y-4">
+              <fieldset disabled={busy} className="min-w-0 space-y-4 border-0 p-0">
+                <div>
+                  <label htmlFor="globe-email" className="sr-only">
+                    E-posta
+                  </label>
+                  <input
+                    id="globe-email"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    value={flow.email}
+                    onChange={(e) => flow.setEmail(e.target.value)}
+                    placeholder="E-posta"
+                    className={inputClass}
+                  />
+                </div>
+
+                {flow.mode === 'otp' ? (
+                  <div ref={flow.otpPanelRef}>
+                    <label htmlFor="globe-otp" className="sr-only">
+                      Geçici kod
+                    </label>
+                    <input
+                      id="globe-otp"
+                      name="otp"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      required
+                      value={flow.otp}
+                      onChange={(e) => flow.setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="Geçici kodu giriniz"
+                      className={inputClass}
+                    />
+                  </div>
+                ) : null}
+
+                {flow.mode === 'password' ? (
+                  <div ref={flow.passwordPanelRef} className="space-y-1.5">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={flow.goForgot}
+                        className="text-xs font-medium text-[#9fd4ff] hover:text-white"
+                      >
+                        Şifremi unuttum?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <label htmlFor="globe-password" className="sr-only">
+                        Şifre
+                      </label>
+                      <input
+                        id="globe-password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        required
+                        value={flow.password}
+                        onChange={(e) => flow.setPassword(e.target.value)}
+                        placeholder="Şifre"
+                        className={`${inputClass} pr-12`}
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-white/50 hover:text-white"
+                      >
+                        {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </fieldset>
+
+              {flow.error ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-400/35 bg-red-500/15 px-3 py-2 text-sm text-red-200"
+                >
+                  {flow.error}
+                </div>
+              ) : null}
+
+              {flow.mode === 'choose' ? (
+                <LoginModeActions
+                  mode={flow.mode}
+                  loading={busy}
+                  onQuick={flow.goQuick}
+                  onPassword={flow.goPassword}
+                  onBack={flow.goBack}
+                  variant="globe"
+                />
+              ) : (
+                <div className="relative z-30 w-full space-y-2 overflow-visible">
+                  <LoginModeActions
+                    mode={flow.mode}
+                    loading={busy}
+                    onQuick={flow.goQuick}
+                    onPassword={flow.goPassword}
+                    onBack={flow.goBack}
+                    variant="globe"
+                  />
+                  <p
+                    aria-live="polite"
+                    className={[
+                      'mb-1.5 min-h-[1.1rem] text-center text-[11px] font-medium tracking-wide text-white/70 transition-opacity duration-300',
+                      flow.loading ? 'opacity-100' : 'opacity-0',
+                    ].join(' ')}
+                  >
+                    {flow.loading ? statusText : '\u00a0'}
+                  </p>
+                  <div className="overflow-visible py-2">
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (busy) return;
+                        formRef.current?.requestSubmit();
+                      }}
+                    >
+                      GİRİŞ YAP
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </div>
     </div>

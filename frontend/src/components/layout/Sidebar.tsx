@@ -4,14 +4,20 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useKeyboardMode } from '../../keyboard/KeyboardModeContext';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useDockMode } from './DockModeContext';
+import { useGestureWind } from './GestureWindContext';
 import { NAV_ITEMS, type NavItem } from './navItems';
 import { NavIcon } from './NavIcon';
 import { useQuickAccess } from './QuickAccessContext';
+import { useRates } from './RatesContext';
 
 type Props = {
   collapsed: boolean;
@@ -21,10 +27,125 @@ type Props = {
 const HOLD_MS = 380;
 const WIDTH_MS = 300;
 
+function KeyboardIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="2" y="6" width="20" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M10 14h4M18 14h.01"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DockIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 6.5h16M4 12h16M4 17.5h10"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <path
+        d="M17 15.5v4M15 17.5h4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function RatesIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 19V5M4 19h16"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <path
+        d="m7 14 3.5-4 3 2.5L18 7"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function WindIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 8h10a3 3 0 1 0-3-3M4 12h14a3 3 0 1 1-3 3M4 16h8a2.5 2.5 0 1 1-2.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Yer tutucu — henüz atanmamış araç */
+function SoonIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3.5 13.8 9.2 19.5 11 13.8 12.8 12 18.5 10.2 12.8 4.5 11 10.2 9.2 12 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <circle cx="18.5" cy="5.5" r="1.2" fill="currentColor" />
+      <circle cx="5.5" cy="17.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CollapseIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className={collapsed ? 'rotate-180' : ''}
+    >
+      <path
+        d="M15 6 9 12l6 6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BoltIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M13 2 4 14h7l-1 8 10-14h-7l1-6Z" />
+    </svg>
+  );
+}
+
 export function Sidebar({ collapsed, onToggle }: Props) {
   const { theme } = useTheme();
   const { startDrag, drag } = useQuickAccess();
   const { enabled: kmOn, toggle: toggleKm } = useKeyboardMode();
+  const { enabled: dockOn, toggle: toggleDock, animating: dockAnimating } = useDockMode();
+  const { phase: ratesPhase, toggleFromSidebar } = useRates();
+  const { enabled: gwOn, toggle: toggleGw } = useGestureWind();
+  const ratesOn = ratesPhase !== 'idle';
   const location = useLocation();
   const collapsedLogo = theme === 'dark' ? '/brand/logo-white.png' : '/brand/logo.png';
   const holdTimer = useRef<number | null>(null);
@@ -36,6 +157,31 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const firstPill = useRef(true);
   const resizing = useRef(false);
   const open = !collapsed;
+  const settingsActive = location.pathname.startsWith('/ayarlar');
+  /** 0 klavye · 1 kurlar · 2 jest · 3 dock · 4 yakında · 5 ayarlar */
+  const [footerSlot, setFooterSlot] = useState(0);
+  const footerSlotRef = useRef<HTMLDivElement>(null);
+  const [soonToast, setSoonToast] = useState(false);
+
+  useEffect(() => {
+    if (settingsActive) setFooterSlot(5);
+  }, [settingsActive]);
+
+  useEffect(() => {
+    if (!soonToast) return;
+    const t = window.setTimeout(() => setSoonToast(false), 2200);
+    return () => window.clearTimeout(t);
+  }, [soonToast]);
+
+  useEffect(() => {
+    const el = footerSlotRef.current;
+    if (!el) return;
+    gsap.fromTo(
+      el,
+      { autoAlpha: 0, y: 8, scale: 0.92 },
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.28, ease: 'power2.out' },
+    );
+  }, [footerSlot]);
 
   useEffect(() => {
     return () => {
@@ -128,6 +274,16 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed, open]);
 
+  function onAsideWheel(e: ReactWheelEvent<HTMLElement>) {
+    const nav = navRef.current;
+    if (!nav) return;
+    // Nav kendi scroll’unu kullanır; logo / footer üzerinde tekerlek de menüyü kaydırsın
+    if (nav.contains(e.target as Node)) return;
+    if (nav.scrollHeight <= nav.clientHeight) return;
+    e.preventDefault();
+    nav.scrollTop += e.deltaY;
+  }
+
   function onAsideDoubleClick(e: MouseEvent<HTMLElement>) {
     const t = e.target as HTMLElement;
     if (t.closest('a, button, input, select, textarea, label')) return;
@@ -190,7 +346,10 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const navBlock = (
     <nav
       ref={navRef}
-      className={['sidebar-nav relative flex-1', open ? 'pb-4 pl-0 pr-0' : 'px-2 pb-4'].join(' ')}
+      className={[
+        'sidebar-nav relative min-h-0 flex-1 overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:thin]',
+        open ? 'pb-4 pl-0 pr-0' : 'px-2 pb-4',
+      ].join(' ')}
     >
       <div
         ref={pillRef}
@@ -215,9 +374,6 @@ export function Sidebar({ collapsed, onToggle }: Props) {
           {open ? (
             <span className="flex-1 truncate">
               {item.label}
-              {item.soon ? (
-                <span className="ml-2 text-[10px] font-normal opacity-70">yakında</span>
-              ) : null}
             </span>
           ) : null}
         </NavLink>
@@ -225,41 +381,244 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     </nav>
   );
 
-  const kmBtn = (
+  /** Alt bar — açık: ikisi birden · dar: tek buton + scroll */
+  const footerBtnBase = [
+    'relative flex size-10 shrink-0 items-center justify-center rounded-xl transition',
+  ].join(' ');
+
+  const kmBtnClass = [
+    footerBtnBase,
+    open
+      ? kmOn
+        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
+        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
+      : kmOn
+        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
+        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+  ].join(' ');
+
+  const ratesBtnClass = [
+    footerBtnBase,
+    open
+      ? ratesOn
+        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
+        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
+      : ratesOn
+        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
+        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+  ].join(' ');
+
+  const gwBtnClass = [
+    footerBtnBase,
+    open
+      ? gwOn
+        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
+        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
+      : gwOn
+        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
+        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+  ].join(' ');
+
+  const dockBtnClass = [
+    footerBtnBase,
+    open
+      ? dockOn
+        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
+        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
+      : dockOn
+        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
+        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+  ].join(' ');
+
+  const settingsBtnClass = [
+    footerBtnBase,
+    settingsActive
+      ? open
+        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_8px_22px_rgba(0,0,0,0.18)] backdrop-blur-md'
+        : 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
+      : open
+        ? 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
+        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+  ].join(' ');
+
+  const soonBtnClass = [
+    footerBtnBase,
+    open
+      ? 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
+      : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+  ].join(' ');
+
+  const kmButton = (
     <button
       type="button"
       data-km-toggle
       aria-pressed={kmOn}
       aria-label="Klavye modu"
-      title={kmOn ? 'Klavye modu açık — kapatmak için tıkla veya fareyle tıkla' : 'Klavye modu'}
+      title={kmOn ? 'Klavye modu açık — kapatmak için tıkla' : 'Klavye modu'}
       onClick={(e) => {
         e.stopPropagation();
         toggleKm();
       }}
-      className={[
-        'mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition',
-        open
-          ? kmOn
-            ? 'bg-[var(--sidebar-cta-bg)] text-[var(--sidebar-cta-text)] shadow-md'
-            : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-          : kmOn
-            ? 'bg-[var(--color-brand-600)] text-white shadow-md'
-            : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-      ].join(' ')}
+      className={kmBtnClass}
     >
       <KeyboardIcon />
     </button>
   );
 
+  const ratesButton = (
+    <button
+      type="button"
+      data-rates-toggle
+      aria-pressed={ratesOn}
+      aria-label="Canlı kur şeridi"
+      title={ratesOn ? 'Kur şeridi açık — kapatmak için tıkla' : 'Canlı kurlar'}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleFromSidebar();
+      }}
+      className={ratesBtnClass}
+    >
+      <RatesIcon />
+      {ratesOn ? (
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
+      ) : null}
+    </button>
+  );
+
+  const gwButton = (
+    <button
+      type="button"
+      data-gw-toggle
+      aria-pressed={gwOn}
+      aria-label="Jest Rüzgarı"
+      title={gwOn ? 'Jest Rüzgarı açık — kapatmak için tıkla' : 'Jest Rüzgarı — serbest fare jestleri'}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleGw();
+      }}
+      className={gwBtnClass}
+    >
+      <WindIcon />
+      {gwOn ? (
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
+      ) : null}
+    </button>
+  );
+
+  const dockButton = (
+    <button
+      type="button"
+      data-dock-toggle
+      aria-pressed={dockOn}
+      aria-label="Alt çubuk (dock) modu"
+      disabled={dockAnimating}
+      title={
+        dockOn
+          ? 'Dock açık — header araçları altta; kapatınca varsayılana döner'
+          : 'Header’ı alta taşı (dock)'
+      }
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleDock();
+      }}
+      className={[dockBtnClass, dockAnimating ? 'pointer-events-none opacity-60' : ''].join(' ')}
+    >
+      <DockIcon />
+      {dockOn ? (
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
+      ) : null}
+    </button>
+  );
+
+  const soonButton = (
+    <button
+      type="button"
+      data-soon-slot
+      aria-label="Yakında"
+      title="Yakında"
+      onClick={(e) => {
+        e.stopPropagation();
+        setSoonToast(true);
+      }}
+      className={soonBtnClass}
+    >
+      <SoonIcon />
+    </button>
+  );
+
+  const settingsLink = (
+    <Link
+      to="/ayarlar"
+      aria-label="Ayarlar"
+      title="Ayarlar"
+      aria-current={settingsActive ? 'page' : undefined}
+      onClick={(e) => e.stopPropagation()}
+      className={settingsBtnClass}
+    >
+      <NavIcon name="gear" size={18} />
+    </Link>
+  );
+
+  const soonToastEl = soonToast
+    ? createPortal(
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-[10050] -translate-x-1/2 rounded-xl bg-[var(--panel-ink)] px-4 py-2.5 text-sm font-medium text-[var(--panel-elevated)] shadow-lg"
+        >
+          Yakında
+        </div>,
+        document.body,
+      )
+    : null;
+
+  const footerBar = open ? (
+    <div className="mt-auto flex h-16 shrink-0 items-center justify-end gap-0.5 border-t border-[var(--sidebar-open-ink)]/15 px-2">
+      {kmButton}
+      {ratesButton}
+      {gwButton}
+      {dockButton}
+      {soonButton}
+      {settingsLink}
+    </div>
+  ) : (
+    <div
+      className="mt-auto flex h-16 shrink-0 items-center justify-center border-t border-[var(--panel-line)] px-2"
+      title="Kaydırarak diğer araca geç"
+      onWheel={(e) => {
+        e.stopPropagation();
+        if (Math.abs(e.deltaY) < 4 && Math.abs(e.deltaX) < 4) return;
+        e.preventDefault();
+        const dir = e.deltaY > 0 || e.deltaX > 0 ? 1 : -1;
+        setFooterSlot((s) => (s + dir + 6) % 6);
+      }}
+    >
+      <div ref={footerSlotRef} className="flex justify-center">
+        {footerSlot === 0
+          ? kmButton
+          : footerSlot === 1
+            ? ratesButton
+            : footerSlot === 2
+              ? gwButton
+              : footerSlot === 3
+                ? dockButton
+                : footerSlot === 4
+                  ? soonButton
+                  : settingsLink}
+      </div>
+    </div>
+  );
+
   if (collapsed) {
     return (
+      <>
       <aside
         ref={asideRef}
         onDoubleClick={onAsideDoubleClick}
+        onWheel={onAsideWheel}
         title="Boş alana çift tıkla: menüyü aç/kapa"
-        className="flex w-[76px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--panel-sidebar)] transition-[width] duration-300 ease-out"
+        className="flex h-full min-h-0 w-[76px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--panel-sidebar)] transition-[width] duration-300 ease-out"
       >
-        <div className="flex flex-col items-center gap-2 px-2 py-4">
+        <div className="flex shrink-0 flex-col items-center gap-2 px-2 py-4">
           <img src={collapsedLogo} alt="Güzel Teknoloji" className="h-11 w-11 object-contain" />
           <button
             type="button"
@@ -270,7 +629,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
             <CollapseIcon collapsed />
           </button>
         </div>
-        <div className="px-2 pb-3">
+        <div className="shrink-0 px-2 pb-3">
           <Link
             to="/hizli-odeme"
             className="flex h-11 w-full items-center justify-center rounded-xl bg-[var(--color-brand-600)] text-white hover:brightness-110"
@@ -280,19 +639,23 @@ export function Sidebar({ collapsed, onToggle }: Props) {
           </Link>
         </div>
         {navBlock}
-        <div className="border-t border-[var(--panel-line)] px-1 py-3">{kmBtn}</div>
+        {footerBar}
       </aside>
+      {soonToastEl}
+    </>
     );
   }
 
   return (
+    <>
     <aside
       ref={asideRef}
       onDoubleClick={onAsideDoubleClick}
+      onWheel={onAsideWheel}
       title="Boş alana çift tıkla: menüyü aç/kapa"
-      className="sidebar-open flex w-[280px] shrink-0 flex-col overflow-hidden bg-[var(--sidebar-open-bg)] text-[var(--sidebar-open-ink)] transition-[width] duration-300 ease-out"
+      className="sidebar-open flex h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden bg-[var(--sidebar-open-bg)] text-[var(--sidebar-open-ink)] transition-[width] duration-300 ease-out"
     >
-      <div className="flex items-center gap-3 px-4 pb-3 pt-5">
+      <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-5">
         <div className="flex min-w-0 flex-1 items-center">
           <img
             src="/brand/logo-white.png"
@@ -310,7 +673,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         </button>
       </div>
 
-      <div className="px-3 pb-4">
+      <div className="shrink-0 px-3 pb-4">
         <Link
           to="/hizli-odeme"
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--sidebar-cta-bg)] font-semibold text-[var(--sidebar-cta-text)] shadow-sm transition hover:brightness-110"
@@ -322,48 +685,9 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       </div>
 
       {navBlock}
-
-      <div className="border-t border-[var(--sidebar-open-ink)]/15 px-3 py-3">
-        {kmBtn}
-        <p className="mt-1.5 text-center text-[10px] text-[var(--sidebar-open-ink)]/70">Klavye modu</p>
-      </div>
+      {footerBar}
     </aside>
-  );
-}
-
-function KeyboardIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="2" y="6" width="20" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M10 14h4M18 14h.01"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function CollapseIcon({ collapsed }: { collapsed: boolean }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-      className={collapsed ? 'rotate-180' : ''}
-    >
-      <path d="M15 6 9 12l6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BoltIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M13 2 4 14h7l-1 8 10-14h-7l1-6Z" />
-    </svg>
+    {soonToastEl}
+    </>
   );
 }

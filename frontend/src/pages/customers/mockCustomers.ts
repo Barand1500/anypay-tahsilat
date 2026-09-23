@@ -59,12 +59,6 @@ export function accountTypeExists(name: string, list?: string[]): boolean {
   return src.some((t) => t.toLocaleLowerCase('tr') === q);
 }
 
-/** @deprecated — CreatableFilterInput + getAccountTypes kullan */
-export const ACCOUNT_TYPE_OPTIONS = [
-  { value: '', label: 'Belirtilmemiş' },
-  ...DEFAULT_ACCOUNT_TYPES.map((t) => ({ value: t, label: t })),
-];
-
 export const TAX_OFFICE_OPTIONS = [
   { value: '', label: 'Belirtilmemiş' },
   { value: '30 Ağustos V.D.', label: '30 Ağustos V.D.' },

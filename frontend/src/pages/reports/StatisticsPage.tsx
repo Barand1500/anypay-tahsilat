@@ -1,30 +1,62 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useMemo, useRef, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
-import { BRANCH_OPTIONS, INITIAL_USERS } from '../users/mockUsers';
+import { MonthMultiSelect } from '../../components/ui/MonthMultiSelect';
+import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { StatRankingCard } from './StatRankingCard';
 import {
   getStatistics,
-  REPORT_SUBNAV,
-  STAT_MONTHS,
   STAT_YEARS,
+  type StatisticsBundle,
 } from './mockStatistics';
 
 gsap.registerPlugin(useGSAP);
 
+type SectionId = keyof StatisticsBundle;
+
+const SECTION_META: Record<
+  SectionId,
+  { title: string; subtitle: string; showLogo?: boolean }
+> = {
+  customers: {
+    title: 'En çok tahsilat yapılan 10 müşteri',
+    subtitle: 'Seçilen dönemde müşteri bazlı tahsilat sıralaması',
+  },
+  banks: {
+    title: 'En çok tahsilat yapılan 10 banka',
+    subtitle: 'Banka / POS kanalına göre dağılım',
+    showLogo: true,
+  },
+  cards: {
+    title: 'En çok tahsilat yapılan 10 müşteri kartı',
+    subtitle: 'Kart bazlı tahsilat yoğunluğu',
+  },
+};
+
+const DEFAULT_ORDER: SectionId[] = ['customers', 'banks', 'cards'];
+
 export default function StatisticsPage() {
   const rootRef = useRef<HTMLDivElement>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('istatistikler'));
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [year, setYear] = useState<string | null>('2026');
-  const [month, setMonth] = useState<string | null>('9');
+  const [months, setMonths] = useState<string[]>(['9']);
   const [fullYear, setFullYear] = useState(false);
+  const [order, setOrder] = useState<SectionId[]>(DEFAULT_ORDER);
+  const [rearrange, setRearrange] = useState(false);
+  const [dragId, setDragId] = useState<SectionId | null>(null);
+  const [overId, setOverId] = useState<SectionId | null>(null);
+
+  const dragIdRef = useRef<SectionId | null>(null);
+  const orderRef = useRef(order);
+  orderRef.current = order;
 
   const branchOptions = useMemo(
-    () => BRANCH_OPTIONS.map((b) => ({ value: b, label: b })),
+    () => getBranchOptions().map((b) => ({ value: b, label: b })),
     [],
   );
   const userOptions = useMemo(
@@ -36,28 +68,32 @@ export default function StatisticsPage() {
     () =>
       getStatistics({
         year: year || '2026',
-        month: fullYear ? null : month,
+        months: fullYear ? [] : months,
         fullYear,
         branch,
         userId,
       }),
-    [year, month, fullYear, branch, userId],
+    [year, months, fullYear, branch, userId],
   );
 
   const filtersActive =
-    !!branch || !!userId || year !== '2026' || month !== '9' || fullYear;
+    !!branch ||
+    !!userId ||
+    year !== '2026' ||
+    months.join(',') !== '9' ||
+    fullYear;
 
   function resetFilters() {
     setBranch(null);
     setUserId(null);
     setYear('2026');
-    setMonth('9');
+    setMonths(['9']);
     setFullYear(false);
   }
 
   function showFullYear() {
     setFullYear(true);
-    setMonth(null);
+    setMonths([]);
   }
 
   useGSAP(
@@ -73,54 +109,66 @@ export default function StatisticsPage() {
     { scope: rootRef },
   );
 
+  useEffect(() => {
+    if (!rearrange) return;
+    function onMove(e: PointerEvent) {
+      const id = dragIdRef.current;
+      if (!id || !listRef.current) return;
+      const cards = [...listRef.current.querySelectorAll<HTMLElement>('[data-section-id]')];
+      let hit: SectionId | null = null;
+      for (const el of cards) {
+        const r = el.getBoundingClientRect();
+        if (e.clientY >= r.top && e.clientY <= r.bottom) {
+          hit = el.dataset.sectionId as SectionId;
+          break;
+        }
+      }
+      if (hit && hit !== id) {
+        setOverId(hit);
+        setOrder((prev) => {
+          const next = [...prev];
+          const from = next.indexOf(id);
+          const to = next.indexOf(hit!);
+          if (from < 0 || to < 0 || from === to) return prev;
+          next.splice(from, 1);
+          next.splice(to, 0, id);
+          return next;
+        });
+      }
+    }
+    function onUp() {
+      dragIdRef.current = null;
+      setDragId(null);
+      setOverId(null);
+      setRearrange(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [rearrange]);
+
+  function onDragHandleDown(id: SectionId, e: ReactPointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Metin seçimini engelle
+    window.getSelection()?.removeAllRanges();
+    dragIdRef.current = id;
+    setDragId(id);
+    setRearrange(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+  }
+
   return (
-    <div ref={rootRef} className="w-full space-y-4 pb-8">
-      <div data-stat-chrome>
-        <nav className="mb-1 text-sm text-[var(--panel-ink)]/65">
-          <Link to="/" className="font-medium hover:text-[var(--color-brand-600)]">
-            Anasayfa
-          </Link>
-          <span className="mx-1.5 opacity-50">›</span>
-          <Link to="/raporlar" className="font-medium hover:text-[var(--color-brand-600)]">
-            Raporlar
-          </Link>
-          <span className="mx-1.5 opacity-50">›</span>
-          <span className="font-semibold text-[var(--panel-ink)]">İstatistikler</span>
-        </nav>
-      </div>
-
-      <div
-        data-stat-chrome
-        className="flex gap-1.5 overflow-x-auto rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-1.5 shadow-[var(--panel-shadow)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {REPORT_SUBNAV.map((item) =>
-          item.ready ? (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                [
-                  'shrink-0 rounded-xl px-3 py-2 text-sm font-semibold transition',
-                  isActive
-                    ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                    : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-                ].join(' ')
-              }
-            >
-              {item.label}
-            </NavLink>
-          ) : (
-            <span
-              key={item.to}
-              title="Yakında"
-              className="shrink-0 cursor-not-allowed rounded-xl px-3 py-2 text-sm font-medium text-[var(--panel-muted)]/55"
-            >
-              {item.label}
-            </span>
-          ),
-        )}
-      </div>
-
+    <div ref={rootRef} className="space-y-4">
       <section
         data-stat-chrome
         className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)] [--input-notch:var(--panel-elevated)]"
@@ -197,15 +245,15 @@ export default function StatisticsPage() {
                 placeholder="Yıl seçiniz."
                 kmJump
               />
-              <FloatingSearchSelect
+              <MonthMultiSelect
                 label="Ay Seçin"
-                options={[...STAT_MONTHS]}
-                value={fullYear ? null : month}
+                value={months}
                 onChange={(v) => {
-                  setMonth(v);
-                  if (v) setFullYear(false);
+                  setMonths(v);
+                  if (v.length) setFullYear(false);
                 }}
-                placeholder={fullYear ? 'Tüm yıl' : 'Ay seçiniz.'}
+                disabled={fullYear}
+                placeholder="Bir veya daha fazla ay…"
                 kmJump
               />
             </div>
@@ -213,23 +261,33 @@ export default function StatisticsPage() {
         ) : null}
       </section>
 
-      <div className="space-y-4">
-        <StatRankingCard
-          title="En çok tahsilat yapılan 10 müşteri"
-          subtitle="Seçilen dönemde müşteri bazlı tahsilat sıralaması"
-          items={data.customers}
-        />
-        <StatRankingCard
-          title="En çok tahsilat yapılan 10 banka"
-          subtitle="Banka / POS kanalına göre dağılım"
-          items={data.banks}
-          showLogo
-        />
-        <StatRankingCard
-          title="En çok tahsilat yapılan 10 müşteri kartı"
-          subtitle="Kart bazlı tahsilat yoğunluğu"
-          items={data.cards}
-        />
+      {rearrange ? (
+        <div className="select-none rounded-xl border border-[var(--color-brand-500)]/35 bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-elevated))] px-3 py-2 text-center text-xs font-semibold text-[var(--color-brand-700)]">
+          Taşıma modu — kartlar daraltıldı, bırakınca açılır
+        </div>
+      ) : null}
+
+      <div ref={listRef} className={['space-y-3', rearrange ? 'select-none' : ''].join(' ')}>
+        {order.map((id) => {
+          const meta = SECTION_META[id];
+          return (
+            <div
+              key={id}
+              data-section-id={id}
+              className={overId === id && dragId !== id ? 'ring-2 ring-[var(--color-brand-500)]/40 rounded-2xl' : ''}
+            >
+              <StatRankingCard
+                title={meta.title}
+                subtitle={meta.subtitle}
+                items={data[id]}
+                showLogo={meta.showLogo}
+                collapsed={rearrange}
+                dragging={dragId === id}
+                onDragHandleDown={(e) => onDragHandleDown(id, e)}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -20,7 +20,7 @@ type Props = {
 /** Taksit karşılaştırma — Esc / X */
 export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [segment, setSegment] = useState<CardSegment>('bireysel');
+  const [segment, setSegment] = useState<CardSegment>('tumu');
   const banks = banksForCompare(preferredBankId);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
         role="dialog"
         aria-modal
         aria-labelledby="taksit-title"
-        className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
+        className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
       >
         <header className="shrink-0 border-b border-[var(--panel-line)] px-5 py-3">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -68,6 +68,7 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
             <div className="inline-flex rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1 shadow-sm">
               {(
                 [
+                  ['tumu', 'Tümü'],
                   ['bireysel', 'Bireysel Kartlar'],
                   ['ticari', 'Ticari Kartlar'],
                 ] as const
@@ -80,7 +81,7 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
                     'rounded-lg px-4 py-1.5 text-sm font-semibold transition',
                     segment === id
                       ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                      : 'text-[var(--color-brand-600)] hover:bg-[var(--brand-soft-bg)]',
+                      : 'text-[var(--brand-on-soft)] hover:bg-[var(--brand-soft-bg)]',
                   ].join(' ')}
                 >
                   {label}
@@ -102,8 +103,8 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
-          <div className="grid gap-4 lg:grid-cols-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+          <div className="grid gap-4 xl:grid-cols-2">
             {banks.map((bank) => {
               const rows = buildInstallments(amount, segment, bank.id);
               return (
@@ -115,50 +116,69 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
                     <img
                       src={bank.logo}
                       alt=""
-                      className="h-8 w-auto max-w-[120px] object-contain"
+                      className="h-8 w-auto max-w-[120px] shrink-0 object-contain"
                     />
-                    <span className="text-sm font-bold text-[var(--panel-ink)]">{bank.name}</span>
+                    <span className="min-w-0 flex-1 text-right text-sm font-bold leading-snug text-[var(--panel-ink)]">
+                      {bank.fullName}
+                    </span>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[420px] text-left text-[12px]">
-                      <thead>
-                        <tr className="text-[10px] uppercase tracking-wide text-[var(--panel-muted)]">
-                          <th className="px-3 py-2 font-semibold">Taksit</th>
-                          <th className="px-3 py-2 font-semibold">Komisyon</th>
-                          <th className="px-3 py-2 font-semibold">Taksit tutarı</th>
-                          <th className="px-3 py-2 font-semibold">Toplam</th>
-                          <th
-                            className="px-3 py-2 font-semibold"
-                            title="Yakında ayarlardan bağlanacak"
-                          >
-                            Taksit Alt Limiti
-                          </th>
+                  <table className="w-full table-fixed text-left text-[11px] sm:text-[12px]">
+                    <colgroup>
+                      <col className="w-[12%]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[22%]" />
+                      <col className="w-[24%]" />
+                      <col className="w-[26%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="text-[9px] uppercase leading-tight tracking-wide text-[var(--panel-muted)] sm:text-[10px]">
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">Taksit</th>
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">Komisyon</th>
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                          Taksit
+                          <br />
+                          tutarı
+                        </th>
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                          Toplam
+                          <br />
+                          tutar
+                        </th>
+                        <th
+                          className="px-2 py-2 text-right font-semibold sm:px-3"
+                          title="Yakında ayarlardan bağlanacak"
+                        >
+                          Taksit Alt
+                          <br />
+                          Limiti
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => (
+                        <tr
+                          key={r.n}
+                          className="border-t border-[var(--panel-line)]/80 hover:bg-[var(--panel-hover)]/50"
+                        >
+                          <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
+                            {r.plusN > 0 ? `${r.n}+${r.plusN}` : r.n}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
+                            % {formatMoneyTr(r.commissionPct)}
+                          </td>
+                          <td className="px-2 py-2 text-right font-medium tabular-nums text-[var(--panel-ink)] sm:px-3">
+                            {formatMoneyTr(r.installmentAmount)} ₺
+                          </td>
+                          <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
+                            {formatMoneyTr(r.totalAmount)} ₺
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
+                            —
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => (
-                          <tr
-                            key={r.n}
-                            className="border-t border-[var(--panel-line)]/80 hover:bg-[var(--panel-hover)]/50"
-                          >
-                            <td className="px-3 py-2 font-semibold tabular-nums text-[var(--panel-ink)]">
-                              {r.n}
-                            </td>
-                            <td className="px-3 py-2 tabular-nums text-[var(--panel-muted)]">
-                              % {formatMoneyTr(r.commissionPct)}
-                            </td>
-                            <td className="px-3 py-2 font-medium tabular-nums text-[var(--panel-ink)]">
-                              {formatMoneyTr(r.installmentAmount)} ₺
-                            </td>
-                            <td className="px-3 py-2 font-semibold tabular-nums text-[var(--panel-ink)]">
-                              {formatMoneyTr(r.totalAmount)} ₺
-                            </td>
-                            <td className="px-3 py-2 tabular-nums text-[var(--panel-muted)]">—</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </article>
               );
             })}

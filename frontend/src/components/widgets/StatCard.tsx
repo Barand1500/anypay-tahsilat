@@ -56,7 +56,7 @@ export function StatCard({ title, value, meta, tone }: Props) {
     <article
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      className="panel-card group relative overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:-translate-y-1.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_40%,var(--panel-line))] hover:shadow-[0_18px_44px_color-mix(in_srgb,var(--color-brand-500)_20%,transparent)]"
+      className="panel-card group relative flex h-full min-h-[120px] flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:-translate-y-1.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_40%,var(--panel-line))] hover:shadow-[0_18px_44px_color-mix(in_srgb,var(--color-brand-500)_20%,transparent)]"
     >
       <div
         className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-0 blur-2xl transition duration-500 group-hover:opacity-100"

@@ -198,15 +198,19 @@ const BASE_CARDS: Omit<StatRankItem, 'color'>[] = [
 ];
 
 /** Filtreye göre hafif sapma — mock “canlı” hissi */
-function scaleAmount(n: number, year: string, month: string | null, fullYear: boolean) {
+function scaleAmount(n: number, year: string, months: string[], fullYear: boolean) {
   const yFactor = year === '2026' ? 1 : year === '2025' ? 0.82 : 0.64;
-  const mFactor = fullYear || !month ? 1 : 0.55 + (Number(month) / 12) * 0.5;
+  let mFactor = 1;
+  if (!fullYear && months.length > 0) {
+    const avg = months.reduce((s, m) => s + (0.55 + (Number(m) / 12) * 0.5), 0) / months.length;
+    mFactor = avg * (0.7 + Math.min(months.length, 12) * 0.05);
+  }
   return Math.round(n * yFactor * mFactor);
 }
 
 export function getStatistics(opts: {
   year: string;
-  month: string | null;
+  months: string[];
   fullYear: boolean;
   branch: string | null;
   userId: string | null;
@@ -220,7 +224,10 @@ export function getStatistics(opts: {
       items
         .map((it) => ({
           ...it,
-          amount: Math.max(100, Math.round(scaleAmount(it.amount, opts.year, opts.month, opts.fullYear) * factor)),
+          amount: Math.max(
+            100,
+            Math.round(scaleAmount(it.amount, opts.year, opts.months, opts.fullYear) * factor),
+          ),
         }))
         .sort((a, b) => b.amount - a.amount),
     );
@@ -238,9 +245,9 @@ export function formatMoneyTr(n: number): string {
 
 export const REPORT_SUBNAV = [
   { to: '/raporlar/istatistikler', label: 'İstatistikler', ready: true },
-  { to: '/raporlar/tahsilat-raporu', label: 'Tahsilat Raporu', ready: false },
-  { to: '/raporlar/musteri-tahsilat-raporu', label: 'Müşteri Tahsilat Raporu', ready: false },
-  { to: '/raporlar/musteri-kart-tahsilat', label: 'Müşteri Kartı Tahsilat', ready: false },
-  { to: '/raporlar/banka-tahsilat-raporu', label: 'Banka Tahsilat Raporu', ready: false },
-  { to: '/raporlar/gonderim-gecmisi', label: 'Gönderim Geçmişi', ready: false },
+  { to: '/raporlar/tahsilat-raporu', label: 'Tahsilat Raporu', ready: true },
+  { to: '/raporlar/musteri-tahsilat-raporu', label: 'Müşteri Tahsilat Raporu', ready: true },
+  { to: '/raporlar/musteri-kart-tahsilat', label: 'Müşteri Kartı Tahsilat', ready: true },
+  { to: '/raporlar/banka-tahsilat-raporu', label: 'Banka Tahsilat Raporu', ready: true },
+  { to: '/raporlar/gonderim-gecmisi', label: 'Gönderim Geçmişi', ready: true },
 ] as const;

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { panelCompanyAsCustomer } from '../payment-requests/mockPaymentRequests';
+import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import {
@@ -27,7 +28,7 @@ export default function QuickPayPage() {
   const currencyRef = useRef<HTMLDivElement>(null);
   const merchant = useMemo(() => panelCompanyAsCustomer(), []);
 
-  const [payType, setPayType] = useState<PayType>('ch');
+  const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');

@@ -9,7 +9,8 @@ import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { usePermission } from '../../permissions/PermissionContext';
 import { getLiveCustomers } from '../customers/mockCustomers';
 import { BANKS } from '../payments/mockBanks';
-import { BRANCH_OPTIONS, INITIAL_USERS } from '../users/mockUsers';
+import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { DekontModal } from './DekontModal';
 import {
   formatMoneyTr,
@@ -49,7 +50,7 @@ export default function TransactionsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [dekontTx, setDekontTx] = useState<Transaction | null>(null);
   const [reverseTx, setReverseTx] = useState<Transaction | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('hareketler'));
 
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function TransactionsPage() {
   const [archive, setArchive] = useState<string | null>('no');
 
   const branchOptions = useMemo(
-    () => BRANCH_OPTIONS.map((b) => ({ value: b, label: b })),
+    () => getBranchOptions().map((b) => ({ value: b, label: b })),
     [],
   );
   const userOptions = useMemo(

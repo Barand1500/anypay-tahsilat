@@ -20,6 +20,11 @@ import {
   type Customer,
   type CustomerKind,
 } from './mockCustomers';
+import {
+  getDefaultAccountType,
+  getDefaultCustomerKind,
+  getDefaultTaxOffice,
+} from '../settings/defaultsStore';
 
 /**
  * Müşteri Ekle — tek kart “Müşteri Bilgileri” (referans düzen).
@@ -53,14 +58,14 @@ export default function CustomerFormPage() {
     if (ustFromUrl && allCustomers.some((c) => c.id === ustFromUrl)) return ustFromUrl;
     return null;
   });
-  const [accountType, setAccountType] = useState('');
+  const [accountType, setAccountType] = useState(() => getDefaultAccountType());
   const [accountTypes, setAccountTypes] = useState<string[]>(() => getAccountTypes());
   const [accountPrompt, setAccountPrompt] = useState(false);
-  const [kind, setKind] = useState<CustomerKind>('gercek');
+  const [kind, setKind] = useState<CustomerKind>(() => getDefaultCustomerKind());
   const [code, setCode] = useState('');
   const [identityNo, setIdentityNo] = useState('');
   const [taxNo, setTaxNo] = useState('');
-  const [taxOffice, setTaxOffice] = useState<string | null>('');
+  const [taxOffice, setTaxOffice] = useState<string | null>(() => getDefaultTaxOffice());
   const [title, setTitle] = useState('');
   const [phone, setPhone] = useState('5');
   const [email, setEmail] = useState('');

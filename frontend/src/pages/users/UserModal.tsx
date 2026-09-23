@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { TextInput } from '../../components/ui/TextInput';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import {
-  BRANCH_OPTIONS,
+  getBranchOptions,
   emailSuggestions,
   formatPhoneLive,
   INSTALLMENT_OPTIONS,
@@ -284,7 +284,7 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
             <FloatingSearchSelect
               label="Şube/Departman"
               placeholder="Şube/Departman seçiniz."
-              options={BRANCH_OPTIONS.map((b) => ({ value: b, label: b }))}
+              options={getBranchOptions().map((b) => ({ value: b, label: b }))}
               value={branch || null}
               onChange={(v) => setBranch(v ?? '')}
               kmJump

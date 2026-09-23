@@ -93,8 +93,12 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
             <BankRow key={b.id || b.name} bank={b} />
           ))}
         </ul>
+      ) : (
+        <div className="mt-3 min-h-0 flex-1" aria-hidden />
+      )}
+      {footer ? (
+        <div className="mt-auto flex min-h-0 flex-col justify-end pt-3">{footer}</div>
       ) : null}
-      {footer ? <div className="mt-auto flex min-h-0 flex-1 flex-col justify-end">{footer}</div> : null}
     </article>
   );
 }

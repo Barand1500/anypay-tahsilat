@@ -22,6 +22,26 @@ export const BRANCH_OPTIONS = [
   'İstanbul Anadolu',
 ] as const;
 
+/** Tanımlamalar › Şubeler listesi; yoksa sabit fallback */
+export function getBranchOptions(): string[] {
+  try {
+    // lazy import döngüsünü önlemek için doğrudan storage
+    const raw = localStorage.getItem('anypay_tahsilat_branch_defs');
+    if (raw) {
+      const parsed = JSON.parse(raw) as { name?: string }[];
+      if (Array.isArray(parsed) && parsed.length) {
+        const names = parsed
+          .map((x) => (typeof x?.name === 'string' ? x.name.trim() : ''))
+          .filter(Boolean);
+        if (names.length) return names;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return [...BRANCH_OPTIONS];
+}
+
 export {
   EMAIL_DOMAIN_SUGGESTIONS,
   emailSuggestions,

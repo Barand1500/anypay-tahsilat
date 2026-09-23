@@ -350,7 +350,6 @@ function buildMultiSeries(range: Range): Point[] {
   return make(
     12,
     (i) => {
-      const d = new Date(now.getFullYear(), i, 1);
       return {
         label: `${String(i + 1).padStart(2, '0')}/2026`,
         full: `${String(i + 1).padStart(2, '0')}/2026`,

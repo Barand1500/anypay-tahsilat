@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { formatPhoneLive, getLiveCustomers, normalizePhoneInput } from '../customers/mockCustomers';
+import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import {
@@ -13,6 +14,8 @@ import {
   formatCardNumber,
   formatExpiryInput,
   formatMoneyTr,
+  maskMoneyInput,
+  parseTrMoney,
   getCardExpiryError,
   isValidLuhn,
 } from './mockBanks';
@@ -35,10 +38,10 @@ export default function PaymentCollectPage() {
     [id],
   );
 
-  const [payType, setPayType] = useState<PayType>('ch');
+  const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
-  const [amountText, setAmountText] = useState('1000,00');
+  const [amountText, setAmountText] = useState(() => formatMoneyTr(1000));
   const [currency, setCurrency] = useState<Currency>('TRY');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
@@ -112,6 +115,8 @@ export default function PaymentCollectPage() {
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
   const expiryFaulty =
     expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
+  const expiryOk =
+    expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
   const selected = useMemo(() => {
     if (!amount || amount <= 0) return null;
     const rows = buildInstallments(amount, 'bireysel', bank?.id);
@@ -331,10 +336,10 @@ export default function PaymentCollectPage() {
                       data-km-jump
                       id="pay-amount"
                       value={amountText}
-                      onChange={(e) => setAmountText(e.target.value)}
-                      inputMode="decimal"
+                      onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                      inputMode="numeric"
                       placeholder=" "
-                      className="peer w-full rounded-l-xl bg-transparent px-3.5 pb-2.5 pt-5 text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
+                      className="peer w-full rounded-l-xl bg-transparent px-3.5 pb-2.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
                     />
                     <label
                       htmlFor="pay-amount"
@@ -509,8 +514,10 @@ export default function PaymentCollectPage() {
                   onBlur={() => setExpiryChecked(true)}
                   inputMode="numeric"
                   autoComplete="cc-exp"
-                  className="!pr-16 font-mono tabular-nums"
-                  endAdornment={expiryFaulty ? <FaultBadge /> : null}
+                  className="!pr-20 font-mono tabular-nums"
+                  endAdornment={
+                    expiryFaulty ? <FaultBadge /> : expiryOk ? <OkBadge /> : null
+                  }
                 />
                 <TextInput
                   data-km-jump
@@ -725,6 +732,14 @@ function FaultBadge() {
   );
 }
 
+function OkBadge() {
+  return (
+    <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-emerald-600">
+      Doğru
+    </span>
+  );
+}
+
 function SectionHead({ children }: { children: string }) {
   return (
     <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--panel-muted)]">
@@ -753,10 +768,4 @@ function ChevronIcon() {
       <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
-}
-
-function parseTrMoney(raw: string): number {
-  const cleaned = raw.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
-  const n = Number.parseFloat(cleaned);
-  return Number.isFinite(n) ? n : 0;
 }

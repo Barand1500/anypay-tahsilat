@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { usePermission } from '../../permissions/PermissionContext';
@@ -132,7 +132,7 @@ export default function UsersPage() {
     setModal({ type: 'edit', user: u, focusField: focusField ?? 'name' });
   }
 
-  function onRowDoubleClick(u: AppUser, e: MouseEvent) {
+  function onRowDoubleClick(u: AppUser, e: ReactMouseEvent) {
     const col = (e.target as HTMLElement).closest('[data-user-col]')?.getAttribute('data-user-col');
     openEdit(u, col ? COL_FOCUS[col] ?? 'name' : 'name');
   }

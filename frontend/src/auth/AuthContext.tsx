@@ -21,6 +21,8 @@ type AuthContextValue = {
   token: string | null;
   booting: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Geçici kod ile giriş — SMTP sonra; şimdilik DEV mock */
+  loginWithOtp: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -41,6 +43,14 @@ function isDevCreds(email: string, password: string) {
     import.meta.env.DEV &&
     email.trim().toLowerCase() === 'admin@guzelteknoloji.com' &&
     password === '123456'
+  );
+}
+
+function isDevOtp(email: string, code: string) {
+  return (
+    import.meta.env.DEV &&
+    email.trim().toLowerCase() === 'admin@guzelteknoloji.com' &&
+    code.trim() === '123456'
   );
 }
 
@@ -108,6 +118,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginWithOtp = useCallback(async (email: string, code: string) => {
+    try {
+      const result = await api.post<{ token: string; user: AuthUser }>('/api/auth/login-otp', {
+        email,
+        code,
+      });
+      localStorage.setItem(TOKEN_KEY, result.token);
+      setToken(result.token);
+      setUser(result.user);
+    } catch (err) {
+      if (isDevOtp(email, code)) {
+        localStorage.setItem(TOKEN_KEY, DEV_TOKEN);
+        setToken(DEV_TOKEN);
+        setUser(DEV_USER);
+        return;
+      }
+      if (import.meta.env.DEV) {
+        throw new Error('Geçersiz kod. Geliştirme: admin@guzelteknoloji.com / 123456');
+      }
+      throw err instanceof Error ? err : new Error('Geçersiz kod');
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       if (token && token !== DEV_TOKEN) await api.post('/api/auth/logout', {}, token);
@@ -120,8 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const value = useMemo(
-    () => ({ user, token, booting, login, logout }),
-    [user, token, booting, login, logout],
+    () => ({ user, token, booting, login, loginWithOtp, logout }),
+    [user, token, booting, login, loginWithOtp, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

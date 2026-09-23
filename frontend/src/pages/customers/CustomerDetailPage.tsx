@@ -509,7 +509,7 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
       {addOpen ? (
         <form
           onSubmit={addUser}
-          className="border-b border-[var(--panel-line)] bg-[var(--panel-surface)]/50 px-5 py-4 sm:px-6"
+          className="border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-4 sm:px-6"
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
             <TextInput
@@ -768,7 +768,7 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
       {addOpen ? (
         <form
           onSubmit={addAddr}
-          className="space-y-4 border-b border-[var(--panel-line)] bg-[var(--panel-surface)] px-5 py-5 sm:px-6 [--input-notch:var(--panel-surface)]"
+          className="space-y-4 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5 sm:px-6 [--input-notch:var(--panel-elevated)]"
         >
           <h2 className="text-sm font-bold text-[var(--panel-ink)]">Adres Ekle</h2>
           <TextInput

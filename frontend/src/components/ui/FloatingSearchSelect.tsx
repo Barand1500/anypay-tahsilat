@@ -24,7 +24,7 @@ export function FloatingSearchSelect({
   options,
   value,
   onChange,
-  placeholder = 'Seçiniz.',
+  placeholder: _placeholder = 'Seçiniz.',
   required,
   kmJump,
   pulse,
@@ -99,7 +99,7 @@ export function FloatingSearchSelect({
   const floating = open || !!selected;
 
   return (
-    <div ref={rootRef} className={['relative', className, pulse ? 'field-focus-pulse' : ''].join(' ')}>
+    <div ref={rootRef} className={['relative', className].join(' ')}>
       <button
         ref={btnRef}
         type="button"
@@ -110,10 +110,11 @@ export function FloatingSearchSelect({
         aria-required={required}
         onClick={() => setOpen((v) => !v)}
         className={[
-          'relative flex w-full items-center rounded-xl border bg-[var(--input-bg)] px-3.5 py-3.5 text-left transition',
+          'relative flex h-[3.25rem] w-full items-center rounded-xl border bg-[var(--input-bg)] px-3.5 pb-2.5 pt-5 text-left transition',
           open
             ? 'border-[var(--input-border-focus)]'
             : 'border-[var(--input-border)] hover:border-[color-mix(in_srgb,var(--input-border-focus)_45%,var(--input-border))]',
+          pulse ? 'field-focus-pulse' : '',
         ].join(' ')}
       >
         <span
@@ -127,15 +128,15 @@ export function FloatingSearchSelect({
           {label}
         </span>
 
-        {/* Kapalı + boşken sadece etiket; placeholder etiketle çakışmasın */}
+        {/* Kapalı + boşken sadece etiket; placeholder etiketle çakışmasın — yükseklik TextInput ile aynı */}
         <span
           className={[
-            'min-w-0 flex-1 truncate text-sm',
-            selected ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
-            floating ? 'pt-1' : 'opacity-0',
+            'min-w-0 flex-1 truncate text-sm leading-5',
+            selected ? 'text-[var(--panel-ink)]' : 'text-transparent',
           ].join(' ')}
+          aria-hidden={!selected}
         >
-          {selected ? selected.label : placeholder}
+          {selected ? selected.label : '\u00a0'}
         </span>
 
         {selected ? (

@@ -135,7 +135,7 @@ function collectJumps(): HTMLElement[] {
     .slice(0, 9);
 }
 
-function isEditable(el: Element | null): el is HTMLElement {
+function isEditable(el: Element | null): boolean {
   if (!el || !(el instanceof HTMLElement)) return false;
   if (el.isContentEditable) return true;
   const tag = el.tagName;

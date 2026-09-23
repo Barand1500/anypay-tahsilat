@@ -2,41 +2,21 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getLiveCustomers } from '../customers/mockCustomers';
+import { getDefaultPayType } from '../settings/defaultsStore';
 import {
   addLivePaymentRequest,
   panelCompanyAsCustomer,
   type PayRequestType,
 } from '../payment-requests/mockPaymentRequests';
-import { formatMoneyTr } from './mockBanks';
+import { formatMoneyTr, maskMoneyInput, parseTrMoney } from './mockBanks';
 import { InstallmentPaintGrid } from './InstallmentPaintGrid';
+import { loadReadyDescriptions } from './mockReadyDescriptions';
+import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
 
 type PayType = '' | 'ch' | 'fatura';
 type Currency = '' | 'TRY';
 
 const INSTALLMENTS = Array.from({ length: 12 }, (_, i) => i + 1);
-
-const READY_DESCRIPTIONS = [
-  {
-    id: 'open-balance',
-    title: 'Açık bakiye tahsilatı',
-    text: 'Sayın müşterimiz, cari hesabınızdaki açık bakiyenizin tahsilatı için ödeme talebi oluşturulmuştur. Ödemenizi güvenli ödeme linki üzerinden tamamlayabilirsiniz.',
-  },
-  {
-    id: 'invoice',
-    title: 'Fatura ödemesi',
-    text: 'İlgili fatura / hizmet bedelinin tahsilatı için ödeme isteği oluşturulmuştur. Tutarı kontrol ederek ödemeyi tamamlayınız.',
-  },
-  {
-    id: 'installment',
-    title: 'Taksitli ödeme',
-    text: 'Belirtilen tutarın taksitli ödeme seçenekleriyle tahsilatı için ödeme isteği oluşturulmuştur. Size uygun taksiti seçerek işlemi tamamlayabilirsiniz.',
-  },
-  {
-    id: 'reminder',
-    title: 'Ödeme hatırlatması',
-    text: 'Muaccel hale gelen borcunuz için hatırlatma amaçlı ödeme isteği oluşturulmuştur. En kısa sürede ödemenizi gerçekleştirmenizi rica ederiz.',
-  },
-] as const;
 
 /**
  * Ödeme İsteği Oluştur — müşteri satırından veya panel şirketi adına (Ekle).
@@ -58,7 +38,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const backTo = forPanel ? '/odeme-istekleri' : '/musteriler';
   const backLabel = forPanel ? 'Ödeme İstekleri' : 'Müşteriler';
 
-  const [payType, setPayType] = useState<PayType>('ch');
+  const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
@@ -70,6 +50,8 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [readyDescriptions, setReadyDescriptions] = useState(() => loadReadyDescriptions());
+  const [readyManageOpen, setReadyManageOpen] = useState(false);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -353,10 +335,10 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                       data-km-jump
                       id="req-amount"
                       value={amountText}
-                      onChange={(e) => setAmountText(e.target.value)}
-                      inputMode="decimal"
+                      onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                      inputMode="numeric"
                       placeholder=" "
-                      className="peer w-full rounded-l-xl bg-transparent py-2.5 pl-10 pr-3.5 pt-5 text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
+                      className="peer w-full rounded-l-xl bg-transparent py-2.5 pl-10 pr-3.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
                     />
                     <label
                       htmlFor="req-amount"
@@ -593,27 +575,45 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                 />
 
                 <div className="border-t border-[var(--panel-line)] bg-[var(--panel-surface)]/80 px-3 py-3">
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--panel-muted)]">
-                    Hazır açıklamalar
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {READY_DESCRIPTIONS.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        data-km-jump
-                        onClick={() => applyReadyDescription(item.text)}
-                        className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-left transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)]"
-                      >
-                        <span className="block text-[12px] font-bold text-[var(--color-brand-600)]">
-                          {item.title}
-                        </span>
-                        <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-[var(--panel-muted)]">
-                          {item.text}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--panel-muted)]">
+                      Hazır açıklamalar
+                    </p>
+                    <button
+                      type="button"
+                      data-km-jump
+                      title="Hazır açıklamaları düzenle"
+                      aria-label="Hazır açıklamaları düzenle"
+                      onClick={() => setReadyManageOpen(true)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--color-brand-600)]"
+                    >
+                      <PencilSmIcon />
+                    </button>
                   </div>
+                  {readyDescriptions.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[var(--panel-line)] px-3 py-4 text-center text-[11px] text-[var(--panel-muted)]">
+                      Hazır açıklama yok — kalem ile ekleyin
+                    </p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {readyDescriptions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          data-km-jump
+                          onClick={() => applyReadyDescription(item.text)}
+                          className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-left transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)]"
+                        >
+                          <span className="block text-[12px] font-bold text-[var(--color-brand-600)]">
+                            {item.title}
+                          </span>
+                          <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-[var(--panel-muted)]">
+                            {item.text}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               {errors.desc ? <p className="mt-1 text-xs text-rose-500">{errors.desc}</p> : null}
@@ -638,6 +638,13 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           {toast}
         </div>
       ) : null}
+
+      {readyManageOpen ? (
+        <ReadyDescriptionsModal
+          onClose={() => setReadyManageOpen(false)}
+          onChange={setReadyDescriptions}
+        />
+      ) : null}
     </div>
   );
 }
@@ -661,6 +668,20 @@ function ToolBtn({
     >
       {children}
     </button>
+  );
+}
+
+function PencilSmIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M13 6l3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -694,10 +715,4 @@ function ChevronIcon() {
       <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
-}
-
-function parseTrMoney(raw: string): number {
-  const cleaned = raw.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
-  const n = Number.parseFloat(cleaned);
-  return Number.isFinite(n) ? n : 0;
 }

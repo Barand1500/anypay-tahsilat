@@ -16,6 +16,12 @@ const MENU = [
 ] as const;
 
 const PANEL_W = 260;
+/** Menü yaklaşık yüksekliği — alt boşluk azsa yukarı aç */
+const PANEL_H_EST = 380;
+
+type PanelPos =
+  | { placement: 'down'; top: number; left: number }
+  | { placement: 'up'; bottom: number; left: number };
 
 function roleLabel(roles: string[]) {
   if (roles.includes('ROLE_SUPERAPP') || roles.includes('ROLE_ADMIN')) return 'Yönetici';
@@ -35,12 +41,13 @@ function initialsOf(name: string) {
 
 /**
  * Profil menüsü — panel body’ye portal (header overflow-hidden kesmesin).
+ * Footer / dock’ta aşağıda yer yoksa Sözleşmeler gibi yukarı açılır.
  */
 export function ProfileMenu() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [pos, setPos] = useState<PanelPos>({ placement: 'down', top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +60,20 @@ export function ProfileMenu() {
     if (!btn) return;
     const r = btn.getBoundingClientRect();
     const left = Math.min(r.right - PANEL_W, window.innerWidth - PANEL_W - 8);
-    setPos({ top: r.bottom + 10, left: Math.max(8, left) });
+    const openUp = window.innerHeight - r.bottom < PANEL_H_EST;
+    if (openUp) {
+      setPos({
+        placement: 'up',
+        bottom: window.innerHeight - r.top + 10,
+        left: Math.max(8, left),
+      });
+    } else {
+      setPos({
+        placement: 'down',
+        top: r.bottom + 10,
+        left: Math.max(8, left),
+      });
+    }
   }
 
   useLayoutEffect(() => {
@@ -114,15 +134,20 @@ export function ProfileMenu() {
     const panel = panelRef.current;
     if (!panel) return;
 
+    const up = pos.placement === 'up';
     const items = Array.from(panel.querySelectorAll('[data-menu-item]'));
-    gsap.set(panel, { transformOrigin: 'top right' });
-    gsap.set(items, { autoAlpha: 0, x: 12 });
+    gsap.set(panel, { transformOrigin: up ? 'bottom right' : 'top right' });
+    gsap.set(items, { autoAlpha: 0, x: up ? 0 : 12, y: up ? 8 : 0 });
     const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
     tl.fromTo(
       panel,
-      { autoAlpha: 0, y: -10, scale: 0.94 },
+      { autoAlpha: 0, y: up ? 12 : -10, scale: 0.94 },
       { autoAlpha: 1, y: 0, scale: 1, duration: 0.32 },
-    ).to(items, { autoAlpha: 1, x: 0, duration: 0.28, stagger: 0.045 }, '-=0.12');
+    ).to(
+      items,
+      { autoAlpha: 1, x: 0, y: 0, duration: 0.28, stagger: 0.045 },
+      '-=0.12',
+    );
 
     if (btnRef.current) {
       gsap.fromTo(
@@ -135,7 +160,7 @@ export function ProfileMenu() {
     return () => {
       tl.kill();
     };
-  }, [open]);
+  }, [open, pos.placement]);
 
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -167,7 +192,11 @@ export function ProfileMenu() {
             role="menu"
             data-profile-panel
             className="fixed z-[10050] w-[260px] overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_16px_48px_rgba(0,0,0,0.18)]"
-            style={{ top: pos.top, left: pos.left }}
+            style={
+              pos.placement === 'up'
+                ? { bottom: pos.bottom, left: pos.left }
+                : { top: pos.top, left: pos.left }
+            }
             onDoubleClick={(e) => e.stopPropagation()}
           >
             <button

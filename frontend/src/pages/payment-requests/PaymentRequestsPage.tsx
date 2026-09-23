@@ -7,7 +7,8 @@ import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { usePermission } from '../../permissions/PermissionContext';
 import { getLiveCustomers } from '../customers/mockCustomers';
-import { BRANCH_OPTIONS, INITIAL_USERS } from '../users/mockUsers';
+import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
   formatDt,
   formatElapsed,
@@ -44,7 +45,7 @@ export default function PaymentRequestsPage() {
   const [pageSizeText, setPageSizeText] = useState('10');
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('odeme-istekleri'));
   const [deleteTarget, setDeleteTarget] = useState<PaymentRequest | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -57,7 +58,7 @@ export default function PaymentRequestsPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   const branchOptions = useMemo(
-    () => BRANCH_OPTIONS.map((b) => ({ value: b, label: b })),
+    () => getBranchOptions().map((b) => ({ value: b, label: b })),
     [],
   );
   const userOptions = useMemo(
