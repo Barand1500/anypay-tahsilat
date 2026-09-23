@@ -30,14 +30,16 @@ alwaysApply: true
 ## Deploy & git
 
 - Repo: https://github.com/Barand1500/anypay-tahsilat.git
-- Deploy: `scripts/server-deploy.sh` (anypay-tahsilat yolları)
+- **Git / build:** `/home/anypay-tahsilat/apps/anypay-tahsilat`
+- **Yayın (git değil):** `/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr` — burada `git pull` yok
+- Deploy: `scripts/server-deploy.sh` + pratik notlar `docs/DEPLOY.md`
 - Commit: `v0.1: ...`, `v0.2: login ...`
-- `.env` ve `docs/db/*.sql` commit etme
+- `.env`, `docs/db/*.sql`, `fikir.txt` commit etme
 
 ## Belirsizlik
 
 - Tahminle şişirme; kısa soru sor
-- Detay: `docs/KARARLAR.md`, `docs/PROJE.md`, `docs/KOD_STANDARTLARI.md`
+- Detay: `docs/KARARLAR.md`, `docs/PROJE.md`, `docs/KOD_STANDARTLARI.md`, `docs/DEPLOY.md`
 
 ## Modal davranışı (kilitli)
 

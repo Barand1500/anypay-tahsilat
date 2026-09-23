@@ -23,7 +23,8 @@ Mevcut PHP tahsilat panelini ([tahsilat.guzelteknoloji.com](https://tahsilat.guz
 |--------|--------|
 | Domain | `tahsilat.anypay.com.tr` |
 | Site kullanıcısı | `anypay-tahsilat` |
-| Site kökü | `/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr` |
+| Kaynak repo | `/home/anypay-tahsilat/apps/anypay-tahsilat` (git burada) |
+| Site kökü | `/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr` (yayın; git değil) |
 | IP | `46.197.176.51` |
 | DB host | `127.0.0.1:3306` |
 | DB adı | `anypay-tahsilat-db` |
@@ -53,7 +54,7 @@ Mevcut PHP tahsilat panelini ([tahsilat.guzelteknoloji.com](https://tahsilat.guz
 | ORM | Prisma |
 | DB | MySQL / Percona (mevcut dump referans) |
 | Auth | E-posta + şifre → JWT (sonradan değişebilir) |
-| Deploy | Git + `scripts/server-deploy.sh` |
+| Deploy | Git + `scripts/server-deploy.sh` — pratik notlar: `docs/DEPLOY.md` |
 
 Yapı (hedef klasörler):
 
@@ -96,15 +97,15 @@ Kaynak panel menüsü:
 
 ## 7. Deploy mantığı
 
-Dosya sürüklemek yerine sunucuda tek komut:
+**Önemli:** `htdocs` git repo değil. Pull/build → `apps/anypay-tahsilat`. Ayrıntı: **`docs/DEPLOY.md`**.
+
+Tam deploy (backend hazırken):
 
 ```bash
-bash scripts/server-deploy.sh
+bash /home/anypay-tahsilat/apps/anypay-tahsilat/scripts/server-deploy.sh
 ```
 
-Akış (özet): `git pull` → npm install → frontend/backend build → site klasörüne kopyala → prisma setup → process restart → health check.
-
-Yollar `anypay-tahsilat` kullanıcısına göre ayarlanır (menu-qr örneğinden uyarlanır).
+Akış (özet): `git pull` (apps) → npm install → frontend/backend build → htdocs’a kopyala → prisma → process restart → health check.
 
 ---
 

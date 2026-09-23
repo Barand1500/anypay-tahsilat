@@ -14,8 +14,10 @@ Bu dosya sohbette verilen yanıtların resmi kaydıdır. Değişirse burası gü
 
 - **Canlı domain:** `https://tahsilat.anypay.com.tr`
 - CloudPanel site user: `anypay-tahsilat`
-- Site kök: `/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr`
+- **Kaynak repo (git):** `/home/anypay-tahsilat/apps/anypay-tahsilat`
+- **Site kök (yayın, git değil):** `/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr`
 - Referans (eski PHP): `https://tahsilat.guzelteknoloji.com/`
+- Detay / komutlar: **`docs/DEPLOY.md`** — `htdocs` içinde `git pull` yapma
 
 ## Auth
 
@@ -23,9 +25,10 @@ Bu dosya sohbette verilen yanıtların resmi kaydıdır. Değişirse burası gü
 - “Şifremi unuttum” UI’da yer alır; backend sonra tamamlanabilir
 - 2FA vb. şimdilik yok
 - **Her şey sonradan değişebilir / güncellenebilir** — sabit kabul etme
-- **Geçici DEV login (silinecek):** `admin@guzelteknoloji.com` / `123456`
-  - `AUTH_DEV_BYPASS=1` veya non-production ortamda aktif
-  - DB yoksa bile mock kullanıcı ile giriş
+- **Geçici demo login (silinecek):** `admin@guzelteknoloji.com` / `123456`
+  - Lokal `DEV` **veya** API yanıtı JSON değilken (`ApiUnavailableError` — statik yayın)
+  - Gerçek API 401 döndüğünde demo açılmaz
+  - Backend canlıya alınca kaldırılacak
 
 ## Panel (Özet)
 
@@ -88,4 +91,4 @@ Bu dosya sohbette verilen yanıtların resmi kaydıdır. Değişirse burası gü
 
 ---
 
-*Güncelleme: 2026-09-17*
+*Güncelleme: 2026-09-23*
