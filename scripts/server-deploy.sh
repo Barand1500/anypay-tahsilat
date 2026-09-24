@@ -9,7 +9,8 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-/home/anypay-tahsilat/apps/anypay-tahsilat}"
 SITE_DIR="${SITE_DIR:-/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr}"
 BRANCH="${BRANCH:-main}"
-PORT="${PORT:-3010}"
+PORT="${PORT:-3012}"
+PM2_NAME="${PM2_NAME:-anypay-tahsilat}"
 TOTAL_STEPS=7
 
 if [[ -t 1 ]]; then
@@ -63,6 +64,7 @@ info "Repo : $REPO_DIR"
 info "Site : $SITE_DIR"
 info "Dal  : $BRANCH"
 info "Port : $PORT"
+info "PM2  : $PM2_NAME"
 
 # ---------------------------------------------------------------------------
 step "Git güncellemesi"
@@ -180,20 +182,35 @@ npx prisma generate
 ok "Prisma client hazır"
 
 # ---------------------------------------------------------------------------
-step "Servisi yeniden başlat (port $PORT)"
-fuser -k "${PORT}/tcp" 2>/dev/null || true
-if command -v lsof >/dev/null 2>&1; then
-  # shellcheck disable=SC2046
-  kill $(lsof -t -i:"$PORT") 2>/dev/null || true
+step "Servisi yeniden başlat (PM2 · port $PORT)"
+cd "$SITE_DIR"
+
+if command -v pm2 >/dev/null 2>&1; then
+  if pm2 describe "$PM2_NAME" >/dev/null 2>&1; then
+    pm2 restart "$PM2_NAME" --update-env
+    ok "pm2 restart $PM2_NAME"
+  else
+    pm2 start dist/index.js --name "$PM2_NAME" --cwd "$SITE_DIR"
+    ok "pm2 start $PM2_NAME"
+  fi
+  pm2 save >/dev/null 2>&1 || true
+else
+  warn "pm2 yok — nohup ile başlatılıyor"
+  fuser -k "${PORT}/tcp" 2>/dev/null || true
+  if command -v lsof >/dev/null 2>&1; then
+    # shellcheck disable=SC2046
+    kill $(lsof -t -i:"$PORT") 2>/dev/null || true
+  fi
+  sleep 2
+  nohup npm start >> logs-start.log 2>&1 &
 fi
-sleep 2
-nohup npm start >> logs-start.log 2>&1 &
+
 sleep 3
 
 if HEALTH=$(curl -fsS "http://127.0.0.1:${PORT}/api/health" 2>/dev/null); then
   ok "Health: $HEALTH"
 else
-  die "Health check başarısız — $SITE_DIR/logs-start.log dosyasına bak"
+  die "Health check başarısız — pm2 logs $PM2_NAME veya $SITE_DIR/logs-start.log"
 fi
 
 SEC=$(elapsed)

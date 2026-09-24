@@ -53,10 +53,17 @@ Script varsayılanları:
 
 - `REPO_DIR` = `/home/anypay-tahsilat/apps/anypay-tahsilat`
 - `SITE_DIR` = `/home/anypay-tahsilat/htdocs/tahsilat.anypay.com.tr`
-- `PORT` = `3010` (health: `http://127.0.0.1:$PORT/api/health`)
-- Frontend → `$SITE_DIR/public/`
+- `PORT` = `3012` (CloudPanel Node port; health: `http://127.0.0.1:$PORT/api/health`)
+- `PM2_NAME` = `anypay-tahsilat`
+- Frontend → `$SITE_DIR/public/` (`.env` silinmez)
 - Backend → `$SITE_DIR/dist/` + prisma + site `package.json`
-- `.env` **htdocs’ta** kalır; script silmez / üzerine yazmaz — yoksa script durur
+- Restart: `pm2 restart anypay-tahsilat`
+
+Sonraki güncellemeler (tek komut):
+
+```bash
+bash /home/anypay-tahsilat/apps/anypay-tahsilat/scripts/server-deploy.sh
+```
 
 ---
 
