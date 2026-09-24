@@ -86,3 +86,13 @@ model Surumler {
 
   @@map("surumler")
 }
+
+/** Panel işlem logları */
+model Log {
+  id          Int      @id @default(autoincrement())
+  kullaniciId Int?     @map("kullanici_id")
+  tarih       DateTime
+  islem       String?  @db.LongText
+
+  @@map("log")
+}

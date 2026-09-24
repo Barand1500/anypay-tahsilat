@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { sendLoginOtpMail } from '../lib/mail.js';
 import { generateOtpCode, saveOtp, verifyOtp } from '../lib/otpStore.js';
 import { signToken } from '../middleware/auth.js';
+import { writePanelLog } from './logsService.js';
 
 function parseRoles(roles: unknown): string[] {
   if (Array.isArray(roles)) return roles.map(String);
@@ -83,6 +84,11 @@ export async function loginWithPassword(email: string, password: string) {
     data: { lastLogin: new Date() },
   });
 
+  await writePanelLog(
+    user.id,
+    `Giriş - ${user.email} e-posta adresine sahip kullanıcı giriş yaptı.`,
+  );
+
   const publicUser = toPublicUser(user);
   const token = signToken({ sub: user.id, email: user.email });
   return { token, user: publicUser };
@@ -122,6 +128,11 @@ export async function loginWithOtp(email: string, code: string) {
     where: { id: user.id },
     data: { lastLogin: new Date() },
   });
+
+  await writePanelLog(
+    user.id,
+    `Giriş - ${user.email} e-posta adresine sahip kullanıcı giriş yaptı.`,
+  );
 
   const publicUser = toPublicUser(user);
   const token = signToken({ sub: user.id, email: user.email });

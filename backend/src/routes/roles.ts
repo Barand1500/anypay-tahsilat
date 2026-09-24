@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import {
   RolesError,
   createRole,
@@ -8,6 +8,7 @@ import {
   softDeleteRole,
   updateRole,
 } from '../services/rolesService.js';
+import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const rolesRouter = Router();
@@ -43,7 +44,7 @@ rolesRouter.get('/', async (_req, res) => {
   }
 });
 
-rolesRouter.post('/', async (req, res) => {
+rolesRouter.post('/', async (req: AuthedRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -51,6 +52,7 @@ rolesRouter.post('/', async (req, res) => {
 
   try {
     const data = await createRole(parsed.data);
+    await writePanelLog(req.auth!.sub, `Rol - ${data.name} rolü eklendi.`);
     return sendSuccess(res, data, 'Rol eklendi', 201);
   } catch (err) {
     if (err instanceof RolesError) return sendError(res, 400, err.message);
@@ -59,7 +61,7 @@ rolesRouter.post('/', async (req, res) => {
   }
 });
 
-rolesRouter.patch('/:id', async (req, res) => {
+rolesRouter.patch('/:id', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
@@ -70,6 +72,7 @@ rolesRouter.patch('/:id', async (req, res) => {
 
   try {
     const data = await updateRole(id, parsed.data);
+    await writePanelLog(req.auth!.sub, `Rol - ${data.name} rolü güncellendi.`);
     return sendSuccess(res, data, 'Rol güncellendi');
   } catch (err) {
     if (err instanceof RolesError) return sendError(res, 400, err.message);
@@ -78,12 +81,13 @@ rolesRouter.patch('/:id', async (req, res) => {
   }
 });
 
-rolesRouter.delete('/:id', async (req, res) => {
+rolesRouter.delete('/:id', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
   try {
     await softDeleteRole(id);
+    await writePanelLog(req.auth!.sub, `Rol - #${id} rolü silindi.`);
     return sendSuccess(res, { ok: true }, 'Rol silindi');
   } catch (err) {
     if (err instanceof RolesError) return sendError(res, 400, err.message);

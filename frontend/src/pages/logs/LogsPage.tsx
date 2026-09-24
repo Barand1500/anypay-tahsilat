@@ -1,14 +1,15 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import {
   daysAgo,
   formatLogDate,
   initialsOf,
-  INITIAL_LOGS,
   LOG_KIND_LABEL,
   type AppLog,
   type LogActionKind,
@@ -32,12 +33,18 @@ const KIND_CHIPS: { id: KindFilter; label: string }[] = [
 ];
 
 /**
- * Log Kayıtları — kompakt filtre, akıllı silme, Modüller tarzı liste.
+ * Log Kayıtları — log tablosu (API).
  */
 export default function LogsPage() {
+  const { token } = useAuth();
   const { guard } = usePermission();
-  const [logs, setLogs] = useState<AppLog[]>(() => [...INITIAL_LOGS]);
+  const [logs, setLogs] = useState<AppLog[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [queryDebounced, setQueryDebounced] = useState('');
   const [kind, setKind] = useState<KindFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -54,38 +61,52 @@ export default function LogsPage() {
   const exportRef = useRef<HTMLDivElement>(null);
   const deleteRef = useRef<HTMLDivElement>(null);
 
-  const filtered = useMemo(() => {
-    let list = logs;
-    if (kind !== 'all') list = list.filter((l) => l.kind === kind);
-    if (dateFrom) {
-      const from = new Date(dateFrom).setHours(0, 0, 0, 0);
-      list = list.filter((l) => new Date(l.at).getTime() >= from);
-    }
-    if (dateTo) {
-      const to = new Date(dateTo).setHours(23, 59, 59, 999);
-      list = list.filter((l) => new Date(l.at).getTime() <= to);
-    }
-    const q = query.trim().toLocaleLowerCase('tr');
-    if (q) {
-      list = list.filter(
-        (l) =>
-          l.userName.toLocaleLowerCase('tr').includes(q) ||
-          l.userEmail.toLocaleLowerCase('tr').includes(q) ||
-          l.detail.toLocaleLowerCase('tr').includes(q) ||
-          l.actionLabel.toLocaleLowerCase('tr').includes(q) ||
-          LOG_KIND_LABEL[l.kind].toLocaleLowerCase('tr').includes(q),
-      );
-    }
-    return [...list].sort((a, b) => +new Date(b.at) - +new Date(a.at));
-  }, [logs, kind, dateFrom, dateTo, query]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setQueryDebounced(query.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const qs = new URLSearchParams();
+      if (kind !== 'all') qs.set('kind', kind);
+      if (dateFrom) qs.set('from', dateFrom);
+      if (dateTo) qs.set('to', dateTo);
+      if (queryDebounced) qs.set('q', queryDebounced);
+      qs.set('page', String(page));
+      qs.set('pageSize', String(pageSize));
+      const data = await api.get<{ items: AppLog[]; total: number }>(
+        `/api/logs?${qs.toString()}`,
+        token,
+      );
+      setLogs(data.items);
+      setTotal(data.total);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Loglar yüklenemedi');
+      setLogs([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, kind, dateFrom, dateTo, queryDebounced, page, pageSize]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
-  const slice = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [query, pageSize, kind, dateFrom, dateTo]);
+  }, [queryDebounced, pageSize, kind, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -114,22 +135,38 @@ export default function LogsPage() {
     setQuery('');
   }
 
-  function exportCsv() {
-    const header = 'Kullanıcı;E-posta;Tarih;Tür;İşlem;Detay\n';
-    const body = filtered
-      .map(
-        (l) =>
-          `${l.userName};${l.userEmail};${formatLogDate(l.at)};${LOG_KIND_LABEL[l.kind]};${l.actionLabel};${l.detail}`,
-      )
-      .join('\n');
-    const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'log-kayitlari.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+  async function exportCsv() {
+    if (!token) return;
     setExportOpen(false);
+    try {
+      const qs = new URLSearchParams();
+      if (kind !== 'all') qs.set('kind', kind);
+      if (dateFrom) qs.set('from', dateFrom);
+      if (dateTo) qs.set('to', dateTo);
+      if (queryDebounced) qs.set('q', queryDebounced);
+      qs.set('page', '1');
+      qs.set('pageSize', '50');
+      const data = await api.get<{ items: AppLog[]; total: number }>(
+        `/api/logs?${qs.toString()}`,
+        token,
+      );
+      const header = 'Kullanıcı;E-posta;Tarih;Tür;İşlem;Detay\n';
+      const body = data.items
+        .map(
+          (l) =>
+            `${l.userName};${l.userEmail};${formatLogDate(l.at)};${LOG_KIND_LABEL[l.kind]};${l.actionLabel};${l.detail}`,
+        )
+        .join('\n');
+      const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'log-kayitlari.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Dışa aktarma başarısız');
+    }
   }
 
   function askDelete(scope: DeleteScope) {
@@ -142,68 +179,56 @@ export default function LogsPage() {
     setDeleteConfirm(scope);
   }
 
-  function idsForScope(scope: DeleteScope, list: AppLog[]): string[] {
-    const now = Date.now();
-    if (scope === 'all') return list.map((l) => l.id);
-    if (scope === 'day') {
-      const cut = now - 1 * 86400000;
-      return list.filter((l) => new Date(l.at).getTime() >= cut).map((l) => l.id);
-    }
-    if (scope === 'week') {
-      const cut = now - 7 * 86400000;
-      return list.filter((l) => new Date(l.at).getTime() >= cut).map((l) => l.id);
-    }
-    if (scope === 'month') {
-      const cut = now - 30 * 86400000;
-      return list.filter((l) => new Date(l.at).getTime() >= cut).map((l) => l.id);
-    }
-    const from = new Date(rangeFrom).setHours(0, 0, 0, 0);
-    const to = new Date(rangeTo).setHours(23, 59, 59, 999);
-    return list
-      .filter((l) => {
-        const t = new Date(l.at).getTime();
-        return t >= from && t <= to;
-      })
-      .map((l) => l.id);
-  }
-
-  function confirmDelete() {
-    if (!deleteConfirm) return;
+  async function confirmDelete() {
+    if (!deleteConfirm || !token) return;
     if (!guard('m-log', 'remove', 'Log Kayıtları')) {
       setDeleteConfirm(null);
       return;
     }
-    const ids = idsForScope(deleteConfirm, logs);
+    const scope = deleteConfirm;
     setDeleteConfirm(null);
-    setRangeFrom('');
-    setRangeTo('');
-
-    if (ids.length === 0) return;
-
-    // Görünür satırlar varsa Thanos; yoksa (başka sayfada) doğrudan sil
-    const visibleHit = ids.some((id) => document.querySelector(`[data-log-id="${CSS.escape(id)}"]`));
-    if (!visibleHit) {
-      const idSet = new Set(ids);
-      setLogs((prev) => prev.filter((l) => !idSet.has(l.id)));
-      return;
+    setActionError(null);
+    try {
+      const result = await api.delete<{ deleted: number; ids: number[] }>(
+        '/api/logs',
+        token,
+        {
+          scope,
+          from: scope === 'range' ? rangeFrom : undefined,
+          to: scope === 'range' ? rangeTo : undefined,
+        },
+      );
+      setRangeFrom('');
+      setRangeTo('');
+      if (!result.ids.length) {
+        await load();
+        return;
+      }
+      const idStrs = result.ids.map(String);
+      const visibleHit = idStrs.some((id) =>
+        document.querySelector(`[data-log-id="${CSS.escape(id)}"]`),
+      );
+      if (!visibleHit) {
+        await load();
+        return;
+      }
+      setSnapIds(idStrs);
+      setSnapping(true);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
     }
-
-    setSnapIds(ids);
-    setSnapping(true);
   }
 
   function finishSnap() {
-    if (!snapIds) {
-      setSnapping(false);
-      return;
-    }
-    const idSet = new Set(snapIds);
-    setLogs((prev) => prev.filter((l) => !idSet.has(l.id)));
     setSnapIds(null);
     setSnapping(false);
+    void load();
   }
 
   const filtersActive = kind !== 'all' || !!dateFrom || !!dateTo || !!query.trim();
+  const slice = logs;
+  const rangeStart = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(safePage * pageSize, total);
 
   return (
     <div className="w-full space-y-4">
@@ -289,13 +314,15 @@ export default function LogsPage() {
               <div className="absolute right-0 top-[calc(100%+6px)] z-30 min-w-[160px] overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[var(--panel-shadow)]">
                 {[
                   { label: 'Yazdır', fn: () => window.print() },
-                  { label: 'Csv', fn: exportCsv },
-                  { label: 'Excel', fn: exportCsv },
+                  { label: 'Csv', fn: () => void exportCsv() },
+                  { label: 'Excel', fn: () => void exportCsv() },
                   {
                     label: 'Kopyala',
                     fn: () => {
                       void navigator.clipboard.writeText(
-                        filtered.map((l) => `${formatLogDate(l.at)}\t${l.userName}\t${l.detail}`).join('\n'),
+                        logs
+                          .map((l) => `${formatLogDate(l.at)}\t${l.userName}\t${l.detail}`)
+                          .join('\n'),
                       );
                       setExportOpen(false);
                     },
@@ -319,7 +346,20 @@ export default function LogsPage() {
         </div>
       </div>
 
-      {/* Tek satır filtre: veri göster | chip’ler ortada | takvim + ara */}
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void load()}>
+            Yeniden dene
+          </button>
+        </div>
+      ) : null}
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 items-center gap-2 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-2.5 py-2 shadow-[var(--panel-shadow)] sm:grid-cols-[auto_1fr_auto]">
         <label className="flex shrink-0 items-center gap-2 px-1 text-sm text-[var(--panel-muted)]">
           <input
@@ -396,7 +436,9 @@ export default function LogsPage() {
           <span>Yapılan işlem</span>
         </div>
 
-        {slice.length === 0 ? (
+        {loading ? (
+          <p className="px-4 py-14 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+        ) : slice.length === 0 ? (
           <p className="px-4 py-14 text-center text-sm text-[var(--panel-muted)]">
             Filtreye uyan kayıt yok.
           </p>
@@ -405,7 +447,7 @@ export default function LogsPage() {
             {slice.map((l, i) => (
               <li
                 key={l.id}
-                data-log-id={l.id}
+                data-log-id={String(l.id)}
                 data-km-row
                 tabIndex={-1}
                 style={{ animationDelay: `${Math.min(i, 12) * 18}ms` }}
@@ -439,8 +481,7 @@ export default function LogsPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--panel-muted)]">
         <p>
-          {(safePage - 1) * pageSize + (slice.length ? 1 : 0)} ile{' '}
-          {Math.min(safePage * pageSize, filtered.length)} arasında. Toplam: {filtered.length}
+          {rangeStart} ile {rangeEnd} arasında. Toplam: {total}
         </p>
         <div className="flex flex-wrap gap-1">
           <PagerBtn disabled={safePage <= 1} onClick={() => setPage(1)}>
@@ -476,7 +517,7 @@ export default function LogsPage() {
             setRangeFrom('');
             setRangeTo('');
           }}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
           canConfirm={
             !snapping &&
             (deleteConfirm !== 'range' || (!!rangeFrom && !!rangeTo && rangeFrom <= rangeTo))

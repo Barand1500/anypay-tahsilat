@@ -9,6 +9,7 @@ import {
   requestLoginOtp,
   updateOwnProfile,
 } from '../services/authService.js';
+import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const authRouter = Router();
@@ -103,6 +104,7 @@ authRouter.patch('/me', requireAuth, async (req: AuthedRequest, res) => {
 
   try {
     const user = await updateOwnProfile(req.auth!.sub, parsed.data);
+    await writePanelLog(req.auth!.sub, 'Profil - Profil bilgileri güncellendi.');
     return sendSuccess(res, user, 'Profil güncellendi');
   } catch (err) {
     if (err instanceof AuthError) {
@@ -113,6 +115,7 @@ authRouter.patch('/me', requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
-authRouter.post('/logout', requireAuth, (_req, res) => {
+authRouter.post('/logout', requireAuth, async (req: AuthedRequest, res) => {
+  await writePanelLog(req.auth!.sub, 'Çıkış - Oturum sonlandırıldı.');
   return sendSuccess(res, { ok: true }, 'Çıkış yapıldı');
 });

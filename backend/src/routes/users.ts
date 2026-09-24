@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import {
   UsersError,
   createPanelUser,
@@ -9,6 +9,7 @@ import {
   softDeletePanelUser,
   updatePanelUser,
 } from '../services/usersService.js';
+import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const usersRouter = Router();
@@ -61,7 +62,7 @@ usersRouter.get('/branches', async (_req, res) => {
   }
 });
 
-usersRouter.post('/', async (req, res) => {
+usersRouter.post('/', async (req: AuthedRequest, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -69,6 +70,10 @@ usersRouter.post('/', async (req, res) => {
 
   try {
     const data = await createPanelUser(parsed.data);
+    await writePanelLog(
+      req.auth!.sub,
+      `Kullanıcı - ${data.name} kullanıcısı eklendi.`,
+    );
     return sendSuccess(res, data, 'Kullanıcı eklendi', 201);
   } catch (err) {
     if (err instanceof UsersError) return sendError(res, 400, err.message);
@@ -77,7 +82,7 @@ usersRouter.post('/', async (req, res) => {
   }
 });
 
-usersRouter.patch('/:id', async (req, res) => {
+usersRouter.patch('/:id', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
@@ -88,6 +93,10 @@ usersRouter.patch('/:id', async (req, res) => {
 
   try {
     const data = await updatePanelUser(id, parsed.data);
+    await writePanelLog(
+      req.auth!.sub,
+      `Kullanıcı - ${data.name} kullanıcısı güncellendi.`,
+    );
     return sendSuccess(res, data, 'Kullanıcı güncellendi');
   } catch (err) {
     if (err instanceof UsersError) return sendError(res, 400, err.message);
@@ -96,12 +105,13 @@ usersRouter.patch('/:id', async (req, res) => {
   }
 });
 
-usersRouter.delete('/:id', async (req, res) => {
+usersRouter.delete('/:id', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
   try {
     await softDeletePanelUser(id);
+    await writePanelLog(req.auth!.sub, `Kullanıcı - #${id} kullanıcısı silindi.`);
     return sendSuccess(res, { ok: true }, 'Kullanıcı silindi');
   } catch (err) {
     if (err instanceof UsersError) return sendError(res, 400, err.message);

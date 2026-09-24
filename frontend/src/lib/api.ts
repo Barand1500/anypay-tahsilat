@@ -68,6 +68,13 @@ export const api = {
       token,
     ),
 
-  delete: <T,>(path: string, token?: string | null) =>
-    request<T>(path, { method: 'DELETE' }, token),
+  delete: <T,>(path: string, token?: string | null, body?: unknown) =>
+    request<T>(
+      path,
+      {
+        method: 'DELETE',
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      token,
+    ),
 };

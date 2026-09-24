@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import {
   ModulesError,
   createModule,
@@ -9,6 +9,7 @@ import {
   softDeleteModule,
   updateModule,
 } from '../services/modulesService.js';
+import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const modulesRouter = Router();
@@ -47,7 +48,7 @@ modulesRouter.get('/table-options', async (_req, res) => {
   }
 });
 
-modulesRouter.post('/', async (req, res) => {
+modulesRouter.post('/', async (req: AuthedRequest, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -55,6 +56,7 @@ modulesRouter.post('/', async (req, res) => {
 
   try {
     const data = await createModule(parsed.data);
+    await writePanelLog(req.auth!.sub, `Modül - ${data.name} modülü eklendi.`);
     return sendSuccess(res, data, 'Modül eklendi', 201);
   } catch (err) {
     if (err instanceof ModulesError) return sendError(res, 400, err.message);
@@ -63,7 +65,7 @@ modulesRouter.post('/', async (req, res) => {
   }
 });
 
-modulesRouter.patch('/:id', async (req, res) => {
+modulesRouter.patch('/:id', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
@@ -74,6 +76,7 @@ modulesRouter.patch('/:id', async (req, res) => {
 
   try {
     const data = await updateModule(id, parsed.data);
+    await writePanelLog(req.auth!.sub, `Modül - ${data.name} modülü güncellendi.`);
     return sendSuccess(res, data, 'Modül güncellendi');
   } catch (err) {
     if (err instanceof ModulesError) return sendError(res, 400, err.message);
@@ -82,12 +85,13 @@ modulesRouter.patch('/:id', async (req, res) => {
   }
 });
 
-modulesRouter.delete('/:id', async (req, res) => {
+modulesRouter.delete('/:id', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
   try {
     await softDeleteModule(id);
+    await writePanelLog(req.auth!.sub, `Modül - #${id} modülü silindi.`);
     return sendSuccess(res, { ok: true }, 'Modül silindi');
   } catch (err) {
     if (err instanceof ModulesError) return sendError(res, 400, err.message);
