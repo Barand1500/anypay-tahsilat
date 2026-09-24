@@ -66,7 +66,7 @@ export default function TransactionsPage() {
     [],
   );
   const userOptions = useMemo(
-    () => INITIAL_USERS.map((u) => ({ value: u.id, label: u.name })),
+    () => INITIAL_USERS.map((u) => ({ value: String(u.id), label: u.name })),
     [],
   );
   const customerOptions = useMemo(
