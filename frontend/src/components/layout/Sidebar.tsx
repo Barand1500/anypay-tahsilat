@@ -572,7 +572,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     : null;
 
   const footerBar = open ? (
-    <div className="mt-auto flex h-16 shrink-0 items-center justify-end gap-0.5 border-t border-[var(--sidebar-open-ink)]/15 px-2">
+    <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--sidebar-open-ink)]/15 px-1.5">
       {kmButton}
       {ratesButton}
       {gwButton}

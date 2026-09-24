@@ -101,6 +101,12 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     }
     const mock = payType === 'fatura' ? 4250 : 12850.75;
     setBalance(mock);
+    setAmountText(formatMoneyTr(mock));
+    setErrors((prev) => {
+      if (!prev.amount) return prev;
+      const { amount: _, ...rest } = prev;
+      return rest;
+    });
     flash(`Bakiye sorgulandı: ${formatMoneyTr(mock)} ₺`);
   }
 
@@ -595,23 +601,25 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                       Hazır açıklama yok — kalem ile ekleyin
                     </p>
                   ) : (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {readyDescriptions.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          data-km-jump
-                          onClick={() => applyReadyDescription(item.text)}
-                          className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-left transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)]"
-                        >
-                          <span className="block text-[12px] font-bold text-[var(--color-brand-600)]">
-                            {item.title}
-                          </span>
-                          <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-[var(--panel-muted)]">
-                            {item.text}
-                          </span>
-                        </button>
-                      ))}
+                    <div className="max-h-[10.75rem] overflow-y-auto overscroll-contain pr-0.5 [scrollbar-gutter:stable]">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {readyDescriptions.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            data-km-jump
+                            onClick={() => applyReadyDescription(item.text)}
+                            className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-left transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)]"
+                          >
+                            <span className="block text-[12px] font-bold text-[var(--color-brand-600)]">
+                              {item.title}
+                            </span>
+                            <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-[var(--panel-muted)]">
+                              {item.text}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
