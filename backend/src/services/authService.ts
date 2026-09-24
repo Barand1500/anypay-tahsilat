@@ -1,22 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma.js';
+import { sendLoginOtpMail } from '../lib/mail.js';
+import { generateOtpCode, saveOtp, verifyOtp } from '../lib/otpStore.js';
 import { signToken } from '../middleware/auth.js';
-
-/** Sadece geliştirme — sonra kaldırılacak (docs/KARARLAR.md) */
-const DEV_LOGIN_EMAIL = 'admin@guzelteknoloji.com';
-const DEV_LOGIN_PASSWORD = '123456';
-
-function isDevLoginEnabled() {
-  return process.env.AUTH_DEV_BYPASS === '1' || process.env.NODE_ENV !== 'production';
-}
-
-function isDevCredentials(email: string, password: string) {
-  return (
-    isDevLoginEnabled() &&
-    email.toLowerCase() === DEV_LOGIN_EMAIL &&
-    password === DEV_LOGIN_PASSWORD
-  );
-}
 
 function parseRoles(roles: unknown): string[] {
   if (Array.isArray(roles)) return roles.map(String);
@@ -45,72 +31,90 @@ function toPublicUser(user: {
   };
 }
 
-function mockDevUser() {
-  return {
-    id: 1,
-    email: DEV_LOGIN_EMAIL,
-    adsoyad: 'Ercan Güzel',
-    roles: ['ROLE_SUPERAPP'],
-  };
+async function findActiveUserByEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  return prisma.user.findFirst({
+    where: {
+      email: normalized,
+      OR: [{ remove: null }, { remove: false }],
+    },
+  });
 }
 
-// E-posta + şifre ile giriş; PHP bcrypt ($2y$) hash'leri desteklenir
+/** PHP $2y$ hash'lerini bcryptjs ile karşılaştır */
+async function passwordMatches(plain: string, hash: string) {
+  const normalized = hash.startsWith('$2y$') ? `$2a$${hash.slice(4)}` : hash;
+  return bcrypt.compare(plain, normalized);
+}
+
+// E-posta + şifre — yalnızca kayıtlı / doğrulanmış kullanıcı
 export async function loginWithPassword(email: string, password: string) {
-  const normalized = email.trim().toLowerCase();
-  const allowDev = isDevCredentials(normalized, password);
+  const user = await findActiveUserByEmail(email);
+  if (!user || !user.isVerified) {
+    throw new AuthError('E-posta veya şifre hatalı');
+  }
+
+  const ok = await passwordMatches(password, user.password);
+  if (!ok) throw new AuthError('E-posta veya şifre hatalı');
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLogin: new Date() },
+  });
+
+  const publicUser = toPublicUser(user);
+  const token = signToken({ sub: user.id, email: user.email });
+  return { token, user: publicUser };
+}
+
+/** Hızlı giriş — kayıtlı kullanıcıya OTP maili */
+export async function requestLoginOtp(email: string) {
+  const user = await findActiveUserByEmail(email);
+  // Enumeration azaltmak için kullanıcı yoksa da aynı mesaj
+  if (!user || !user.isVerified) {
+    return { sent: true as const };
+  }
+
+  const code = generateOtpCode();
+  await saveOtp(user.email, code);
 
   try {
-    const user = await prisma.user.findFirst({
-      where: {
-        email: normalized,
-        OR: [{ remove: null }, { remove: false }],
-      },
-    });
-
-    if (user && user.isVerified) {
-      const ok = allowDev || (await bcrypt.compare(password, user.password));
-      if (!ok) throw new AuthError('E-posta veya şifre hatalı');
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLogin: new Date() },
-      });
-
-      const publicUser = toPublicUser(user);
-      const token = signToken({ sub: user.id, email: user.email });
-      return { token, user: publicUser };
-    }
+    await sendLoginOtpMail(user.email, user.adsoyad, code);
   } catch (err) {
-    if (err instanceof AuthError) throw err;
-    if (!allowDev) {
-      console.error(err);
-      throw new AuthError('E-posta veya şifre hatalı');
-    }
+    console.error('OTP mail gönderilemedi', err);
+    throw new AuthError('Doğrulama kodu gönderilemedi. SMTP ayarlarını kontrol edin.');
   }
 
-  if (allowDev) {
-    const user = mockDevUser();
-    const token = signToken({ sub: user.id, email: user.email });
-    return { token, user };
+  return { sent: true as const };
+}
+
+export async function loginWithOtp(email: string, code: string) {
+  const user = await findActiveUserByEmail(email);
+  if (!user || !user.isVerified) {
+    throw new AuthError('Geçersiz veya süresi dolmuş kod');
   }
 
-  throw new AuthError('E-posta veya şifre hatalı');
+  const ok = await verifyOtp(user.email, code);
+  if (!ok) throw new AuthError('Geçersiz veya süresi dolmuş kod');
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLogin: new Date() },
+  });
+
+  const publicUser = toPublicUser(user);
+  const token = signToken({ sub: user.id, email: user.email });
+  return { token, user: publicUser };
 }
 
 export async function getUserById(id: number) {
-  try {
-    const user = await prisma.user.findFirst({
-      where: {
-        id,
-        OR: [{ remove: null }, { remove: false }],
-      },
-    });
-    if (user && user.isVerified) return toPublicUser(user);
-  } catch (err) {
-    console.error(err);
-  }
-
-  if (isDevLoginEnabled() && id === 1) return mockDevUser();
+  const user = await prisma.user.findFirst({
+    where: {
+      id,
+      OR: [{ remove: null }, { remove: false }],
+    },
+  });
+  if (user && user.isVerified) return toPublicUser(user);
   return null;
 }
 

@@ -21,14 +21,12 @@ Bu dosya sohbette verilen yanıtların resmi kaydıdır. Değişirse burası gü
 
 ## Auth
 
-- İlk sürüm: **e-posta + şifre** (mevcut login ile aynı akış)
-- “Şifremi unuttum” UI’da yer alır; backend sonra tamamlanabilir
+- İlk sürüm: **e-posta + şifre** (mevcut `user` tablosu, JWT)
+- **Hızlı giriş:** OTP mail (SMTP `.env`) → kod doğrula → JWT
+- “Şifremi unuttum” UI’da yer alır; backend sonraki adım
 - 2FA vb. şimdilik yok
-- **Her şey sonradan değişebilir / güncellenebilir** — sabit kabul etme
-- **Geçici demo login (silinecek):** `admin@guzelteknoloji.com` / `123456`
-  - Lokal `DEV` **veya** API yanıtı JSON değilken (`ApiUnavailableError` — statik yayın)
-  - Gerçek API 401 döndüğünde demo açılmaz
-  - Backend canlıya alınca kaldırılacak
+- Demo / DEV bypass **kaldırıldı** — yalnızca kayıtlı kullanıcılar
+- Test (geçici): `21baran51@gmail.com` / `123456` · `ROLE_YONETICI`
 
 ## Panel (Özet)
 

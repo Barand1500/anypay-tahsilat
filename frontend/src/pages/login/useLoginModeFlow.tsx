@@ -9,11 +9,12 @@ export type LoginMode = 'choose' | 'password' | 'otp' | 'forgot';
 
 type UseLoginModeOpts = {
   onPasswordLogin: (email: string, password: string) => Promise<void>;
+  onRequestOtp: (email: string) => Promise<void>;
   onOtpLogin: (email: string, code: string) => Promise<void>;
 };
 
 /** Ortak giriş adımları — e-posta → hızlı/şifre + şifremi unuttum */
-export function useLoginModeFlow({ onPasswordLogin, onOtpLogin }: UseLoginModeOpts) {
+export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: UseLoginModeOpts) {
   const [mode, setMode] = useState<LoginMode>('choose');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,13 +82,21 @@ export function useLoginModeFlow({ onPasswordLogin, onOtpLogin }: UseLoginModeOp
     return e;
   }
 
-  function goQuick() {
+  async function goQuick() {
     if (loading || transitioning) return;
     const e = requireEmail();
     if (!e) return;
     setError(null);
     setOtp('');
-    setMode('otp');
+    setLoading(true);
+    try {
+      await onRequestOtp(e);
+      setMode('otp');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kod gönderilemedi');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function goPassword() {

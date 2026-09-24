@@ -14,7 +14,7 @@ function sleep(ms: number) {
 
 /** Dünya temalı giriş — Variant 2 (solid yeşil kara / cyan okyanus) */
 export function LoginGlobe() {
-  const { login, loginWithOtp } = useAuth();
+  const { login, requestOtp, loginWithOtp } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [dotCount, setDotCount] = useState(1);
@@ -24,6 +24,9 @@ export function LoginGlobe() {
     onPasswordLogin: async (email, password) => {
       await sleep(1200);
       await login(email, password);
+    },
+    onRequestOtp: async (email) => {
+      await requestOtp(email);
     },
     onOtpLogin: async (email, code) => {
       await sleep(1200);

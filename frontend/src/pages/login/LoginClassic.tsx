@@ -14,7 +14,7 @@ function sleep(ms: number) {
 
 /** Klasik maskotlu giriş ekranı */
 export function LoginClassic() {
-  const { login, loginWithOtp } = useAuth();
+  const { login, requestOtp, loginWithOtp } = useAuth();
   const cardRef = useRef<HTMLElement | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -32,6 +32,9 @@ export function LoginClassic() {
         setOutcome('fail');
         throw err;
       }
+    },
+    onRequestOtp: async (email) => {
+      await requestOtp(email);
     },
     onOtpLogin: async (email, code) => {
       setOutcome('idle');
