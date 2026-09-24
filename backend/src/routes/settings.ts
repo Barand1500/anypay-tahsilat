@@ -1,0 +1,70 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import {
+  SettingsError,
+  getGeneralSettings,
+  updateGeneralSettings,
+} from '../services/settingsService.js';
+import { writePanelLog } from '../services/logsService.js';
+import { sendError, sendSuccess } from '../utils/response.js';
+
+export const settingsRouter = Router();
+
+settingsRouter.use(requireAuth);
+
+const generalPatchSchema = z.object({
+  systemName: z.string().min(1, 'Sistem adı gerekli').max(255),
+  systemUrl: z.string().min(1, 'Sistem adresi gerekli').max(255),
+  virtualPosTarget: z.boolean(),
+  appSignup: z.boolean(),
+  notifyEmails: z.array(z.string().email('Geçersiz e-posta').max(180)).max(50),
+  notifyPhones: z
+    .array(z.string().max(20))
+    .max(50)
+    .transform((list) =>
+      list
+        .map((raw) => {
+          let d = raw.replace(/\D/g, '');
+          if (d.startsWith('90') && d.length > 10) d = d.slice(2);
+          if (d.startsWith('0')) d = d.slice(1);
+          return d.slice(0, 11);
+        })
+        .filter((d) => d.length >= 10),
+    ),
+  binListUrl: z.string().max(255),
+  logoDataUrl: z.string().max(6_000_000).nullable().optional(),
+  faviconDataUrl: z.string().max(6_000_000).nullable().optional(),
+});
+
+settingsRouter.get('/general', async (_req, res) => {
+  try {
+    const data = await getGeneralSettings();
+    return sendSuccess(res, data);
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Ayarlar yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/general', async (req: AuthedRequest, res) => {
+  const parsed = generalPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+
+  try {
+    const data = await updateGeneralSettings({
+      ...parsed.data,
+      logoDataUrl: parsed.data.logoDataUrl || null,
+      faviconDataUrl: parsed.data.faviconDataUrl || null,
+    });
+    await writePanelLog(req.auth!.sub, 'Ayarlar - Genel ayarlar güncellendi.');
+    return sendSuccess(res, data, 'Ayarlar kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Ayarlar kaydedilemedi');
+  }
+});

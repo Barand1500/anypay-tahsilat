@@ -1,11 +1,13 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useId, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { GrowingValueList } from '../../components/ui/GrowingValueList';
 import { TextInput } from '../../components/ui/TextInput';
-import { INITIAL_GENERAL_SETTINGS, type GeneralSettings } from './mockSettings';
+import { api } from '../../lib/api';
+import { type GeneralSettings } from './mockSettings';
 
 gsap.registerPlugin(useGSAP);
 
@@ -18,33 +20,94 @@ function isPhone(v: string) {
   return d.length >= 10 && d.length <= 13;
 }
 
+function digitsPhone(v: string) {
+  let d = v.replace(/\D/g, '');
+  if (d.startsWith('90') && d.length > 10) d = d.slice(2);
+  if (d.startsWith('0')) d = d.slice(1);
+  return d.slice(0, 11);
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('Dosya okunamadı'));
+    };
+    reader.onerror = () => reject(new Error('Dosya okunamadı'));
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Ayarlar › Genel — sistem, marka, bildirim listeleri (mock kayıt).
+ * Ayarlar › Genel — sistem, marka, bildirim listeleri (DB: ayarlar).
  */
 export default function GeneralSettingsPage() {
+  const { token } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState<GeneralSettings>(() => ({
-    ...INITIAL_GENERAL_SETTINGS,
-    notifyEmails: [...INITIAL_GENERAL_SETTINGS.notifyEmails],
-    notifyPhones: [...INITIAL_GENERAL_SETTINGS.notifyPhones],
-  }));
-  const [baseline, setBaseline] = useState(draft);
+  const [draft, setDraft] = useState<GeneralSettings | null>(null);
+  const [baseline, setBaseline] = useState<GeneralSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [logoName, setLogoName] = useState<string | null>(null);
   const [faviconName, setFaviconName] = useState<string | null>(null);
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [faviconDataUrl, setFaviconDataUrl] = useState<string | null>(null);
   const logoInputId = useId();
   const favInputId = useId();
 
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await api.get<GeneralSettings>('/api/settings/general', token);
+        if (cancelled) return;
+        const next = {
+          ...data,
+          notifyEmails: [...data.notifyEmails],
+          notifyPhones: [...data.notifyPhones],
+        };
+        setDraft(next);
+        setBaseline({
+          ...data,
+          notifyEmails: [...data.notifyEmails],
+          notifyPhones: [...data.notifyPhones],
+        });
+        setLogoName(null);
+        setFaviconName(null);
+        setLogoDataUrl(null);
+        setFaviconDataUrl(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Ayarlar yüklenemedi');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const dirty =
-    draft.systemName !== baseline.systemName ||
-    draft.systemUrl !== baseline.systemUrl ||
-    draft.logoUrl !== baseline.logoUrl ||
-    draft.faviconUrl !== baseline.faviconUrl ||
-    draft.virtualPosTarget !== baseline.virtualPosTarget ||
-    draft.appSignup !== baseline.appSignup ||
-    draft.binListUrl !== baseline.binListUrl ||
-    draft.notifyEmails.join('|') !== baseline.notifyEmails.join('|') ||
-    draft.notifyPhones.join('|') !== baseline.notifyPhones.join('|');
+    !!draft &&
+    !!baseline &&
+    (draft.systemName !== baseline.systemName ||
+      draft.systemUrl !== baseline.systemUrl ||
+      draft.virtualPosTarget !== baseline.virtualPosTarget ||
+      draft.appSignup !== baseline.appSignup ||
+      draft.binListUrl !== baseline.binListUrl ||
+      draft.notifyEmails.join('|') !== baseline.notifyEmails.join('|') ||
+      draft.notifyPhones.join('|') !== baseline.notifyPhones.join('|') ||
+      !!logoDataUrl ||
+      !!faviconDataUrl);
 
   useGSAP(
     () => {
@@ -56,37 +119,97 @@ export default function GeneralSettingsPage() {
         { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.06, ease: 'power3.out' },
       );
     },
-    { scope: rootRef },
+    { scope: rootRef, dependencies: [draft] },
   );
 
   function patch<K extends keyof GeneralSettings>(key: K, value: GeneralSettings[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
 
-  function onLogoChange(e: ChangeEvent<HTMLInputElement>) {
+  async function onLogoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !draft) return;
     setLogoName(file.name);
-    const url = URL.createObjectURL(file);
-    patch('logoUrl', url);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setLogoDataUrl(dataUrl);
+      patch('logoUrl', dataUrl);
+    } catch {
+      setError('Logo okunamadı');
+    }
   }
 
-  function onFaviconChange(e: ChangeEvent<HTMLInputElement>) {
+  async function onFaviconChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !draft) return;
     setFaviconName(file.name);
-    const url = URL.createObjectURL(file);
-    patch('faviconUrl', url);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setFaviconDataUrl(dataUrl);
+      patch('faviconUrl', dataUrl);
+    } catch {
+      setError('Favicon okunamadı');
+    }
   }
 
-  function save() {
-    setBaseline({
-      ...draft,
-      notifyEmails: [...draft.notifyEmails],
-      notifyPhones: [...draft.notifyPhones],
-    });
-    setSaveSuccess(true);
-    window.setTimeout(() => setSaveSuccess(false), 1800);
+  async function save() {
+    if (!token || !draft || !dirty || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.patch<GeneralSettings>(
+        '/api/settings/general',
+        {
+          systemName: draft.systemName,
+          systemUrl: draft.systemUrl,
+          virtualPosTarget: draft.virtualPosTarget,
+          appSignup: draft.appSignup,
+          notifyEmails: draft.notifyEmails,
+          notifyPhones: draft.notifyPhones.map(digitsPhone),
+          binListUrl: draft.binListUrl,
+          logoDataUrl: logoDataUrl || null,
+          faviconDataUrl: faviconDataUrl || null,
+        },
+        token,
+      );
+      const next = {
+        ...saved,
+        notifyEmails: [...saved.notifyEmails],
+        notifyPhones: [...saved.notifyPhones],
+      };
+      setDraft(next);
+      setBaseline({
+        ...saved,
+        notifyEmails: [...saved.notifyEmails],
+        notifyPhones: [...saved.notifyPhones],
+      });
+      setLogoName(null);
+      setFaviconName(null);
+      setLogoDataUrl(null);
+      setFaviconDataUrl(null);
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 1800);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && !draft) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-10 text-center text-sm text-[var(--panel-muted)]">
+        Ayarlar yükleniyor…
+      </div>
+    );
+  }
+
+  if (!draft) {
+    return (
+      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+        {error || 'Ayarlar yüklenemedi'}
+      </div>
+    );
   }
 
   return (
@@ -98,16 +221,21 @@ export default function GeneralSettingsPage() {
         </p>
       </div>
 
+      {error ? (
+        <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
       <form
         data-anim
         className="[--input-notch:var(--panel-elevated)]"
         onSubmit={(e) => {
           e.preventDefault();
-          if (dirty) save();
+          if (dirty) void save();
         }}
       >
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_15rem]">
-          {/* Sol — form */}
           <div className="space-y-6 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6">
             <section className="grid gap-4 sm:grid-cols-2">
               <TextInput
@@ -177,10 +305,14 @@ export default function GeneralSettingsPage() {
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <div className="w-full max-w-xs sm:w-auto sm:min-w-[14rem]">
-                <Button type="submit" disabled={!dirty && !saveSuccess} success={saveSuccess}>
+                <Button
+                  type="submit"
+                  disabled={(!dirty && !saveSuccess) || saving}
+                  success={saveSuccess}
+                >
                   <span className="inline-flex items-center gap-2">
                     <SaveIcon />
-                    Değişiklikleri Kaydet
+                    {saving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}
                   </span>
                 </Button>
               </div>
@@ -192,7 +324,6 @@ export default function GeneralSettingsPage() {
             </div>
           </div>
 
-          {/* Sağ — logo / favicon (sol form ile eşit yükseklik) */}
           <aside className="flex h-full min-h-0 flex-col gap-5">
             <BrandAssetCard
               id={logoInputId}
@@ -235,7 +366,6 @@ function BrandAssetCard({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3.5 shadow-[var(--panel-shadow)]">
-      {/* Üst — dosya seç */}
       <div className="relative mb-3 shrink-0">
         <div className="flex h-11 items-center gap-2 rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 pt-2">
           <label
@@ -254,7 +384,6 @@ function BrandAssetCard({
         </span>
       </div>
 
-      {/* Alt — önizleme (kartla birlikte uzar) */}
       <div
         className="relative flex min-h-[7rem] flex-1 items-center justify-center overflow-visible rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-bg)]"
         onMouseEnter={() => setHover(true)}

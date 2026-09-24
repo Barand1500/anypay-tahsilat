@@ -11,18 +11,22 @@ import { versionsRouter } from './routes/versions.js';
 import { logsRouter } from './routes/logs.js';
 import { systemResetRouter } from './routes/systemReset.js';
 import { overviewRouter } from './routes/overview.js';
+import { settingsRouter } from './routes/settings.js';
 import { sendError } from './utils/response.js';
+import { UPLOADS_ROOT } from './services/settingsService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = Number(process.env.PORT || 3010);
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 // Canlıda Vite build çıktısı public/ altında servis edilir
 const publicDir = path.resolve(__dirname, '../public');
 app.use(express.static(publicDir));
+// Logo / favicon yüklemeleri (deploy rebuild’den bağımsız)
+app.use('/uploads', express.static(UPLOADS_ROOT));
 
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, data: { ok: true, service: 'anypay-tahsilat' } });
@@ -36,6 +40,7 @@ app.use('/api/versions', versionsRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/system-reset', systemResetRouter);
 app.use('/api/overview', overviewRouter);
+app.use('/api/settings', settingsRouter);
 
 // SPA fallback (API dışı yollar)
 app.get(/^(?!\/api).*/, (_req, res) => {

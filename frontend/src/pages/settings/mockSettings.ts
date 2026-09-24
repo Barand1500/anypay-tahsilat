@@ -1,4 +1,4 @@
-/** Ayarlar — mock; API sonrası canlı bağlanacak */
+/** Ayarlar — alt sayfa nav + tipler (genel API’ye bağlı) */
 
 export type SettingsSubnavItem = {
   to: string;
@@ -26,25 +26,6 @@ export type GeneralSettings = {
   notifyEmails: string[];
   notifyPhones: string[];
   binListUrl: string;
-};
-
-export const INITIAL_GENERAL_SETTINGS: GeneralSettings = {
-  systemName: 'GÜZEL Teknoloji®',
-  systemUrl: 'https://tahsilat.guzelteknoloji.com/',
-  logoUrl: '/brand/logo.png',
-  faviconUrl: '/brand/logo-icon.png',
-  virtualPosTarget: false,
-  appSignup: false,
-  notifyEmails: ['muhasebe@guzelteknoloji.com'],
-  notifyPhones: [
-    '5325674660',
-    '5421046060',
-    '5325674661',
-    '5051046061',
-    '5325674662',
-    '5051046062',
-  ],
-  binListUrl: 'https://demo.vetahsilat.com',
 };
 
 export type ContactEntityKind = 'gercek' | 'tuzel' | 'yabanci';
