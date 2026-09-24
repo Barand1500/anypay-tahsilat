@@ -3,15 +3,16 @@ import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import {
   SettingsError,
+  getBrandAssets,
+  getContactSettings,
   getGeneralSettings,
+  updateContactSettings,
   updateGeneralSettings,
 } from '../services/settingsService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const settingsRouter = Router();
-
-settingsRouter.use(requireAuth);
 
 const generalPatchSchema = z.object({
   systemName: z.string().min(1, 'Sistem adı gerekli').max(255),
@@ -36,6 +37,20 @@ const generalPatchSchema = z.object({
   logoDataUrl: z.string().max(6_000_000).nullable().optional(),
   faviconDataUrl: z.string().max(6_000_000).nullable().optional(),
 });
+
+/** Marka varlıkları — sidebar / favicon (oturum gerekmez) */
+settingsRouter.get('/brand', async (_req, res) => {
+  try {
+    const data = await getBrandAssets();
+    return sendSuccess(res, data);
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Marka yüklenemedi');
+  }
+});
+
+settingsRouter.use(requireAuth);
 
 settingsRouter.get('/general', async (_req, res) => {
   try {
@@ -66,5 +81,57 @@ settingsRouter.patch('/general', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Ayarlar kaydedilemedi');
+  }
+});
+
+const contactPatchSchema = z.object({
+  title: z.string().min(1, 'Ünvan / ad soyad gerekli').max(255),
+  kind: z.enum(['gercek', 'tuzel', 'yabanci']),
+  taxNo: z.string().max(10).optional().default(''),
+  taxOfficeId: z.number().int().nullable().optional(),
+  identityNo: z.string().max(20).optional().default(''),
+  address: z.string().min(1, 'Adres gerekli').max(5000),
+  email: z.string().email('Geçerli e-posta girin').max(255),
+  phone: z.string().min(10, 'Telefon gerekli').max(20),
+  gsm: z.string().max(20).optional().default(''),
+  fax: z.string().max(20).optional().default(''),
+});
+
+settingsRouter.get('/contact', async (_req, res) => {
+  try {
+    const data = await getContactSettings();
+    return sendSuccess(res, data);
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'İletişim bilgileri yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/contact', async (req: AuthedRequest, res) => {
+  const parsed = contactPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+
+  try {
+    const data = await updateContactSettings({
+      title: parsed.data.title,
+      kind: parsed.data.kind,
+      taxNo: parsed.data.taxNo,
+      taxOfficeId: parsed.data.taxOfficeId ?? null,
+      identityNo: parsed.data.identityNo,
+      address: parsed.data.address,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+      gsm: parsed.data.gsm,
+      fax: parsed.data.fax,
+    });
+    await writePanelLog(req.auth!.sub, 'Ayarlar - İletişim bilgileri güncellendi.');
+    return sendSuccess(res, data, 'İletişim bilgileri kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'İletişim bilgileri kaydedilemedi');
   }
 });

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
+import { useBrand } from '../../brand/BrandContext';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
 import { LoginMascot, type MascotFocus } from './LoginMascot';
@@ -15,6 +16,7 @@ function sleep(ms: number) {
 /** Klasik maskotlu giriş ekranı */
 export function LoginClassic() {
   const { login, requestOtp, loginWithOtp } = useAuth();
+  const { logoUrl, systemName } = useBrand();
   const cardRef = useRef<HTMLElement | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -81,8 +83,8 @@ export function LoginClassic() {
           <div className="w-full max-w-[420px]">
             <div className="mb-9 flex flex-col items-center text-center">
               <img
-                src="/brand/logo.png"
-                alt="Güzel Teknoloji"
+                src={logoUrl || '/brand/logo.png'}
+                alt={systemName}
                 className="mb-6 h-[4.5rem] w-auto max-w-[280px] object-contain sm:h-20 sm:max-w-[320px]"
               />
               <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[1.85rem]">

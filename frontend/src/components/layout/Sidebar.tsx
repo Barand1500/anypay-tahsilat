@@ -10,6 +10,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useBrand } from '../../brand/BrandContext';
 import { useKeyboardMode } from '../../keyboard/KeyboardModeContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useDockMode } from './DockModeContext';
@@ -140,6 +141,7 @@ function BoltIcon() {
 
 export function Sidebar({ collapsed, onToggle }: Props) {
   const { theme } = useTheme();
+  const { logoUrl, faviconUrl, systemName } = useBrand();
   const { startDrag, drag } = useQuickAccess();
   const { enabled: kmOn, toggle: toggleKm } = useKeyboardMode();
   const { enabled: dockOn, toggle: toggleDock, animating: dockAnimating } = useDockMode();
@@ -147,8 +149,8 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const { enabled: gwOn, toggle: toggleGw } = useGestureWind();
   const ratesOn = ratesPhase !== 'idle';
   const location = useLocation();
-  const collapsedLogo = '/brand/logo-icon.png';
-  const expandedLogo = '/brand/logo-full.png';
+  const collapsedLogo = faviconUrl || '/brand/logo-icon.png';
+  const expandedLogo = logoUrl || '/brand/logo-full.png';
   const holdTimer = useRef<number | null>(null);
   const holdItem = useRef<NavItem | null>(null);
   const suppressClick = useRef(false);
@@ -620,7 +622,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         className="flex h-full min-h-0 w-[76px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--panel-sidebar)] transition-[width] duration-300 ease-out"
       >
         <div className="flex shrink-0 flex-col items-center gap-2 px-2 py-4">
-          <img src={collapsedLogo} alt="Güzel Teknoloji" className="h-10 w-10 object-contain" />
+          <img src={collapsedLogo} alt={systemName} className="h-10 w-10 object-contain" />
           <button
             type="button"
             aria-label="Menüyü aç"
@@ -660,7 +662,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         <div className="flex min-w-0 flex-1 items-center">
           <img
             src={expandedLogo}
-            alt="Güzel Teknoloji"
+            alt={systemName}
             className="h-14 w-auto max-w-[210px] object-contain object-left drop-shadow-sm"
           />
         </div>

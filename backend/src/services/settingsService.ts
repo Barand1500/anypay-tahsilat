@@ -62,6 +62,11 @@ function assetUrl(stored: string, fallback: string): string {
   return `/uploads/${file}`;
 }
 
+function withCacheBust(url: string, bust: number): string {
+  if (!bust) return url;
+  return url.includes('?') ? `${url}&v=${bust}` : `${url}?v=${bust}`;
+}
+
 function parseDataUrl(dataUrl: string): { ext: string; buffer: Buffer } {
   const m = /^data:(image\/(png|jpeg|jpg|webp|gif|svg\+xml));base64,(.+)$/i.exec(dataUrl.trim());
   if (!m) throw new SettingsError('Geçersiz görsel formatı (PNG, JPEG, WebP, GIF, SVG)');
@@ -97,16 +102,31 @@ async function getRow() {
 
 export async function getGeneralSettings(): Promise<PublicGeneralSettings> {
   const row = await getRow();
+  const bust = row.dbTarih?.getTime() ?? Date.now();
   return {
     systemName: row.sistemAdi,
     systemUrl: row.sistemYolu,
-    logoUrl: assetUrl(row.logo, '/brand/logo.png'),
-    faviconUrl: assetUrl(row.favicon, '/brand/logo-icon.png'),
+    logoUrl: withCacheBust(assetUrl(row.logo, '/brand/logo-full.png'), bust),
+    faviconUrl: withCacheBust(assetUrl(row.favicon, '/brand/logo-icon.png'), bust),
     virtualPosTarget: Boolean(row.sanalposHedefKullanimi),
     appSignup: Boolean(row.uygulamaKayit),
     notifyEmails: splitList(row.bildirimEpostalar),
     notifyPhones: splitList(row.bildirimSmsler),
     binListUrl: row.binListLink || '',
+  };
+}
+
+/** Giriş / favicon — auth gerektirmez */
+export async function getBrandAssets(): Promise<{
+  systemName: string;
+  logoUrl: string;
+  faviconUrl: string;
+}> {
+  const g = await getGeneralSettings();
+  return {
+    systemName: g.systemName,
+    logoUrl: g.logoUrl,
+    faviconUrl: g.faviconUrl,
   };
 }
 
@@ -143,3 +163,158 @@ export async function updateGeneralSettings(
 
   return getGeneralSettings();
 }
+
+export type ContactEntityKind = 'gercek' | 'tuzel' | 'yabanci';
+
+export type PublicContactSettings = {
+  title: string;
+  kind: ContactEntityKind;
+  taxNo: string;
+  taxOfficeId: number | null;
+  taxOffice: string;
+  identityNo: string;
+  address: string;
+  email: string;
+  phone: string;
+  gsm: string;
+  fax: string;
+  taxOffices: { value: string; label: string }[];
+};
+
+export type UpdateContactInput = {
+  title: string;
+  kind: ContactEntityKind;
+  taxNo: string;
+  taxOfficeId: number | null;
+  identityNo: string;
+  address: string;
+  email: string;
+  phone: string;
+  gsm: string;
+  fax: string;
+};
+
+function tipFromKind(kind: ContactEntityKind): number {
+  if (kind === 'tuzel') return 1;
+  if (kind === 'yabanci') return 2;
+  return 0;
+}
+
+function kindFromTip(tip: number | null | undefined): ContactEntityKind {
+  if (tip === 1) return 'tuzel';
+  if (tip === 2) return 'yabanci';
+  return 'gercek';
+}
+
+function digitsOnly(raw: string | null | undefined, max = 20): string {
+  return (raw || '').replace(/\D/g, '').slice(0, max);
+}
+
+async function listTaxOffices() {
+  const rows = await prisma.vergiDairesi.findMany({
+    where: { OR: [{ remove: null }, { remove: false }] },
+    orderBy: { adi: 'asc' },
+    select: { id: true, adi: true },
+  });
+  return rows.map((r) => ({ value: String(r.id), label: r.adi }));
+}
+
+async function getContactRow() {
+  const row = await prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } });
+  if (!row) throw new SettingsError('İletişim kaydı bulunamadı');
+  return row;
+}
+
+export async function getContactSettings(): Promise<PublicContactSettings> {
+  const [row, taxOffices] = await Promise.all([getContactRow(), listTaxOffices()]);
+  const kind = kindFromTip(row.tip);
+  const vn = (row.vn || '').trim();
+  let taxOffice = '';
+  if (row.vdId != null) {
+    const hit = taxOffices.find((t) => t.value === String(row.vdId));
+    taxOffice = hit?.label || '';
+    if (!taxOffice) {
+      const vd = await prisma.vergiDairesi.findFirst({
+        where: { id: row.vdId },
+        select: { adi: true },
+      });
+      taxOffice = vd?.adi || '';
+    }
+  }
+
+  return {
+    title: (row.unvan || '').trim(),
+    kind,
+    taxNo: kind === 'tuzel' ? digitsOnly(vn, 10) : '',
+    taxOfficeId: row.vdId,
+    taxOffice,
+    identityNo: kind === 'tuzel' ? '' : vn,
+    address: row.adres || '',
+    email: (row.eposta || '').trim().toLowerCase(),
+    phone: digitsOnly(row.telefon, 10),
+    gsm: digitsOnly(row.gsm, 10),
+    fax: digitsOnly(row.fax, 10),
+    taxOffices,
+  };
+}
+
+export async function updateContactSettings(
+  input: UpdateContactInput,
+): Promise<PublicContactSettings> {
+  const row = await getContactRow();
+  const title = input.title.trim();
+  const address = input.address.trim();
+  const email = input.email.trim().toLowerCase();
+  const phone = digitsOnly(input.phone, 10);
+
+  if (!title) throw new SettingsError(input.kind === 'tuzel' ? 'Ünvan gerekli' : 'Ad soyad gerekli');
+  if (!address) throw new SettingsError('Adres gerekli');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new SettingsError('Geçerli e-posta girin');
+  }
+  if (phone.length < 10) throw new SettingsError('Telefon gerekli');
+
+  let vn: string | null = null;
+  let vdId: number | null = null;
+
+  if (input.kind === 'tuzel') {
+    const taxNo = digitsOnly(input.taxNo, 10);
+    if (taxNo && taxNo.length !== 10) throw new SettingsError('Vergi numarası 10 hane olmalı');
+    vn = taxNo || null;
+    if (input.taxOfficeId != null) {
+      const vd = await prisma.vergiDairesi.findFirst({
+        where: {
+          id: input.taxOfficeId,
+          OR: [{ remove: null }, { remove: false }],
+        },
+        select: { id: true },
+      });
+      if (!vd) throw new SettingsError('Vergi dairesi bulunamadı');
+      vdId = vd.id;
+    }
+  } else {
+    const identity = input.identityNo.trim();
+    if (input.kind === 'gercek' && identity && !/^\d{11}$/.test(identity)) {
+      throw new SettingsError('TC kimlik no 11 hane olmalı');
+    }
+    vn = identity.slice(0, 20) || null;
+  }
+
+  await prisma.iletisimBilgileri.update({
+    where: { id: row.id },
+    data: {
+      unvan: title.slice(0, 255),
+      tip: tipFromKind(input.kind),
+      vn,
+      vdId,
+      adres: address,
+      eposta: email.slice(0, 255),
+      telefon: phone,
+      gsm: digitsOnly(input.gsm, 10) || null,
+      fax: digitsOnly(input.fax, 10) || null,
+    },
+  });
+
+  return getContactSettings();
+}
+

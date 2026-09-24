@@ -50,6 +50,7 @@ export const CONTACT_KIND_OPTIONS = [
   { value: 'yabanci', label: 'Yabancı' },
 ];
 
+/** Varsayılanlar sayfası yedek — asıl liste API’den gelir */
 export const CONTACT_TAX_OFFICE_OPTIONS = [
   { value: 'Ankara Kurumlar V.D.', label: 'Ankara Kurumlar V.D.' },
   { value: 'Antalya Kurumlar V.D.', label: 'Antalya Kurumlar V.D.' },
@@ -58,19 +59,6 @@ export const CONTACT_TAX_OFFICE_OPTIONS = [
   { value: 'Kepez V.D.', label: 'Kepez V.D.' },
   { value: 'Teknopark V.D.', label: 'Teknopark V.D.' },
 ];
-
-export const INITIAL_CONTACT_SETTINGS: ContactSettings = {
-  title: 'GÜZEL İÇ VE DIŞ TİCARET LİMİTED ŞİRKETİ',
-  kind: 'tuzel',
-  taxNo: '9250508945',
-  taxOffice: 'Ankara Kurumlar V.D.',
-  identityNo: '',
-  address: 'Yeni Emek Mah. Yıldırım Beyazıt Cad. No:130A Kepez / Antalya / Türkiye',
-  email: 'bilgi@guzelteknoloji.com',
-  phone: '8508851160',
-  gsm: '5438851160',
-  fax: '8508851260',
-};
 
 /** Sabit hat / GSM — 850 885 11 60 */
 export function formatContactPhone(digits: string) {

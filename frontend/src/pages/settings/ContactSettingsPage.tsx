@@ -1,16 +1,16 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { emailSuggestions } from '../../lib/emailSuggestions';
 import {
   CONTACT_KIND_OPTIONS,
-  CONTACT_TAX_OFFICE_OPTIONS,
   formatContactPhone,
-  INITIAL_CONTACT_SETTINGS,
   normalizeContactPhone,
   type ContactEntityKind,
   type ContactSettings,
@@ -18,33 +18,75 @@ import {
 
 gsap.registerPlugin(useGSAP);
 
+type ContactApi = ContactSettings & {
+  taxOfficeId: number | null;
+  taxOffices: { value: string; label: string }[];
+};
+
 /**
- * Ayarlar › İletişim Bilgileri — tip’e göre alanlar (müşteri formu gibi).
+ * Ayarlar › İletişim Bilgileri — tip’e göre alanlar (DB: iletisim_bilgileri).
  */
 export default function ContactSettingsPage() {
+  const { token } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const kindFieldsRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState<ContactSettings>(() => ({ ...INITIAL_CONTACT_SETTINGS }));
-  const [baseline, setBaseline] = useState(draft);
+  const [draft, setDraft] = useState<ContactApi | null>(null);
+  const [baseline, setBaseline] = useState<ContactApi | null>(null);
+  const [taxOffices, setTaxOffices] = useState<{ value: string; label: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
 
-  const dirty =
-    draft.title !== baseline.title ||
-    draft.kind !== baseline.kind ||
-    draft.taxNo !== baseline.taxNo ||
-    draft.taxOffice !== baseline.taxOffice ||
-    draft.identityNo !== baseline.identityNo ||
-    draft.address !== baseline.address ||
-    draft.email !== baseline.email ||
-    draft.phone !== baseline.phone ||
-    draft.gsm !== baseline.gsm ||
-    draft.fax !== baseline.fax;
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await api.get<ContactApi>('/api/settings/contact', token);
+        if (cancelled) return;
+        const next = { ...data };
+        setDraft(next);
+        setBaseline({ ...data });
+        setTaxOffices(data.taxOffices || []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'İletişim bilgileri yüklenemedi');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
-  const suggestions = useMemo(() => emailSuggestions(draft.email), [draft.email]);
-  const idMax = draft.kind === 'yabanci' ? 20 : 11;
+  const dirty =
+    !!draft &&
+    !!baseline &&
+    (draft.title !== baseline.title ||
+      draft.kind !== baseline.kind ||
+      draft.taxNo !== baseline.taxNo ||
+      draft.taxOfficeId !== baseline.taxOfficeId ||
+      draft.identityNo !== baseline.identityNo ||
+      draft.address !== baseline.address ||
+      draft.email !== baseline.email ||
+      draft.phone !== baseline.phone ||
+      draft.gsm !== baseline.gsm ||
+      draft.fax !== baseline.fax);
+
+  const suggestions = useMemo(
+    () => (draft ? emailSuggestions(draft.email) : []),
+    [draft?.email],
+  );
+  const idMax = draft?.kind === 'yabanci' ? 20 : 11;
   const taxMax = 10;
-  const nameLabel = draft.kind === 'tuzel' ? 'Ünvan *' : 'Ad Soyad *';
+  const nameLabel = draft?.kind === 'tuzel' ? 'Ünvan *' : 'Ad Soyad *';
 
   useGSAP(
     () => {
@@ -56,41 +98,88 @@ export default function ContactSettingsPage() {
         { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.06, ease: 'power3.out' },
       );
     },
-    { scope: rootRef },
+    { scope: rootRef, dependencies: [draft] },
   );
 
   useGSAP(
     () => {
       const el = kindFieldsRef.current;
-      if (!el) return;
+      if (!el || !draft) return;
       gsap.fromTo(
         el,
         { autoAlpha: 0, y: 10 },
         { autoAlpha: 1, y: 0, duration: 0.32, ease: 'power2.out' },
       );
     },
-    { scope: kindFieldsRef, dependencies: [draft.kind] },
+    { scope: kindFieldsRef, dependencies: [draft?.kind] },
   );
 
-  function patch<K extends keyof ContactSettings>(key: K, value: ContactSettings[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+  function patch<K extends keyof ContactApi>(key: K, value: ContactApi[K]) {
+    setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
 
   function setKind(next: ContactEntityKind) {
-    setDraft((d) => ({
-      ...d,
-      kind: next,
-      // Tip değişince kimlik alanlarını temizle — karışmasın
-      taxNo: next === 'tuzel' ? d.taxNo : '',
-      taxOffice: next === 'tuzel' ? d.taxOffice : '',
-      identityNo: next === 'tuzel' ? '' : d.identityNo,
-    }));
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            kind: next,
+            taxNo: next === 'tuzel' ? d.taxNo : '',
+            taxOfficeId: next === 'tuzel' ? d.taxOfficeId : null,
+            taxOffice: next === 'tuzel' ? d.taxOffice : '',
+            identityNo: next === 'tuzel' ? '' : d.identityNo,
+          }
+        : d,
+    );
   }
 
-  function save() {
-    setBaseline({ ...draft });
-    setSaveSuccess(true);
-    window.setTimeout(() => setSaveSuccess(false), 1800);
+  async function save() {
+    if (!token || !draft || !dirty || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.patch<ContactApi>(
+        '/api/settings/contact',
+        {
+          title: draft.title,
+          kind: draft.kind,
+          taxNo: draft.taxNo,
+          taxOfficeId: draft.taxOfficeId,
+          identityNo: draft.identityNo,
+          address: draft.address,
+          email: draft.email,
+          phone: draft.phone,
+          gsm: draft.gsm,
+          fax: draft.fax,
+        },
+        token,
+      );
+      setDraft({ ...saved });
+      setBaseline({ ...saved });
+      setTaxOffices(saved.taxOffices || []);
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 1800);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && !draft) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-10 text-center text-sm text-[var(--panel-muted)]">
+        İletişim bilgileri yükleniyor…
+      </div>
+    );
+  }
+
+  if (!draft) {
+    return (
+      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+        {error || 'İletişim bilgileri yüklenemedi'}
+      </div>
+    );
   }
 
   return (
@@ -104,12 +193,18 @@ export default function ContactSettingsPage() {
         </p>
       </div>
 
+      {error ? (
+        <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
       <form
         data-anim
         className="space-y-5 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6 [--input-notch:var(--panel-elevated)]"
         onSubmit={(e) => {
           e.preventDefault();
-          if (dirty) save();
+          if (dirty) void save();
         }}
       >
         <TextInput
@@ -144,9 +239,21 @@ export default function ContactSettingsPage() {
               />
               <FloatingSearchSelect
                 label="Vergi Dairesi"
-                options={CONTACT_TAX_OFFICE_OPTIONS}
-                value={draft.taxOffice}
-                onChange={(v) => patch('taxOffice', v ?? '')}
+                options={taxOffices}
+                value={draft.taxOfficeId != null ? String(draft.taxOfficeId) : null}
+                onChange={(v) => {
+                  const id = v ? Number(v) : null;
+                  const label = taxOffices.find((t) => t.value === v)?.label || '';
+                  setDraft((d) =>
+                    d
+                      ? {
+                          ...d,
+                          taxOfficeId: Number.isFinite(id) ? id : null,
+                          taxOffice: label,
+                        }
+                      : d,
+                  );
+                }}
                 kmJump
               />
             </section>
@@ -260,10 +367,14 @@ export default function ContactSettingsPage() {
 
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <div className="w-full max-w-xs sm:w-auto sm:min-w-[14rem]">
-            <Button type="submit" disabled={!dirty && !saveSuccess} success={saveSuccess}>
+            <Button
+              type="submit"
+              disabled={(!dirty && !saveSuccess) || saving}
+              success={saveSuccess}
+            >
               <span className="inline-flex items-center gap-2">
                 <SaveIcon />
-                Değişiklikleri Kaydet
+                {saving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}
               </span>
             </Button>
           </div>

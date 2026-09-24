@@ -172,3 +172,29 @@ model Ayarlar {
 
   @@map("ayarlar")
 }
+
+/** Firma iletişim bilgileri — tek satır */
+model IletisimBilgileri {
+  id      Int     @id @default(autoincrement())
+  vdId    Int?    @map("vd_id")
+  adres   String  @db.LongText
+  telefon String  @db.VarChar(255)
+  gsm     String? @db.VarChar(255)
+  fax     String? @db.VarChar(255)
+  eposta  String  @db.VarChar(255)
+  unvan   String? @db.VarChar(255)
+  vn      String? @db.VarChar(255)
+  /** 0=gerçek, 1=tüzel, 2=yabancı */
+  tip     Int?
+
+  @@map("iletisim_bilgileri")
+}
+
+/** Vergi daireleri — iletişim formu seçenekleri */
+model VergiDairesi {
+  id     Int      @id @default(autoincrement())
+  adi    String   @db.VarChar(255)
+  remove Boolean?
+
+  @@map("vergi_daireleri")
+}

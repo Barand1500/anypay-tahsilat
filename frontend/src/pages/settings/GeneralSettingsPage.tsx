@@ -3,6 +3,7 @@ import { useGSAP } from '@gsap/react';
 import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../auth/AuthContext';
+import { useBrand } from '../../brand/BrandContext';
 import { Button } from '../../components/ui/Button';
 import { GrowingValueList } from '../../components/ui/GrowingValueList';
 import { TextInput } from '../../components/ui/TextInput';
@@ -44,6 +45,7 @@ function fileToDataUrl(file: File): Promise<string> {
  */
 export default function GeneralSettingsPage() {
   const { token } = useAuth();
+  const { applyBrand, refreshBrand } = useBrand();
   const rootRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<GeneralSettings | null>(null);
   const [baseline, setBaseline] = useState<GeneralSettings | null>(null);
@@ -187,6 +189,12 @@ export default function GeneralSettingsPage() {
       setFaviconName(null);
       setLogoDataUrl(null);
       setFaviconDataUrl(null);
+      applyBrand({
+        systemName: saved.systemName,
+        logoUrl: saved.logoUrl,
+        faviconUrl: saved.faviconUrl,
+      });
+      void refreshBrand();
       setSaveSuccess(true);
       window.setTimeout(() => setSaveSuccess(false), 1800);
     } catch (err) {
