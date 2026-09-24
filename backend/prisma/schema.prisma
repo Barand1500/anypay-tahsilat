@@ -61,3 +61,14 @@ model Rol {
 
   @@map("rol")
 }
+
+/** Şube / departman */
+model SubeDepartman {
+  id              Int      @id @default(autoincrement())
+  adi             String   @db.VarChar(255)
+  info            String?  @db.LongText
+  remove          Boolean?
+  izinliTaksitler String?  @map("izinli_taksitler") @db.LongText
+
+  @@map("sube_departman")
+}

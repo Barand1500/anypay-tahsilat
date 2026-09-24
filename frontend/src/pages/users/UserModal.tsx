@@ -27,13 +27,21 @@ type Mode = { type: 'create' } | { type: 'edit'; user: AppUser };
 type Props = {
   mode: Mode;
   roleOptions: { value: string; label: string }[];
+  branchOptions?: { value: string; label: string }[];
   onClose: () => void;
-  onSave: (u: Omit<AppUser, 'id'> & { id?: string }) => void;
+  onSave: (u: Omit<AppUser, 'id'> & { id?: number; password?: string }) => Promise<void> | void;
   /** Çift tıklanan sütuna göre odak */
   focusField?: UserFocusField | null;
 };
 
-export function UserModal({ mode, roleOptions, onClose, onSave, focusField = null }: Props) {
+export function UserModal({
+  mode,
+  roleOptions,
+  branchOptions,
+  onClose,
+  onSave,
+  focusField = null,
+}: Props) {
   const isEdit = mode.type === 'edit';
   const [name, setName] = useState(isEdit ? mode.user.name : '');
   const [email, setEmail] = useState(isEdit ? mode.user.email : '');
@@ -44,10 +52,18 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
   const [installments, setInstallments] = useState<number[]>(
     isEdit ? [...mode.user.installments] : [],
   );
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
   const [taksitOpen, setTaksitOpen] = useState(false);
   const [taksitPos, setTaksitPos] = useState({ top: 0, left: 0, width: 0, up: false });
   const [pulse, setPulse] = useState<UserFocusField | null>(focusField);
+
+  const branchSelectOptions = useMemo(() => {
+    if (branchOptions?.length) return branchOptions;
+    return getBranchOptions().map((b) => ({ value: b, label: b }));
+  }, [branchOptions]);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const emailWrap = useRef<HTMLDivElement>(null);
@@ -150,21 +166,34 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
     });
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim() || !email.trim() || phone.length !== 10 || !roleId) return;
+    if (!isEdit && password.trim().length < 6) {
+      setFormError('Yeni kullanıcı için şifre en az 6 karakter');
+      return;
+    }
     const role = roleOptions.find((r) => r.value === roleId);
-    onSave({
-      id: isEdit ? mode.user.id : undefined,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phone,
-      roleId,
-      roleName: role?.label || '',
-      branch: branch || 'Merkez',
-      status,
-      installments,
-    });
+    setSaving(true);
+    setFormError(null);
+    try {
+      await onSave({
+        id: isEdit ? mode.user.id : undefined,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone,
+        roleId,
+        roleName: role?.label || '',
+        branch: branch || '',
+        status,
+        installments,
+        password: password.trim() || undefined,
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
   }
 
   const phoneShown = formatPhoneLive(phone);
@@ -192,7 +221,7 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={(e) => void onSubmit(e)} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div className="flex gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--color-brand-500)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-elevated))] px-3 py-2.5 text-xs leading-relaxed text-[var(--panel-ink)]">
               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-600)] text-[10px] font-bold text-white">
@@ -284,13 +313,36 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
             <FloatingSearchSelect
               label="Şube/Departman"
               placeholder="Şube/Departman seçiniz."
-              options={getBranchOptions().map((b) => ({ value: b, label: b }))}
+              options={branchSelectOptions}
               value={branch || null}
               onChange={(v) => setBranch(v ?? '')}
               kmJump
               pulse={pulse === 'branch'}
             />
 
+            {!isEdit ? (
+              <TextInput
+                data-km-jump
+                label="Şifre *"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            ) : (
+              <TextInput
+                data-km-jump
+                label="Yeni şifre"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder="Değiştirmek için doldurun"
+              />
+            )}
+
+            {formError ? <p className="text-sm text-rose-500">{formError}</p> : null}
             <div
               className={[
                 'flex items-center justify-between gap-3 rounded-xl bg-[var(--panel-surface)] px-3 py-3',
@@ -419,9 +471,10 @@ export function UserModal({ mode, roleOptions, onClose, onSave, focusField = nul
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

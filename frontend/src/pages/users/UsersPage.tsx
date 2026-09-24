@@ -1,12 +1,13 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { ModulesDblClickHint } from '../modules/ModulesDblClickHint';
 import {
   formatPhoneLive,
-  getLiveUsers,
   initialsOf,
   setLiveUsers,
   type AppUser,
@@ -25,12 +26,17 @@ const COL_FOCUS: Record<string, UserFocusField> = {
 };
 
 /**
- * Kullanıcılar — Modüller ile aynı toolbar / satır / sil / çift tık düzeni.
+ * Kullanıcılar — user tablosu (API).
  */
 export default function UsersPage() {
+  const { token } = useAuth();
   const { roles, guard } = usePermission();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [users, setUsers] = useState<AppUser[]>(() => [...getLiveUsers()]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
@@ -42,15 +48,42 @@ export default function UsersPage() {
     | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const firstRowRef = useRef<HTMLLIElement | null>(null);
-  const rowRefs = useRef<Map<string, HTMLLIElement>>(new Map());
+  const rowRefs = useRef<Map<number, HTMLLIElement>>(new Map());
 
   const roleOptions = useMemo(
     () => roles.map((r) => ({ value: String(r.id), label: r.name })),
     [roles],
   );
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [list, branches] = await Promise.all([
+        api.get<AppUser[]>('/api/users', token),
+        api
+          .get<{ id: number; name: string }[]>('/api/users/branches', token)
+          .catch(() => [] as { id: number; name: string }[]),
+      ]);
+      setUsers(list);
+      setLiveUsers(list);
+      setBranchOptions(branches.map((b) => ({ value: b.name, label: b.name })));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Kullanıcılar yüklenemedi');
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -77,7 +110,7 @@ export default function UsersPage() {
   useEffect(() => {
     const id = searchParams.get('highlight');
     if (!id) return;
-    const idx = filtered.findIndex((u) => u.id === id);
+    const idx = filtered.findIndex((u) => String(u.id) === id);
     if (idx >= 0) {
       setPage(Math.floor(idx / pageSize) + 1);
       setHighlightId(id);
@@ -87,7 +120,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (!highlightId) return;
-    const el = rowRefs.current.get(highlightId);
+    const el = rowRefs.current.get(Number(highlightId));
     if (el) {
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
@@ -103,14 +136,6 @@ export default function UsersPage() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  function commitUsers(next: AppUser[] | ((prev: AppUser[]) => AppUser[])) {
-    setUsers((prev) => {
-      const resolved = typeof next === 'function' ? next(prev) : next;
-      setLiveUsers(resolved);
-      return resolved;
-    });
-  }
-
   function applyPageSize(raw: string) {
     const n = Number.parseInt(raw, 10);
     if (!Number.isFinite(n)) {
@@ -124,11 +149,13 @@ export default function UsersPage() {
 
   function openCreate() {
     if (!guard('m-kullanicilar', 'save', 'Kullanıcılar')) return;
+    setActionError(null);
     setModal({ type: 'create' });
   }
 
   function openEdit(u: AppUser, focusField?: UserFocusField | null) {
     if (!guard('m-kullanicilar', 'save', 'Kullanıcılar')) return;
+    setActionError(null);
     setModal({ type: 'edit', user: u, focusField: focusField ?? 'name' });
   }
 
@@ -142,24 +169,61 @@ export default function UsersPage() {
     setDeleteTarget(u);
   }
 
-  function saveUser(next: Omit<AppUser, 'id'> & { id?: string }) {
+  async function saveUser(next: Omit<AppUser, 'id'> & { id?: number; password?: string }) {
     if (!guard('m-kullanicilar', 'save', 'Kullanıcılar')) return;
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
+    const payload = {
+      name: next.name,
+      email: next.email,
+      phone: next.phone,
+      roleId: next.roleId,
+      branch: next.branch,
+      branchId: next.branchId ?? undefined,
+      status: next.status,
+      installments: next.installments,
+      password: next.password,
+    };
     if (next.id) {
-      commitUsers((prev) => prev.map((u) => (u.id === next.id ? { ...u, ...next, id: u.id } : u)));
+      const updated = await api.patch<AppUser>(`/api/users/${next.id}`, payload, token);
+      setUsers((prev) => {
+        const list = prev.map((u) => (u.id === updated.id ? updated : u));
+        setLiveUsers(list);
+        return list;
+      });
     } else {
-      commitUsers((prev) => [{ ...next, id: `u-${Date.now()}` }, ...prev]);
+      const created = await api.post<AppUser>('/api/users', payload, token);
+      setUsers((prev) => {
+        const list = [created, ...prev];
+        setLiveUsers(list);
+        return list;
+      });
     }
     setModal(null);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return;
     if (!guard('m-kullanicilar', 'remove', 'Kullanıcılar')) {
       setDeleteTarget(null);
       return;
     }
-    commitUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    if (!token) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/users/${deleteTarget.id}`, token);
+      setUsers((prev) => {
+        const list = prev.filter((u) => u.id !== deleteTarget.id);
+        setLiveUsers(list);
+        return list;
+      });
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
@@ -252,6 +316,20 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void load()}>
+            Yeniden dene
+          </button>
+        </div>
+      ) : null}
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-3 shadow-[var(--panel-shadow)]">
         <label className="flex items-center gap-2 text-sm text-[var(--panel-muted)]">
           <input
@@ -307,7 +385,9 @@ export default function UsersPage() {
             </span>
           </div>
 
-          {slice.length === 0 ? (
+          {loading ? (
+            <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+          ) : slice.length === 0 ? (
             <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Kayıt yok.</p>
           ) : (
             <ul>
@@ -330,7 +410,7 @@ export default function UsersPage() {
                   title="Çift tıkla veya klavye Enter: düzenle"
                   className={[
                     'modules-row-in group grid cursor-pointer grid-cols-[1.4fr_1.3fr_1fr_1.2fr_0.7fr_40px] items-center gap-2 border-b border-[var(--panel-line)] px-4 py-3 transition last:border-b-0 hover:bg-[var(--panel-hover)]/50',
-                    highlightId === u.id ? 'user-row-highlight' : '',
+                    highlightId === String(u.id) ? 'user-row-highlight' : '',
                   ].join(' ')}
                 >
                   <div data-user-col="name" className="flex min-w-0 items-center gap-2.5">
@@ -417,7 +497,8 @@ export default function UsersPage() {
         <UserModal
           mode={modal.type === 'edit' ? { type: 'edit', user: modal.user } : { type: 'create' }}
           roleOptions={roleOptions}
-          focusField={modal.type === 'edit' ? modal.focusField : 'name'}
+          branchOptions={branchOptions}
+          focusField={modal.type === 'edit' ? modal.focusField : null}
           onClose={() => setModal(null)}
           onSave={saveUser}
         />
@@ -427,7 +508,8 @@ export default function UsersPage() {
         <DeleteUserModal
           name={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          busy={deleting}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
 
@@ -467,10 +549,12 @@ function PagerBtn({
 
 function DeleteUserModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -514,16 +598,18 @@ function DeleteUserModal({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold"
+            disabled={busy}
+            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold disabled:opacity-60"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white"
+            disabled={busy}
+            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
