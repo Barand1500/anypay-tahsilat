@@ -97,15 +97,42 @@ model Log {
   @@map("log")
 }
 
-/** Müşteriler */
+/** Müşteriler / cari hesaplar */
 model Musteri {
-  id        Int      @id @default(autoincrement())
-  kisaAdi   String?  @map("kisa_adi") @db.VarChar(255)
-  unvan     String?  @db.VarChar(255)
-  remove    Boolean?
-  durum     Int?
+  id              Int       @id @default(autoincrement())
+  kisaAdi         String?   @map("kisa_adi") @db.VarChar(255)
+  firmaKodu       String?   @map("firma_kodu") @db.VarChar(255)
+  unvan           String?   @db.VarChar(255)
+  vn              String?   @db.VarChar(255)
+  telefon         String?   @db.VarChar(255)
+  eposta          String?   @db.VarChar(255)
+  remove          Boolean?
+  info            String?   @db.LongText
+  vd              Int?
+  webSitesi       String?   @map("web_sitesi") @db.VarChar(255)
+  tc              String?   @db.VarChar(255)
+  pasaportNo      String?   @map("pasaport_no") @db.VarChar(255)
+  /** 0=gerçek, 1=tüzel, 2=yabancı */
+  musteriTipi     Int?      @map("musteri_tipi")
+  cariTipiId      Int?      @map("cari_tipi_id")
+  vegaId          Int?      @map("vega_id")
+  vegaEntegre     Boolean?  @map("vega_entegre")
+  vegaTarih       DateTime? @map("vega_tarih")
+  durum           Int?
+  ustid           Int?
+  adres           String?   @db.LongText
+  kartAnlasmaKodu String?   @map("kart_anlasma_kodu") @db.VarChar(255)
 
   @@map("musteriler")
+}
+
+/** Cari tipi (Müşteri, Bayi…) */
+model CariTipi {
+  id     Int      @id @default(autoincrement())
+  adi    String   @db.VarChar(255)
+  remove Boolean?
+
+  @@map("cari_tipleri")
 }
 
 /** Bankalar */

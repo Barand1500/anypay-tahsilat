@@ -10,17 +10,54 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { CustomerExcelModal } from './CustomerExcelModal';
 import {
   addAccountType,
   formatPhoneLive,
-  getLiveCustomers,
-  setLiveCustomers,
   type Customer,
 } from './mockCustomers';
 
+type ApiCustomer = {
+  id: number;
+  code: string;
+  title: string;
+  phone: string;
+  email: string;
+  taxNo: string;
+  taxOffice: string;
+  taxOfficeId: number | null;
+  kind: Customer['kind'];
+  accountType: string;
+  accountTypeId: number | null;
+  parentId: number | null;
+  address: string;
+  identityNo: string;
+  childCount: number;
+};
+
+function mapCustomer(c: ApiCustomer): Customer {
+  return {
+    id: String(c.id),
+    code: c.code,
+    title: c.title,
+    phone: c.phone,
+    email: c.email,
+    taxNo: c.taxNo,
+    taxOffice: c.taxOffice,
+    taxOfficeId: c.taxOfficeId,
+    kind: c.kind,
+    accountType: c.accountType,
+    accountTypeId: c.accountTypeId,
+    parentId: c.parentId != null ? String(c.parentId) : null,
+    address: c.address,
+    identityNo: c.identityNo,
+    childCount: c.childCount,
+  };
+}
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 const COL_STORAGE = 'anypay_tahsilat_customer_cols';
@@ -65,19 +102,23 @@ function readCols(): ColId[] {
  * Müşteriler — liste iskeleti; Excel modal + sütun sürükle + kopyala.
  */
 export default function CustomersPage() {
+  const { token } = useAuth();
   const { guard } = usePermission();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const ustId = searchParams.get('ust');
 
-  const [customers, setCustomers] = useState<Customer[]>(() => [...getLiveCustomers()]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
   const [page, setPage] = useState(1);
   const [excelOpen, setExcelOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [cols, setCols] = useState<ColId[]>(() => readCols());
   const [dragCol, setDragCol] = useState<ColId | null>(null);
@@ -85,16 +126,33 @@ export default function CustomersPage() {
   const [hoverRowId, setHoverRowId] = useState<string | null>(null);
   const [kmRowId, setKmRowId] = useState<string | null>(null);
 
+  const reload = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<ApiCustomer[]>('/api/customers', token);
+      setCustomers(list.map(mapCustomer));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Müşteriler yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
   // Formdan dönüşte liste + toast
   useEffect(() => {
     const st = location.state as { flash?: string } | null;
     if (st?.flash) {
-      setCustomers([...getLiveCustomers()]);
+      void reload();
       setToast(st.flash);
       navigate('.', { replace: true, state: null });
     }
-  }, [location.state, navigate]);
-
+  }, [location.state, navigate, reload]);
   const parentCustomer = useMemo(
     () => (ustId ? customers.find((c) => c.id === ustId) ?? null : null),
     [ustId, customers],
@@ -179,14 +237,6 @@ export default function CustomersPage() {
   }, []);
 
   const flash = useCallback((msg: string) => setToast(msg), []);
-
-  function commitCustomers(next: Customer[] | ((prev: Customer[]) => Customer[])) {
-    setCustomers((prev) => {
-      const resolved = typeof next === 'function' ? next(prev) : next;
-      setLiveCustomers(resolved);
-      return resolved;
-    });
-  }
 
   function applyPageSize(raw: string) {
     const n = Number.parseInt(raw, 10);
@@ -278,14 +328,24 @@ export default function CustomersPage() {
     setDeleteTarget(c);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
+  async function confirmDelete() {
+    if (!deleteTarget || !token) return;
     if (!guard('m-musteriler', 'remove', 'Müşteriler')) {
       setDeleteTarget(null);
       return;
     }
-    commitCustomers((prev) => prev.filter((x) => x.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    setDeleting(true);
+    try {
+      await api.delete(`/api/customers/${deleteTarget.id}`, token);
+      setCustomers((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      flash('Müşteri silindi');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Silinemedi');
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
@@ -407,13 +467,37 @@ export default function CustomersPage() {
     );
   }
 
-  function confirmExcelImport(list: Customer[]) {
+  async function confirmExcelImport(list: Customer[]) {
+    if (!token) return;
+    let ok = 0;
     for (const c of list) {
-      if (c.accountType.trim()) addAccountType(c.accountType);
+      try {
+        await api.post(
+          '/api/customers',
+          {
+            code: c.code,
+            title: c.title,
+            kind: c.kind,
+            phone: c.phone,
+            email: c.email,
+            taxNo: c.taxNo,
+            taxOfficeId: c.taxOfficeId ?? null,
+            identityNo: c.identityNo,
+            address: c.address,
+            accountTypeName: c.accountType,
+            parentId: c.parentId ? Number(c.parentId) : null,
+          },
+          token,
+        );
+        if (c.accountType.trim()) addAccountType(c.accountType);
+        ok += 1;
+      } catch {
+        /* satır atlanır */
+      }
     }
-    commitCustomers((prev) => [...list, ...prev]);
     setExcelOpen(false);
-    flash(`${list.length} müşteri sisteme eklendi`);
+    await reload();
+    flash(ok > 0 ? `${ok} müşteri sisteme eklendi` : 'Hiçbir satır eklenemedi');
   }
 
   function renderCol(id: ColId, c: Customer, showEye: boolean) {
@@ -496,6 +580,12 @@ export default function CustomersPage() {
 
   return (
     <div className="w-full space-y-6">
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {loadError}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <nav className="mb-1 flex flex-wrap items-center gap-x-0 text-sm text-[var(--panel-ink)]/65">
@@ -536,9 +626,11 @@ export default function CustomersPage() {
             {parentCustomer ? `${parentCustomer.title} Müşterileri` : 'Müşteriler'}
           </h1>
           <p className="mt-1 text-[15px] text-[var(--panel-ink)]/70">
-            {parentCustomer
-              ? 'Alt cari hesaplar — satıra gelince çıkan göze tıklayın.'
-              : 'Cari hesapları buradan yönetin. Satıra gelince çıkan göze tıklayarak alt müşterilere geçin.'}
+            {loading
+              ? 'Müşteriler yükleniyor…'
+              : parentCustomer
+                ? 'Alt cari hesaplar — satıra gelince çıkan göze tıklayın.'
+                : 'Cari hesapları buradan yönetin. Satıra gelince çıkan göze tıklayarak alt müşterilere geçin.'}
           </p>
         </div>
 

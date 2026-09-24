@@ -12,6 +12,7 @@ import { logsRouter } from './routes/logs.js';
 import { systemResetRouter } from './routes/systemReset.js';
 import { overviewRouter } from './routes/overview.js';
 import { settingsRouter } from './routes/settings.js';
+import { customersRouter } from './routes/customers.js';
 import { sendError } from './utils/response.js';
 import { UPLOADS_ROOT } from './services/settingsService.js';
 
@@ -41,6 +42,7 @@ app.use('/api/logs', logsRouter);
 app.use('/api/system-reset', systemResetRouter);
 app.use('/api/overview', overviewRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/customers', customersRouter);
 
 // SPA fallback (API dışı yollar)
 app.get(/^(?!\/api).*/, (_req, res) => {

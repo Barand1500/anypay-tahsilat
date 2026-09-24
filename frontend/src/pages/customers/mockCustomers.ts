@@ -10,11 +10,14 @@ export type Customer = {
   email: string;
   taxNo: string;
   taxOffice: string;
+  taxOfficeId?: number | null;
   kind: CustomerKind;
   accountType: string;
+  accountTypeId?: number | null;
   parentId: string | null;
   address: string;
   identityNo: string; // TC veya pasaport
+  childCount?: number;
 };
 
 export const CUSTOMER_KIND_OPTIONS: { value: CustomerKind; label: string; hint: string }[] = [
