@@ -115,9 +115,16 @@ ok "frontend/dist hazır"
 
 # ---------------------------------------------------------------------------
 step "Backend build"
-# Client, backend/node_modules içinde üretilmeli (tsc bunu kullanır)
-npm run db:generate --prefix backend
-npm run build --prefix backend
+# Mutlaka backend paketindeki prisma CLI (kökte npx yanlış sürüm çeker)
+(
+  cd "$REPO_DIR/backend"
+  if [[ ! -x node_modules/.bin/prisma ]]; then
+    die "backend/node_modules/.bin/prisma yok — npm install eksik"
+  fi
+  info "prisma generate (backend)..."
+  ./node_modules/.bin/prisma generate
+  npm run build
+)
 ok "backend/dist hazır"
 [[ -d frontend/dist && -d backend/dist ]] || die "Build çıktısı eksik"
 
