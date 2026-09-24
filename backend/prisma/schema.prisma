@@ -262,3 +262,83 @@ model VergiDairesi {
 
   @@map("vergi_daireleri")
 }
+
+/** Müşteri adresleri */
+model Adres {
+  id          Int      @id @default(autoincrement())
+  musteriId   Int?     @map("musteri_id")
+  adresTarifi String?  @map("adres_tarifi") @db.LongText
+  ulkeId      Int      @map("ulke_id")
+  ilId        Int      @map("il_id")
+  ilceId      Int      @map("ilce_id")
+  semtId      Int      @map("semt_id")
+  mahalleId   Int      @map("mahalle_id")
+  sokakId     Int      @map("sokak_id")
+  adresAdi    String   @map("adres_adi") @db.VarChar(255)
+  remove      Boolean?
+  yetkili     String?  @db.LongText
+  varsayilan  Boolean?
+
+  @@map("adresler")
+}
+
+model Ulke {
+  id         Int      @id @default(autoincrement())
+  adi        String   @db.VarChar(255)
+  info       String?  @db.LongText
+  remove     Boolean?
+  telefonKodu String  @map("telefon_kodu") @db.VarChar(255)
+
+  @@map("ulke")
+}
+
+model Il {
+  id       Int      @id @default(autoincrement())
+  ulkeId   Int?     @map("ulke_id")
+  adi      String   @db.VarChar(255)
+  remove   Boolean?
+  info     String?  @db.LongText
+  plakaKodu String? @map("plaka_kodu") @db.VarChar(255)
+
+  @@map("il")
+}
+
+model Ilce {
+  id     Int      @id @default(autoincrement())
+  ilId   Int      @map("il_id")
+  adi    String   @db.VarChar(255)
+  remove Boolean?
+  info   String?  @db.LongText
+
+  @@map("ilce")
+}
+
+model Semt {
+  id     Int      @id @default(autoincrement())
+  ilceId Int      @map("ilce_id")
+  adi    String   @db.VarChar(255)
+  remove Boolean?
+  info   String?  @db.LongText
+
+  @@map("semt")
+}
+
+model Mahalle {
+  id        Int      @id @default(autoincrement())
+  semtId    Int      @map("semt_id")
+  adi       String   @db.VarChar(255)
+  postaKodu String   @map("posta_kodu") @db.VarChar(255)
+  remove    Boolean?
+  info      String?  @db.LongText
+
+  @@map("mahalle")
+}
+
+model Sokak {
+  id        Int      @id @default(autoincrement())
+  mahalleId Int      @map("mahalle_id")
+  adi       String   @db.VarChar(255)
+  remove    Boolean?
+
+  @@map("sokak")
+}

@@ -117,7 +117,10 @@ async function resolveBranchId(branch: string | undefined, branchId?: number | n
 
 export async function listPanelUsers(): Promise<PublicPanelUser[]> {
   const rows = await prisma.user.findMany({
-    where: { OR: [{ remove: null }, { remove: false }] },
+    where: {
+      musteriId: null,
+      OR: [{ remove: null }, { remove: false }],
+    },
     orderBy: { id: 'desc' },
   });
 

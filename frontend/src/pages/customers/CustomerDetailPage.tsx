@@ -10,21 +10,10 @@ import { emailSuggestions } from '../../lib/emailSuggestions';
 import { usePermission } from '../../permissions/PermissionContext';
 import type { PermAction } from '../roles/mockRoles';
 import {
-  getCustomerAddresses,
-  getCustomerUsers,
   initialsOf,
-  setCustomerAddresses,
-  setCustomerUsers,
   type CustomerAddress,
   type CustomerUser,
 } from './mockCustomerDetail';
-import {
-  COUNTRIES,
-  PROVINCES,
-  districtsOf,
-  neighborhoodsOf,
-  quartersOf,
-} from './mockLocations';
 import {
   accountTypeExists,
   addAccountType,
@@ -503,13 +492,36 @@ function InfoTab({
 }
 
 function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) => void }) {
-  const [users, setUsers] = useState(() => getCustomerUsers(customer.id));
+  const { token } = useAuth();
+  const [users, setUsers] = useState<CustomerUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('5');
   const [passwordUser, setPasswordUser] = useState<CustomerUser | null>(null);
+
+  async function reload() {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const list = await api.get<CustomerUser[]>(
+        `/api/customers/${encodeURIComponent(customer.id)}/users`,
+        token,
+      );
+      setUsers(list);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Kullanıcılar yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer.id, token]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -522,38 +534,58 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
     );
   }, [users, query]);
 
-  function persist(next: CustomerUser[]) {
-    setUsers(next);
-    setCustomerUsers(customer.id, next);
-  }
-
-  function addUser(e: FormEvent) {
+  async function addUser(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) return;
-    const u: CustomerUser = {
-      id: `cu-${Date.now()}`,
-      customerId: customer.id,
-      name: name.trim(),
-      email: email.trim().toLocaleLowerCase('tr'),
-      phone: phone.replace(/\D/g, '').slice(0, 10),
-      active: true,
-      lastLogin: null,
-    };
-    persist([u, ...users]);
-    setAddOpen(false);
-    setName('');
-    setEmail('');
-    setPhone('5');
-    flash('Kullanıcı eklendi');
+    if (!token || !name.trim() || !email.trim()) return;
+    try {
+      const u = await api.post<CustomerUser>(
+        `/api/customers/${encodeURIComponent(customer.id)}/users`,
+        {
+          name: name.trim(),
+          email: email.trim().toLocaleLowerCase('tr'),
+          phone: phone.replace(/\D/g, '').slice(0, 10),
+        },
+        token,
+      );
+      setUsers((prev) => [u, ...prev]);
+      setAddOpen(false);
+      setName('');
+      setEmail('');
+      setPhone('5');
+      flash('Kullanıcı eklendi');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Kullanıcı eklenemedi');
+    }
   }
 
-  function toggleActive(uid: string) {
-    persist(users.map((u) => (u.id === uid ? { ...u, active: !u.active } : u)));
+  async function toggleActive(uid: string) {
+    if (!token) return;
+    const cur = users.find((u) => u.id === uid);
+    if (!cur) return;
+    try {
+      const updated = await api.patch<CustomerUser>(
+        `/api/customers/${encodeURIComponent(customer.id)}/users/${encodeURIComponent(uid)}`,
+        { active: !cur.active },
+        token,
+      );
+      setUsers((prev) => prev.map((u) => (u.id === uid ? updated : u)));
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Güncellenemedi');
+    }
   }
 
-  function removeUser(uid: string) {
-    persist(users.filter((u) => u.id !== uid));
-    flash('Kullanıcı silindi');
+  async function removeUser(uid: string) {
+    if (!token) return;
+    try {
+      await api.delete(
+        `/api/customers/${encodeURIComponent(customer.id)}/users/${encodeURIComponent(uid)}`,
+        token,
+      );
+      setUsers((prev) => prev.filter((u) => u.id !== uid));
+      flash('Kullanıcı silindi');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Silinemedi');
+    }
   }
 
   return (
@@ -573,7 +605,7 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
 
       {addOpen ? (
         <form
-          onSubmit={addUser}
+          onSubmit={(e) => void addUser(e)}
           className="border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-4 sm:px-6"
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
@@ -643,7 +675,7 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-5 py-10 text-center text-[var(--panel-muted)]">
-                  Kullanıcı yok.
+                  {loading ? 'Yükleniyor…' : 'Kullanıcı yok.'}
                 </td>
               </tr>
             ) : (
@@ -660,7 +692,9 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
                   <td className="px-3 py-3 text-[var(--panel-ink)]/80">{u.email}</td>
                   <td className="px-3 py-3 font-mono tabular-nums">{formatPhoneLive(u.phone)}</td>
                   <td className="px-3 py-3 text-[var(--panel-muted)]">
-                    {u.lastLogin ?? 'Henüz giriş yapmamış'}
+                    {u.lastLogin
+                      ? new Date(u.lastLogin).toLocaleString('tr-TR')
+                      : 'Henüz giriş yapmamış'}
                   </td>
                   <td className="px-5 py-3 sm:px-6">
                     <div className="flex items-center gap-2">
@@ -668,7 +702,9 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
                         type="button"
                         role="switch"
                         aria-checked={u.active}
-                        onClick={() => toggleActive(u.id)}
+                        onClick={() => {
+                          void toggleActive(u.id);
+                        }}
                         className={[
                           'relative h-6 w-11 rounded-full transition',
                           u.active ? 'bg-[var(--color-brand-600)]' : 'bg-[var(--panel-line)]',
@@ -694,7 +730,9 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
                         type="button"
                         aria-label="Sil"
                         title="Sil"
-                        onClick={() => removeUser(u.id)}
+                        onClick={() => {
+                          void removeUser(u.id);
+                        }}
                         className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                       >
                         <TrashIcon />
@@ -716,23 +754,169 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
 }
 
 function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: string) => void }) {
-  const [list, setList] = useState(() => getCustomerAddresses(customer.id));
+  const { token } = useAuth();
+  type LocOpt = { value: string; label: string };
+  type ApiAddress = CustomerAddress & {
+    contactNames?: string[];
+    ulkeId?: number;
+    ilId?: number;
+    ilceId?: number;
+    semtId?: number;
+    mahalleId?: number;
+    sokakId?: number;
+  };
+
+  const [list, setList] = useState<ApiAddress[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [label, setLabel] = useState('');
-  const [country, setCountry] = useState<string | null>('TR');
+  const [country, setCountry] = useState<string | null>(null);
   const [province, setProvince] = useState<string | null>(null);
   const [district, setDistrict] = useState<string | null>(null);
-  const [quarter, setQuarter] = useState<string | null>(null);
+  const [town, setTown] = useState<string | null>(null);
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
-  const [street, setStreet] = useState('');
+  const [street, setStreet] = useState<string | null>(null);
   const [directions, setDirections] = useState('');
-  const [contactName, setContactName] = useState(customer.title);
   const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const districtOpts = useMemo(() => districtsOf(province), [province]);
-  const quarterOpts = useMemo(() => quartersOf(district), [district]);
-  const neighborhoodOpts = useMemo(() => neighborhoodsOf(district), [district]);
+  const [countries, setCountries] = useState<LocOpt[]>([]);
+  const [provinces, setProvinces] = useState<LocOpt[]>([]);
+  const [districts, setDistricts] = useState<LocOpt[]>([]);
+  const [towns, setTowns] = useState<LocOpt[]>([]);
+  const [neighborhoods, setNeighborhoods] = useState<LocOpt[]>([]);
+  const [streets, setStreets] = useState<LocOpt[]>([]);
+
+  async function reload() {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const rows = await api.get<ApiAddress[]>(
+        `/api/customers/${encodeURIComponent(customer.id)}/addresses`,
+        token,
+      );
+      setList(rows);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Adresler yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer.id, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    void (async () => {
+      try {
+        const rows = await api.get<LocOpt[]>('/api/customers/locations/countries', token);
+        setCountries(rows);
+        const tr = rows.find((r) => r.label.toLocaleLowerCase('tr').includes('türkiye'));
+        if (tr) setCountry((c) => c ?? tr.value);
+      } catch {
+        /* loc opsiyonel */
+      }
+    })();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !country) {
+      setProvinces([]);
+      return;
+    }
+    void (async () => {
+      try {
+        setProvinces(
+          await api.get<LocOpt[]>(
+            `/api/customers/locations/provinces?ulkeId=${encodeURIComponent(country)}`,
+            token,
+          ),
+        );
+      } catch {
+        setProvinces([]);
+      }
+    })();
+  }, [token, country]);
+
+  useEffect(() => {
+    if (!token || !province) {
+      setDistricts([]);
+      return;
+    }
+    void (async () => {
+      try {
+        setDistricts(
+          await api.get<LocOpt[]>(
+            `/api/customers/locations/districts?ilId=${encodeURIComponent(province)}`,
+            token,
+          ),
+        );
+      } catch {
+        setDistricts([]);
+      }
+    })();
+  }, [token, province]);
+
+  useEffect(() => {
+    if (!token || !district) {
+      setTowns([]);
+      return;
+    }
+    void (async () => {
+      try {
+        setTowns(
+          await api.get<LocOpt[]>(
+            `/api/customers/locations/towns?ilceId=${encodeURIComponent(district)}`,
+            token,
+          ),
+        );
+      } catch {
+        setTowns([]);
+      }
+    })();
+  }, [token, district]);
+
+  useEffect(() => {
+    if (!token || !town) {
+      setNeighborhoods([]);
+      return;
+    }
+    void (async () => {
+      try {
+        setNeighborhoods(
+          await api.get<LocOpt[]>(
+            `/api/customers/locations/neighborhoods?semtId=${encodeURIComponent(town)}`,
+            token,
+          ),
+        );
+      } catch {
+        setNeighborhoods([]);
+      }
+    })();
+  }, [token, town]);
+
+  useEffect(() => {
+    if (!token || !neighborhood) {
+      setStreets([]);
+      return;
+    }
+    void (async () => {
+      try {
+        setStreets(
+          await api.get<LocOpt[]>(
+            `/api/customers/locations/streets?mahalleId=${encodeURIComponent(neighborhood)}`,
+            token,
+          ),
+        );
+      } catch {
+        setStreets([]);
+      }
+    })();
+  }, [token, neighborhood]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -741,75 +925,73 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
       (a) =>
         a.label.toLocaleLowerCase('tr').includes(q) ||
         a.address.toLocaleLowerCase('tr').includes(q) ||
-        a.contactName.toLocaleLowerCase('tr').includes(q),
+        a.contactName.toLocaleLowerCase('tr').includes(q) ||
+        (a.contactNames || []).some((n) => n.toLocaleLowerCase('tr').includes(q)),
     );
   }, [list, query]);
 
-  function persist(next: CustomerAddress[]) {
-    setList(next);
-    setCustomerAddresses(customer.id, next);
-  }
-
   function resetForm() {
     setLabel('');
-    setCountry('TR');
     setProvince(null);
     setDistrict(null);
-    setQuarter(null);
+    setTown(null);
     setNeighborhood(null);
-    setStreet('');
+    setStreet(null);
     setDirections('');
-    setContactName(customer.title);
     setFormError(null);
   }
 
-  function buildFullAddress() {
-    const parts = [
-      street.trim(),
-      neighborhoodOpts.find((n) => n.value === neighborhood)?.label,
-      quarterOpts.find((q) => q.value === quarter)?.label,
-      districtOpts.find((d) => d.value === district)?.label,
-      PROVINCES.find((p) => p.value === province)?.label,
-      COUNTRIES.find((c) => c.value === country)?.label,
-    ].filter(Boolean);
-    return parts.join(', ');
-  }
-
-  function addAddr(e: FormEvent) {
+  async function addAddr(e: FormEvent) {
     e.preventDefault();
+    if (!token) return;
     if (!label.trim()) {
       setFormError('Adres adı gerekli');
       return;
     }
-    if (!country || !province || !district || !quarter || !neighborhood || !street.trim()) {
+    if (!country || !province || !district || !town || !neighborhood || !street) {
       setFormError('Zorunlu adres alanlarını doldurun');
       return;
     }
-    const full = buildFullAddress();
-    const a: CustomerAddress = {
-      id: `ca-${Date.now()}`,
-      customerId: customer.id,
-      label: label.trim().toLocaleUpperCase('tr'),
-      address: directions.trim() ? `${full} — ${directions.trim()}` : full,
-      contactName: contactName.trim() || customer.title,
-      isDefault: list.length === 0,
-      country: country ?? undefined,
-      province: province ?? undefined,
-      district: district ?? undefined,
-      quarter: quarter ?? undefined,
-      neighborhood: neighborhood ?? undefined,
-      street: street.trim(),
-      directions: directions.trim(),
-    };
-    persist([a, ...list]);
-    setAddOpen(false);
-    resetForm();
-    flash('Adres eklendi');
+    setSaving(true);
+    setFormError(null);
+    try {
+      const row = await api.post<ApiAddress>(
+        `/api/customers/${encodeURIComponent(customer.id)}/addresses`,
+        {
+          label: label.trim(),
+          ulkeId: Number(country),
+          ilId: Number(province),
+          ilceId: Number(district),
+          semtId: Number(town),
+          mahalleId: Number(neighborhood),
+          sokakId: Number(street),
+          directions: directions.trim(),
+        },
+        token,
+      );
+      setList((prev) => [row, ...prev]);
+      setAddOpen(false);
+      resetForm();
+      flash('Adres eklendi');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Adres eklenemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function removeAddr(aid: string) {
-    persist(list.filter((a) => a.id !== aid));
-    flash('Adres silindi');
+  async function removeAddr(aid: string) {
+    if (!token) return;
+    try {
+      await api.delete(
+        `/api/customers/${encodeURIComponent(customer.id)}/addresses/${encodeURIComponent(aid)}`,
+        token,
+      );
+      setList((prev) => prev.filter((a) => a.id !== aid));
+      flash('Adres silindi');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Silinemedi');
+    }
   }
 
   return (
@@ -832,7 +1014,7 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
 
       {addOpen ? (
         <form
-          onSubmit={addAddr}
+          onSubmit={(e) => void addAddr(e)}
           className="space-y-4 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5 sm:px-6 [--input-notch:var(--panel-elevated)]"
         >
           <h2 className="text-sm font-bold text-[var(--panel-ink)]">Adres Ekle</h2>
@@ -845,9 +1027,16 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
           />
           <FloatingSearchSelect
             label="Ülke *"
-            options={COUNTRIES}
+            options={countries}
             value={country}
-            onChange={setCountry}
+            onChange={(v) => {
+              setCountry(v);
+              setProvince(null);
+              setDistrict(null);
+              setTown(null);
+              setNeighborhood(null);
+              setStreet(null);
+            }}
             placeholder="Ülke seçiniz."
             required
             kmJump
@@ -855,13 +1044,14 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
           <div className="grid gap-4 sm:grid-cols-2">
             <FloatingSearchSelect
               label="İl *"
-              options={PROVINCES}
+              options={provinces}
               value={province}
               onChange={(v) => {
                 setProvince(v);
                 setDistrict(null);
-                setQuarter(null);
+                setTown(null);
                 setNeighborhood(null);
+                setStreet(null);
               }}
               placeholder="İl seçiniz."
               required
@@ -869,12 +1059,13 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
             />
             <FloatingSearchSelect
               label="İlçe *"
-              options={districtOpts}
+              options={districts}
               value={district}
               onChange={(v) => {
                 setDistrict(v);
-                setQuarter(null);
+                setTown(null);
                 setNeighborhood(null);
+                setStreet(null);
               }}
               placeholder="İlçe seçiniz."
               required
@@ -884,29 +1075,38 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
           <div className="grid gap-4 sm:grid-cols-2">
             <FloatingSearchSelect
               label="Semt *"
-              options={quarterOpts}
-              value={quarter}
-              onChange={setQuarter}
+              options={towns}
+              value={town}
+              onChange={(v) => {
+                setTown(v);
+                setNeighborhood(null);
+                setStreet(null);
+              }}
               placeholder="Semt seçiniz."
               required
               kmJump
             />
             <FloatingSearchSelect
               label="Mahalle *"
-              options={neighborhoodOpts}
+              options={neighborhoods}
               value={neighborhood}
-              onChange={setNeighborhood}
+              onChange={(v) => {
+                setNeighborhood(v);
+                setStreet(null);
+              }}
               placeholder="Mahalle seçiniz."
               required
               kmJump
             />
           </div>
-          <TextInput
+          <FloatingSearchSelect
             label="Cadde/Sokak *"
+            options={streets}
             value={street}
-            onChange={(e) => setStreet(e.target.value)}
+            onChange={setStreet}
+            placeholder="Sokak seçiniz."
             required
-            data-km-jump
+            kmJump
           />
           <TextInput
             label="Adres Tarifi"
@@ -914,32 +1114,25 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
             onChange={(e) => setDirections(e.target.value)}
             data-km-jump
           />
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <TextInput
-              label="Yetkililer"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="submit"
+              disabled={saving}
               data-km-jump
-            />
-            <div className="flex shrink-0 gap-2 sm:pb-0.5">
-              <button
-                type="submit"
-                data-km-jump
-                className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)]"
-              >
-                Kaydet
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAddOpen(false);
-                  resetForm();
-                }}
-                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)]"
-              >
-                İptal
-              </button>
-            </div>
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)] disabled:opacity-60"
+            >
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddOpen(false);
+                resetForm();
+              }}
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)]"
+            >
+              İptal
+            </button>
           </div>
           {formError ? <p className="text-xs text-rose-500">{formError}</p> : null}
         </form>
@@ -969,7 +1162,7 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-5 py-10 text-center text-[var(--panel-muted)]">
-                  Adres yok.
+                  {loading ? 'Yükleniyor…' : 'Adres yok.'}
                 </td>
               </tr>
             ) : (
@@ -984,11 +1177,17 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
                     ) : null}
                   </td>
                   <td className="max-w-[360px] px-3 py-3 text-[var(--panel-ink)]/80">{a.address}</td>
-                  <td className="px-3 py-3 font-medium text-[var(--panel-ink)]">{a.contactName}</td>
+                  <td className="px-3 py-3 font-medium text-[var(--panel-ink)]">
+                    {(a.contactNames && a.contactNames.length
+                      ? a.contactNames.join(', ')
+                      : a.contactName) || '—'}
+                  </td>
                   <td className="px-5 py-3 sm:px-6">
                     <button
                       type="button"
-                      onClick={() => removeAddr(a.id)}
+                      onClick={() => {
+                        void removeAddr(a.id);
+                      }}
                       className="rounded-lg px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10"
                     >
                       Sil

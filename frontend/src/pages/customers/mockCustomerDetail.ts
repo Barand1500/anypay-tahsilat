@@ -18,6 +18,7 @@ export type CustomerAddress = {
   label: string;
   address: string;
   contactName: string;
+  contactNames?: string[];
   isDefault: boolean;
   country?: string;
   province?: string;
