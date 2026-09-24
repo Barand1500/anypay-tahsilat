@@ -1,34 +1,61 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
-import { formatRowCount, INITIAL_RESET_TABLES, type ResetTable } from './mockResetTables';
+import { formatRowCount, type ResetTable } from './mockResetTables';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 
 /**
- * Sistem Sıfırlama — tek araç çubuğu, animasyonlu kilit kırılma.
+ * Sistem Sıfırlama — yedek + tablo boşaltma (API).
  */
 export default function SystemResetPage() {
+  const { token } = useAuth();
   const { guard } = usePermission();
-  const [tables, setTables] = useState<ResetTable[]>(() => [...INITIAL_RESET_TABLES]);
+  const [tables, setTables] = useState<ResetTable[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
   const [page, setPage] = useState(1);
   const [backedUpAt, setBackedUpAt] = useState<Date | null>(null);
+  const [unlockToken, setUnlockToken] = useState<string | null>(null);
   const [backingUp, setBackingUp] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ResetTable | null>(null);
   const [needBackupHint, setNeedBackupHint] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const unlocked = !!backedUpAt;
-  const showLockIcon = !backedUpAt && !unlocking;
+  const unlocked = !!backedUpAt && !!unlockToken;
+  const showLockIcon = !unlocked && !unlocking;
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<ResetTable[]>('/api/system-reset/tables', token);
+      setTables(list);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Tablolar yüklenemedi');
+      setTables([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -36,7 +63,8 @@ export default function SystemResetPage() {
     return tables.filter(
       (t) =>
         t.module.toLocaleLowerCase('tr').includes(q) ||
-        t.table.toLocaleLowerCase('tr').includes(q),
+        t.table.toLocaleLowerCase('tr').includes(q) ||
+        (t.mysqlTable || '').toLocaleLowerCase('tr').includes(q),
     );
   }, [tables, query]);
 
@@ -67,12 +95,13 @@ export default function SystemResetPage() {
     setPageSizeText(String(clamped));
   }
 
-  function breakLocksThenUnlock(doneAt: Date) {
+  function breakLocksThenUnlock(doneAt: Date, tokenValue: string) {
     const locks = listRef.current
       ? Array.from(listRef.current.querySelectorAll<HTMLElement>('[data-reset-lock]'))
       : [];
 
     if (locks.length === 0) {
+      setUnlockToken(tokenValue);
       setBackedUpAt(doneAt);
       setUnlocking(false);
       setBackingUp(false);
@@ -102,13 +131,13 @@ export default function SystemResetPage() {
       clones.push(clone);
     }
 
-    // Klonlar hazır → satırdaki kilitleri kaldır
     setUnlocking(true);
     setBackingUp(false);
 
     const tl = gsap.timeline({
       onComplete: () => {
         layer.remove();
+        setUnlockToken(tokenValue);
         setBackedUpAt(doneAt);
         setUnlocking(false);
       },
@@ -143,39 +172,61 @@ export default function SystemResetPage() {
     });
   }
 
-  function runBackup() {
+  async function runBackup() {
     if (!guard('m-sistem', 'save', 'Sistem Sıfırlama')) return;
-    if (backingUp || unlocking) return;
+    if (!token || backingUp || unlocking) return;
     setBackingUp(true);
     setNeedBackupHint(false);
+    setActionError(null);
 
-    window.setTimeout(() => {
-      const doneAt = new Date();
-      // Mock dosya
-      const blob = new Blob(
-        [`AnyPay Tahsilat yedek — ${doneAt.toISOString()}\n(mock)\n`],
-        { type: 'text/plain;charset=utf-8' },
-      );
+    try {
+      const res = await fetch('/api/system-reset/backup', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        let msg = 'Yedek oluşturulamadı';
+        try {
+          const j = (await res.json()) as { message?: string };
+          if (j.message) msg = j.message;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
+      const unlock = res.headers.get('X-Reset-Unlock-Token');
+      if (!unlock) throw new Error('Yedek anahtarı alınamadı');
+
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') || '';
+      const match = /filename="?([^"]+)"?/i.exec(cd);
+      const fileName = match?.[1] || `anypay-yedek-${Date.now()}.sql`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `anypay-yedek-${Date.now()}.sql`;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
 
+      const doneAt = new Date();
       if (backedUpAt) {
-        // Zaten açık — sadece yenile
+        setUnlockToken(unlock);
         setBackedUpAt(doneAt);
         setBackingUp(false);
         return;
       }
-      breakLocksThenUnlock(doneAt);
-    }, 850);
+      breakLocksThenUnlock(doneAt, unlock);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Yedek başarısız');
+      setBackingUp(false);
+    }
   }
 
   function askDelete(row: ResetTable) {
     if (!guard('m-sistem', 'remove', 'Sistem Sıfırlama')) return;
-    if (row.cleared || unlocking) return;
+    if (row.cleared || unlocking || clearing) return;
     if (!unlocked) {
       setNeedBackupHint(true);
       return;
@@ -183,24 +234,37 @@ export default function SystemResetPage() {
     setPendingDelete(row);
   }
 
-  function confirmDelete() {
-    if (!pendingDelete) return;
+  async function confirmDelete() {
+    if (!pendingDelete || !token || !unlockToken) return;
     if (!guard('m-sistem', 'remove', 'Sistem Sıfırlama')) {
       setPendingDelete(null);
       return;
     }
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === pendingDelete.id ? { ...t, rows: 0, cleared: true } : t,
-      ),
-    );
+    const target = pendingDelete;
     setPendingDelete(null);
+    setClearing(true);
+    setActionError(null);
+    try {
+      const updated = await api.post<ResetTable>(
+        '/api/system-reset/clear',
+        { moduleId: target.id, unlockToken },
+        token,
+      );
+      setTables((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setClearing(false);
+    }
   }
 
   function exportCsv() {
-    const header = 'Modül;Tablo;Kayıt\n';
+    const header = 'Modül;Tablo;MySQL;Kayıt\n';
     const body = filtered
-      .map((t) => `${t.module};${t.table};${t.cleared ? 0 : t.rows}`)
+      .map(
+        (t) =>
+          `${t.module};${t.table};${t.mysqlTable || ''};${t.cleared ? 0 : t.rows}`,
+      )
       .join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -274,7 +338,7 @@ export default function SystemResetPage() {
               </p>
               <p className="mt-0.5 text-xs leading-snug text-[var(--panel-muted)]">
                 {unlocked
-                  ? 'Silme açık. İsterseniz yeniden yedekleyin.'
+                  ? 'Silme açık (2 saat). İsterseniz yeniden yedekleyin.'
                   : unlocking
                     ? 'Satır kilitleri sırayla kırılıyor.'
                     : 'Silmeden önce veritabanını yedekleyin.'}
@@ -284,7 +348,20 @@ export default function SystemResetPage() {
         </div>
       </div>
 
-      {/* Tek araç çubuğu: veri göster · yedek · dışa aktar · ara */}
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void load()}>
+            Yeniden dene
+          </button>
+        </div>
+      ) : null}
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 shadow-[var(--panel-shadow)] sm:gap-3 sm:px-4">
         <label className="flex shrink-0 items-center gap-2 text-sm text-[var(--panel-muted)]">
           <input
@@ -308,7 +385,7 @@ export default function SystemResetPage() {
           type="button"
           data-km-jump
           disabled={backingUp || unlocking}
-          onClick={runBackup}
+          onClick={() => void runBackup()}
           className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-brand-600)] px-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
         >
           {backingUp ? <Spinner /> : <BackupIcon />}
@@ -396,7 +473,9 @@ export default function SystemResetPage() {
             </span>
           </div>
 
-          {slice.length === 0 ? (
+          {loading ? (
+            <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+          ) : slice.length === 0 ? (
             <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Eşleşen tablo yok.</p>
           ) : (
             <ul ref={listRef}>
@@ -418,11 +497,13 @@ export default function SystemResetPage() {
                       {row.cleared ? 'Boş' : `${formatRowCount(row.rows)} kayıt`}
                     </p>
                   </div>
-                  <code className="truncate text-[12px] text-[var(--panel-muted)]">{row.table}</code>
+                  <code className="truncate text-[12px] text-[var(--panel-muted)]">
+                    {row.mysqlTable || row.table}
+                  </code>
                   <div className="flex justify-end">
                     <button
                       type="button"
-                      disabled={row.cleared || unlocking}
+                      disabled={row.cleared || unlocking || clearing}
                       title={
                         row.cleared
                           ? 'Zaten temiz'
@@ -489,9 +570,10 @@ export default function SystemResetPage() {
       {pendingDelete ? (
         <ConfirmDeleteModal
           module={pendingDelete.module}
-          table={pendingDelete.table}
+          table={pendingDelete.mysqlTable || pendingDelete.table}
+          busy={clearing}
           onCancel={() => setPendingDelete(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -530,11 +612,13 @@ function PagerBtn({
 function ConfirmDeleteModal({
   module,
   table,
+  busy,
   onCancel,
   onConfirm,
 }: {
   module: string;
   table: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -571,7 +655,8 @@ function ConfirmDeleteModal({
           type="button"
           aria-label="Kapat"
           onClick={onCancel}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+          disabled={busy}
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-40"
         >
           ×
         </button>
@@ -588,18 +673,20 @@ function ConfirmDeleteModal({
           <button
             type="button"
             data-km-jump
+            disabled={busy}
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold"
+            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold disabled:opacity-40"
           >
             Vazgeç
           </button>
           <button
             type="button"
             data-km-jump
+            disabled={busy}
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white"
+            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
