@@ -24,7 +24,13 @@ type PanelPos =
   | { placement: 'up'; bottom: number; left: number };
 
 function roleLabel(roles: string[]) {
-  if (roles.includes('ROLE_SUPERAPP') || roles.includes('ROLE_ADMIN')) return 'Yönetici';
+  if (
+    roles.includes('ROLE_SUPERAPP') ||
+    roles.includes('ROLE_ADMIN') ||
+    roles.includes('ROLE_YONETICI')
+  ) {
+    return 'Yönetici';
+  }
   if (roles.includes('ROLE_USER')) return 'Kullanıcı';
   return roles[0]?.replace(/^ROLE_/, '') || 'Kullanıcı';
 }

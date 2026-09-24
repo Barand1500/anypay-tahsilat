@@ -4,41 +4,70 @@ import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
 import { emailSuggestions } from '../../lib/emailSuggestions';
-import { getLoginTheme, setLoginTheme, getLoginBrandWords, setLoginBrandWords, type LoginTheme, type LoginBrandWords } from '../login/loginTheme';
+import {
+  formatPhoneLive,
+  normalizePhoneInput,
+} from '../customers/mockCustomers';
+import {
+  getLoginTheme,
+  setLoginTheme,
+  getLoginBrandWords,
+  setLoginBrandWords,
+  type LoginTheme,
+  type LoginBrandWords,
+} from '../login/loginTheme';
 
 type ProfileDraft = {
   adsoyad: string;
   email: string;
-  telefon: string;
+  telefon: string; // sadece rakam, max 10
   sifre: string;
   twoFa: 'KAPALI' | 'ACIK';
 };
 
 type EditKey = 'adsoyad' | 'email' | 'telefon' | null;
 
-/**
- * Profil — çift tıkla düzenle, soft animasyon.
- * Kayıt şimdilik lokal (API sonra).
- */
-export default function ProfilePage() {
-  const { user } = useAuth();
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  const [draft, setDraft] = useState<ProfileDraft>(() => ({
+function draftFromUser(user: {
+  adsoyad: string | null;
+  email: string;
+  telefon: string;
+  twoFactor: boolean;
+} | null): ProfileDraft {
+  return {
     adsoyad: user?.adsoyad || '',
     email: user?.email || '',
-    telefon: '',
+    telefon: user?.telefon || '',
     sifre: '',
-    twoFa: 'KAPALI',
-  }));
-  const [baseline, setBaseline] = useState(draft);
+    twoFa: user?.twoFactor ? 'ACIK' : 'KAPALI',
+  };
+}
+
+/**
+ * Profil — çift tıkla düzenle; kayıt API + DB.
+ */
+export default function ProfilePage() {
+  const { user, updateProfile } = useAuth();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const [draft, setDraft] = useState<ProfileDraft>(() => draftFromUser(user));
+  const [baseline, setBaseline] = useState(() => draftFromUser(user));
   const [editing, setEditing] = useState<EditKey>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
   const [loginTheme, setLoginThemeDraft] = useState<LoginTheme>(() => getLoginTheme());
   const [loginThemeBase, setLoginThemeBase] = useState<LoginTheme>(() => getLoginTheme());
   const [brandWords, setBrandWordsDraft] = useState<LoginBrandWords>(() => getLoginBrandWords());
   const [brandWordsBase, setBrandWordsBase] = useState<LoginBrandWords>(() => getLoginBrandWords());
+
+  // /me veya login sonrası user gelince formu doldur
+  useEffect(() => {
+    if (!user) return;
+    const next = draftFromUser(user);
+    setDraft((d) => ({ ...next, sifre: d.sifre }));
+    setBaseline(next);
+  }, [user]);
 
   const dirty =
     draft.adsoyad !== baseline.adsoyad ||
@@ -50,7 +79,7 @@ export default function ProfilePage() {
     brandWords.word1 !== brandWordsBase.word1 ||
     brandWords.word2 !== brandWordsBase.word2;
 
-  const showSaveBar = dirty || saveSuccess;
+  const showSaveBar = dirty || saveSuccess || !!saveError;
 
   const initials = (draft.adsoyad || draft.email || 'U')
     .split(' ')
@@ -63,7 +92,9 @@ export default function ProfilePage() {
   const role =
     user?.roles?.includes('ROLE_SUPERAPP') || user?.roles?.includes('ROLE_ADMIN')
       ? 'Yönetici'
-      : 'Kullanıcı';
+      : user?.roles?.includes('ROLE_YONETICI')
+        ? 'Yönetici'
+        : 'Kullanıcı';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -76,18 +107,41 @@ export default function ProfilePage() {
     );
   }, []);
 
-  function save() {
-    setBaseline({ ...draft, sifre: '' });
-    setDraft((d) => ({ ...d, sifre: '' }));
-    setEditing(null);
+  async function save() {
+    setSaveError(null);
 
-    setLoginTheme(loginTheme);
-    setLoginThemeBase(loginTheme);
-    setLoginBrandWords(brandWords);
-    setBrandWordsBase({ ...brandWords });
+    if (draft.telefon && (draft.telefon.length !== 10 || !draft.telefon.startsWith('5'))) {
+      setSaveError('Telefon 5 ile başlayan 10 haneli olmalıdır');
+      return;
+    }
 
-    setSaveSuccess(true);
-    window.setTimeout(() => setSaveSuccess(false), 1800);
+    setSaving(true);
+    try {
+      const updated = await updateProfile({
+        adsoyad: draft.adsoyad.trim(),
+        email: draft.email.trim(),
+        telefon: draft.telefon,
+        password: draft.sifre || undefined,
+        twoFactor: draft.twoFa === 'ACIK',
+      });
+
+      const next = draftFromUser(updated);
+      setBaseline(next);
+      setDraft({ ...next, sifre: '' });
+      setEditing(null);
+
+      setLoginTheme(loginTheme);
+      setLoginThemeBase(loginTheme);
+      setLoginBrandWords(brandWords);
+      setBrandWordsBase({ ...brandWords });
+
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 1800);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -168,18 +222,12 @@ export default function ProfilePage() {
           </Row>
           <div className="h-px bg-[var(--panel-line)]" />
           <Row label="Telefon">
-            <InlineField
-              label="Telefon"
-              value={draft.telefon || 'Eklenmedi'}
-              empty={!draft.telefon}
+            <PhoneInlineField
+              digits={draft.telefon}
               editing={editing === 'telefon'}
               onStartEdit={() => setEditing('telefon')}
-              onChange={(v) => setDraft((d) => ({ ...d, telefon: v }))}
+              onChange={(digits) => setDraft((d) => ({ ...d, telefon: digits }))}
               onDone={() => setEditing(null)}
-              displayClass="text-sm font-medium text-[var(--panel-ink)]"
-              inputLabel="Telefon"
-              type="tel"
-              kmJump
             />
           </Row>
         </div>
@@ -316,13 +364,17 @@ export default function ProfilePage() {
           ].join(' ')}
         >
           <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]/95 p-3 shadow-[var(--panel-shadow)] backdrop-blur">
+            {saveError ? (
+              <p className="mb-2 text-sm text-red-500">{saveError}</p>
+            ) : null}
             <Button
-              onClick={save}
+              onClick={() => void save()}
+              disabled={saving || (!dirty && !saveSuccess)}
               success={saveSuccess}
               successLabel="Kaydedildi"
               className="!w-full sm:!w-auto sm:min-w-[200px]"
             >
-              Değişikliği kaydet
+              {saving ? 'Kaydediliyor…' : 'Değişikliği kaydet'}
             </Button>
           </div>
         </div>
@@ -339,6 +391,79 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       </span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
+  );
+}
+
+/** Telefon: 0 yok, 5 ile başlar, canlı 5XX XXX XX XX */
+function PhoneInlineField({
+  digits,
+  editing,
+  onStartEdit,
+  onChange,
+  onDone,
+}: {
+  digits: string;
+  editing: boolean;
+  onStartEdit: () => void;
+  onChange: (digits: string) => void;
+  onDone: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const empty = !digits;
+
+  useEffect(() => {
+    if (editing) {
+      if (!digits) onChange('5');
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sadece edit açılışında
+  }, [editing]);
+
+  function onKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === 'Escape') onDone();
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        ref={inputRef}
+        label="Telefon"
+        type="tel"
+        inputMode="numeric"
+        value={formatPhoneLive(digits)}
+        onChange={(e) => onChange(normalizePhoneInput(e.target.value))}
+        onFocus={() => {
+          if (!digits) onChange('5');
+        }}
+        onBlur={() => {
+          // sadece "5" kaldıysa boş kabul et
+          if (digits === '5') onChange('');
+          onDone();
+        }}
+        onKeyDown={onKey}
+        className="font-mono tabular-nums"
+        data-km-jump
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      data-km-jump
+      onDoubleClick={onStartEdit}
+      onClick={(e) => {
+        if (e.detail === 0) onStartEdit();
+      }}
+      title="Düzenlemek için çift tıkla"
+      className={[
+        'w-full rounded-lg text-left font-mono tabular-nums text-sm font-medium transition hover:bg-[var(--panel-hover)]/60',
+        empty ? 'italic text-[var(--panel-muted)]' : 'text-[var(--panel-ink)]',
+      ].join(' ')}
+    >
+      {empty ? 'Eklenmedi' : formatPhoneLive(digits)}
+    </button>
   );
 }
 
@@ -415,7 +540,6 @@ function InlineField({
             if (type === 'email') setEmailOpen(true);
           }}
           onBlur={() => {
-            // öneri tıklanınca blur olmasın diye gecikme
             window.setTimeout(() => {
               if (!wrapRef.current?.contains(document.activeElement)) onDone();
             }, 120);

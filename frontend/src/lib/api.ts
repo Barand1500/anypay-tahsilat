@@ -57,4 +57,14 @@ export const api = {
       },
       token,
     ),
+
+  patch: <T,>(path: string, body?: unknown, token?: string | null) =>
+    request<T>(
+      path,
+      {
+        method: 'PATCH',
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      token,
+    ),
 };

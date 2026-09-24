@@ -7,6 +7,7 @@ import {
   loginWithOtp,
   loginWithPassword,
   requestLoginOtp,
+  updateOwnProfile,
 } from '../services/authService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -24,6 +25,14 @@ const emailSchema = z.object({
 const otpLoginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta girin'),
   code: z.string().min(4, 'Kod gerekli').max(12),
+});
+
+const profileSchema = z.object({
+  adsoyad: z.string().min(1, 'Ad soyad gerekli').max(255).optional(),
+  email: z.string().email('Geçerli bir e-posta girin').optional(),
+  telefon: z.string().max(20).optional(),
+  password: z.string().max(128).optional(),
+  twoFactor: z.boolean().optional(),
 });
 
 authRouter.post('/login', async (req, res) => {
@@ -84,6 +93,24 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res) => {
   const user = await getUserById(req.auth!.sub);
   if (!user) return sendError(res, 401, 'Kullanıcı bulunamadı');
   return sendSuccess(res, user);
+});
+
+authRouter.patch('/me', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = profileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+
+  try {
+    const user = await updateOwnProfile(req.auth!.sub, parsed.data);
+    return sendSuccess(res, user, 'Profil güncellendi');
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return sendError(res, 400, err.message);
+    }
+    console.error(err);
+    return sendError(res, 500, 'Profil güncellenemedi');
+  }
 });
 
 authRouter.post('/logout', requireAuth, (_req, res) => {

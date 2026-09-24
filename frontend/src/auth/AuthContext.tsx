@@ -13,7 +13,17 @@ export type AuthUser = {
   id: number;
   email: string;
   adsoyad: string | null;
+  telefon: string;
   roles: string[];
+  twoFactor: boolean;
+};
+
+export type ProfileUpdatePayload = {
+  adsoyad?: string;
+  email?: string;
+  telefon?: string;
+  password?: string;
+  twoFactor?: boolean;
 };
 
 type AuthContextValue = {
@@ -25,10 +35,22 @@ type AuthContextValue = {
   requestOtp: (email: string) => Promise<void>;
   loginWithOtp: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<AuthUser>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const TOKEN_KEY = 'anypay_tahsilat_token';
+
+function normalizeUser(raw: AuthUser): AuthUser {
+  return {
+    id: raw.id,
+    email: raw.email,
+    adsoyad: raw.adsoyad,
+    telefon: raw.telefon || '',
+    roles: Array.isArray(raw.roles) ? raw.roles : [],
+    twoFactor: Boolean(raw.twoFactor),
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
@@ -58,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const me = await api.get<AuthUser>('/api/auth/me', token);
-        if (!cancelled) setUser(me);
+        if (!cancelled) setUser(normalizeUser(me));
       } catch {
         localStorage.removeItem(TOKEN_KEY);
         if (!cancelled) {
@@ -83,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     localStorage.setItem(TOKEN_KEY, result.token);
     setToken(result.token);
-    setUser(result.user);
+    setUser(normalizeUser(result.user));
   }, []);
 
   const requestOtp = useCallback(async (email: string) => {
@@ -97,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     localStorage.setItem(TOKEN_KEY, result.token);
     setToken(result.token);
-    setUser(result.user);
+    setUser(normalizeUser(result.user));
   }, []);
 
   const logout = useCallback(async () => {
@@ -111,9 +133,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, [token]);
 
+  const updateProfile = useCallback(
+    async (payload: ProfileUpdatePayload) => {
+      if (!token) throw new Error('Oturum bulunamadı');
+      const updated = await api.patch<AuthUser>('/api/auth/me', payload, token);
+      const next = normalizeUser(updated);
+      setUser(next);
+      return next;
+    },
+    [token],
+  );
+
   const value = useMemo(
-    () => ({ user, token, booting, login, requestOtp, loginWithOtp, logout }),
-    [user, token, booting, login, requestOtp, loginWithOtp, logout],
+    () => ({
+      user,
+      token,
+      booting,
+      login,
+      requestOtp,
+      loginWithOtp,
+      logout,
+      updateProfile,
+    }),
+    [user, token, booting, login, requestOtp, loginWithOtp, logout, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

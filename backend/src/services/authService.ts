@@ -17,19 +17,40 @@ function parseRoles(roles: unknown): string[] {
   return [];
 }
 
+/** DB’deki sahte / boş telefonları UI için temizle */
+function normalizeStoredPhone(raw: string | null | undefined): string {
+  const d = (raw || '').replace(/\D/g, '');
+  if (d.length === 10 && d.startsWith('5')) return d;
+  return '';
+}
+
 function toPublicUser(user: {
   id: number;
   email: string;
   adsoyad: string | null;
+  telefon: string;
   roles: unknown;
+  twoFactor: boolean | null;
 }) {
   return {
     id: user.id,
     email: user.email,
     adsoyad: user.adsoyad,
+    telefon: normalizeStoredPhone(user.telefon),
     roles: parseRoles(user.roles),
+    twoFactor: Boolean(user.twoFactor),
   };
 }
+
+export type PublicUser = ReturnType<typeof toPublicUser>;
+
+export type ProfileUpdateInput = {
+  adsoyad?: string;
+  email?: string;
+  telefon?: string;
+  password?: string;
+  twoFactor?: boolean;
+};
 
 async function findActiveUserByEmail(email: string) {
   const normalized = email.trim().toLowerCase();
@@ -116,6 +137,77 @@ export async function getUserById(id: number) {
   });
   if (user && user.isVerified) return toPublicUser(user);
   return null;
+}
+
+/** Profil sayfası — kendi kaydını güncelle */
+export async function updateOwnProfile(userId: number, input: ProfileUpdateInput) {
+  const existing = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      OR: [{ remove: null }, { remove: false }],
+    },
+  });
+  if (!existing || !existing.isVerified) {
+    throw new AuthError('Kullanıcı bulunamadı');
+  }
+
+  const data: {
+    adsoyad?: string;
+    email?: string;
+    telefon?: string;
+    password?: string;
+    isPassword?: boolean;
+    twoFactor?: boolean;
+  } = {};
+
+  if (input.adsoyad !== undefined) {
+    const name = input.adsoyad.trim();
+    if (!name) throw new AuthError('Ad soyad gerekli');
+    data.adsoyad = name.slice(0, 255);
+  }
+
+  if (input.email !== undefined) {
+    const email = input.email.trim().toLowerCase();
+    if (!email.includes('@')) throw new AuthError('Geçerli bir e-posta girin');
+    const clash = await prisma.user.findFirst({
+      where: {
+        email,
+        NOT: { id: userId },
+      },
+    });
+    if (clash) throw new AuthError('Bu e-posta başka bir hesapta kullanılıyor');
+    data.email = email;
+  }
+
+  if (input.telefon !== undefined) {
+    const digits = input.telefon.replace(/\D/g, '');
+    if (digits === '') {
+      data.telefon = '';
+    } else if (digits.length === 10 && digits.startsWith('5')) {
+      data.telefon = digits;
+    } else {
+      throw new AuthError('Telefon 5 ile başlayan 10 haneli olmalıdır');
+    }
+  }
+
+  if (input.password !== undefined && input.password !== '') {
+    if (input.password.length < 6) {
+      throw new AuthError('Şifre en az 6 karakter olmalı');
+    }
+    data.password = await bcrypt.hash(input.password, 13);
+    data.isPassword = true;
+  }
+
+  if (input.twoFactor !== undefined) {
+    data.twoFactor = input.twoFactor;
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+
+  return toPublicUser(updated);
 }
 
 export class AuthError extends Error {
