@@ -820,8 +820,13 @@ export default function CustomersPage() {
       {deleteTarget ? (
         <DeleteCustomerModal
           name={deleteTarget.title}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          busy={deleting}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+          onConfirm={() => {
+            void confirmDelete();
+          }}
         />
       ) : null}
 
@@ -969,10 +974,12 @@ function PagerBtn({
 
 function DeleteCustomerModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -990,12 +997,12 @@ function DeleteCustomerModal({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCancel();
+        if (!busy) onCancel();
       }
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel]);
+  }, [busy, onCancel]);
 
   return createPortal(
     <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
@@ -1008,8 +1015,9 @@ function DeleteCustomerModal({
         <button
           type="button"
           aria-label="Kapat"
+          disabled={busy}
           onClick={onCancel}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-40"
         >
           <CloseX />
         </button>
@@ -1023,17 +1031,19 @@ function DeleteCustomerModal({
         <div className="mt-5 flex gap-2">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold"
+            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white"
+            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
