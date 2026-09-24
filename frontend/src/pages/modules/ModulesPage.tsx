@@ -1,33 +1,42 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import {
   DB_TABLE_OPTIONS,
-  INITIAL_MODULES,
-  ROLE_OPTIONS,
   formatModuleDate,
   type AppModule,
-  type ModuleRole,
 } from './mockModules';
 import { ModulesDblClickHint } from './ModulesDblClickHint';
 
-const DB_SELECT_OPTIONS = DB_TABLE_OPTIONS.map((t) => ({ value: t, label: t }));
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 
 type ModalMode = { type: 'create' } | { type: 'edit'; module: AppModule } | null;
 
+type ModulePayload = {
+  name: string;
+  dbTable: string;
+  urlPrefix: string;
+};
+
 /**
- * Modüller — menü/yetki kayıt defteri (mock).
- * Gelecekte API + sidebar yetkisine bağlanacak.
+ * Modüller — izinler tablosu (API).
+ * Rol rozetleri salt okunur; yetki Roller sayfasında.
  */
 export default function ModulesPage() {
+  const { token } = useAuth();
   const { guard } = usePermission();
-  const [modules, setModules] = useState<AppModule[]>(() => [...INITIAL_MODULES]);
+  const [modules, setModules] = useState<AppModule[]>([]);
+  const [tableOptions, setTableOptions] = useState<string[]>([...DB_TABLE_OPTIONS]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
@@ -35,9 +44,36 @@ export default function ModulesPage() {
   const [modal, setModal] = useState<ModalMode>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AppModule | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const firstCardRef = useRef<HTMLElement | null>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [list, tables] = await Promise.all([
+        api.get<AppModule[]>('/api/modules', token),
+        api.get<string[]>('/api/modules/table-options', token).catch(() => [] as string[]),
+      ]);
+      setModules(list);
+      const merged = Array.from(new Set([...DB_TABLE_OPTIONS, ...tables])).sort((a, b) =>
+        a.localeCompare(b, 'tr'),
+      );
+      setTableOptions(merged);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Modüller yüklenemedi');
+      setModules([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -78,31 +114,52 @@ export default function ModulesPage() {
     setPageSizeText(String(clamped));
   }
 
-  function upsert(next: Omit<AppModule, 'id' | 'createdAt'> & { id?: string }) {
+  async function upsert(next: ModulePayload & { id?: number }) {
     if (!guard('m-moduller', 'save', 'Modüller')) return;
-    if (next.id) {
-      setModules((prev) => prev.map((m) => (m.id === next.id ? { ...m, ...next, id: m.id, createdAt: m.createdAt } : m)));
-    } else {
-      setModules((prev) => [
-        {
-          ...next,
-          id: `m-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
+    try {
+      if (next.id) {
+        const updated = await api.patch<AppModule>(
+          `/api/modules/${next.id}`,
+          { name: next.name, dbTable: next.dbTable, urlPrefix: next.urlPrefix },
+          token,
+        );
+        setModules((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      } else {
+        const created = await api.post<AppModule>(
+          '/api/modules',
+          { name: next.name, dbTable: next.dbTable, urlPrefix: next.urlPrefix },
+          token,
+        );
+        setModules((prev) => [created, ...prev]);
+      }
+      setModal(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Kayıt başarısız';
+      setActionError(msg);
+      throw err;
     }
-    setModal(null);
   }
 
-  function confirmRemove() {
+  async function confirmRemove() {
     if (!deleteTarget) return;
     if (!guard('m-moduller', 'remove', 'Modüller')) {
       setDeleteTarget(null);
       return;
     }
-    setModules((prev) => prev.filter((m) => m.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    if (!token) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/modules/${deleteTarget.id}`, token);
+      setModules((prev) => prev.filter((m) => m.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
@@ -131,7 +188,6 @@ export default function ModulesPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* Başlık */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <nav className="mb-1 text-xs text-[var(--panel-muted)]">
@@ -143,7 +199,7 @@ export default function ModulesPage() {
           </nav>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">Modüller</h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">
-            Menü ve yetki kayıtlarını buradan yönetin.
+            Menü kayıtlarını buradan yönetin. Yetki ataması Roller sayfasındadır.
           </p>
         </div>
 
@@ -189,6 +245,7 @@ export default function ModulesPage() {
             data-km-jump
             onClick={() => {
               if (!guard('m-moduller', 'save', 'Modüller')) return;
+              setActionError(null);
               setModal({ type: 'create' });
             }}
             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
@@ -199,7 +256,21 @@ export default function ModulesPage() {
         </div>
       </div>
 
-      {/* Araç çubuğu */}
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void load()}>
+            Yeniden dene
+          </button>
+        </div>
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-3 shadow-[var(--panel-shadow)]">
         <label className="flex items-center gap-2 text-sm text-[var(--panel-muted)]">
           <input
@@ -214,9 +285,7 @@ export default function ModulesPage() {
             }}
             onBlur={() => applyPageSize(pageSizeText)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur();
-              }
+              if (e.key === 'Enter') e.currentTarget.blur();
             }}
             aria-label="Sayfa başına kayıt"
             className="w-10 border-0 border-b-2 border-[var(--panel-line)] bg-transparent px-0.5 py-0.5 text-center text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none transition focus:border-[var(--color-brand-500)]"
@@ -237,9 +306,12 @@ export default function ModulesPage() {
         </div>
       </div>
 
-      {/* Kart grid */}
       <div ref={listRef}>
-        {slice.length === 0 ? (
+        {loading ? (
+          <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-14 text-center text-sm text-[var(--panel-muted)] shadow-[var(--panel-shadow)]">
+            Yükleniyor…
+          </div>
+        ) : slice.length === 0 ? (
           <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-14 text-center text-sm text-[var(--panel-muted)] shadow-[var(--panel-shadow)]">
             Kayıt bulunamadı.
           </div>
@@ -256,11 +328,13 @@ export default function ModulesPage() {
                 title="Çift tıkla veya klavye Enter: düzenle"
                 onDoubleClick={() => {
                   if (!guard('m-moduller', 'save', 'Modüller')) return;
+                  setActionError(null);
                   setModal({ type: 'edit', module: m });
                 }}
                 onClick={(e) => {
                   if (e.detail === 0) {
                     if (!guard('m-moduller', 'save', 'Modüller')) return;
+                    setActionError(null);
                     setModal({ type: 'edit', module: m });
                   }
                 }}
@@ -309,7 +383,6 @@ export default function ModulesPage() {
         )}
       </div>
 
-      {/* Sayfalama */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--panel-muted)]">
         <p>
           {(safePage - 1) * pageSize + (slice.length ? 1 : 0)} ile{' '}
@@ -347,16 +420,18 @@ export default function ModulesPage() {
       {modal ? (
         <ModuleModal
           mode={modal}
+          tableOptions={tableOptions}
           onClose={() => setModal(null)}
-          onSave={upsert}
+          onSave={(payload) => upsert(payload)}
         />
       ) : null}
 
       {deleteTarget ? (
         <DeleteConfirmModal
           name={deleteTarget.name}
+          busy={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmRemove}
+          onConfirm={() => void confirmRemove()}
         />
       ) : null}
 
@@ -365,7 +440,7 @@ export default function ModulesPage() {
   );
 }
 
-function RoleChip({ role }: { role: ModuleRole }) {
+function RoleChip({ role }: { role: string }) {
   return (
     <span className="inline-flex rounded-full border border-emerald-500/35 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
       {role}
@@ -404,19 +479,26 @@ function PagerBtn({
 
 function ModuleModal({
   mode,
+  tableOptions,
   onClose,
   onSave,
 }: {
   mode: Exclude<ModalMode, null>;
+  tableOptions: string[];
   onClose: () => void;
-  onSave: (m: Omit<AppModule, 'id' | 'createdAt'> & { id?: string }) => void;
+  onSave: (m: ModulePayload & { id?: number }) => Promise<void>;
 }) {
   const isEdit = mode.type === 'edit';
   const [name, setName] = useState(isEdit ? mode.module.name : '');
   const [urlPrefix, setUrlPrefix] = useState(isEdit ? mode.module.urlPrefix : '');
   const [dbTable, setDbTable] = useState(isEdit ? mode.module.dbTable : '');
-  const [roles, setRoles] = useState<ModuleRole[]>(isEdit ? [...mode.module.roles] : []);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const dbSelectOptions = useMemo(
+    () => tableOptions.map((t) => ({ value: t, label: t })),
+    [tableOptions],
+  );
 
   useEffect(() => {
     const el = panelRef.current;
@@ -440,25 +522,30 @@ function ModuleModal({
     return () => document.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  function toggleRole(r: ModuleRole) {
-    setRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
-  }
-
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !urlPrefix.trim() || !dbTable.trim()) return;
-    onSave({
-      id: isEdit ? mode.module.id : undefined,
-      name: name.trim(),
-      urlPrefix: urlPrefix.trim(),
-      dbTable: dbTable.trim(),
-      roles,
-    });
+    if (!name.trim() || !urlPrefix.trim() || !dbTable.trim()) {
+      setFormError('Ad, URL ve DB tablo gerekli');
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await onSave({
+        id: isEdit ? mode.module.id : undefined,
+        name: name.trim(),
+        urlPrefix: urlPrefix.trim(),
+        dbTable: dbTable.trim(),
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return createPortal(
     <div className="fixed inset-0 z-[10040] flex items-center justify-center p-4">
-      {/* Dış tık kapatmaz — Esc / X / Kapat */}
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden />
       <div
         ref={panelRef}
@@ -479,7 +566,7 @@ function ModuleModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
           <TextInput data-km-jump label="Adı *" value={name} onChange={(e) => setName(e.target.value)} required />
           <div>
             <TextInput
@@ -497,36 +584,41 @@ function ModuleModal({
           <FloatingSearchSelect
             label="DB Tablo *:"
             placeholder="DB Tablo seçiniz."
-            options={DB_SELECT_OPTIONS}
+            options={dbSelectOptions}
             value={dbTable || null}
             onChange={(v) => setDbTable(v ?? '')}
             required
             kmJump
           />
 
-          <div>
-            <p className="mb-2 text-xs font-semibold text-[var(--panel-muted)]">Atanan roller</p>
-            <div className="flex flex-wrap gap-2">
-              {ROLE_OPTIONS.map((r) => {
-                const on = roles.includes(r);
-                return (
-                  <button
+          {isEdit && mode.module.roles.length > 0 ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[var(--panel-muted)]">
+                Atanan roller (salt okunur)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {mode.module.roles.map((r) => (
+                  <span
                     key={r}
-                    type="button"
-                    onClick={() => toggleRole(r)}
-                    className={[
-                      'rounded-full border px-3 py-1 text-xs font-semibold transition',
-                      on
-                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                        : 'border-[var(--panel-line)] text-[var(--panel-muted)] hover:border-[var(--color-brand-500)]',
-                    ].join(' ')}
+                    className="rounded-full border border-emerald-500/50 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
                   >
                     {r}
-                  </button>
-                );
-              })}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-[var(--panel-muted)]">
+                Yetki değiştirmek için Roller sayfasını kullanın.
+              </p>
             </div>
-          </div>
+          ) : !isEdit ? (
+            <p className="text-xs text-[var(--panel-muted)]">
+              Yeni modüle otomatik yetki verilmez. Yetkiyi Roller sayfasından atayın.
+            </p>
+          ) : (
+            <p className="text-xs text-[var(--panel-muted)]">Henüz rol atanmamış.</p>
+          )}
+
+          {formError ? <p className="text-sm text-rose-500">{formError}</p> : null}
 
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -538,9 +630,10 @@ function ModuleModal({
             </button>
             <button
               type="submit"
-              className="inline-flex min-w-[100px] items-center justify-center rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+              disabled={saving}
+              className="inline-flex min-w-[100px] items-center justify-center rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>
@@ -578,10 +671,12 @@ function Chevron({ open }: { open: boolean }) {
 
 function DeleteConfirmModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -627,24 +722,26 @@ function DeleteConfirmModal({
             Modülü sil?
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-[var(--panel-muted)]">
-            <span className="font-semibold text-[var(--panel-ink)]">{name}</span> kalıcı olarak
-            kaldırılacak. Bu işlem geri alınamaz.
+            <span className="font-semibold text-[var(--panel-ink)]">{name}</span> listeden
+            kaldırılacak (soft sil).
           </p>
         </div>
         <div className="flex gap-2 border-t border-[var(--panel-line)] bg-[var(--panel-surface)]/60 px-4 py-3">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
+            disabled={busy}
+            className="flex-1 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-60"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
+            disabled={busy}
+            className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500 disabled:opacity-60"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

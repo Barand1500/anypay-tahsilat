@@ -67,4 +67,7 @@ export const api = {
       },
       token,
     ),
+
+  delete: <T,>(path: string, token?: string | null) =>
+    request<T>(path, { method: 'DELETE' }, token),
 };

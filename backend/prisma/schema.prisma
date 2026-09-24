@@ -37,3 +37,27 @@ model User {
 
   @@map("user")
 }
+
+/** Panel modül kayıtları — eski PHP “İzinler” */
+model Izinler {
+  id              Int       @id @default(autoincrement())
+  adi             String    @db.VarChar(255)
+  olusturmaTarihi DateTime? @map("olusturma_tarihi")
+  remove          Boolean?
+  tablo           String?   @db.VarChar(255)
+  route           String?   @db.VarChar(255)
+
+  @@map("izinler")
+}
+
+/** Roller — izinler alanı PHP serialize (yalnızca okunur bu fazda) */
+model Rol {
+  id      Int      @id @default(autoincrement())
+  adi     String   @db.VarChar(255)
+  code    String   @db.VarChar(255)
+  remove  Boolean?
+  izinler String?  @db.LongText
+  yetki   Int?
+
+  @@map("rol")
+}

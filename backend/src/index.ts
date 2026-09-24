@@ -4,6 +4,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authRouter } from './routes/auth.js';
+import { modulesRouter } from './routes/modules.js';
 import { sendError } from './utils/response.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/modules', modulesRouter);
 
 // SPA fallback (API dışı yollar)
 app.get(/^(?!\/api).*/, (_req, res) => {

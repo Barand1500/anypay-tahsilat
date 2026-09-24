@@ -1,14 +1,18 @@
-/** Modül kayıtları — mock; API sonrası canlı bağlanacak */
+/**
+ * Modül tipleri + PermissionContext için sabit sayfa listesi.
+ * Canlı liste API’den gelir (`/api/modules`); INITIAL_MODULES yalnızca yetki mock’u için.
+ */
 
 export type ModuleRole = 'Yönetici' | 'Tahsilat' | 'Muhasebe' | 'Satış';
 
 export type AppModule = {
-  id: string;
+  id: number;
   name: string;
   dbTable: string;
   urlPrefix: string;
-  roles: ModuleRole[];
-  createdAt: string; // ISO
+  /** Salt okunur — rol.izinler görüntüleme=1 */
+  roles: string[];
+  createdAt: string | null;
 };
 
 export const ROLE_OPTIONS: ModuleRole[] = ['Yönetici', 'Tahsilat', 'Muhasebe', 'Satış'];
@@ -22,7 +26,9 @@ export const DB_TABLE_OPTIONS = [
   'CariTipleri',
   'EpostaSablonlari',
   'ErpEntegrasyonBilgileri',
+  'Izinler',
   'Kullanicilar',
+  'Log',
   'LogKayitlari',
   'Moduller',
   'Musteriler',
@@ -30,13 +36,22 @@ export const DB_TABLE_OPTIONS = [
   'OdemeIstekleri',
   'Ozet',
   'Raporlar',
+  'Rol',
   'Roller',
   'TaksitSecenekleri',
   'Tanimlamalar',
+  'User',
 ] as const;
 
-/** Panel + referans örnekleri birleşik mock */
-export const INITIAL_MODULES: AppModule[] = [
+/** PermissionContext / Roller mock — API modül listesinden bağımsız */
+export const INITIAL_MODULES: Array<{
+  id: string;
+  name: string;
+  dbTable: string;
+  urlPrefix: string;
+  roles: ModuleRole[];
+  createdAt: string;
+}> = [
   {
     id: 'm-ozet',
     name: 'Özet',
@@ -223,7 +238,8 @@ export const INITIAL_MODULES: AppModule[] = [
   },
 ];
 
-export function formatModuleDate(iso: string) {
+export function formatModuleDate(iso: string | null) {
+  if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleString('tr-TR', {
     day: '2-digit',
