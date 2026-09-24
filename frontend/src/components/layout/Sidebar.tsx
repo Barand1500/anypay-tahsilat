@@ -147,7 +147,8 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const { enabled: gwOn, toggle: toggleGw } = useGestureWind();
   const ratesOn = ratesPhase !== 'idle';
   const location = useLocation();
-  const collapsedLogo = theme === 'dark' ? '/brand/logo-white.png' : '/brand/logo.png';
+  const collapsedLogo = '/brand/logo-icon.png';
+  const expandedLogo = '/brand/logo-full.jpg';
   const holdTimer = useRef<number | null>(null);
   const holdItem = useRef<NavItem | null>(null);
   const suppressClick = useRef(false);
@@ -619,7 +620,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         className="flex h-full min-h-0 w-[76px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--panel-sidebar)] transition-[width] duration-300 ease-out"
       >
         <div className="flex shrink-0 flex-col items-center gap-2 px-2 py-4">
-          <img src={collapsedLogo} alt="Güzel Teknoloji" className="h-11 w-11 object-contain" />
+          <img src={collapsedLogo} alt="Güzel Teknoloji" className="h-10 w-10 object-contain" />
           <button
             type="button"
             aria-label="Menüyü aç"
@@ -658,7 +659,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-5">
         <div className="flex min-w-0 flex-1 items-center">
           <img
-            src="/brand/logo-white.png"
+            src={expandedLogo}
             alt="Güzel Teknoloji"
             className="h-14 w-auto max-w-[210px] object-contain object-left drop-shadow-sm"
           />
