@@ -48,7 +48,7 @@ export default function UsersPage() {
   const rowRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   const roleOptions = useMemo(
-    () => roles.map((r) => ({ value: r.id, label: r.name })),
+    () => roles.map((r) => ({ value: String(r.id), label: r.name })),
     [roles],
   );
 
