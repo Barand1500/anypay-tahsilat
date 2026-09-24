@@ -96,6 +96,9 @@ else
   printf '\n  %sGelen değişiklikler:%s\n' "$C_CYAN" "$C_RESET"
   git log --pretty=format:'  %C(yellow)%h%Creset  %s  %C(dim)(%an)%Creset' "${BEFORE}..${AFTER}" 2>/dev/null || true
   printf '\n'
+  # Pull sonrası script değişmiş olabilir — yeni dosyayla yeniden başla
+  info "Güncel deploy script ile devam..."
+  exec bash "$REPO_DIR/scripts/server-deploy.sh"
 fi
 
 # ---------------------------------------------------------------------------
@@ -112,8 +115,8 @@ ok "frontend/dist hazır"
 
 # ---------------------------------------------------------------------------
 step "Backend build"
-# schema.prisma değişince tsc için client güncel olmalı (site generate ayrı adım)
-npx prisma generate --schema backend/prisma/schema.prisma
+# Client, backend/node_modules içinde üretilmeli (tsc bunu kullanır)
+npm run db:generate --prefix backend
 npm run build --prefix backend
 ok "backend/dist hazır"
 [[ -d frontend/dist && -d backend/dist ]] || die "Build çıktısı eksik"
