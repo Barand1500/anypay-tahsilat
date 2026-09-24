@@ -6,41 +6,49 @@ import {
   allFullPermissions,
   emptyPerm,
   normalizePerm,
-  PERM_PAGES,
   type AppRole,
   type PagePerm,
+  type PermPage,
 } from './mockRoles';
 
 type Mode = { type: 'create' } | { type: 'edit'; role: AppRole };
 
 type Props = {
   mode: Mode;
+  pages: PermPage[];
   onClose: () => void;
-  onSave: (role: Omit<AppRole, 'id' | 'users'> & { id?: string; users?: AppRole['users'] }) => void;
+  onSave: (role: {
+    id?: number;
+    name: string;
+    isAdmin: boolean;
+    permissions: Record<string, PagePerm>;
+  }) => Promise<void>;
 };
 
 /**
  * Rol ekle / düzenle — sayfa bazlı Görüntüle · Kaydet · Sil
  * Görüntüle kapalı → Kaydet/Sil pasif
  */
-export function RoleModal({ mode, onClose, onSave }: Props) {
+export function RoleModal({ mode, pages, onClose, onSave }: Props) {
   const isEdit = mode.type === 'edit';
   const [name, setName] = useState(isEdit ? mode.role.name : '');
   const [isAdmin, setIsAdmin] = useState(isEdit ? mode.role.isAdmin : false);
   const [perms, setPerms] = useState<Record<string, PagePerm>>(() => {
     if (isEdit) {
-      if (mode.role.isAdmin) return allFullPermissions();
+      if (mode.role.isAdmin) return allFullPermissions(pages);
       const copy: Record<string, PagePerm> = {};
-      for (const p of PERM_PAGES) {
+      for (const p of pages) {
         copy[p.id] = normalizePerm(mode.role.permissions[p.id] ?? emptyPerm());
       }
       return copy;
     }
     const empty: Record<string, PagePerm> = {};
-    for (const p of PERM_PAGES) empty[p.id] = emptyPerm();
+    for (const p of pages) empty[p.id] = emptyPerm();
     return empty;
   });
   const [query, setQuery] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -78,32 +86,32 @@ export function RoleModal({ mode, onClose, onSave }: Props) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
-    if (!q) return PERM_PAGES;
-    return PERM_PAGES.filter((p) => p.name.toLocaleLowerCase('tr').includes(q));
-  }, [query]);
+    if (!q) return pages;
+    return pages.filter((p) => p.name.toLocaleLowerCase('tr').includes(q));
+  }, [query, pages]);
 
   const allSelected = useMemo(() => {
     if (isAdmin) return true;
-    return PERM_PAGES.every((p) => {
+    return pages.every((p) => {
       const x = perms[p.id];
       return x?.view && x?.save && x?.remove;
     });
-  }, [isAdmin, perms]);
+  }, [isAdmin, perms, pages]);
 
   function setAdmin(on: boolean) {
     setIsAdmin(on);
-    if (on) setPerms(allFullPermissions());
+    if (on) setPerms(allFullPermissions(pages));
   }
 
   function toggleAll(on: boolean) {
     if (on) {
       setIsAdmin(true);
-      setPerms(allFullPermissions());
+      setPerms(allFullPermissions(pages));
       return;
     }
     setIsAdmin(false);
     const next: Record<string, PagePerm> = {};
-    for (const p of PERM_PAGES) next[p.id] = emptyPerm();
+    for (const p of pages) next[p.id] = emptyPerm();
     setPerms(next);
   }
 
@@ -122,16 +130,23 @@ export function RoleModal({ mode, onClose, onSave }: Props) {
     });
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave({
-      id: isEdit ? mode.role.id : undefined,
-      name: name.trim(),
-      isAdmin,
-      permissions: isAdmin ? allFullPermissions() : perms,
-      users: isEdit ? mode.role.users : [],
-    });
+    setSaving(true);
+    setFormError(null);
+    try {
+      await onSave({
+        id: isEdit ? mode.role.id : undefined,
+        name: name.trim(),
+        isAdmin,
+        permissions: isAdmin ? allFullPermissions(pages) : perms,
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return createPortal(
@@ -157,7 +172,7 @@ export function RoleModal({ mode, onClose, onSave }: Props) {
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={(e) => void onSubmit(e)} className="flex min-h-0 flex-1 flex-col">
           <div className="shrink-0 space-y-4 px-5 pt-4 sm:px-6">
             <TextInput
               data-km-jump
@@ -220,42 +235,56 @@ export function RoleModal({ mode, onClose, onSave }: Props) {
           </div>
 
           <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-5 pb-2 sm:px-6">
-            <ul className="divide-y divide-[var(--panel-line)] rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]">
-              {filtered.map((page) => {
-                const p = perms[page.id] ?? emptyPerm();
-                const locked = !p.view;
-                return (
-                  <li
-                    key={page.id}
-                    data-perm-row
-                    className="grid grid-cols-1 gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px_56px] sm:items-center sm:gap-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--panel-ink)]">{page.name}</p>
-                      <p className="truncate font-mono text-[10px] text-[var(--panel-muted)]">{page.urlPrefix}</p>
-                    </div>
-                    <PermCheck
-                      label="Görüntüle"
-                      checked={p.view}
-                      onChange={(v) => patch(page.id, 'view', v)}
-                    />
-                    <PermCheck
-                      label="Kaydet"
-                      checked={p.save}
-                      disabled={locked}
-                      onChange={(v) => patch(page.id, 'save', v)}
-                    />
-                    <PermCheck
-                      label="Sil"
-                      checked={p.remove}
-                      disabled={locked}
-                      onChange={(v) => patch(page.id, 'remove', v)}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+            {pages.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[var(--panel-muted)]">
+                Modül listesi yüklenemedi.
+              </p>
+            ) : (
+              <ul className="divide-y divide-[var(--panel-line)] rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]">
+                {filtered.map((page) => {
+                  const p = perms[page.id] ?? emptyPerm();
+                  const locked = !p.view;
+                  return (
+                    <li
+                      key={page.id}
+                      data-perm-row
+                      className="grid grid-cols-1 gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px_56px] sm:items-center sm:gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[var(--panel-ink)]">
+                          {page.name}
+                        </p>
+                        <p className="truncate font-mono text-[10px] text-[var(--panel-muted)]">
+                          {page.urlPrefix}
+                        </p>
+                      </div>
+                      <PermCheck
+                        label="Görüntüle"
+                        checked={p.view}
+                        onChange={(v) => patch(page.id, 'view', v)}
+                      />
+                      <PermCheck
+                        label="Kaydet"
+                        checked={p.save}
+                        disabled={locked}
+                        onChange={(v) => patch(page.id, 'save', v)}
+                      />
+                      <PermCheck
+                        label="Sil"
+                        checked={p.remove}
+                        disabled={locked}
+                        onChange={(v) => patch(page.id, 'remove', v)}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
+
+          {formError ? (
+            <p className="px-5 text-sm text-rose-500 sm:px-6">{formError}</p>
+          ) : null}
 
           <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--panel-line)] bg-[var(--panel-surface)]/50 px-5 py-3 sm:px-6">
             <button
@@ -268,9 +297,10 @@ export function RoleModal({ mode, onClose, onSave }: Props) {
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

@@ -1,72 +1,118 @@
 import gsap from 'gsap';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { AvatarStack } from '../../components/ui/AvatarStack';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
-import { countGranted, type AppRole } from './mockRoles';
+import type { AppModule } from '../modules/mockModules';
+import { countGranted, type AppRole, type PagePerm, type PermPage } from './mockRoles';
 import { RoleModal } from './RoleModal';
 import { ROLE_HERO_SRC, prefetchRoleHero } from './roleHero';
 
 /**
- * Roller — kart grid + izin modalı (mock).
+ * Roller — kart grid + izin modalı (API / rol tablosu).
  */
 export default function RolesPage() {
-  const { roles, setRoles, guard } = usePermission();
+  const { token } = useAuth();
+  const { roles, setRoles, rolesLoading, refreshRoles, guard } = usePermission();
+  const [pages, setPages] = useState<PermPage[]>([]);
   const [modal, setModal] = useState<
     { type: 'create' } | { type: 'edit'; role: AppRole } | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<AppRole | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  function saveRole(
-    next: Omit<AppRole, 'id' | 'users'> & { id?: string; users?: AppRole['users'] },
-  ) {
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await api.get<AppModule[]>('/api/modules', token);
+        if (cancelled) return;
+        setPages(
+          list.map((m) => ({
+            id: String(m.id),
+            name: m.name,
+            urlPrefix: m.urlPrefix,
+          })),
+        );
+      } catch {
+        if (!cancelled) setPages([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  async function saveRole(next: {
+    id?: number;
+    name: string;
+    isAdmin: boolean;
+    permissions: Record<string, PagePerm>;
+  }) {
     if (!guard('m-roller', 'save', 'Roller')) return;
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
+
     if (next.id) {
-      setRoles((prev) =>
-        prev.map((r) =>
-          r.id === next.id
-            ? {
-                ...r,
-                name: next.name,
-                isAdmin: next.isAdmin,
-                permissions: next.permissions,
-              }
-            : r,
-        ),
-      );
-    } else {
-      setRoles((prev) => [
-        ...prev,
+      const updated = await api.patch<AppRole>(
+        `/api/roles/${next.id}`,
         {
-          id: `role-${Date.now()}`,
           name: next.name,
           isAdmin: next.isAdmin,
           permissions: next.permissions,
-          users: [],
         },
-      ]);
+        token,
+      );
+      setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    } else {
+      const created = await api.post<AppRole>(
+        '/api/roles',
+        {
+          name: next.name,
+          isAdmin: next.isAdmin,
+          permissions: next.permissions,
+        },
+        token,
+      );
+      setRoles((prev) => [...prev, created]);
     }
     setModal(null);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return;
     if (!guard('m-roller', 'remove', 'Roller')) {
       setDeleteTarget(null);
       return;
     }
-    setRoles((prev) => prev.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    if (!token) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/roles/${deleteTarget.id}`, token);
+      setRoles((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function openEdit(role: AppRole) {
     if (!guard('m-roller', 'save', 'Roller')) return;
+    setActionError(null);
     setModal({ type: 'edit', role });
   }
 
   function openCreate() {
     if (!guard('m-roller', 'save', 'Roller')) return;
+    setActionError(null);
     setModal({ type: 'create' });
   }
 
@@ -91,49 +137,77 @@ export default function RolesPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {roles.map((role, i) => (
-          <RoleCard
-            key={role.id}
-            role={role}
-            index={i}
-            onEdit={() => openEdit(role)}
-            onDelete={() => askDelete(role)}
-          />
-        ))}
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </div>
+      ) : null}
 
-        <button
-          type="button"
-          data-km-jump
-          data-role-card
-          onClick={openCreate}
-          className="panel-card-in group relative flex min-h-[200px] flex-col overflow-hidden rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-elevated)] text-left shadow-[var(--panel-shadow)] transition hover:border-[var(--color-brand-500)] hover:shadow-[var(--panel-shadow)]"
-        >
-          <div className="flex flex-1 items-stretch overflow-hidden">
-            <div className="relative hidden w-[42%] overflow-hidden bg-[var(--panel-surface)] sm:block">
-              <RoleHeroImage />
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[var(--panel-elevated)]" />
+      {rolesLoading && roles.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-14 text-center text-sm text-[var(--panel-muted)]">
+          Yükleniyor…
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {roles.map((role, i) => (
+            <RoleCard
+              key={role.id}
+              role={role}
+              pages={pages}
+              index={i}
+              onEdit={() => openEdit(role)}
+              onDelete={() => askDelete(role)}
+            />
+          ))}
+
+          <button
+            type="button"
+            data-km-jump
+            data-role-card
+            onClick={openCreate}
+            className="panel-card-in group relative flex min-h-[200px] flex-col overflow-hidden rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-elevated)] text-left shadow-[var(--panel-shadow)] transition hover:border-[var(--color-brand-500)] hover:shadow-[var(--panel-shadow)]"
+          >
+            <div className="flex flex-1 items-stretch overflow-hidden">
+              <div className="relative hidden w-[42%] overflow-hidden bg-[var(--panel-surface)] sm:block">
+                <RoleHeroImage />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[var(--panel-elevated)]" />
+              </div>
+              <div className="flex flex-1 flex-col justify-center gap-3 p-5 sm:pl-2">
+                <span className="inline-flex w-fit items-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition group-hover:brightness-110">
+                  <span className="text-lg leading-none">+</span>
+                  Rol Ekle
+                </span>
+                <p className="text-xs text-[var(--panel-muted)]">Mevcut değilse rol ekleyin</p>
+              </div>
             </div>
-            <div className="flex flex-1 flex-col justify-center gap-3 p-5 sm:pl-2">
-              <span className="inline-flex w-fit items-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition group-hover:brightness-110">
-                <span className="text-lg leading-none">+</span>
-                Rol Ekle
-              </span>
-              <p className="text-xs text-[var(--panel-muted)]">Mevcut değilse rol ekleyin</p>
-            </div>
-          </div>
-        </button>
-      </div>
+          </button>
+        </div>
+      )}
+
+      {!rolesLoading && roles.length === 0 ? (
+        <p className="text-center text-sm text-[var(--panel-muted)]">
+          Rol bulunamadı.{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void refreshRoles()}>
+            Yenile
+          </button>
+        </p>
+      ) : null}
 
       {modal ? (
-        <RoleModal mode={modal} onClose={() => setModal(null)} onSave={saveRole} />
+        <RoleModal
+          mode={modal}
+          pages={pages}
+          onClose={() => setModal(null)}
+          onSave={saveRole}
+        />
       ) : null}
 
       {deleteTarget ? (
         <DeleteRoleModal
           name={deleteTarget.name}
+          busy={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -142,16 +216,21 @@ export default function RolesPage() {
 
 function RoleCard({
   role,
+  pages,
   index,
   onEdit,
   onDelete,
 }: {
   role: AppRole;
+  pages: PermPage[];
   index: number;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { pages, total } = countGranted(role);
+  const { pages: granted, total } = useMemo(
+    () => countGranted(role, pages.length ? pages : undefined),
+    [role, pages],
+  );
 
   return (
     <article
@@ -171,11 +250,17 @@ function RoleCard({
             </span>
           ) : (
             <span className="ml-2 text-[10px] tabular-nums opacity-80">
-              {pages}/{total} sayfa
+              {granted}/{total} sayfa
             </span>
           )}
         </p>
-        <AvatarStack people={role.users} />
+        <AvatarStack
+          people={role.users.map((u) => ({
+            id: String(u.id),
+            initials: u.initials,
+            name: u.name,
+          }))}
+        />
       </div>
 
       <h2 className="mb-6 text-xl font-bold tracking-tight text-[var(--panel-ink)]">{role.name}</h2>
@@ -208,10 +293,12 @@ function RoleCard({
 
 function DeleteRoleModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -254,24 +341,26 @@ function DeleteRoleModal({
           </div>
           <h2 className="text-lg font-bold text-[var(--panel-ink)]">Rolü sil?</h2>
           <p className="mt-2 text-sm leading-relaxed text-[var(--panel-muted)]">
-            <span className="font-semibold text-[var(--panel-ink)]">{name}</span> kalıcı olarak
-            kaldırılacak.
+            <span className="font-semibold text-[var(--panel-ink)]">{name}</span> listeden
+            kaldırılacak (soft sil). Bağlı kullanıcı varsa silinmez.
           </p>
         </div>
         <div className="flex gap-2 border-t border-[var(--panel-line)] bg-[var(--panel-surface)]/60 px-4 py-3">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            disabled={busy}
+            className="flex-1 rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-60"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            disabled={busy}
+            className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-60"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
@@ -296,7 +385,6 @@ function TrashIcon({ large }: { large?: boolean }) {
   );
 }
 
-/** Rol Ekle hero — WebP + hızlı yükleme / soft fade */
 function RoleHeroImage() {
   const [ready, setReady] = useState(false);
 
