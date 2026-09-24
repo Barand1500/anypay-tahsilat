@@ -19,24 +19,7 @@ export type OverviewFilterState = {
   to: string;
 };
 
-const BRANCHES = [
-  { value: 'all', label: 'Tüm Şubeler' },
-  { value: 'merkez', label: 'Merkez' },
-  { value: 'istanbul', label: 'İstanbul Anadolu' },
-  { value: 'ankara', label: 'Ankara' },
-  { value: 'izmir', label: 'İzmir' },
-  { value: 'muhasebe', label: 'Muhasebe Departmanı' },
-  { value: 'satis', label: 'Satış Departmanı' },
-];
-
-const USERS = [
-  { value: 'all', label: 'Tüm Kullanıcılar' },
-  { value: '1', label: 'Ercan Güzel' },
-  { value: '2', label: 'Sercan Güzel' },
-  { value: '3', label: 'Semihcan Güzel' },
-  { value: '7', label: 'Baran Ürüncan' },
-  { value: '6', label: 'App Test' },
-];
+export type OverviewFilterOption = { value: string; label: string };
 
 /** İkili satırlar: [sol, sağ] */
 const PERIOD_ROWS: { id: OverviewPeriod; label: string }[][] = [
@@ -108,14 +91,18 @@ export const DEFAULT_OVERVIEW_FILTER: OverviewFilterState = (() => {
 })();
 
 /** FAB alt satırı — sadece seçilenler, “Tüm …” yazılmaz */
-function fabSubtitle(value: OverviewFilterState) {
+function fabSubtitle(
+  value: OverviewFilterState,
+  branches: OverviewFilterOption[],
+  users: OverviewFilterOption[],
+) {
   const parts: string[] = [];
   if (value.branch !== 'all') {
-    const b = BRANCHES.find((x) => x.value === value.branch)?.label;
+    const b = branches.find((x) => x.value === value.branch)?.label;
     if (b) parts.push(b);
   }
   if (value.user !== 'all') {
-    const u = USERS.find((x) => x.value === value.user)?.label;
+    const u = users.find((x) => x.value === value.user)?.label;
     if (u) parts.push(u);
   }
   if (value.period === 'custom' && value.from && value.to) {
@@ -134,10 +121,17 @@ function fabSubtitle(value: OverviewFilterState) {
 type Props = {
   value: OverviewFilterState;
   onChange: (next: OverviewFilterState) => void;
+  branches?: OverviewFilterOption[];
+  users?: OverviewFilterOption[];
 };
 
 /** Özet floating filtre — sağ alt FAB + panel */
-export function OverviewFilterFab({ value, onChange }: Props) {
+export function OverviewFilterFab({
+  value,
+  onChange,
+  branches: branchOpts,
+  users: userOpts,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ bottom: 88, right: 24 });
   const [branchQ, setBranchQ] = useState('');
@@ -145,7 +139,16 @@ export function OverviewFilterFab({ value, onChange }: Props) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const subtitle = fabSubtitle(value);
+  const BRANCHES = useMemo(
+    () => (branchOpts?.length ? branchOpts : [{ value: 'all', label: 'Tüm Şubeler' }]),
+    [branchOpts],
+  );
+  const USERS = useMemo(
+    () => (userOpts?.length ? userOpts : [{ value: 'all', label: 'Tüm Kullanıcılar' }]),
+    [userOpts],
+  );
+
+  const subtitle = fabSubtitle(value, BRANCHES, USERS);
   const activeCount =
     (value.branch !== 'all' ? 1 : 0) +
     (value.user !== 'all' ? 1 : 0) +
@@ -155,13 +158,13 @@ export function OverviewFilterFab({ value, onChange }: Props) {
     const q = branchQ.trim().toLocaleLowerCase('tr');
     if (!q) return [];
     return BRANCHES.filter((b) => b.label.toLocaleLowerCase('tr').includes(q));
-  }, [branchQ]);
+  }, [branchQ, BRANCHES]);
 
   const users = useMemo(() => {
     const q = userQ.trim().toLocaleLowerCase('tr');
     if (!q) return [];
     return USERS.filter((u) => u.label.toLocaleLowerCase('tr').includes(q));
-  }, [userQ]);
+  }, [userQ, USERS]);
 
   function updatePos() {
     const btn = btnRef.current;

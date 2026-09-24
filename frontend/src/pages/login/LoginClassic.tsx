@@ -81,7 +81,7 @@ export function LoginClassic() {
           <div className="w-full max-w-[420px]">
             <div className="mb-9 flex flex-col items-center text-center">
               <img
-                src="/brand/logo-full.jpg"
+                src="/brand/logo.png"
                 alt="Güzel Teknoloji"
                 className="mb-6 h-[4.5rem] w-auto max-w-[280px] object-contain sm:h-20 sm:max-w-[320px]"
               />

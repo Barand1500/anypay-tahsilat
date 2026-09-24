@@ -31,7 +31,7 @@ export type GeneralSettings = {
 export const INITIAL_GENERAL_SETTINGS: GeneralSettings = {
   systemName: 'GÜZEL Teknoloji®',
   systemUrl: 'https://tahsilat.guzelteknoloji.com/',
-  logoUrl: '/brand/logo-full.jpg',
+  logoUrl: '/brand/logo.png',
   faviconUrl: '/brand/logo-icon.png',
   virtualPosTarget: false,
   appSignup: false,

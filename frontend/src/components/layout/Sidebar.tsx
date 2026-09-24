@@ -148,7 +148,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const ratesOn = ratesPhase !== 'idle';
   const location = useLocation();
   const collapsedLogo = '/brand/logo-icon.png';
-  const expandedLogo = '/brand/logo-full.jpg';
+  const expandedLogo = '/brand/logo-full.png';
   const holdTimer = useRef<number | null>(null);
   const holdItem = useRef<NavItem | null>(null);
   const suppressClick = useRef(false);

@@ -10,6 +10,7 @@ import { usersRouter } from './routes/users.js';
 import { versionsRouter } from './routes/versions.js';
 import { logsRouter } from './routes/logs.js';
 import { systemResetRouter } from './routes/systemReset.js';
+import { overviewRouter } from './routes/overview.js';
 import { sendError } from './utils/response.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/versions', versionsRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/system-reset', systemResetRouter);
+app.use('/api/overview', overviewRouter);
 
 // SPA fallback (API dışı yollar)
 app.get(/^(?!\/api).*/, (_req, res) => {

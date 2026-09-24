@@ -100,7 +100,7 @@ export function DekontModal({ tx, onClose }: Props) {
             style={{ colorScheme: 'light' }}
           >
             <div className="mb-4 flex items-center justify-between gap-4">
-              <img src="/brand/logo-full.jpg" alt="Güzel Teknoloji" className="h-10 w-auto object-contain" />
+              <img src="/brand/logo.png" alt="Güzel Teknoloji" className="h-10 w-auto object-contain" />
               <img
                 src={tx.bankLogo}
                 alt={tx.bankName}

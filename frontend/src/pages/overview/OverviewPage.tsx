@@ -7,14 +7,15 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { AccentColorPicker } from '../../components/ui/AccentColorPicker';
-import { ChartPanel } from '../../components/widgets/ChartPanel';
+import { ChartPanel, type ChartRange } from '../../components/widgets/ChartPanel';
 import { FavoriteCustomerSlots } from '../../components/widgets/FavoriteCustomerSlots';
 import { PeriodCompareCard } from '../../components/widgets/PeriodCompareCard';
 import { PieChartPanel } from '../../components/widgets/PieChartPanel';
 import { QuickActionsPanel } from '../../components/widgets/QuickActionsPanel';
 import { StatCard } from '../../components/widgets/StatCard';
-import { mockOverview } from './mockOverview';
+import { api } from '../../lib/api';
 import {
   DEFAULT_OVERVIEW_FILTER,
   OverviewFilterFab,
@@ -32,6 +33,7 @@ import {
   type OverviewGroups,
   type OverviewTileId,
 } from './overviewLayout';
+import type { OverviewData } from './overviewTypes';
 import { PlanBoard } from './PlanBoard';
 
 const LONG_MS = 420;
@@ -48,8 +50,13 @@ type Ghost = {
 };
 
 export default function OverviewPage() {
-  const data = mockOverview;
+  const { token } = useAuth();
   const [filter, setFilter] = useState<OverviewFilterState>(DEFAULT_OVERVIEW_FILTER);
+  const [chartRange, setChartRange] = useState<ChartRange>('1A');
+  const [data, setData] = useState<OverviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [groups, setGroups] = useState<OverviewGroups>(() => loadGroups());
   const [editing, setEditing] = useState(false);
   const [ghost, setGhost] = useState<Ghost | null>(null);
@@ -76,6 +83,37 @@ export default function OverviewPage() {
   useEffect(() => {
     saveGroups(groups);
   }, [groups]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const qs = new URLSearchParams();
+        if (filter.branch !== 'all') qs.set('branchId', filter.branch);
+        if (filter.user !== 'all') qs.set('userId', filter.user);
+        if (filter.from) qs.set('from', filter.from);
+        if (filter.to) qs.set('to', filter.to);
+        qs.set('chartRange', chartRange);
+        const next = await api.get<OverviewData>(`/api/overview?${qs.toString()}`, token);
+        if (!cancelled) setData(next);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Özet yüklenemedi');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, filter.branch, filter.user, filter.from, filter.to, chartRange]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -263,6 +301,7 @@ export default function OverviewPage() {
   }
 
   function renderTile(id: OverviewTileId): ReactNode {
+    if (!data) return null;
     switch (id) {
       case 'kpi-customers':
       case 'kpi-moves':
@@ -298,11 +337,25 @@ export default function OverviewPage() {
       case 'quick-actions':
         return <QuickActionsPanel />;
       case 'distribution':
-        return <PieChartPanel datasets={data.pieDatasets} />;
+        return (
+          <PieChartPanel
+            key={`${filter.branch}-${filter.user}-${filter.from}-${filter.to}`}
+            datasets={data.pieDatasets}
+          />
+        );
       case 'plan-board':
         return <PlanBoard />;
       case 'chart':
-        return <ChartPanel title={data.chart.title} subtitle={data.chart.subtitle} />;
+        return (
+          <ChartPanel
+            title={data.chart.title}
+            subtitle={data.chart.subtitle}
+            range={chartRange}
+            onRangeChange={setChartRange}
+            series={data.chart.series}
+            points={data.chart.points}
+          />
+        );
       default:
         return null;
     }
@@ -310,6 +363,18 @@ export default function OverviewPage() {
 
   return (
     <div className="relative w-full space-y-5">
+      {error ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      {loading && !data ? (
+        <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-10 text-center text-sm text-[var(--panel-muted)]">
+          Özet yükleniyor…
+        </div>
+      ) : null}
+
       {editing ? (
         <div
           className="sticky top-2 z-30 flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-brand-500)]/30 bg-[color-mix(in_srgb,var(--color-brand-500)_8%,var(--panel-elevated))] px-3 py-2.5 shadow-[var(--panel-shadow)] backdrop-blur-md sm:px-4"
@@ -332,63 +397,64 @@ export default function OverviewPage() {
         </div>
       ) : null}
 
-      {GROUP_ORDER.map((groupId) => {
-        const meta = GROUP_META[groupId];
-        const tiles = groups[groupId];
-        return (
-          <div
-            key={groupId}
-            ref={(el) => {
-              groupEls.current[groupId] = el;
-            }}
-            className={[meta.grid, editing ? 'select-none touch-none' : '']
-              .filter(Boolean)
-              .join(' ')}
-          >
-            {tiles.map((id) => {
-              const lifting = ghost?.id === id;
-              const isOver = overId === id && ghost?.id !== id;
+      {data
+        ? GROUP_ORDER.map((groupId) => {
+            const meta = GROUP_META[groupId];
+            const tiles = groups[groupId];
+            return (
+              <div
+                key={groupId}
+                ref={(el) => {
+                  groupEls.current[groupId] = el;
+                }}
+                className={[meta.grid, editing ? 'select-none touch-none' : '']
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {tiles.map((id) => {
+                  const lifting = ghost?.id === id;
+                  const isOver = overId === id && ghost?.id !== id;
 
-              return (
-                <div
-                  key={id}
-                  data-tile-id={id}
-                  onPointerDown={(e) => onTileDown(id, e)}
-                  className={[
-                    'relative h-full min-h-0 transition-[box-shadow] duration-200 ease-out',
-                    editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
-                    lifting ? 'z-10' : '',
-                    isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  {/* İçerik mount’ta kalır — yer değişince yanıp sönmez */}
-                  <div
-                    className={[
-                      'h-full min-h-0',
-                      editing ? 'pointer-events-none' : '',
-                      lifting ? 'invisible' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    style={lifting ? { height: ghost.h } : undefined}
-                    aria-hidden={lifting || undefined}
-                  >
-                    {renderTile(id)}
-                  </div>
-                  {lifting ? (
+                  return (
                     <div
-                      className="pointer-events-none absolute inset-0 rounded-2xl border border-dashed border-[var(--color-brand-500)]/28 bg-[color-mix(in_srgb,var(--color-brand-500)_4%,var(--panel-surface))]"
-                      aria-hidden
-                    />
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                      key={id}
+                      data-tile-id={id}
+                      onPointerDown={(e) => onTileDown(id, e)}
+                      className={[
+                        'relative h-full min-h-0 transition-[box-shadow] duration-200 ease-out',
+                        editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
+                        lifting ? 'z-10' : '',
+                        isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <div
+                        className={[
+                          'h-full min-h-0',
+                          editing ? 'pointer-events-none' : '',
+                          lifting ? 'invisible' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        style={lifting ? { height: ghost.h } : undefined}
+                        aria-hidden={lifting || undefined}
+                      >
+                        {renderTile(id)}
+                      </div>
+                      {lifting ? (
+                        <div
+                          className="pointer-events-none absolute inset-0 rounded-2xl border border-dashed border-[var(--color-brand-500)]/28 bg-[color-mix(in_srgb,var(--color-brand-500)_4%,var(--panel-surface))]"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })
+        : null}
 
       {ghost
         ? createPortal(
@@ -407,7 +473,6 @@ export default function OverviewPage() {
                 transform: 'translate3d(-9999px,-9999px,0)',
               }}
             >
-              {/* Hafif hayalet — ağır widget remount yok, yanıp sönme olmaz */}
               <div className="flex h-full flex-col justify-center rounded-2xl border border-[var(--color-brand-500)]/25 bg-[var(--panel-elevated)] px-5 shadow-[0_18px_40px_rgba(0,0,0,0.14)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--panel-muted)]">
                   Taşınıyor
@@ -421,7 +486,12 @@ export default function OverviewPage() {
           )
         : null}
 
-      <OverviewFilterFab value={filter} onChange={setFilter} />
+      <OverviewFilterFab
+        value={filter}
+        onChange={setFilter}
+        branches={data?.filters.branches}
+        users={data?.filters.users}
+      />
     </div>
   );
 }

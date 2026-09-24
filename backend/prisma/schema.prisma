@@ -96,3 +96,59 @@ model Log {
 
   @@map("log")
 }
+
+/** Müşteriler */
+model Musteri {
+  id        Int      @id @default(autoincrement())
+  kisaAdi   String?  @map("kisa_adi") @db.VarChar(255)
+  unvan     String?  @db.VarChar(255)
+  remove    Boolean?
+  durum     Int?
+
+  @@map("musteriler")
+}
+
+/** Bankalar */
+model Banka {
+  id      Int      @id @default(autoincrement())
+  adi     String   @db.VarChar(255)
+  kisaAdi String   @map("kisa_adi") @db.VarChar(255)
+  logo    String?  @db.VarChar(255)
+  remove  Boolean?
+
+  @@map("bankalar")
+}
+
+/**
+ * Ödemeler / hareketler
+ * durum: 1=başarılı, 2=iptal/iade, 0|-1=hatalı
+ */
+model Odeme {
+  id                Int       @id @default(autoincrement())
+  musteriId         Int?      @map("musteri_id")
+  tutar             Float
+  gercekTutar       Float     @map("gercek_tutar")
+  durum             Int
+  tarih             DateTime?
+  bankaId           Int?      @map("banka_id")
+  sanalposBankaId   Int?      @map("sanalpos_banka_id")
+  subeDepartmanId   Int?      @map("sube_departman_id")
+  kullaniciId       Int?      @map("kullanici_id")
+  arsiv             Boolean?
+  iptalIadeHareket  String?   @map("iptal_iade_hareket") @db.LongText
+
+  @@map("odemeler")
+}
+
+/** Ödeme istekleri — durum: 0=bekleyen, 1=ödendi */
+model OdemeIstegi {
+  id              Int       @id @default(autoincrement())
+  tutar           Float
+  durum           Boolean
+  tarih           DateTime
+  kullaniciId     Int?      @map("kullanici_id")
+  subeDepartmanId Int?      @map("sube_departman_id")
+  remove          Boolean?
+
+  @@map("odeme_istekleri")
+}
