@@ -72,3 +72,17 @@ model SubeDepartman {
 
   @@map("sube_departman")
 }
+
+/** Sürüm geçmişi */
+model Surumler {
+  id              Int       @id @default(autoincrement())
+  tarih           DateTime
+  versionNumarasi Float     @map("version_numarasi")
+  eklenen         String?   @db.LongText
+  cikartilan      String?   @db.LongText
+  remove          Boolean?
+  duzeltilen      String?   @db.LongText
+  durum           Boolean?
+
+  @@map("surumler")
+}

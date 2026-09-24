@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
 import {
-  INITIAL_VERSIONS,
+  primaryKind,
   splitVersionDate,
   VERSION_KIND_LABEL,
   type VersionChangeKind,
@@ -9,17 +11,42 @@ import {
 } from './mockVersions';
 
 /**
- * Sürüm Geçmişi — dikey timeline, sol/sağ kart, CSS giriş animasyonu.
+ * Sürüm Geçmişi — surumler tablosu (API), filtre yok.
  */
 export default function VersionsPage() {
+  const { token } = useAuth();
+  const [entries, setEntries] = useState<VersionEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [visible, setVisible] = useState(3);
   const endRef = useRef<HTMLDivElement>(null);
-  const list = INITIAL_VERSIONS.slice(0, visible);
-  const hasMore = visible < INITIAL_VERSIONS.length;
-  const latest = INITIAL_VERSIONS[0]?.version;
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<VersionEntry[]>('/api/versions', token);
+      setEntries(list);
+      setVisible(3);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Sürümler yüklenemedi');
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const list = entries.slice(0, visible);
+  const hasMore = visible < entries.length;
+  const latest = entries[0]?.version;
 
   function showMore() {
-    setVisible((n) => Math.min(n + 2, INITIAL_VERSIONS.length));
+    setVisible((n) => Math.min(n + 2, entries.length));
     window.setTimeout(() => {
       endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 80);
@@ -51,36 +78,55 @@ export default function VersionsPage() {
         </div>
       </div>
 
-      <div className="relative pb-8 pt-2">
-        {/* Orta çizgi */}
-        <div
-          className="pointer-events-none absolute bottom-10 left-4 top-0 w-px bg-[var(--panel-line)] md:left-1/2 md:-translate-x-1/2"
-          aria-hidden
-        />
-
-        <ul className="space-y-10 md:space-y-14">
-          {list.map((entry, i) => (
-            <TimelineItem key={entry.id} entry={entry} index={i} side={i % 2 === 0 ? 'left' : 'right'} />
-          ))}
-        </ul>
-
-        <div ref={endRef} className="relative z-10 mt-10 flex justify-center md:justify-center">
-          {hasMore ? (
-            <button
-              type="button"
-              data-km-jump
-              onClick={showMore}
-              aria-label="Daha eski sürümler"
-              title="Daha eski sürümler"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--color-brand-500)_18%,var(--panel-elevated))] text-[var(--brand-on-soft)] shadow-sm transition hover:bg-[color-mix(in_srgb,var(--color-brand-500)_28%,var(--panel-elevated))] hover:shadow-md"
-            >
-              <ChevronDownIcon />
-            </button>
-          ) : (
-            <p className="text-xs text-[var(--panel-muted)]">Tüm sürümler listelendi</p>
-          )}
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => void load()}>
+            Yeniden dene
+          </button>
         </div>
-      </div>
+      ) : null}
+
+      {loading ? (
+        <p className="py-16 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+      ) : entries.length === 0 && !loadError ? (
+        <p className="py-16 text-center text-sm text-[var(--panel-muted)]">Sürüm kaydı yok.</p>
+      ) : (
+        <div className="relative pb-8 pt-2">
+          <div
+            className="pointer-events-none absolute bottom-10 left-4 top-0 w-px bg-[var(--panel-line)] md:left-1/2 md:-translate-x-1/2"
+            aria-hidden
+          />
+
+          <ul className="space-y-10 md:space-y-14">
+            {list.map((entry, i) => (
+              <TimelineItem
+                key={entry.id}
+                entry={entry}
+                index={i}
+                side={i % 2 === 0 ? 'left' : 'right'}
+              />
+            ))}
+          </ul>
+
+          <div ref={endRef} className="relative z-10 mt-10 flex justify-center md:justify-center">
+            {hasMore ? (
+              <button
+                type="button"
+                data-km-jump
+                onClick={showMore}
+                aria-label="Daha eski sürümler"
+                title="Daha eski sürümler"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--color-brand-500)_18%,var(--panel-elevated))] text-[var(--brand-on-soft)] shadow-sm transition hover:bg-[color-mix(in_srgb,var(--color-brand-500)_28%,var(--panel-elevated))] hover:shadow-md"
+              >
+                <ChevronDownIcon />
+              </button>
+            ) : entries.length > 0 ? (
+              <p className="text-xs text-[var(--panel-muted)]">Tüm sürümler listelendi</p>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -113,7 +159,7 @@ function TimelineItem({
     return () => io.disconnect();
   }, []);
 
-  const kindClass = kindTone(entry.kind);
+  const kindClass = kindTone(primaryKind(entry));
 
   return (
     <li
@@ -126,7 +172,6 @@ function TimelineItem({
         inView ? 'version-row-in' : 'opacity-0',
       ].join(' ')}
     >
-      {/* Sol kolon */}
       <div className="order-2 md:order-1 md:pr-5 md:text-right">
         {side === 'left' ? (
           <VersionCard entry={entry} align="right" kindClass={kindClass} />
@@ -137,7 +182,6 @@ function TimelineItem({
         )}
       </div>
 
-      {/* Orta düğüm */}
       <div className="absolute left-4 top-1 z-10 flex -translate-x-1/2 justify-center md:static md:order-2 md:translate-x-0">
         <span
           className={[
@@ -150,7 +194,6 @@ function TimelineItem({
         </span>
       </div>
 
-      {/* Sağ kolon */}
       <div className="order-3 pl-10 md:order-3 md:pl-5">
         {side === 'right' ? (
           <VersionCard entry={entry} align="left" kindClass={kindClass} />
@@ -161,7 +204,6 @@ function TimelineItem({
         )}
       </div>
 
-      {/* Mobil tarih */}
       <div className="order-4 pl-10 md:hidden">
         <DateBox iso={entry.at} />
       </div>
@@ -198,6 +240,7 @@ function VersionCard({
   align: 'left' | 'right';
   kindClass: ReturnType<typeof kindTone>;
 }) {
+  const primary = primaryKind(entry);
   return (
     <article
       className={[
@@ -218,27 +261,43 @@ function VersionCard({
             kindClass.badge,
           ].join(' ')}
         >
-          {VERSION_KIND_LABEL[entry.kind]}
+          {VERSION_KIND_LABEL[primary]}
         </span>
       </div>
-      <p
-        className={[
-          'mt-3 text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]',
-          align === 'right' ? 'md:text-right' : '',
-        ].join(' ')}
-      >
-        {VERSION_KIND_LABEL[entry.kind]}:
-      </p>
-      <ul
-        className={[
-          'mt-1.5 space-y-1.5 text-sm leading-relaxed text-[var(--panel-ink)]',
-          align === 'right' ? 'md:text-right' : '',
-        ].join(' ')}
-      >
-        {entry.items.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
+
+      {entry.sections.length === 0 ? (
+        <p
+          className={[
+            'mt-3 text-sm text-[var(--panel-muted)]',
+            align === 'right' ? 'md:text-right' : '',
+          ].join(' ')}
+        >
+          Açıklama yok.
+        </p>
+      ) : (
+        entry.sections.map((sec) => (
+          <div key={sec.kind} className="mt-3">
+            <p
+              className={[
+                'text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]',
+                align === 'right' ? 'md:text-right' : '',
+              ].join(' ')}
+            >
+              {VERSION_KIND_LABEL[sec.kind]}:
+            </p>
+            <ul
+              className={[
+                'mt-1.5 space-y-1.5 text-sm leading-relaxed text-[var(--panel-ink)]',
+                align === 'right' ? 'md:text-right' : '',
+              ].join(' ')}
+            >
+              {sec.items.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
     </article>
   );
 }

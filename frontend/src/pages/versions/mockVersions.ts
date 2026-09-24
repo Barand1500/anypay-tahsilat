@@ -1,65 +1,31 @@
-/** Sürüm geçmişi — mock */
+/** Sürüm geçmişi — tip + yardımcılar; liste API’den gelir */
 
-export type VersionChangeKind = 'added' | 'fixed' | 'changed';
+export type VersionChangeKind = 'added' | 'fixed' | 'removed';
+
+export type VersionSection = {
+  kind: VersionChangeKind;
+  items: string[];
+};
 
 export type VersionEntry = {
-  id: string;
+  id: number;
   version: string;
-  kind: VersionChangeKind;
-  /** Ana açıklama satırları */
-  items: string[];
-  /** ISO tarih */
   at: string;
+  sections: VersionSection[];
+  durum?: boolean | null;
+  remove?: boolean | null;
 };
 
 export const VERSION_KIND_LABEL: Record<VersionChangeKind, string> = {
   added: 'Eklenenler',
   fixed: 'Düzeltilenler',
-  changed: 'Değişenler',
+  removed: 'Çıkarılanlar',
 };
 
-export const INITIAL_VERSIONS: VersionEntry[] = [
-  {
-    id: 'v-1-2',
-    version: '1.2',
-    kind: 'added',
-    items: [
-      'Başarılı Tahsilat İşlemlerinde, Otomatik Dekont Gönderim Özelliği Eklendi.',
-    ],
-    at: '2026-09-10T20:12:00',
-  },
-  {
-    id: 'v-1-1',
-    version: '1.1',
-    kind: 'added',
-    items: ['Vakıfbank Sanal POS Alt Yapısı Güncellendi.'],
-    at: '2026-09-10T17:02:00',
-  },
-  {
-    id: 'v-1-0-5',
-    version: '1.0.5',
-    kind: 'fixed',
-    items: [
-      'Ödeme istekleri listesinde sayfalama kayması giderildi.',
-      'Profil tema geçişinde kısa donma hissi iyileştirildi.',
-    ],
-    at: '2026-08-22T11:40:00',
-  },
-  {
-    id: 'v-1-0-2',
-    version: '1.0.2',
-    kind: 'changed',
-    items: ['Rapor ekranı iskeleti hazırlandı (yakında).'],
-    at: '2026-07-14T09:15:00',
-  },
-  {
-    id: 'v-1-0',
-    version: '1.0',
-    kind: 'fixed',
-    items: ['Başlangıç.'],
-    at: '2026-06-01T14:20:00',
-  },
-];
+/** Kart düğümü rengi — ilk dolu bölüm */
+export function primaryKind(entry: VersionEntry): VersionChangeKind {
+  return entry.sections[0]?.kind ?? 'fixed';
+}
 
 const TR_MONTHS = [
   'Ocak',
@@ -76,7 +42,6 @@ const TR_MONTHS = [
   'Aralık',
 ];
 
-/** "10 Eylül 2026 20:12" */
 export function formatVersionDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -88,7 +53,6 @@ export function formatVersionDate(iso: string) {
   return `${day} ${month} ${year} ${hh}:${mm}`;
 }
 
-/** Tarih kutusu parçaları */
 export function splitVersionDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
