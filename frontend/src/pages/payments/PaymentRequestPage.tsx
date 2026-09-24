@@ -1,13 +1,11 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getLiveCustomers } from '../customers/mockCustomers';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
+import { useCustomer } from '../customers/useCustomer';
 import { getDefaultPayType } from '../settings/defaultsStore';
-import {
-  addLivePaymentRequest,
-  panelCompanyAsCustomer,
-  type PayRequestType,
-} from '../payment-requests/mockPaymentRequests';
+import { panelCompanyAsCustomer } from '../payment-requests/mockPaymentRequests';
 import { formatMoneyTr, maskMoneyInput, parseTrMoney } from './mockBanks';
 import { InstallmentPaintGrid } from './InstallmentPaintGrid';
 import { loadReadyDescriptions } from './mockReadyDescriptions';
@@ -23,6 +21,7 @@ const INSTALLMENTS = Array.from({ length: 12 }, (_, i) => i + 1);
  */
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id } = useParams();
+  const { token } = useAuth();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
@@ -30,10 +29,11 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const customer = useMemo(() => {
-    if (forPanel) return panelCompanyAsCustomer();
-    return getLiveCustomers().find((c) => c.id === id) ?? null;
-  }, [forPanel, id]);
+  const panelCustomer = useMemo(() => (forPanel ? panelCompanyAsCustomer() : null), [forPanel]);
+  const { customer: apiCustomer, loading: customerLoading, error: customerError } = useCustomer(
+    forPanel ? undefined : id,
+  );
+  const customer = forPanel ? panelCustomer : apiCustomer;
 
   const backTo = forPanel ? '/odeme-istekleri' : '/musteriler';
   const backLabel = forPanel ? 'Ödeme İstekleri' : 'Müşteriler';
@@ -99,15 +99,8 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
       flash('Önce ödeme tipi seçin');
       return;
     }
-    const mock = payType === 'fatura' ? 4250 : 12850.75;
-    setBalance(mock);
-    setAmountText(formatMoneyTr(mock));
-    setErrors((prev) => {
-      if (!prev.amount) return prev;
-      const { amount: _, ...rest } = prev;
-      return rest;
-    });
-    flash(`Bakiye sorgulandı: ${formatMoneyTr(mock)} ₺`);
+    setBalance(null);
+    flash('Cari bakiye ERP bağlantısı henüz yok — tutarı elle girin');
   }
 
   function selectAllInstallments() {
@@ -155,48 +148,48 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     return Object.keys(next).length === 0;
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!validate() || !customer) return;
+    if (!validate() || !customer || !token || !payType) return;
     setSaving(true);
-    const descText = editorRef.current?.innerText?.trim() ?? '';
-    const token = Math.random().toString(16).slice(2, 15);
-    const typeMap: Record<string, PayRequestType> = {
-      ch: 'ch',
-      fatura: 'fatura',
-    };
-    addLivePaymentRequest({
-      id: `pr-${Date.now()}`,
-      token,
-      type: typeMap[payType] ?? 'diger',
-      status: 'pending',
-      customerId: customer.id,
-      customerTitle: customer.title,
-      amount,
-      commissionIncluded,
-      createdAt: new Date().toISOString(),
-      paidAt: null,
-      branch: 'Merkez',
-      userId: 'u4',
-      userName: 'Ercan Güzel',
-      phone: customer.phone,
-      email: customer.email,
-      whatsapp: customer.phone,
-      description: descText,
-    });
-    window.setTimeout(() => {
-      setSaving(false);
+    try {
+      const descHtml = editorRef.current?.innerHTML?.trim() || '';
+      await api.post(
+        '/api/payment-requests',
+        {
+          musteriId: forPanel ? null : Number(customer.id),
+          payType,
+          amount,
+          commissionIncluded,
+          installments,
+          description: descHtml,
+          dosya: fileName,
+        },
+        token,
+      );
       navigate(backTo, {
         replace: true,
         state: { flash: `Ödeme isteği oluşturuldu — ${customer.title}` },
       });
-    }, 420);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Ödeme isteği oluşturulamadı');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!forPanel && customerLoading) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
+        Müşteri yükleniyor…
+      </div>
+    );
   }
 
   if (!customer) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
-        <p className="text-[var(--panel-ink)]">Müşteri bulunamadı.</p>
+        <p className="text-[var(--panel-ink)]">{customerError || 'Müşteri bulunamadı.'}</p>
         <Link
           to={backTo}
           className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]"
@@ -245,7 +238,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         </Link>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
         <section
           data-anim
           className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"

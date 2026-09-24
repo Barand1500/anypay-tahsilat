@@ -11,7 +11,7 @@ export type PaymentRequest = {
   token: string;
   type: PayRequestType;
   status: PayRequestStatus;
-  customerId: string;
+  customerId: string | null;
   customerTitle: string;
   amount: number;
   commissionIncluded: boolean;

@@ -1,29 +1,71 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
-import { getLiveCustomers } from '../customers/mockCustomers';
-import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { mapCustomer, type ApiCustomer } from '../customers/customersApi';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
   formatDt,
   formatElapsed,
   formatMoneyTr,
-  getLivePaymentRequests,
   PAY_REQ_STATUS_LABEL,
   PAY_REQ_TYPE_LABEL,
   payLinkOf,
-  setLivePaymentRequests,
   type PaymentRequest,
   type PayRequestStatus,
+  type PayRequestType,
 } from './mockPaymentRequests';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
+
+type ApiPayRequest = {
+  id: number;
+  token: string;
+  type: PayRequestType;
+  status: 'pending' | 'paid';
+  customerId: string | null;
+  customerTitle: string;
+  amount: number;
+  commissionIncluded: boolean;
+  createdAt: string;
+  paidAt: string | null;
+  branch: string;
+  userId: string;
+  userName: string;
+  phone: string;
+  email: string;
+  whatsapp: string;
+  description: string;
+};
+
+function mapRow(r: ApiPayRequest): PaymentRequest {
+  return {
+    id: String(r.id),
+    token: r.token,
+    type: r.type,
+    status: r.status,
+    customerId: r.customerId,
+    customerTitle: r.customerTitle,
+    amount: r.amount,
+    commissionIncluded: r.commissionIncluded,
+    createdAt: r.createdAt,
+    paidAt: r.paidAt,
+    branch: r.branch,
+    userId: r.userId,
+    userName: r.userName,
+    phone: r.phone,
+    email: r.email,
+    whatsapp: r.whatsapp,
+    description: r.description,
+  };
+}
 
 const STATUS_OPTIONS = (Object.keys(PAY_REQ_STATUS_LABEL) as PayRequestStatus[]).map((id) => ({
   value: id,
@@ -34,12 +76,15 @@ const STATUS_OPTIONS = (Object.keys(PAY_REQ_STATUS_LABEL) as PayRequestStatus[])
  * Ödeme İstekleri — filtre + liste; iletişim butonları aktif/pasif.
  */
 export default function PaymentRequestsPage() {
+  const { token } = useAuth();
   const { guard } = usePermission();
   const navigate = useNavigate();
   const location = useLocation();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const [rows, setRows] = useState<PaymentRequest[]>(() => [...getLivePaymentRequests()]);
+  const [rows, setRows] = useState<PaymentRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
@@ -47,6 +92,7 @@ export default function PaymentRequestsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('odeme-istekleri'));
   const [deleteTarget, setDeleteTarget] = useState<PaymentRequest | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -56,19 +102,58 @@ export default function PaymentRequestsPage() {
   const [dateTo, setDateTo] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [customerOptions, setCustomerOptions] = useState<{ value: string; label: string }[]>([]);
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+  const [userOptions, setUserOptions] = useState<{ value: string; label: string }[]>([]);
 
-  const branchOptions = useMemo(
-    () => getBranchOptions().map((b) => ({ value: b, label: b })),
-    [],
-  );
-  const userOptions = useMemo(
-    () => INITIAL_USERS.map((u) => ({ value: String(u.id), label: u.name })),
-    [],
-  );
-  const customerOptions = useMemo(
-    () => getLiveCustomers().map((c) => ({ value: c.id, label: c.title })),
-    [],
-  );
+  const reload = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<ApiPayRequest[]>('/api/payment-requests', token);
+      const mapped = list.map(mapRow);
+      setRows(mapped);
+      const branches = [...new Set(mapped.map((r) => r.branch).filter((b) => b && b !== '—'))].sort(
+        (a, b) => a.localeCompare(b, 'tr'),
+      );
+      const users = new Map<string, string>();
+      for (const r of mapped) {
+        if (r.userId) users.set(r.userId, r.userName || r.userId);
+      }
+      setBranchOptions(branches.map((b) => ({ value: b, label: b })));
+      setUserOptions(
+        [...users.entries()].map(([value, label]) => ({ value, label })),
+      );
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Ödeme istekleri yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await api.get<ApiCustomer[]>('/api/customers', token);
+        if (cancelled) return;
+        setCustomerOptions(
+          list.map(mapCustomer).map((c) => ({ value: c.id, label: c.title })),
+        );
+      } catch {
+        /* filtre opsiyonel */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -107,11 +192,11 @@ export default function PaymentRequestsPage() {
   useEffect(() => {
     const st = location.state as { flash?: string } | null;
     if (st?.flash) {
-      setRows([...getLivePaymentRequests()]);
+      void reload();
       setToast(st.flash);
       navigate('.', { replace: true, state: null });
     }
-  }, [location.state, navigate]);
+  }, [location.state, navigate, reload]);
 
   useEffect(() => {
     setPage(1);
@@ -264,6 +349,10 @@ export default function PaymentRequestsPage() {
 
   function onEdit(r: PaymentRequest) {
     if (!guard('m-odeme-istekleri', 'save', 'Ödeme İstekleri')) return;
+    if (!r.customerId) {
+      navigate('/odeme-istekleri/yeni');
+      return;
+    }
     navigate(`/musteriler/${encodeURIComponent(r.customerId)}/odeme-istegi`);
   }
 
@@ -277,17 +366,24 @@ export default function PaymentRequestsPage() {
     setDeleteTarget(r);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
+  async function confirmDelete() {
+    if (!deleteTarget || !token) return;
     if (!guard('m-odeme-istekleri', 'remove', 'Ödeme İstekleri')) {
       setDeleteTarget(null);
       return;
     }
-    const next = rows.filter((x) => x.id !== deleteTarget.id);
-    setRows(next);
-    setLivePaymentRequests(next);
-    flash(`Silindi — ${deleteTarget.customerTitle}`);
-    setDeleteTarget(null);
+    setDeleting(true);
+    try {
+      await api.delete(`/api/payment-requests/${encodeURIComponent(deleteTarget.id)}`, token);
+      setRows((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      flash(`Silindi — ${deleteTarget.customerTitle}`);
+      setDeleteTarget(null);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Silinemedi');
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const filtersActive =
@@ -301,6 +397,11 @@ export default function PaymentRequestsPage() {
 
   return (
     <div ref={rootRef} className="w-full space-y-4 pb-8">
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {loadError}
+        </div>
+      ) : null}
       <div data-anim>
         <nav className="mb-1 text-sm text-[var(--panel-ink)]/65">
           <Link to="/" className="font-medium hover:text-[var(--color-brand-600)]">
@@ -456,7 +557,9 @@ export default function PaymentRequestsPage() {
             </div>
 
             {slice.length === 0 ? (
-              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Kayıt bulunamadı.</p>
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
+                {loading ? 'Yükleniyor…' : 'Kayıt bulunamadı.'}
+              </p>
             ) : (
               slice.map((r) => (
                 <div
@@ -605,8 +708,13 @@ export default function PaymentRequestsPage() {
       {deleteTarget ? (
         <DeleteModal
           title={deleteTarget.customerTitle}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          busy={deleting}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+          onConfirm={() => {
+            void confirmDelete();
+          }}
         />
       ) : null}
 
@@ -621,10 +729,12 @@ export default function PaymentRequestsPage() {
 
 function DeleteModal({
   title,
+  busy,
   onCancel,
   onConfirm,
 }: {
   title: string;
+  busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -647,12 +757,12 @@ function DeleteModal({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCancelRef.current();
+        if (!busy) onCancelRef.current();
       }
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, []);
+  }, [busy]);
 
   return createPortal(
     <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
@@ -670,17 +780,19 @@ function DeleteModal({
         <div className="mt-5 flex gap-2">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold"
+            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white"
+            className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

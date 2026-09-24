@@ -149,20 +149,46 @@ model Banka {
 /**
  * Ödemeler / hareketler
  * durum: 1=başarılı, 2=iptal/iade, 0|-1=hatalı
+ * odeme_tipi: 0=C/H, 2=fatura (dump)
  */
 model Odeme {
-  id                Int       @id @default(autoincrement())
-  musteriId         Int?      @map("musteri_id")
-  tutar             Float
-  gercekTutar       Float     @map("gercek_tutar")
-  durum             Int
-  tarih             DateTime?
-  bankaId           Int?      @map("banka_id")
-  sanalposBankaId   Int?      @map("sanalpos_banka_id")
-  subeDepartmanId   Int?      @map("sube_departman_id")
-  kullaniciId       Int?      @map("kullanici_id")
-  arsiv             Boolean?
-  iptalIadeHareket  String?   @map("iptal_iade_hareket") @db.LongText
+  id               Int       @id @default(autoincrement())
+  parabirimiId     Int       @map("parabirimi_id")
+  musteriId        Int?      @map("musteri_id")
+  tutar            Float
+  kur              Float?
+  komisyonDahil    Boolean   @map("komisyon_dahil")
+  aciklama         String?   @db.LongText
+  adsoyad          String    @db.VarChar(255)
+  tc               String?   @db.VarChar(255)
+  telefon          String    @db.VarChar(255)
+  kartNo           String    @map("kart_no") @db.VarChar(255)
+  taksit           Int?
+  taksitOran       Float?    @map("taksit_oran")
+  vadeFarki        Float?    @map("vade_farki")
+  odemeNo          String    @map("odeme_no") @db.VarChar(255)
+  durum            Int
+  bankaCevabi      String?   @map("banka_cevabi") @db.LongText
+  odemeTipi        Int       @map("odeme_tipi")
+  faturaNo         String?   @map("fatura_no") @db.VarChar(255)
+  bankError        String?   @map("bank_error") @db.LongText
+  tarih            DateTime?
+  ip               String?   @db.VarChar(255)
+  tahsilGunu       String?   @map("tahsil_gunu") @db.VarChar(255)
+  blokeGunu        String?   @map("bloke_gunu") @db.VarChar(255)
+  taksitDetay      String?   @map("taksit_detay") @db.LongText
+  bankaId          Int?      @map("banka_id")
+  sanalposBankaId  Int?      @map("sanalpos_banka_id")
+  kurulusId        Int?      @map("kurulus_id")
+  bankaKomisyonu   Float?    @map("banka_komisyonu")
+  blokeTarih       DateTime? @map("bloke_tarih")
+  arsiv            Boolean?
+  subeDepartmanId  Int?      @map("sube_departman_id")
+  kullaniciId      Int?      @map("kullanici_id")
+  iptalIadeHareket String?   @map("iptal_iade_hareket") @db.LongText
+  gercekTutar      Float     @map("gercek_tutar")
+  epostaGonderildi Int?      @map("eposta_gonderildi")
+  smsGonderildi    Int?      @map("sms_gonderildi")
 
   @@map("odemeler")
 }
@@ -170,12 +196,23 @@ model Odeme {
 /** Ödeme istekleri — durum: 0=bekleyen, 1=ödendi */
 model OdemeIstegi {
   id              Int       @id @default(autoincrement())
+  parabirimiId    Int       @map("parabirimi_id")
+  odemeTipi       Int       @map("odeme_tipi")
   tutar           Float
-  durum           Boolean
+  faturaNo        String?   @map("fatura_no") @db.VarChar(255)
+  komisyonDahil   Boolean   @map("komisyon_dahil")
+  taksitler       String?   @db.LongText
+  aciklama        String?   @db.LongText
+  dosya           String?   @db.VarChar(255)
+  musteriId       Int?      @map("musteri_id")
   tarih           DateTime
+  odemeZamani     DateTime? @map("odeme_zamani")
+  durum           Boolean
+  istekNo         String    @map("istek_no") @db.VarChar(255)
   kullaniciId     Int?      @map("kullanici_id")
   subeDepartmanId Int?      @map("sube_departman_id")
   remove          Boolean?
+  qr              String?   @db.VarChar(255)
 
   @@map("odeme_istekleri")
 }

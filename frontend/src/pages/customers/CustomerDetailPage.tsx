@@ -1,9 +1,11 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { CreatableFilterInput } from '../../components/ui/CreatableFilterInput';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { emailSuggestions } from '../../lib/emailSuggestions';
 import { usePermission } from '../../permissions/PermissionContext';
 import type { PermAction } from '../roles/mockRoles';
@@ -29,13 +31,12 @@ import {
   CUSTOMER_KIND_OPTIONS,
   formatPhoneLive,
   getAccountTypes,
-  getLiveCustomers,
   normalizePhoneInput,
-  TAX_OFFICE_OPTIONS,
-  updateLiveCustomer,
   type Customer,
   type CustomerKind,
 } from './mockCustomers';
+import { mapCustomer, type ApiCustomer, type CustomerMeta } from './customersApi';
+import { useCustomer } from './useCustomer';
 
 type TabId = 'bilgi' | 'kullanicilar' | 'adresler';
 
@@ -48,6 +49,7 @@ const TABS: { id: TabId; label: string }[] = [
 /** Müşteri detay — düzenleme + kullanıcılar + adresler */
 export default function CustomerDetailPage() {
   const { id } = useParams();
+  const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const { guard } = usePermission();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,17 +58,35 @@ export default function CustomerDetailPage() {
   const tab: TabId =
     tabParam === 'kullanicilar' || tabParam === 'adresler' ? tabParam : 'bilgi';
 
-  const [customers, setCustomers] = useState(() => getLiveCustomers());
-  const customer = useMemo(
-    () => customers.find((c) => c.id === id) ?? null,
-    [customers, id],
-  );
-
+  const { customer, setCustomer, loading, error, reload } = useCustomer(id);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [meta, setMeta] = useState<CustomerMeta | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [list, m] = await Promise.all([
+          api.get<ApiCustomer[]>('/api/customers', token),
+          api.get<CustomerMeta>('/api/customers/meta', token),
+        ]);
+        if (cancelled) return;
+        setAllCustomers(list.map(mapCustomer));
+        setMeta(m);
+      } catch {
+        /* üst müşteri / vergi daireleri opsiyonel */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
     const el = rootRef.current;
-    if (!el) return;
+    if (!el || !customer) return;
     gsap.fromTo(
       el.querySelectorAll('[data-anim]'),
       { autoAlpha: 0, y: 12 },
@@ -95,10 +115,18 @@ export default function CustomerDetailPage() {
     setToast(msg);
   }
 
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
+        Müşteri yükleniyor…
+      </div>
+    );
+  }
+
   if (!customer) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
-        <p className="text-[var(--panel-ink)]">Müşteri bulunamadı.</p>
+        <p className="text-[var(--panel-ink)]">{error || 'Müşteri bulunamadı.'}</p>
         <Link to="/musteriler" className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]">
           Listeye dön
         </Link>
@@ -154,11 +182,21 @@ export default function CustomerDetailPage() {
       {tab === 'bilgi' ? (
         <InfoTab
           customer={customer}
-          allCustomers={customers}
+          allCustomers={allCustomers}
+          taxOffices={meta?.taxOffices ?? []}
+          accountTypeOptions={meta?.accountTypes.map((t) => t.name) ?? getAccountTypes()}
           guard={guard}
           onSaved={(c) => {
-            setCustomers(getLiveCustomers());
+            setCustomer(c);
+            setAllCustomers((prev) => {
+              const i = prev.findIndex((x) => x.id === c.id);
+              if (i < 0) return [...prev, c];
+              const next = [...prev];
+              next[i] = c;
+              return next;
+            });
             flash(`Kaydedildi — ${c.title}`);
+            void reload();
           }}
         />
       ) : null}
@@ -177,14 +215,19 @@ export default function CustomerDetailPage() {
 function InfoTab({
   customer,
   allCustomers,
+  taxOffices,
+  accountTypeOptions,
   guard,
   onSaved,
 }: {
   customer: Customer;
   allCustomers: Customer[];
+  taxOffices: { id: number; value: string; label: string }[];
+  accountTypeOptions: string[];
   guard: (mod: string, act: PermAction, label?: string) => boolean;
   onSaved: (c: Customer) => void;
 }) {
+  const { token } = useAuth();
   const emailWrap = useRef<HTMLDivElement>(null);
   const parents = useMemo(
     () =>
@@ -197,14 +240,20 @@ function InfoTab({
     () => CUSTOMER_KIND_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
     [],
   );
+  const taxOfficeOptions = useMemo(
+    () => taxOffices.map((t) => ({ value: t.value, label: t.label })),
+    [taxOffices],
+  );
 
   const [parentId, setParentId] = useState<string | null>(customer.parentId);
   const [accountType, setAccountType] = useState(customer.accountType);
-  const [accountTypes, setAccountTypes] = useState(() => getAccountTypes());
+  const [accountTypes, setAccountTypes] = useState(accountTypeOptions);
   const [kind, setKind] = useState<CustomerKind>(customer.kind);
   const [identityNo, setIdentityNo] = useState(customer.identityNo);
   const [taxNo, setTaxNo] = useState(customer.taxNo);
-  const [taxOffice, setTaxOffice] = useState<string | null>(customer.taxOffice);
+  const [taxOfficeId, setTaxOfficeId] = useState<string | null>(
+    customer.taxOfficeId != null ? String(customer.taxOfficeId) : null,
+  );
   const [title, setTitle] = useState(customer.title);
   const [phone, setPhone] = useState(customer.phone || '5');
   const [email, setEmail] = useState(customer.email);
@@ -212,6 +261,11 @@ function InfoTab({
   const [address, setAddress] = useState(customer.address);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAccountTypes(accountTypeOptions);
+  }, [accountTypeOptions]);
 
   const suggestions = useMemo(() => emailSuggestions(email), [email]);
   const idMax = kind === 'yabanci' ? 20 : 11;
@@ -225,9 +279,10 @@ function InfoTab({
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!guard('m-musteriler', 'save', 'Müşteriler')) return;
+    if (!token) return;
     const nextErr: Record<string, string> = {};
     if (!title.trim()) nextErr.title = 'Gerekli';
     if (phone.replace(/\D/g, '').length < 10) nextErr.phone = 'Telefon gerekli';
@@ -242,33 +297,46 @@ function InfoTab({
     }
 
     setSaving(true);
-    const updated = updateLiveCustomer(customer.id, {
-      parentId,
-      accountType: trimmed,
-      kind,
-      code: customer.code,
-      title: title.trim().toLocaleUpperCase('tr'),
-      phone: phone.replace(/\D/g, '').slice(0, 10),
-      email: email.trim().toLocaleLowerCase('tr'),
-      taxNo: kind === 'tuzel' ? taxNo.trim() : identityNo.trim() || taxNo.trim(),
-      taxOffice: kind === 'tuzel' ? taxOffice ?? '' : '',
-      identityNo: kind === 'tuzel' ? '' : identityNo.trim(),
-      address: address.trim(),
-    });
-    window.setTimeout(() => {
+    setSaveError(null);
+    try {
+      const raw = await api.patch<ApiCustomer>(
+        `/api/customers/${encodeURIComponent(customer.id)}`,
+        {
+          code: customer.code,
+          title: title.trim().toLocaleUpperCase('tr'),
+          kind,
+          phone: phone.replace(/\D/g, '').slice(0, 10),
+          email: email.trim().toLocaleLowerCase('tr'),
+          taxNo: kind === 'tuzel' ? taxNo.trim() : '',
+          taxOfficeId: kind === 'tuzel' && taxOfficeId ? Number(taxOfficeId) : null,
+          identityNo: kind === 'tuzel' ? '' : identityNo.trim(),
+          address: address.trim(),
+          accountTypeName: trimmed || undefined,
+          parentId: parentId ? Number(parentId) : null,
+        },
+        token,
+      );
+      if (trimmed) addAccountType(trimmed);
+      onSaved(mapCustomer(raw));
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
       setSaving(false);
-      if (updated) onSaved(updated);
-    }, 280);
+    }
   }
 
   return (
-    <form data-anim onSubmit={onSubmit}>
+    <form data-anim onSubmit={(e) => void onSubmit(e)}>
+      {saveError ? (
+        <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {saveError}
+        </div>
+      ) : null}
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="border-b border-[var(--panel-line)] px-5 py-4 sm:px-6">
           <h1 className="text-lg font-bold tracking-tight text-[var(--panel-ink)]">Müşteri Bilgileri</h1>
         </div>
         <div className="space-y-4 px-5 py-5 sm:px-6 sm:py-6">
-          {/* 1 — tam genişlik */}
           <FloatingSearchSelect
             label="Üst Müşteri"
             options={parents}
@@ -278,7 +346,6 @@ function InfoTab({
             kmJump
           />
 
-          {/* Gerçek/yabancı: 3 kolon | Tüzel: 4 kolon */}
           {kind === 'tuzel' ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <CreatableFilterInput
@@ -307,9 +374,9 @@ function InfoTab({
               />
               <FloatingSearchSelect
                 label="Vergi Dairesi"
-                options={TAX_OFFICE_OPTIONS}
-                value={taxOffice}
-                onChange={setTaxOffice}
+                options={taxOfficeOptions}
+                value={taxOfficeId}
+                onChange={setTaxOfficeId}
                 kmJump
               />
             </div>
@@ -347,7 +414,6 @@ function InfoTab({
             </div>
           )}
 
-          {/* 1 — ad / ünvan */}
           <TextInput
             data-km-jump
             label={nameLabel}
@@ -357,7 +423,6 @@ function InfoTab({
             required
           />
 
-          {/* 2 — telefon + e-posta */}
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInput
               data-km-jump

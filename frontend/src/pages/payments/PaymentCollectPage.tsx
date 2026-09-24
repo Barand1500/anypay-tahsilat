@@ -1,9 +1,12 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
-import { formatPhoneLive, getLiveCustomers, normalizePhoneInput } from '../customers/mockCustomers';
+import { api } from '../../lib/api';
+import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
+import { useCustomer } from '../customers/useCustomer';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
@@ -28,15 +31,13 @@ type Currency = '' | 'TRY';
  */
 export default function PaymentCollectPage() {
   const { id } = useParams();
+  const { token } = useAuth();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
 
-  const customer = useMemo(
-    () => getLiveCustomers().find((c) => c.id === id) ?? null,
-    [id],
-  );
+  const { customer, loading: customerLoading, error: customerError } = useCustomer(id);
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
@@ -132,14 +133,8 @@ export default function PaymentCollectPage() {
       flash('Önce ödeme tipi seçin');
       return;
     }
-    const mock = payType === 'fatura' ? 4250.0 : 12850.75;
-    setBalance(mock);
-    setAmountText(formatMoneyTr(mock));
-    setErrors((prev) => {
-      if (!prev.amount) return prev;
-      const { amount: _, ...rest } = prev;
-      return rest;
-    });
+    setBalance(null);
+    flash('Cari bakiye ERP bağlantısı henüz yok — tutarı elle girin');
   }
 
   function onCardChange(raw: string) {
@@ -182,24 +177,51 @@ export default function PaymentCollectPage() {
     return Object.keys(next).length === 0;
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate() || !customer || !token || !payType) return;
     setSaving(true);
-    window.setTimeout(() => {
-      setSaving(false);
-      flash('Ödeme alındı (mock) — POS bağlantısı sonraki adımda');
+    try {
+      const data = await api.post<{ odemeNo: string; amount: number }>(
+        '/api/payments',
+        {
+          musteriId: Number(customer.id),
+          payType,
+          amount,
+          commissionIncluded,
+          holder: holder.trim(),
+          tc: tc.trim(),
+          phone: digitsOnly(phone).slice(0, 10),
+          cardDigits,
+          installment,
+          note: note.trim(),
+        },
+        token,
+      );
+      flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ₺`);
       window.setTimeout(() => navigate('/musteriler'), 900);
-    }, 500);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Ödeme kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
   const payTypeLabel =
     payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
 
+  if (customerLoading) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
+        Müşteri yükleniyor…
+      </div>
+    );
+  }
+
   if (!customer) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
-        <p className="text-[var(--panel-ink)]">Müşteri bulunamadı.</p>
+        <p className="text-[var(--panel-ink)]">{customerError || 'Müşteri bulunamadı.'}</p>
         <Link
           to="/musteriler"
           className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]"
@@ -246,7 +268,7 @@ export default function PaymentCollectPage() {
         </Link>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
         <section
           data-anim
           className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"

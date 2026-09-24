@@ -15,49 +15,12 @@ import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { CustomerExcelModal } from './CustomerExcelModal';
+import { mapCustomer, type ApiCustomer } from './customersApi';
 import {
   addAccountType,
   formatPhoneLive,
   type Customer,
 } from './mockCustomers';
-
-type ApiCustomer = {
-  id: number;
-  code: string;
-  title: string;
-  phone: string;
-  email: string;
-  taxNo: string;
-  taxOffice: string;
-  taxOfficeId: number | null;
-  kind: Customer['kind'];
-  accountType: string;
-  accountTypeId: number | null;
-  parentId: number | null;
-  address: string;
-  identityNo: string;
-  childCount: number;
-};
-
-function mapCustomer(c: ApiCustomer): Customer {
-  return {
-    id: String(c.id),
-    code: c.code,
-    title: c.title,
-    phone: c.phone,
-    email: c.email,
-    taxNo: c.taxNo,
-    taxOffice: c.taxOffice,
-    taxOfficeId: c.taxOfficeId,
-    kind: c.kind,
-    accountType: c.accountType,
-    accountTypeId: c.accountTypeId,
-    parentId: c.parentId != null ? String(c.parentId) : null,
-    address: c.address,
-    identityNo: c.identityNo,
-    childCount: c.childCount,
-  };
-}
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 const COL_STORAGE = 'anypay_tahsilat_customer_cols';
@@ -177,17 +140,32 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
-    if (!q) return levelCustomers;
-    return levelCustomers.filter(
-      (c) =>
-        c.code.includes(q.replace(/\s/g, '')) ||
-        c.title.toLocaleLowerCase('tr').includes(q) ||
-        c.email.toLocaleLowerCase('tr').includes(q) ||
-        c.phone.includes(q.replace(/\D/g, '')) ||
-        c.taxNo.includes(q.replace(/\s/g, '')) ||
-        c.taxOffice.toLocaleLowerCase('tr').includes(q),
-    );
-  }, [levelCustomers, query]);
+    // Arama varken tüm müşteriler; yoksa mevcut seviye (üst/alt)
+    const pool = q ? customers : levelCustomers;
+    if (!q) return pool;
+    const compact = q.replace(/\s/g, '');
+    const digits = q.replace(/\D/g, '');
+    return pool.filter((c) => {
+      const title = c.title.toLocaleLowerCase('tr');
+      const email = c.email.toLocaleLowerCase('tr');
+      const office = c.taxOffice.toLocaleLowerCase('tr');
+      const account = c.accountType.toLocaleLowerCase('tr');
+      const address = c.address.toLocaleLowerCase('tr');
+      return (
+        c.code.toLocaleLowerCase('tr').includes(compact) ||
+        title.includes(q) ||
+        email.includes(q) ||
+        (digits.length > 0 && c.phone.includes(digits)) ||
+        c.taxNo.replace(/\s/g, '').includes(compact) ||
+        c.identityNo.replace(/\s/g, '').toLocaleLowerCase('tr').includes(compact) ||
+        office.includes(q) ||
+        account.includes(q) ||
+        address.includes(q)
+      );
+    });
+  }, [customers, levelCustomers, query]);
+
+  const searching = query.trim().length > 0;
 
   useEffect(() => {
     setPage(1);
@@ -683,8 +661,9 @@ export default function CustomersPage() {
             data-km-jump
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ara…"
-            className="w-52 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2.5 pl-10 pr-3 text-[15px] text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)] sm:w-72"
+            placeholder="Ünvan, telefon, vergi no, e-posta…"
+            aria-label="Müşteri ara"
+            className="w-52 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2.5 pl-10 pr-3 text-[15px] text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)] sm:w-80"
           />
         </div>
       </div>
@@ -740,7 +719,9 @@ export default function CustomersPage() {
           </div>
 
           {slice.length === 0 ? (
-            <p className="px-5 py-14 text-center text-[15px] text-[var(--panel-muted)]">Kayıt yok.</p>
+            <p className="px-5 py-14 text-center text-[15px] text-[var(--panel-muted)]">
+              {searching ? 'Aramayla eşleşen müşteri yok.' : 'Kayıt yok.'}
+            </p>
           ) : (
             <ul>
               {slice.map((c, i) => (
