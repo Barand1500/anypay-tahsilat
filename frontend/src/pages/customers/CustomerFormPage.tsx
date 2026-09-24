@@ -11,24 +11,18 @@ import { emailSuggestions } from '../../lib/emailSuggestions';
 import { usePermission } from '../../permissions/PermissionContext';
 import {
   accountTypeExists,
-  addAccountType,
   CUSTOMER_KIND_OPTIONS,
   formatPhoneLive,
-  getAccountTypes,
   normalizePhoneInput,
   type CustomerKind,
 } from './mockCustomers';
+import { type ApiCustomer } from './customersApi';
+import { openCredentialChannel } from './sendCredentials';
 import {
   getDefaultAccountType,
   getDefaultCustomerKind,
   getDefaultTaxOffice,
 } from '../settings/defaultsStore';
-
-type ApiCustomer = {
-  id: number;
-  code: string;
-  title: string;
-};
 
 type MetaResponse = {
   accountTypes: { id: number; value: string; label: string; name: string }[];
@@ -50,7 +44,7 @@ export default function CustomerFormPage() {
 
   const [parents, setParents] = useState<{ value: string; label: string }[]>([]);
   const [taxOffices, setTaxOffices] = useState<{ value: string; label: string }[]>([]);
-  const [accountTypes, setAccountTypes] = useState<string[]>(() => getAccountTypes());
+  const [accountTypes, setAccountTypes] = useState<string[]>([]);
 
   const kindOptions = useMemo(
     () => CUSTOMER_KIND_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
@@ -99,17 +93,7 @@ export default function CustomerFormPage() {
         );
         setTaxOffices(meta.taxOffices);
         const names = meta.accountTypes.map((t) => t.name).filter(Boolean);
-        if (names.length) {
-          setAccountTypes((prev) => {
-            const merged = [...names];
-            for (const p of prev) {
-              if (!merged.some((n) => n.toLocaleLowerCase('tr') === p.toLocaleLowerCase('tr'))) {
-                merged.push(p);
-              }
-            }
-            return merged;
-          });
-        }
+        if (names.length) setAccountTypes(names);
         const defaultOffice = getDefaultTaxOffice();
         if (defaultOffice) {
           const hit = meta.taxOffices.find(
@@ -167,7 +151,7 @@ export default function CustomerFormPage() {
     setSaving(true);
     setFormError(null);
     try {
-      await api.post(
+      const created = await api.post<ApiCustomer>(
         '/api/customers',
         {
           code: code.trim() || undefined,
@@ -184,15 +168,37 @@ export default function CustomerFormPage() {
         },
         token,
       );
-      if (accountType.trim()) addAccountType(accountType);
-      navigate('/musteriler', {
-        replace: true,
-        state: {
-          flash: createUser
-            ? `Müşteri kaydedildi · giriş bilgileri ${email.trim()} adresine gönderilecek`
-            : 'Müşteri kaydedildi',
-        },
-      });
+
+      let flash = 'Müşteri kaydedildi';
+      if (createUser) {
+        const user = await api.post<{
+          name: string;
+          email: string;
+          phone: string;
+          tempPassword?: string;
+        }>(
+          `/api/customers/${created.id}/users`,
+          {
+            name: title.trim().toLocaleUpperCase('tr'),
+            email: email.trim().toLocaleLowerCase('tr'),
+            phone: phone.replace(/\D/g, '').slice(0, 10),
+          },
+          token,
+        );
+        if (user.tempPassword) {
+          openCredentialChannel('mail', {
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            password: user.tempPassword,
+          });
+          flash = `Müşteri ve kullanıcı oluşturuldu · e-posta taslağı açıldı (${user.email})`;
+        } else {
+          flash = 'Müşteri ve kullanıcı oluşturuldu';
+        }
+      }
+
+      navigate('/musteriler', { replace: true, state: { flash } });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
     } finally {
@@ -214,8 +220,10 @@ export default function CustomerFormPage() {
   }
 
   function confirmAddAccountAndSave() {
-    const next = addAccountType(accountType);
-    setAccountTypes(next);
+    const trimmed = accountType.trim();
+    if (trimmed && !accountTypeExists(trimmed, accountTypes)) {
+      setAccountTypes((prev) => [trimmed, ...prev]);
+    }
     setAccountPrompt(false);
     void doSave();
   }

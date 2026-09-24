@@ -63,6 +63,14 @@ export type PublicCustomerUser = {
   phone: string;
   active: boolean;
   lastLogin: string | null;
+  tempPassword?: string;
+};
+
+export type PasswordResetResult = {
+  password: string;
+  name: string;
+  email: string;
+  phone: string;
 };
 
 export type PublicCustomerAddress = {
@@ -170,6 +178,32 @@ export async function createCustomerUser(
     phone,
     active: true,
     lastLogin: null,
+    tempPassword: plain,
+  };
+}
+
+export async function resetCustomerUserPassword(
+  musteriId: number,
+  userId: number,
+): Promise<PasswordResetResult> {
+  await assertMusteri(musteriId);
+  const row = await prisma.user.findFirst({
+    where: { id: userId, musteriId, ...notRemoved() },
+  });
+  if (!row) throw new CustomerDetailError('Kullanıcı bulunamadı');
+
+  const plain = randomBytes(4).toString('hex');
+  const password = await bcrypt.hash(plain, 10);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password, isPassword: true },
+  });
+
+  return {
+    password: plain,
+    name: (row.adsoyad || row.email).trim(),
+    email: row.email,
+    phone: digitsPhone(row.telefon),
   };
 }
 
@@ -342,6 +376,62 @@ export async function softDeleteCustomerAddress(musteriId: number, adresId: numb
   });
   if (!row) throw new CustomerDetailError('Adres bulunamadı');
   await prisma.adres.update({ where: { id: adresId }, data: { remove: true } });
+}
+
+export async function updateCustomerAddress(
+  musteriId: number,
+  adresId: number,
+  input: {
+    label: string;
+    ulkeId: number;
+    ilId: number;
+    ilceId: number;
+    semtId: number;
+    mahalleId: number;
+    sokakId: number;
+    directions?: string;
+    yetkiliIds?: number[];
+    isDefault?: boolean;
+  },
+): Promise<PublicCustomerAddress> {
+  await assertMusteri(musteriId);
+  const existing = await prisma.adres.findFirst({
+    where: { id: adresId, musteriId, ...notRemoved() },
+    select: { id: true },
+  });
+  if (!existing) throw new CustomerDetailError('Adres bulunamadı');
+
+  const label = input.label.trim().toLocaleUpperCase('tr');
+  if (!label) throw new CustomerDetailError('Adres adı gerekli');
+
+  if (input.isDefault) {
+    await prisma.adres.updateMany({
+      where: { musteriId, ...notRemoved() },
+      data: { varsayilan: false },
+    });
+  }
+
+  await prisma.adres.update({
+    where: { id: adresId },
+    data: {
+      adresAdi: label,
+      adresTarifi: (input.directions || '').trim() || null,
+      ulkeId: input.ulkeId,
+      ilId: input.ilId,
+      ilceId: input.ilceId,
+      semtId: input.semtId,
+      mahalleId: input.mahalleId,
+      sokakId: input.sokakId,
+      yetkili:
+        input.yetkiliIds != null ? encodeYetkiliIds(input.yetkiliIds) : undefined,
+      varsayilan: input.isDefault ?? undefined,
+    },
+  });
+
+  const list = await listCustomerAddresses(musteriId);
+  const hit = list.find((a) => a.id === String(adresId));
+  if (!hit) throw new CustomerDetailError('Adres güncellenemedi');
+  return hit;
 }
 
 export async function listCountries(): Promise<LocationOption[]> {

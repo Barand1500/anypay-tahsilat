@@ -7,7 +7,7 @@ import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { usePermission } from '../../permissions/PermissionContext';
-import { getLiveCustomers } from '../customers/mockCustomers';
+import { useCustomersList } from '../customers/useCustomersList';
 import { BANKS } from '../payments/mockBanks';
 import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
@@ -40,6 +40,7 @@ const ARCHIVE_OPTIONS = [
  */
 export default function TransactionsPage() {
   const { guard } = usePermission();
+  const { customers } = useCustomersList({ parentId: 'all' });
   const rootRef = useRef<HTMLDivElement>(null);
 
   const [rows, setRows] = useState<Transaction[]>(() => [...INITIAL_TRANSACTIONS]);
@@ -70,8 +71,8 @@ export default function TransactionsPage() {
     [],
   );
   const customerOptions = useMemo(
-    () => getLiveCustomers().map((c) => ({ value: c.id, label: c.title })),
-    [],
+    () => customers.map((c) => ({ value: c.id, label: c.title })),
+    [customers],
   );
   const bankOptions = useMemo(
     () =>

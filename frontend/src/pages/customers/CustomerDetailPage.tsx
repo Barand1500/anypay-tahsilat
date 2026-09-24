@@ -16,15 +16,14 @@ import {
 } from './mockCustomerDetail';
 import {
   accountTypeExists,
-  addAccountType,
   CUSTOMER_KIND_OPTIONS,
   formatPhoneLive,
-  getAccountTypes,
   normalizePhoneInput,
   type Customer,
   type CustomerKind,
 } from './mockCustomers';
 import { mapCustomer, type ApiCustomer, type CustomerMeta } from './customersApi';
+import { openCredentialChannel, type CredentialChannel } from './sendCredentials';
 import { useCustomer } from './useCustomer';
 
 type TabId = 'bilgi' | 'kullanicilar' | 'adresler';
@@ -173,7 +172,7 @@ export default function CustomerDetailPage() {
           customer={customer}
           allCustomers={allCustomers}
           taxOffices={meta?.taxOffices ?? []}
-          accountTypeOptions={meta?.accountTypes.map((t) => t.name) ?? getAccountTypes()}
+          accountTypeOptions={meta?.accountTypes.map((t) => t.name) ?? []}
           guard={guard}
           onSaved={(c) => {
             setCustomer(c);
@@ -281,8 +280,7 @@ function InfoTab({
 
     const trimmed = accountType.trim();
     if (trimmed && !accountTypeExists(trimmed, accountTypes)) {
-      addAccountType(trimmed);
-      setAccountTypes(getAccountTypes());
+      setAccountTypes((prev) => [trimmed, ...prev]);
     }
 
     setSaving(true);
@@ -305,7 +303,6 @@ function InfoTab({
         },
         token,
       );
-      if (trimmed) addAccountType(trimmed);
       onSaved(mapCustomer(raw));
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Kayıt başarısız');
@@ -747,7 +744,12 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
       </div>
 
       {passwordUser ? (
-        <SendPasswordModal user={passwordUser} onClose={() => setPasswordUser(null)} />
+        <SendPasswordModal
+          customerId={customer.id}
+          user={passwordUser}
+          flash={flash}
+          onClose={() => setPasswordUser(null)}
+        />
       ) : null}
     </section>
   );
@@ -769,7 +771,8 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
   const [list, setList] = useState<ApiAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [addOpen, setAddOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [country, setCountry] = useState<string | null>(null);
   const [province, setProvince] = useState<string | null>(null);
@@ -931,6 +934,7 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
   }, [list, query]);
 
   function resetForm() {
+    setEditingId(null);
     setLabel('');
     setProvince(null);
     setDistrict(null);
@@ -941,7 +945,26 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
     setFormError(null);
   }
 
-  async function addAddr(e: FormEvent) {
+  function openCreate() {
+    resetForm();
+    setFormOpen(true);
+  }
+
+  function openEdit(a: ApiAddress) {
+    setEditingId(a.id);
+    setLabel(a.label);
+    setCountry(a.ulkeId != null ? String(a.ulkeId) : null);
+    setProvince(a.ilId != null ? String(a.ilId) : null);
+    setDistrict(a.ilceId != null ? String(a.ilceId) : null);
+    setTown(a.semtId != null ? String(a.semtId) : null);
+    setNeighborhood(a.mahalleId != null ? String(a.mahalleId) : null);
+    setStreet(a.sokakId != null ? String(a.sokakId) : null);
+    setDirections(a.directions || '');
+    setFormError(null);
+    setFormOpen(true);
+  }
+
+  async function saveAddr(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
     if (!label.trim()) {
@@ -954,27 +977,38 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
     }
     setSaving(true);
     setFormError(null);
+    const body = {
+      label: label.trim(),
+      ulkeId: Number(country),
+      ilId: Number(province),
+      ilceId: Number(district),
+      semtId: Number(town),
+      mahalleId: Number(neighborhood),
+      sokakId: Number(street),
+      directions: directions.trim(),
+    };
     try {
-      const row = await api.post<ApiAddress>(
-        `/api/customers/${encodeURIComponent(customer.id)}/addresses`,
-        {
-          label: label.trim(),
-          ulkeId: Number(country),
-          ilId: Number(province),
-          ilceId: Number(district),
-          semtId: Number(town),
-          mahalleId: Number(neighborhood),
-          sokakId: Number(street),
-          directions: directions.trim(),
-        },
-        token,
-      );
-      setList((prev) => [row, ...prev]);
-      setAddOpen(false);
+      if (editingId) {
+        const row = await api.patch<ApiAddress>(
+          `/api/customers/${encodeURIComponent(customer.id)}/addresses/${encodeURIComponent(editingId)}`,
+          body,
+          token,
+        );
+        setList((prev) => prev.map((a) => (a.id === editingId ? row : a)));
+        flash('Adres güncellendi');
+      } else {
+        const row = await api.post<ApiAddress>(
+          `/api/customers/${encodeURIComponent(customer.id)}/addresses`,
+          body,
+          token,
+        );
+        setList((prev) => [row, ...prev]);
+        flash('Adres eklendi');
+      }
+      setFormOpen(false);
       resetForm();
-      flash('Adres eklendi');
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Adres eklenemedi');
+      setFormError(err instanceof Error ? err.message : 'Adres kaydedilemedi');
     } finally {
       setSaving(false);
     }
@@ -1001,10 +1035,7 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
         <button
           type="button"
           data-km-jump
-          onClick={() => {
-            resetForm();
-            setAddOpen(true);
-          }}
+          onClick={openCreate}
           className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
         >
           <span className="text-lg leading-none">+</span>
@@ -1012,12 +1043,14 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
         </button>
       </div>
 
-      {addOpen ? (
+      {formOpen ? (
         <form
-          onSubmit={(e) => void addAddr(e)}
+          onSubmit={(e) => void saveAddr(e)}
           className="space-y-4 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5 sm:px-6 [--input-notch:var(--panel-elevated)]"
         >
-          <h2 className="text-sm font-bold text-[var(--panel-ink)]">Adres Ekle</h2>
+          <h2 className="text-sm font-bold text-[var(--panel-ink)]">
+            {editingId ? 'Adres Düzenle' : 'Adres Ekle'}
+          </h2>
           <TextInput
             label="Adres Adı *"
             value={label}
@@ -1126,7 +1159,7 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
             <button
               type="button"
               onClick={() => {
-                setAddOpen(false);
+                setFormOpen(false);
                 resetForm();
               }}
               className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)]"
@@ -1183,15 +1216,24 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
                       : a.contactName) || '—'}
                   </td>
                   <td className="px-5 py-3 sm:px-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void removeAddr(a.id);
-                      }}
-                      className="rounded-lg px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10"
-                    >
-                      Sil
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(a)}
+                        className="rounded-lg px-2 py-1 text-xs font-semibold text-[var(--color-brand-600)] hover:bg-[var(--brand-soft-bg)]"
+                      >
+                        Düzenle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void removeAddr(a.id);
+                        }}
+                        className="rounded-lg px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10"
+                      >
+                        Sil
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -1252,13 +1294,19 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
 }
 
 function SendPasswordModal({
+  customerId,
   user,
+  flash,
   onClose,
 }: {
+  customerId: string;
   user: CustomerUser;
+  flash: (m: string) => void;
   onClose: () => void;
 }) {
+  const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState<CredentialChannel | null>(null);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -1272,17 +1320,47 @@ function SendPasswordModal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !busy) onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, busy]);
 
   const channels = [
-    { id: 'mail', label: 'E-posta', hint: user.email, icon: 'mail' as const },
-    { id: 'sms', label: 'SMS', hint: formatPhoneLive(user.phone), icon: 'sms' as const },
-    { id: 'wp', label: 'WhatsApp', hint: formatPhoneLive(user.phone), icon: 'wp' as const },
+    { id: 'mail' as const, label: 'E-posta', hint: user.email, icon: 'mail' as const },
+    { id: 'sms' as const, label: 'SMS', hint: formatPhoneLive(user.phone), icon: 'sms' as const },
+    { id: 'wp' as const, label: 'WhatsApp', hint: formatPhoneLive(user.phone), icon: 'wp' as const },
   ];
+
+  async function sendVia(channel: CredentialChannel) {
+    if (!token || busy) return;
+    setBusy(channel);
+    try {
+      const data = await api.post<{
+        password: string;
+        name: string;
+        email: string;
+        phone: string;
+      }>(
+        `/api/customers/${encodeURIComponent(customerId)}/users/${encodeURIComponent(user.id)}/password-reset`,
+        {},
+        token,
+      );
+      openCredentialChannel(channel, {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        password: data.password,
+      });
+      const label =
+        channel === 'mail' ? 'e-posta' : channel === 'sms' ? 'SMS' : 'WhatsApp';
+      flash(`Yeni şifre oluşturuldu · ${label} taslağı açıldı`);
+      onClose();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Şifre gönderilemedi');
+      setBusy(null);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
@@ -1304,8 +1382,9 @@ function SendPasswordModal({
           <button
             type="button"
             aria-label="Kapat"
+            disabled={Boolean(busy)}
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-50"
           >
             <span className="text-lg leading-none">×</span>
           </button>
@@ -1317,14 +1396,19 @@ function SendPasswordModal({
             <button
               key={ch.id}
               type="button"
-              onClick={onClose}
-              className="flex w-full items-center gap-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3 text-left transition hover:border-[var(--color-brand-500)]/40 hover:bg-[var(--panel-hover)]"
+              disabled={Boolean(busy)}
+              onClick={() => {
+                void sendVia(ch.id);
+              }}
+              className="flex w-full items-center gap-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3 text-left transition hover:border-[var(--color-brand-500)]/40 hover:bg-[var(--panel-hover)] disabled:opacity-60"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f3e8dc] text-[#5c4a3a]">
                 <ChannelIcon kind={ch.icon} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-[var(--panel-ink)]">{ch.label}</span>
+                <span className="block text-sm font-semibold text-[var(--panel-ink)]">
+                  {busy === ch.id ? 'Hazırlanıyor…' : ch.label}
+                </span>
                 <span className="block truncate text-xs text-[var(--panel-muted)]">{ch.hint || '—'}</span>
               </span>
             </button>

@@ -9,7 +9,7 @@ export class PaymentsError extends Error {
 }
 
 export type CreatePaymentInput = {
-  musteriId: number;
+  musteriId: number | null;
   payType: 'ch' | 'fatura';
   amount: number;
   commissionIncluded: boolean;
@@ -64,14 +64,16 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new PaymentsError('Geçerli tutar gerekli');
   }
-  const musteri = await prisma.musteri.findFirst({
-    where: {
-      id: input.musteriId,
-      OR: [{ remove: null }, { remove: false }],
-    },
-    select: { id: true },
-  });
-  if (!musteri) throw new PaymentsError('Müşteri bulunamadı');
+  if (input.musteriId != null) {
+    const musteri = await prisma.musteri.findFirst({
+      where: {
+        id: input.musteriId,
+        OR: [{ remove: null }, { remove: false }],
+      },
+      select: { id: true },
+    });
+    if (!musteri) throw new PaymentsError('Müşteri bulunamadı');
+  }
 
   const digits = input.cardDigits.replace(/\D/g, '');
   if (digits.length < 15 || digits.length > 16) {

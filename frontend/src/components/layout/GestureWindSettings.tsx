@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { getLiveCustomers } from '../../pages/customers/mockCustomers';
+import { useCustomersList } from '../../pages/customers/useCustomersList';
 import {
   actionSummary,
   GESTURE_ACTION_OPTIONS,
@@ -374,6 +374,7 @@ function CreateGestureForm({
   onCancel: () => void;
   onSave: (g: { name: string; path: Pt[]; action: GestureAction }) => void;
 }) {
+  const { customers } = useCustomersList({ parentId: 'all' });
   const [name, setName] = useState('');
   const [stroke, setStroke] = useState<Pt[]>([]);
   const [drawing, setDrawing] = useState(false);
@@ -534,7 +535,7 @@ function CreateGestureForm({
             </div>
           ) : (
             <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[var(--panel-line)] p-2">
-              {getLiveCustomers().slice(0, 40).map((c) => (
+              {customers.slice(0, 40).map((c) => (
                 <button
                   key={c.id}
                   type="button"

@@ -17,7 +17,6 @@ import { usePermission } from '../../permissions/PermissionContext';
 import { CustomerExcelModal } from './CustomerExcelModal';
 import { mapCustomer, type ApiCustomer } from './customersApi';
 import {
-  addAccountType,
   formatPhoneLive,
   type Customer,
 } from './mockCustomers';
@@ -467,7 +466,6 @@ export default function CustomersPage() {
           },
           token,
         );
-        if (c.accountType.trim()) addAccountType(c.accountType);
         ok += 1;
       } catch {
         /* satır atlanır */

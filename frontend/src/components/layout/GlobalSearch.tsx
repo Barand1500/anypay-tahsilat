@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { getLiveCustomers } from '../../pages/customers/mockCustomers';
+import { useCustomersList } from '../../pages/customers/useCustomersList';
 import { getLiveUsers } from '../../pages/users/mockUsers';
 import { useTheme } from '../../theme/ThemeProvider';
 import { NAV_ITEMS } from './navItems';
@@ -89,6 +89,7 @@ type Props = {
 export function GlobalSearch({ open, onClose }: Props) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { customers } = useCustomersList({ enabled: open, parentId: 'all' });
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -124,13 +125,13 @@ export function GlobalSearch({ open, onClose }: Props) {
       run: () => go(n.to),
     }));
 
-    const customers: SearchItem[] = getLiveCustomers().map((c) => ({
+    const customerItems: SearchItem[] = customers.map((c) => ({
       id: `cust-${c.id}`,
       category: 'customers',
       title: c.title,
       subtitle: `${c.code} · ${c.email || c.phone || c.taxNo}`,
       keywords: [c.code, c.email, c.phone, c.taxNo, c.taxOffice, c.accountType].join(' '),
-      run: () => go(c.parentId ? `/musteriler?ust=${encodeURIComponent(c.parentId)}` : '/musteriler'),
+      run: () => go(`/musteriler/${encodeURIComponent(c.id)}`),
     }));
 
     const users: SearchItem[] = getLiveUsers().map((u) => ({
@@ -172,8 +173,8 @@ export function GlobalSearch({ open, onClose }: Props) {
       },
     ];
 
-    return [...pages, ...admin, ...actions, ...customers, ...users];
-  }, [go, onClose, theme, toggleTheme]);
+    return [...pages, ...admin, ...actions, ...customerItems, ...users];
+  }, [customers, go, onClose, theme, toggleTheme]);
 
   const qNorm = norm(query.trim());
 

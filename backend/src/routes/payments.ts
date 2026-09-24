@@ -9,7 +9,7 @@ export const paymentsRouter = Router();
 paymentsRouter.use(requireAuth);
 
 const createSchema = z.object({
-  musteriId: z.number().int().positive(),
+  musteriId: z.number().int().positive().nullable().optional(),
   payType: z.enum(['ch', 'fatura']),
   amount: z.number().positive(),
   commissionIncluded: z.boolean().optional().default(false),
@@ -29,6 +29,7 @@ paymentsRouter.post('/', async (req: AuthedRequest, res) => {
   try {
     const data = await createPayment({
       ...parsed.data,
+      musteriId: parsed.data.musteriId ?? null,
       kullaniciId: req.auth!.sub,
     });
     await writePanelLog(

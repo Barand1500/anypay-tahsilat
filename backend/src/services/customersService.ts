@@ -110,7 +110,14 @@ async function resolveAccountTypeId(
     select: { id: true, adi: true },
   });
   const hit = all.find((t) => t.adi.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'));
-  return hit?.id ?? null;
+  if (hit) return hit.id;
+
+  // Yoksa DB'ye yeni cari tipi ekle
+  const created = await prisma.cariTipi.create({
+    data: { adi: name.slice(0, 255), remove: false },
+    select: { id: true },
+  });
+  return created.id;
 }
 
 type MusteriRow = {

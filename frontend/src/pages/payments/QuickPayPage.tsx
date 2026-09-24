@@ -1,8 +1,10 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { panelCompanyAsCustomer } from '../payment-requests/mockPaymentRequests';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
@@ -22,6 +24,7 @@ type Currency = '' | 'TRY';
  * Hızlı Ödeme — panel şirketi adına; 3 kart (ödeme / kart / banka).
  */
 export default function QuickPayPage() {
+  const { token } = useAuth();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
@@ -95,9 +98,8 @@ export default function QuickPayPage() {
       setToast('Önce ödeme tipi seçin');
       return;
     }
-    const mock = 12850.75;
-    setBalance(mock);
-    setToast(`Bakiye sorgulandı: ${formatMoneyTr(mock)} ₺`);
+    setToast('ERP bakiye sorgusu henüz bağlı değil');
+    setBalance(null);
   }
 
   function validate(): boolean {
@@ -117,17 +119,38 @@ export default function QuickPayPage() {
     return Object.keys(next).length === 0;
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate() || !token || !payType) return;
     setSaving(true);
-    window.setTimeout(() => {
-      setSaving(false);
+    try {
+      const data = await api.post<{ odemeNo: string; amount: number }>(
+        '/api/payments',
+        {
+          musteriId: null,
+          payType,
+          amount,
+          commissionIncluded,
+          holder: holder.trim(),
+          tc: digitsOnly(tc),
+          phone: digitsOnly(phone).slice(0, 10),
+          cardDigits: digitsOnly(card),
+          installment: pickedInstall?.n ?? 1,
+          note: note.trim(),
+        },
+        token,
+      );
       navigate('/hareketler', {
         replace: true,
-        state: { flash: `Hızlı ödeme alındı (mock) — ${formatMoneyTr(amount)} ₺` },
+        state: {
+          flash: `Hızlı ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ₺`,
+        },
       });
-    }, 500);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Ödeme kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

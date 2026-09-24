@@ -22,9 +22,11 @@ import {
   listProvinces,
   listStreets,
   listTowns,
+  resetCustomerUserPassword,
   setCustomerUserActive,
   softDeleteCustomerAddress,
   softDeleteCustomerUser,
+  updateCustomerAddress,
 } from '../services/customerDetailService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
@@ -219,6 +221,23 @@ customersRouter.patch('/:id/users/:userId', async (req: AuthedRequest, res) => {
   }
 });
 
+customersRouter.post('/:id/users/:userId/password-reset', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  const userId = Number(req.params.userId);
+  if (!Number.isFinite(id) || !Number.isFinite(userId)) {
+    return sendError(res, 400, 'Geçersiz istek');
+  }
+  try {
+    const data = await resetCustomerUserPassword(id, userId);
+    await writePanelLog(req.auth!.sub, `Müşteri kullanıcı şifresi sıfırlandı — #${userId}`);
+    return sendSuccess(res, data, 'Yeni şifre oluşturuldu');
+  } catch (err) {
+    if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Şifre sıfırlanamadı');
+  }
+});
+
 customersRouter.delete('/:id/users/:userId', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const userId = Number(req.params.userId);
@@ -263,6 +282,27 @@ customersRouter.post('/:id/addresses', async (req: AuthedRequest, res) => {
     if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Adres eklenemedi');
+  }
+});
+
+customersRouter.patch('/:id/addresses/:addrId', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  const addrId = Number(req.params.addrId);
+  if (!Number.isFinite(id) || !Number.isFinite(addrId)) {
+    return sendError(res, 400, 'Geçersiz istek');
+  }
+  const parsed = addressCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateCustomerAddress(id, addrId, parsed.data);
+    await writePanelLog(req.auth!.sub, `Müşteri adresi güncellendi — ${data.label}`);
+    return sendSuccess(res, data, 'Adres güncellendi');
+  } catch (err) {
+    if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Adres güncellenemedi');
   }
 });
 

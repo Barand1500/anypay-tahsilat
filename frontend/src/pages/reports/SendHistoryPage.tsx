@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
-import { getLiveCustomers } from '../customers/mockCustomers';
+import { useCustomersList } from '../customers/useCustomersList';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
   formatSendDate,
@@ -17,6 +17,7 @@ const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 
 export default function SendHistoryPage() {
+  const { customers } = useCustomersList({ parentId: 'all' });
   const [rows] = useState<SendHistoryRow[]>(() => [...INITIAL_SEND_HISTORY]);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('gonderim-gecmisi'));
   const [dateFrom, setDateFrom] = useState('');
@@ -30,8 +31,8 @@ export default function SendHistoryPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const customerOptions = useMemo(
-    () => getLiveCustomers().map((c) => ({ value: c.id, label: c.title })),
-    [],
+    () => customers.map((c) => ({ value: c.id, label: c.title })),
+    [customers],
   );
 
   const filtered = useMemo(() => {
