@@ -112,6 +112,8 @@ ok "frontend/dist hazır"
 
 # ---------------------------------------------------------------------------
 step "Backend build"
+# schema.prisma değişince tsc için client güncel olmalı (site generate ayrı adım)
+npx prisma generate --schema backend/prisma/schema.prisma
 npm run build --prefix backend
 ok "backend/dist hazır"
 [[ -d frontend/dist && -d backend/dist ]] || die "Build çıktısı eksik"
