@@ -209,14 +209,13 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     const height = a.height;
 
     if (open) {
-      // İçeride yüzen marka pill
-      const left = 10;
-      const rightPad = 10;
+      // Sağa yaslı kitap kenarı (içbükey köşe)
+      const left = 12;
       const aside = asideRef.current;
       const asideBox = aside?.getBoundingClientRect();
       const width = asideBox
-        ? Math.max(0, asideBox.right - navBox.left - left - rightPad)
-        : Math.max(0, nav.clientWidth - left - rightPad);
+        ? Math.max(0, asideBox.right - (navBox.left + left))
+        : Math.max(0, nav.clientWidth - left);
       gsap.to(pill, {
         autoAlpha: 1,
         top,

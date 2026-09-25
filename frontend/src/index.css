@@ -35,12 +35,12 @@ html[data-theme='light'] {
   --input-label: var(--color-brand-600);
   /* Etiket çentiği = input’un OTURDUĞU zemin (kart/sayfa), dolgu değil */
   --input-notch: var(--panel-elevated);
-  /* Sidebar — zemin nötr; seçici vurgu rengi (belirgin) */
+  /* Sidebar — beyaz zemin; kitap kenarı seçici = vurgu rengi */
   --sidebar-open-bg: #ffffff;
   --sidebar-open-ink: var(--panel-ink);
   --sidebar-open-hover: var(--panel-hover);
-  --sidebar-active-bg: color-mix(in srgb, var(--color-brand-500) 20%, #ffffff);
-  --sidebar-active-text: var(--color-brand-700);
+  --sidebar-active-bg: var(--color-brand-600);
+  --sidebar-active-text: #ffffff;
   --sidebar-cta-bg: var(--color-brand-600);
   --sidebar-cta-text: #ffffff;
   /* Soft brand yüzey + okunur yazı (avatar, badge) */
@@ -64,12 +64,12 @@ html[data-theme='dark'] {
   --chart-bg: #121820;
   --color-brand-50: #152033;
   --color-brand-100: #1a2a44;
-  /* Gece: sidebar koyu; seçici/CTA vurgu rengi */
+  /* Gece: koyu zemin; kitap kenarı seçici = vurgu rengi */
   --sidebar-open-bg: #07090c;
   --sidebar-open-ink: #e8eef6;
   --sidebar-open-hover: rgba(255, 255, 255, 0.06);
-  --sidebar-active-bg: color-mix(in srgb, var(--color-brand-500) 28%, transparent);
-  --sidebar-active-text: var(--brand-on-soft);
+  --sidebar-active-bg: var(--color-brand-600);
+  --sidebar-active-text: #ffffff;
   --sidebar-cta-bg: var(--color-brand-600);
   --sidebar-cta-text: #ffffff;
   --brand-soft-bg: color-mix(in srgb, var(--color-brand-500) 26%, var(--panel-surface));
@@ -106,7 +106,7 @@ html[data-accent='purple'] {
   --color-brand-700: #7e22ce;
 }
 
-/* Dark — koyu zemin; seçici metin / CTA vurgu rengi */
+/* Dark — koyu zemin; kitap kenarı seçici = vurgu rengi */
 html[data-theme='dark'][data-accent='blue'] {
   --color-brand-50: #101820;
   --color-brand-100: #152033;
@@ -117,8 +117,8 @@ html[data-theme='dark'][data-accent='blue'] {
   --brand-on-soft: #bfdbfe;
   --nav-active-bg: color-mix(in srgb, #2563c7 22%, transparent);
   --nav-active-text: #bfdbfe;
-  --sidebar-active-bg: color-mix(in srgb, #2563c7 30%, transparent);
-  --sidebar-active-text: #bfdbfe;
+  --sidebar-active-bg: #1a4fa3;
+  --sidebar-active-text: #ffffff;
   --sidebar-cta-bg: #1a4fa3;
   --sidebar-cta-text: #ffffff;
 }
@@ -133,8 +133,8 @@ html[data-theme='dark'][data-accent='green'] {
   --brand-on-soft: #bbf7d0;
   --nav-active-bg: color-mix(in srgb, #16a34a 22%, transparent);
   --nav-active-text: #bbf7d0;
-  --sidebar-active-bg: color-mix(in srgb, #16a34a 30%, transparent);
-  --sidebar-active-text: #bbf7d0;
+  --sidebar-active-bg: #166534;
+  --sidebar-active-text: #ffffff;
   --sidebar-cta-bg: #166534;
   --sidebar-cta-text: #ffffff;
 }
@@ -149,8 +149,8 @@ html[data-theme='dark'][data-accent='purple'] {
   --brand-on-soft: #e9d5ff;
   --nav-active-bg: color-mix(in srgb, #a855f7 22%, transparent);
   --nav-active-text: #e9d5ff;
-  --sidebar-active-bg: color-mix(in srgb, #a855f7 30%, transparent);
-  --sidebar-active-text: #e9d5ff;
+  --sidebar-active-bg: #6d28b0;
+  --sidebar-active-text: #ffffff;
   --sidebar-cta-bg: #6d28b0;
   --sidebar-cta-text: #ffffff;
 }
@@ -158,15 +158,15 @@ html[data-theme='dark'][data-accent='purple'] {
 html[data-theme='light'][data-accent='green'] {
   --nav-active-bg: color-mix(in srgb, #16a34a 20%, #ffffff);
   --nav-active-text: #166534;
-  --sidebar-active-bg: color-mix(in srgb, #16a34a 20%, #ffffff);
-  --sidebar-active-text: #166534;
+  --sidebar-active-bg: #15803d;
+  --sidebar-active-text: #ffffff;
 }
 
 html[data-theme='light'][data-accent='purple'] {
   --nav-active-bg: color-mix(in srgb, #a855f7 20%, #ffffff);
   --nav-active-text: #7e22ce;
-  --sidebar-active-bg: color-mix(in srgb, #a855f7 20%, #ffffff);
-  --sidebar-active-text: #7e22ce;
+  --sidebar-active-bg: #9333ea;
+  --sidebar-active-text: #ffffff;
 }
 
 * {
@@ -649,25 +649,46 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
-/* Sidebar — yumuşak marka pill (kitap kenarı kaldırıldı; beyaz zeminde okunur) */
+/* Sidebar — kitap kenarı aktif göstergesi (içbükey köşe); renk = vurgu */
 .sidebar-active-pill {
   pointer-events: none;
   position: absolute;
   z-index: 0;
   background: var(--sidebar-active-bg);
-  border-radius: 14px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-500) 28%, transparent);
+  border-radius: 18px 0 0 18px;
 }
 
 .sidebar-active-pill::before,
 .sidebar-active-pill::after {
-  display: none;
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background: transparent;
 }
 
+.sidebar-active-pill::before {
+  top: -14px;
+  border-bottom-right-radius: 14px;
+  box-shadow: 4px 4px 0 4px var(--sidebar-active-bg);
+}
+
+.sidebar-active-pill::after {
+  bottom: -14px;
+  border-top-right-radius: 14px;
+  box-shadow: 4px -4px 0 4px var(--sidebar-active-bg);
+}
+
+/* Dar mod — yumuşak pill, içbükey yok */
 .sidebar-active-pill--compact {
   border-radius: 12px;
   background: var(--nav-active-bg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+}
+
+.sidebar-active-pill--compact::before,
+.sidebar-active-pill--compact::after {
+  display: none;
 }
 
 .sidebar-nav {
