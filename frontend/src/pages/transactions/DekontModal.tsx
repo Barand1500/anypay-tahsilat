@@ -7,7 +7,7 @@ import {
   formatMoneyTr,
   formatTxDate,
   type Transaction,
-} from './mockTransactions';
+} from './transactionTypes';
 
 type Props = {
   tx: Transaction;

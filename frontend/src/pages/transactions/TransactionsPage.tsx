@@ -1,29 +1,34 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { CopyLine } from '../../components/ui/CopyLine';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { useCustomersList } from '../customers/useCustomersList';
-import { BANKS } from '../payments/mockBanks';
-import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { DekontModal } from './DekontModal';
 import {
   formatMoneyTr,
   formatTxDate,
-  INITIAL_TRANSACTIONS,
   isVoidWindowOpen,
   TX_STATUS_LABEL,
   type Transaction,
   type TxStatus,
-} from './mockTransactions';
+} from './transactionTypes';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
+
+type ApiTx = Transaction;
+
+type PanelUser = { id: number; name: string };
+type BranchOpt = { id: number; name: string };
+type BankOpt = { id: string; name: string; logo: string };
 
 const STATUS_OPTIONS = (Object.keys(TX_STATUS_LABEL) as TxStatus[]).map((id) => ({
   value: id,
@@ -33,17 +38,40 @@ const STATUS_OPTIONS = (Object.keys(TX_STATUS_LABEL) as TxStatus[]).map((id) => 
 const ARCHIVE_OPTIONS = [
   { value: 'no', label: 'Hayır' },
   { value: 'yes', label: 'Evet' },
+  { value: 'all', label: 'Tümü' },
 ];
 
+function defaultFrom() {
+  const d = new Date();
+  d.setDate(d.getDate() - 90);
+  return localYmd(d);
+}
+
+function defaultTo() {
+  return localYmd(new Date());
+}
+
+function localYmd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /**
- * Hareketler — filtreler + liste + Dekont (mock).
+ * Hareketler — filtreler + liste + Dekont (DB).
  */
 export default function TransactionsPage() {
+  const { token } = useAuth();
   const { guard } = usePermission();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { customers } = useCustomersList({ parentId: 'all' });
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const [rows, setRows] = useState<Transaction[]>(() => [...INITIAL_TRANSACTIONS]);
+  const [rows, setRows] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
@@ -51,68 +79,93 @@ export default function TransactionsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [dekontTx, setDekontTx] = useState<Transaction | null>(null);
   const [reverseTx, setReverseTx] = useState<Transaction | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('hareketler'));
 
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState('2026-09-01');
-  const [dateTo, setDateTo] = useState('2026-09-30');
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState(defaultTo);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [bankId, setBankId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>('paid');
   const [archive, setArchive] = useState<string | null>('no');
 
-  const branchOptions = useMemo(
-    () => getBranchOptions().map((b) => ({ value: b, label: b })),
-    [],
-  );
-  const userOptions = useMemo(
-    () => INITIAL_USERS.map((u) => ({ value: String(u.id), label: u.name })),
-    [],
-  );
+  const [userOptions, setUserOptions] = useState<{ value: string; label: string }[]>([]);
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+  const [bankOptions, setBankOptions] = useState<{ value: string; label: string }[]>([]);
+
   const customerOptions = useMemo(
     () => customers.map((c) => ({ value: c.id, label: c.title })),
     [customers],
   );
-  const bankOptions = useMemo(
-    () =>
-      BANKS.filter((b) => b.bins.length > 0 || b.id === 'qnb').map((b) => ({
-        value: b.id,
-        label: b.name,
-      })),
-    [],
-  );
+
+  const reload = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const params = new URLSearchParams();
+      if (branch) params.set('branchId', branch);
+      if (userId) params.set('userId', userId);
+      if (customerId) params.set('customerId', customerId);
+      if (bankId) params.set('bankId', bankId);
+      if (status) params.set('status', status);
+      if (archive) params.set('archive', archive);
+      if (dateFrom) params.set('from', dateFrom);
+      if (dateTo) params.set('to', dateTo);
+      const list = await api.get<ApiTx[]>(`/api/payments?${params.toString()}`, token);
+      setRows(list);
+    } catch (err) {
+      setRows([]);
+      setLoadError(err instanceof Error ? err.message : 'Hareketler yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, branch, userId, customerId, bankId, status, archive, dateFrom, dateTo]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    if (!token) return;
+    void (async () => {
+      try {
+        const [users, branches, banks] = await Promise.all([
+          api.get<PanelUser[]>('/api/users', token),
+          api.get<BranchOpt[]>('/api/users/branches', token),
+          api.get<BankOpt[]>('/api/payments/banks', token),
+        ]);
+        setUserOptions(users.map((u) => ({ value: String(u.id), label: u.name })));
+        setBranchOptions(branches.map((b) => ({ value: String(b.id), label: b.name })));
+        setBankOptions(banks.map((b) => ({ value: b.id, label: b.name })));
+      } catch {
+        /* filtre opsiyonel */
+      }
+    })();
+  }, [token]);
+
+  useEffect(() => {
+    const st = location.state as { flash?: string } | null;
+    if (st?.flash) {
+      setToast(st.flash);
+      navigate('.', { replace: true, state: null });
+      void reload();
+    }
+  }, [location.state, navigate, reload]);
 
   const filtered = useMemo(() => {
-    let list = rows;
-    if (branch) list = list.filter((t) => t.branch === branch);
-    if (userId) list = list.filter((t) => t.userId === userId);
-    if (customerId) list = list.filter((t) => t.customerId === customerId);
-    if (bankId) list = list.filter((t) => t.bankId === bankId);
-    if (status) list = list.filter((t) => t.status === status);
-    if (archive === 'yes') list = list.filter((t) => t.archived);
-    if (archive === 'no') list = list.filter((t) => !t.archived);
-    if (dateFrom) {
-      const from = new Date(dateFrom).setHours(0, 0, 0, 0);
-      list = list.filter((t) => new Date(t.at).getTime() >= from);
-    }
-    if (dateTo) {
-      const to = new Date(dateTo).setHours(23, 59, 59, 999);
-      list = list.filter((t) => new Date(t.at).getTime() <= to);
-    }
     const q = query.trim().toLocaleLowerCase('tr');
-    if (q) {
-      list = list.filter(
-        (t) =>
-          t.id.toLocaleLowerCase('tr').includes(q) ||
-          t.customerTitle.toLocaleLowerCase('tr').includes(q) ||
-          t.bankName.toLocaleLowerCase('tr').includes(q) ||
-          t.dekont.cardHolderName.toLocaleLowerCase('tr').includes(q),
-      );
-    }
-    return [...list].sort((a, b) => +new Date(b.at) - +new Date(a.at));
-  }, [rows, branch, userId, customerId, bankId, status, archive, dateFrom, dateTo, query]);
-
+    if (!q) return rows;
+    return rows.filter(
+      (t) =>
+        t.id.toLocaleLowerCase('tr').includes(q) ||
+        t.customerTitle.toLocaleLowerCase('tr').includes(q) ||
+        t.bankName.toLocaleLowerCase('tr').includes(q) ||
+        t.dekont.cardHolderName.toLocaleLowerCase('tr').includes(q),
+    );
+  }, [rows, query]);
   const unfilteredTotal = rows.length;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -165,8 +218,8 @@ export default function TransactionsPage() {
   function resetFilters() {
     setBranch(null);
     setUserId(null);
-    setDateFrom('2026-09-01');
-    setDateTo('2026-09-30');
+    setDateFrom(defaultFrom());
+    setDateTo(defaultTo());
     setCustomerId(null);
     setBankId(null);
     setStatus('paid');
@@ -235,25 +288,64 @@ export default function TransactionsPage() {
     setReverseTx(tx);
   }
 
-  function confirmReverse() {
-    if (!reverseTx) return;
+  async function confirmReverse() {
+    if (!reverseTx || !token) return;
     if (!guard('m-hareketler', 'remove', 'Hareketler')) {
       setReverseTx(null);
       return;
     }
-    const asVoid = isVoidWindowOpen(reverseTx.at);
-    const nextStatus: TxStatus = asVoid ? 'cancelled' : 'refunded';
-    setRows((prev) =>
-      prev.map((r) => (r.id === reverseTx.id ? { ...r, status: nextStatus } : r)),
-    );
-    flash(asVoid ? `İptal edildi — ${reverseTx.id}` : `İade edildi — ${reverseTx.id}`);
-    setReverseTx(null);
+    setBusyId(reverseTx.dbId);
+    try {
+      const updated = await api.post<ApiTx>(
+        `/api/payments/${reverseTx.dbId}/reverse`,
+        {},
+        token,
+      );
+      setRows((prev) => {
+        const next = prev.map((r) => (r.dbId === updated.dbId ? updated : r));
+        if (status === 'paid' && updated.status !== 'paid') {
+          return next.filter((r) => r.dbId !== updated.dbId);
+        }
+        return next;
+      });
+      flash(
+        updated.status === 'cancelled'
+          ? `İptal edildi — ${updated.id}`
+          : `İade edildi — ${updated.id}`,
+      );
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'İptal/iade yapılamadı');
+    } finally {
+      setBusyId(null);
+      setReverseTx(null);
+    }
   }
 
-  function onArchive(tx: Transaction) {
-    if (!guard('m-hareketler', 'save', 'Hareketler')) return;
-    setRows((prev) => prev.map((r) => (r.id === tx.id ? { ...r, archived: !r.archived } : r)));
-    flash(tx.archived ? `Arşivden çıkarıldı — ${tx.id}` : `Arşivlendi — ${tx.id}`);
+  async function onArchive(tx: Transaction) {
+    if (!guard('m-hareketler', 'save', 'Hareketler') || !token) return;
+    setBusyId(tx.dbId);
+    try {
+      const updated = await api.patch<ApiTx>(
+        `/api/payments/${tx.dbId}/archive`,
+        { archived: !tx.archived },
+        token,
+      );
+      setRows((prev) => {
+        const next = prev.map((r) => (r.dbId === updated.dbId ? updated : r));
+        if (archive === 'no' && updated.archived) {
+          return next.filter((r) => r.dbId !== updated.dbId);
+        }
+        if (archive === 'yes' && !updated.archived) {
+          return next.filter((r) => r.dbId !== updated.dbId);
+        }
+        return next;
+      });
+      flash(updated.archived ? `Arşivlendi — ${updated.id}` : `Arşivden çıkarıldı — ${updated.id}`);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Arşiv güncellenemedi');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   function openDekont(tx: Transaction) {
@@ -268,12 +360,16 @@ export default function TransactionsPage() {
     !!bankId ||
     status !== 'paid' ||
     archive !== 'no' ||
-    dateFrom !== '2026-09-01' ||
-    dateTo !== '2026-09-30' ||
     !!query.trim();
 
   return (
     <div ref={rootRef} className="w-full space-y-4 pb-8">
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+          {loadError}
+        </div>
+      ) : null}
+
       <div data-anim>
         <nav className="mb-1 text-sm text-[var(--panel-ink)]/65">
           <Link to="/" className="font-medium hover:text-[var(--color-brand-600)]">
@@ -442,12 +538,12 @@ export default function TransactionsPage() {
 
             {slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
-                Kayıt bulunamadı.
+                {loading ? 'Hareketler yükleniyor…' : 'Kayıt bulunamadı.'}
               </p>
             ) : (
               slice.map((tx) => (
                 <div
-                  key={tx.id}
+                  key={tx.dbId}
                   className="grid grid-cols-[minmax(140px,1fr)_minmax(160px,1.1fr)_minmax(180px,1.3fr)_minmax(130px,0.9fr)_120px] gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition hover:bg-[var(--panel-hover)]/50"
                 >
                   <div className="min-w-0">
@@ -537,7 +633,9 @@ export default function TransactionsPage() {
                       title="Arşivle"
                       bg="bg-sky-100 dark:bg-sky-500/20"
                       fg="text-sky-600 dark:text-sky-400"
-                      onClick={() => onArchive(tx)}
+                      onClick={() => {
+                        void onArchive(tx);
+                      }}
                     >
                       <ArchiveIcon />
                     </IconBtn>
@@ -583,8 +681,13 @@ export default function TransactionsPage() {
           id={reverseTx.id}
           title={reverseTx.customerTitle}
           mode={isVoidWindowOpen(reverseTx.at) ? 'void' : 'refund'}
-          onCancel={() => setReverseTx(null)}
-          onConfirm={confirmReverse}
+          busy={busyId === reverseTx.dbId}
+          onCancel={() => {
+            if (busyId == null) setReverseTx(null);
+          }}
+          onConfirm={() => {
+            void confirmReverse();
+          }}
         />
       ) : null}
 
@@ -601,12 +704,14 @@ function ReverseTxModal({
   id,
   title,
   mode,
+  busy,
   onCancel,
   onConfirm,
 }: {
   id: string;
   title: string;
   mode: 'void' | 'refund';
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -625,14 +730,14 @@ function ReverseTxModal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !busy) {
         e.preventDefault();
         onCancel();
       }
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
   return createPortal(
     <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
@@ -645,8 +750,9 @@ function ReverseTxModal({
         <button
           type="button"
           aria-label="Kapat"
+          disabled={busy}
           onClick={onCancel}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-40"
         >
           <XSm />
         </button>
@@ -674,20 +780,22 @@ function ReverseTxModal({
         <div className="mt-5 flex gap-2">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold"
+            className="flex-1 rounded-xl border border-[var(--panel-line)] py-2.5 text-sm font-semibold disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
             className={[
-              'flex-1 rounded-xl py-2.5 text-sm font-semibold text-white',
+              'flex-1 rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-60',
               asVoid ? 'bg-rose-600' : 'bg-amber-600',
             ].join(' ')}
           >
-            {asVoid ? 'İptal Et' : 'İade Et'}
+            {busy ? 'İşleniyor…' : asVoid ? 'İptal Et' : 'İade Et'}
           </button>
         </div>
       </div>
