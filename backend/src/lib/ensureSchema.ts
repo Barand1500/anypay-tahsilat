@@ -108,11 +108,32 @@ export async function ensureTaksitSiralamaColumn(): Promise<void> {
     `;
     if (rows[0]) return;
     await prisma.$executeRawUnsafe(
-      "ALTER TABLE `ayarlar` ADD COLUMN `taksit_siralama` VARCHAR(64) NULL DEFAULT 'user,cari'",
+      "ALTER TABLE `ayarlar` ADD COLUMN `taksit_siralama` VARCHAR(64) NULL DEFAULT 'user,cari,sube'",
     );
     console.log('[schema] ayarlar.taksit_siralama eklendi');
   } catch (err) {
     console.warn('[schema] taksit_siralama atlandı:', err);
+  }
+}
+
+/** sube_departman.izinli_taksitler */
+export async function ensureSubeInstallmentsColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'sube_departman'
+        AND COLUMN_NAME = 'izinli_taksitler'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `sube_departman` ADD COLUMN `izinli_taksitler` LONGTEXT NULL',
+    );
+    console.log('[schema] sube_departman.izinli_taksitler eklendi');
+  } catch (err) {
+    console.warn('[schema] sube_departman.izinli_taksitler atlandı:', err);
   }
 }
 
@@ -121,5 +142,6 @@ export async function ensureSchema(): Promise<void> {
   await ensureGonderimGecmisiTable();
   await ensureUserBranchIdsColumn();
   await ensureCariTipiInstallmentsColumn();
+  await ensureSubeInstallmentsColumn();
   await ensureTaksitSiralamaColumn();
 }

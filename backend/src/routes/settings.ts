@@ -142,7 +142,7 @@ settingsRouter.patch('/contact', async (req: AuthedRequest, res) => {
 });
 
 const prioritySchema = z.object({
-  order: z.array(z.enum(['user', 'cari'])).min(2).max(2),
+  order: z.array(z.enum(['user', 'cari', 'sube'])).min(2).max(3),
 });
 
 settingsRouter.get('/installment-priority', async (_req, res) => {

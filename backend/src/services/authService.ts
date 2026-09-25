@@ -34,6 +34,18 @@ function parseInstallments(raw: string | null | undefined): number[] {
   return [...new Set(nums)].sort((a, b) => a - b);
 }
 
+function parseBranchIds(user: {
+  subeDepartmanId?: number | null;
+  subeDepartmanIds?: string | null;
+}): number[] {
+  const fromList = (user.subeDepartmanIds || '')
+    .split(/[,;]+/)
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (fromList.length) return [...new Set(fromList)];
+  return user.subeDepartmanId != null ? [user.subeDepartmanId] : [];
+}
+
 function toPublicUser(user: {
   id: number;
   email: string;
@@ -42,6 +54,8 @@ function toPublicUser(user: {
   roles: unknown;
   twoFactor: boolean | null;
   izinliTaksitler?: string | null;
+  subeDepartmanId?: number | null;
+  subeDepartmanIds?: string | null;
 }) {
   return {
     id: user.id,
@@ -52,6 +66,7 @@ function toPublicUser(user: {
     twoFactor: Boolean(user.twoFactor),
     /** Boş = kısıt yok (tümü); dolu = yalnızca bunlar */
     installments: parseInstallments(user.izinliTaksitler),
+    branchIds: parseBranchIds(user),
   };
 }
 

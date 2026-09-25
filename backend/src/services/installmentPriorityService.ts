@@ -1,25 +1,30 @@
 import { prisma } from '../lib/prisma.js';
 import { getAccountTypeInstallments } from './accountTypesService.js';
+import { getBranchInstallments } from './branchesService.js';
 import { getUserAllowedInstallments } from './usersService.js';
 
-export type InstallmentSource = 'user' | 'cari';
+export type InstallmentSource = 'user' | 'cari' | 'sube';
 
 export type InstallmentPriority = {
   order: InstallmentSource[];
 };
 
-const DEFAULT_ORDER: InstallmentSource[] = ['user', 'cari'];
+const DEFAULT_ORDER: InstallmentSource[] = ['user', 'cari', 'sube'];
+const ALL_SOURCES: InstallmentSource[] = ['user', 'cari', 'sube'];
 
 function parseOrder(raw: string | null | undefined): InstallmentSource[] {
   if (!raw?.trim()) return [...DEFAULT_ORDER];
   const parts = raw
     .split(/[,;]+/)
     .map((s) => s.trim().toLowerCase())
-    .filter((s): s is InstallmentSource => s === 'user' || s === 'cari');
+    .filter((s): s is InstallmentSource =>
+      s === 'user' || s === 'cari' || s === 'sube',
+    );
   const uniq = [...new Set(parts)];
-  if (!uniq.includes('user')) uniq.push('user');
-  if (!uniq.includes('cari')) uniq.push('cari');
-  return uniq.slice(0, 2);
+  for (const key of ALL_SOURCES) {
+    if (!uniq.includes(key)) uniq.push(key);
+  }
+  return uniq.slice(0, ALL_SOURCES.length);
 }
 
 export async function getInstallmentPriority(): Promise<InstallmentPriority> {
@@ -50,7 +55,7 @@ export async function updateInstallmentPriority(
  */
 export function pickEffectiveInstallments(
   order: InstallmentSource[],
-  sources: { user: number[] | null; cari: number[] | null },
+  sources: { user: number[] | null; cari: number[] | null; sube: number[] | null },
 ): number[] | null {
   for (const key of order) {
     const list = sources[key];
@@ -59,10 +64,23 @@ export function pickEffectiveInstallments(
   return null;
 }
 
+function parseIdList(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  return [
+    ...new Set(
+      raw
+        .split(/[,;]+/)
+        .map((s) => Number.parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    ),
+  ];
+}
+
 export async function resolveAllowedInstallments(opts: {
   kullaniciId: number;
   musteriId?: number | null;
   cariTipiId?: number | null;
+  subeDepartmanId?: number | null;
 }): Promise<number[] | null> {
   const { order } = await getInstallmentPriority();
   const user = await getUserAllowedInstallments(opts.kullaniciId);
@@ -79,5 +97,20 @@ export async function resolveAllowedInstallments(opts: {
     cariTipiId = m?.cariTipiId ?? null;
   }
   const cari = await getAccountTypeInstallments(cariTipiId);
-  return pickEffectiveInstallments(order, { user, cari });
+
+  let branchId = opts.subeDepartmanId ?? null;
+  if (branchId == null) {
+    const u = await prisma.user.findFirst({
+      where: {
+        id: opts.kullaniciId,
+        OR: [{ remove: null }, { remove: false }],
+      },
+      select: { subeDepartmanId: true, subeDepartmanIds: true },
+    });
+    const fromList = parseIdList(u?.subeDepartmanIds);
+    branchId = fromList[0] ?? u?.subeDepartmanId ?? null;
+  }
+  const sube = await getBranchInstallments(branchId);
+
+  return pickEffectiveInstallments(order, { user, cari, sube });
 }

@@ -275,7 +275,7 @@ model Ayarlar {
   binListLink            String?   @map("bin_list_link") @db.VarChar(255)
   ilkBankaCekim          Boolean?  @map("ilk_banka_cekim")
   uygulamaKayit          Boolean?  @map("uygulama_kayit")
-  /** Taksit öncelik sırası — CSV: user,cari veya cari,user */
+  /** Taksit öncelik sırası — CSV: user,cari,sube */
   taksitSiralama         String?   @map("taksit_siralama") @db.VarChar(64)
 
   @@map("ayarlar")

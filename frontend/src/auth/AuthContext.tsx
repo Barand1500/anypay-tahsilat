@@ -18,6 +18,8 @@ export type AuthUser = {
   twoFactor: boolean;
   /** Boş = kısıt yok; dolu = yalnızca bu taksitler */
   installments: number[];
+  /** Atanan şube / departman id’leri */
+  branchIds: number[];
 };
 
 export type ProfileUpdatePayload = {
@@ -53,6 +55,9 @@ function normalizeUser(raw: AuthUser): AuthUser {
     twoFactor: Boolean(raw.twoFactor),
     installments: Array.isArray(raw.installments)
       ? raw.installments.filter((n) => n >= 1 && n <= 12)
+      : [],
+    branchIds: Array.isArray(raw.branchIds)
+      ? raw.branchIds.filter((n) => Number.isFinite(n) && n > 0)
       : [],
   };
 }

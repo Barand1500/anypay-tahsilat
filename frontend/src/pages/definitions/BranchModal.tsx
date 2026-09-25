@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { TextInput } from '../../components/ui/TextInput';
 import { InstallmentPaintGrid } from '../payments/InstallmentPaintGrid';
-import { BRANCH_INSTALLMENTS, type BranchDef } from './mockBranches';
+import { BRANCH_INSTALLMENTS, type BranchDef } from './branchTypes';
 
 export type BranchFocusField = 'name' | 'installments';
 
@@ -13,7 +13,7 @@ type Props = {
   mode: Mode;
   existingNames: string[];
   onClose: () => void;
-  onSave: (row: Omit<BranchDef, 'id'> & { id?: string }) => void;
+  onSave: (row: Omit<BranchDef, 'id'> & { id?: string }) => void | Promise<void>;
   focusField?: BranchFocusField | null;
 };
 

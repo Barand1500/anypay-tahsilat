@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -8,14 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { BranchModal, type BranchFocusField } from './BranchModal';
-import {
-  formatBranchInstallments,
-  loadBranches,
-  saveBranches,
-  type BranchDef,
-} from './mockBranches';
+import { formatBranchInstallments, type BranchDef } from './branchTypes';
 
 const COL_FOCUS: Record<string, BranchFocusField> = {
   name: 'name',
@@ -23,10 +21,14 @@ const COL_FOCUS: Record<string, BranchFocusField> = {
 };
 
 /**
- * Tanımlamalar › Şubeler / Departmanlar — liste + ekle/düzenle (mock).
+ * Tanımlamalar › Şubeler / Departmanlar — sube_departman (API).
  */
 export default function BranchesPage() {
-  const [rows, setRows] = useState<BranchDef[]>(() => loadBranches());
+  const { token } = useAuth();
+  const [rows, setRows] = useState<BranchDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -37,7 +39,27 @@ export default function BranchesPage() {
     | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<BranchDef | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<BranchDef[]>('/api/branches', token);
+      setRows(list);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Şubeler yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -52,10 +74,6 @@ export default function BranchesPage() {
   useEffect(() => {
     setPage(1);
   }, [query, pageSize]);
-
-  useEffect(() => {
-    saveBranches(rows);
-  }, [rows]);
 
   useEffect(() => {
     const els = tableRef.current?.querySelectorAll('[data-branch-row]');
@@ -96,19 +114,41 @@ export default function BranchesPage() {
     );
   }
 
-  function saveRow(next: Omit<BranchDef, 'id'> & { id?: string }) {
-    if (next.id) {
-      setRows((prev) => prev.map((r) => (r.id === next.id ? { ...r, ...next, id: next.id } : r)));
-    } else {
-      setRows((prev) => [...prev, { ...next, id: `br-${Date.now()}` }]);
+  async function saveRow(next: Omit<BranchDef, 'id'> & { id?: string }) {
+    if (!token) return;
+    setActionError(null);
+    const payload = { name: next.name, installments: next.installments };
+    try {
+      if (next.id) {
+        const updated = await api.patch<BranchDef>(
+          `/api/branches/${encodeURIComponent(next.id)}`,
+          payload,
+          token,
+        );
+        setRows((prev) => prev.map((r) => (r.id === next.id ? updated : r)));
+      } else {
+        const created = await api.post<BranchDef>('/api/branches', payload, token);
+        setRows((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+      }
+      setModal(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Kayıt başarısız');
     }
-    setModal(null);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!deleteTarget || !token) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/branches/${encodeURIComponent(deleteTarget.id)}`, token);
+      setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function openEdit(row: BranchDef, focusField?: BranchFocusField | null) {
@@ -122,8 +162,36 @@ export default function BranchesPage() {
     openEdit(row, col ? COL_FOCUS[col] ?? 'name' : 'name');
   }
 
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
+        Şubeler yükleniyor…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
+        <p className="text-sm text-rose-500">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="mt-3 text-sm font-semibold text-[var(--color-brand-600)]"
+        >
+          Yeniden dene
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full space-y-4">
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <label className="flex items-center gap-2 text-sm text-[var(--panel-muted)]">
@@ -264,8 +332,9 @@ export default function BranchesPage() {
       {deleteTarget ? (
         <DeleteModal
           name={deleteTarget.name}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          busy={deleting}
+          onCancel={() => !deleting && setDeleteTarget(null)}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -295,10 +364,12 @@ function PagerBtn({
 
 function DeleteModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -318,12 +389,12 @@ function DeleteModal({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCancel();
+        if (!busy) onCancel();
       }
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-4">
@@ -344,17 +415,19 @@ function DeleteModal({
         <div className="flex justify-end gap-2 border-t border-[var(--panel-line)] px-5 py-3">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
