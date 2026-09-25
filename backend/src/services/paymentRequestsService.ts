@@ -325,3 +325,84 @@ export async function softDeletePaymentRequest(id: number): Promise<void> {
     data: { remove: true },
   });
 }
+
+export async function getPaymentRequest(id: number): Promise<PublicPaymentRequest> {
+  const row = await prisma.odemeIstegi.findFirst({
+    where: { id, ...notRemoved() },
+  });
+  if (!row) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
+  const [pub] = await hydrate([row]);
+  return pub!;
+}
+
+export type UpdatePaymentRequestInput = {
+  payType: 'ch' | 'fatura';
+  amount: number;
+  commissionIncluded: boolean;
+  installments: number[];
+  description: string;
+  faturaNo?: string;
+  dosya?: string | null;
+};
+
+export async function updatePaymentRequest(
+  id: number,
+  input: UpdatePaymentRequestInput,
+): Promise<PublicPaymentRequest> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new PaymentRequestsError('Geçerli tutar gerekli');
+  }
+  if (!input.installments.length) {
+    throw new PaymentRequestsError('En az bir taksit seçin');
+  }
+  const existing = await prisma.odemeIstegi.findFirst({
+    where: { id, ...notRemoved() },
+    select: { id: true, durum: true },
+  });
+  if (!existing) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
+  if (existing.durum) throw new PaymentRequestsError('Ödenmiş istek düzenlenemez');
+
+  await prisma.odemeIstegi.update({
+    where: { id },
+    data: {
+      odemeTipi: tipFromPayType(input.payType),
+      tutar: input.amount,
+      faturaNo: (input.faturaNo || '').trim() || null,
+      komisyonDahil: input.commissionIncluded,
+      taksitler: [...new Set(input.installments)].sort((a, b) => a - b).join(','),
+      aciklama: input.description.trim() || null,
+      dosya: input.dosya ?? null,
+    },
+  });
+
+  return getPaymentRequest(id);
+}
+
+export async function emailPaymentRequest(
+  id: number,
+): Promise<{ to: string; emailSent: boolean }> {
+  const pub = await getPaymentRequest(id);
+  const to = pub.email.trim();
+  if (!to) throw new PaymentRequestsError('Müşteri e-postası yok');
+  if (pub.status === 'paid') throw new PaymentRequestsError('Bu istek zaten ödenmiş');
+
+  const { sendPaymentRequestMail } = await import('../lib/mail.js');
+  const base =
+    process.env.PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://tahsilat.anypay.com.tr';
+  const payUrl = `${base}/pay/${encodeURIComponent(pub.token)}`;
+
+  try {
+    await sendPaymentRequestMail({
+      to,
+      customerTitle: pub.customerTitle,
+      amount: pub.amount,
+      description: pub.description,
+      payUrl,
+      commissionIncluded: pub.commissionIncluded,
+    });
+    return { to, emailSent: true };
+  } catch (err) {
+    console.error('[payment-request-mail]', err);
+    return { to, emailSent: false };
+  }
+}

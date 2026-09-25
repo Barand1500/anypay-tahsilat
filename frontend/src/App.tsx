@@ -109,6 +109,7 @@ export default function App() {
         <Route path="hareketler" element={<TransactionsPage />} />
         <Route path="odeme-istekleri" element={<PaymentRequestsPage />} />
         <Route path="odeme-istekleri/yeni" element={<PaymentRequestPage forPanel />} />
+        <Route path="odeme-istekleri/:reqId/duzenle" element={<PaymentRequestPage />} />
         <Route path="hizli-odeme" element={<QuickPayPage />} />
         <Route path="raporlar" element={<ReportsLayout />}>
           <Route index element={<Navigate to="istatistikler" replace />} />

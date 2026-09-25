@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { PasswordCourierOverlay } from '../../components/ui/PasswordCourierOverlay';
 import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { mapCustomer, type ApiCustomer } from '../customers/customersApi';
@@ -92,6 +93,13 @@ export default function PaymentRequestsPage() {
   const [deleting, setDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [courier, setCourier] = useState<{
+    email: string;
+    flash: string;
+    failed: boolean;
+  } | null>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -187,13 +195,27 @@ export default function PaymentRequestsPage() {
   const toIdx = Math.min(safePage * pageSize, filtered.length);
 
   useEffect(() => {
-    const st = location.state as { flash?: string } | null;
-    if (st?.flash) {
-      void reload();
-      setToast(st.flash);
-      navigate('.', { replace: true, state: null });
-    }
+    const st = location.state as { flash?: string; highlightId?: string } | null;
+    if (!st?.flash && !st?.highlightId) return;
+    void reload();
+    if (st.flash) setToast(st.flash);
+    if (st.highlightId) setHighlightId(st.highlightId);
+    navigate('.', { replace: true, state: null });
   }, [location.state, navigate, reload]);
+
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    const idx = filtered.findIndex((r) => r.id === highlightId);
+    if (idx >= 0) setPage(Math.floor(idx / pageSize) + 1);
+  }, [highlightId, filtered, pageSize, loading]);
+
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    const el = rowRefs.current.get(highlightId);
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const t = window.setTimeout(() => setHighlightId(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [highlightId, slice, loading]);
 
   useEffect(() => {
     setPage(1);
@@ -327,14 +349,28 @@ export default function PaymentRequestsPage() {
     window.open(`https://wa.me/90${phone}?text=${text}`, '_blank', 'noopener,noreferrer');
   }
 
-  function sendEmail(r: PaymentRequest) {
-    if (!r.email) return;
-    const link = payLinkOf(r.token);
-    const subject = encodeURIComponent('Ödeme İsteği — Güzel Teknoloji');
-    const body = encodeURIComponent(
-      `Sayın ${r.customerTitle},\n\nÖdeme linkiniz:\n${link}\n\nTutar: ${formatMoneyTr(r.amount)} ₺\n\nGüzel Teknoloji`,
-    );
-    window.location.href = `mailto:${r.email}?subject=${subject}&body=${body}`;
+  async function sendEmail(r: PaymentRequest) {
+    if (!r.email || !token) return;
+    try {
+      const data = await api.post<{ to: string; emailSent: boolean }>(
+        `/api/payment-requests/${encodeURIComponent(r.id)}/email`,
+        {},
+        token,
+      );
+      setCourier({
+        email: data.to || r.email,
+        flash: data.emailSent
+          ? `Ödeme isteği gönderildi → ${data.to}`
+          : `E-posta gönderilemedi → ${data.to}`,
+        failed: !data.emailSent,
+      });
+    } catch (err) {
+      setCourier({
+        email: r.email,
+        flash: err instanceof Error ? err.message : 'E-posta gönderilemedi',
+        failed: true,
+      });
+    }
   }
 
   function sendSms(r: PaymentRequest) {
@@ -346,11 +382,11 @@ export default function PaymentRequestsPage() {
 
   function onEdit(r: PaymentRequest) {
     if (!guard('m-odeme-istekleri', 'save', 'Ödeme İstekleri')) return;
-    if (!r.customerId) {
-      navigate('/odeme-istekleri/yeni');
+    if (r.status === 'paid') {
+      flash('Ödenmiş istek düzenlenemez');
       return;
     }
-    navigate(`/musteriler/${encodeURIComponent(r.customerId)}/odeme-istegi`);
+    navigate(`/odeme-istekleri/${encodeURIComponent(r.id)}/duzenle`);
   }
 
   function onAdd() {
@@ -561,7 +597,14 @@ export default function PaymentRequestsPage() {
               slice.map((r) => (
                 <div
                   key={r.id}
-                  className="grid grid-cols-[minmax(200px,1.2fr)_minmax(160px,1.1fr)_minmax(110px,0.7fr)_minmax(180px,1.1fr)_44px] gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition hover:bg-[var(--panel-hover)]/50"
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(r.id, el);
+                    else rowRefs.current.delete(r.id);
+                  }}
+                  className={[
+                    'grid grid-cols-[minmax(200px,1.2fr)_minmax(160px,1.1fr)_minmax(110px,0.7fr)_minmax(180px,1.1fr)_44px] gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition hover:bg-[var(--panel-hover)]/50',
+                    highlightId === r.id ? 'pay-req-row-highlight' : '',
+                  ].join(' ')}
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-[var(--color-brand-600)]">
@@ -600,7 +643,9 @@ export default function PaymentRequestsPage() {
                         active={!!r.email}
                         bg="bg-teal-100 dark:bg-teal-500/20"
                         fg="text-teal-700 dark:text-teal-400"
-                        onClick={() => sendEmail(r)}
+                        onClick={() => {
+                          void sendEmail(r);
+                        }}
                       >
                         <MailIcon />
                       </ActionRound>
@@ -729,6 +774,16 @@ export default function PaymentRequestsPage() {
           {toast}
         </div>
       ) : null}
+
+      <PasswordCourierOverlay
+        open={Boolean(courier)}
+        toEmail={courier?.email}
+        failed={courier?.failed}
+        onDone={() => {
+          if (courier?.flash) setToast(courier.flash);
+          setCourier(null);
+        }}
+      />
     </div>
   );
 }

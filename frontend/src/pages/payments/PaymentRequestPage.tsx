@@ -18,10 +18,10 @@ type Currency = '' | 'TRY';
 const INSTALLMENTS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 /**
- * Ödeme İsteği Oluştur — müşteri satırından veya panelden (müşteri seçerek).
+ * Ödeme İsteği — oluştur / düzenle (müşteri satırı veya panel).
  */
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
-  const { id } = useParams();
+  const { id, reqId } = useParams();
   const { token } = useAuth();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -29,28 +29,57 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const currencyRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const editHydrated = useRef(false);
 
+  const isEdit = Boolean(reqId);
   const { customers: panelCustomers, loading: panelCustomersLoading } = useCustomersList({
-    enabled: forPanel,
+    enabled: forPanel && !isEdit,
     parentId: 'all',
   });
   const [panelCustomerId, setPanelCustomerId] = useState<string | null>(null);
   const panelCustomer = useMemo(
-    () => (forPanel ? panelCustomers.find((c) => c.id === panelCustomerId) ?? null : null),
-    [forPanel, panelCustomers, panelCustomerId],
+    () => (forPanel && !isEdit ? panelCustomers.find((c) => c.id === panelCustomerId) ?? null : null),
+    [forPanel, isEdit, panelCustomers, panelCustomerId],
   );
   const { customer: apiCustomer, loading: customerLoading, error: customerError } = useCustomer(
-    forPanel ? undefined : id,
+    forPanel || isEdit ? undefined : id,
   );
-  const customer = forPanel ? panelCustomer : apiCustomer;
+  const [editCustomer, setEditCustomer] = useState<{
+    id: string;
+    title: string;
+    code: string;
+  } | null>(null);
+  const [editLoading, setEditLoading] = useState(isEdit);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const customer = isEdit
+    ? editCustomer
+      ? {
+          id: editCustomer.id,
+          code: editCustomer.code,
+          title: editCustomer.title,
+          phone: '',
+          email: '',
+          taxNo: '',
+          taxOffice: '',
+          kind: 'tuzel' as const,
+          accountType: '',
+          parentId: null,
+          address: '',
+          identityNo: '',
+        }
+      : null
+    : forPanel
+      ? panelCustomer
+      : apiCustomer;
 
   const customerOptions = useMemo(
     () => panelCustomers.map((c) => ({ value: c.id, label: `${c.title}${c.code ? ` · ${c.code}` : ''}` })),
     [panelCustomers],
   );
 
-  const backTo = forPanel ? '/odeme-istekleri' : '/musteriler';
-  const backLabel = forPanel ? 'Ödeme İstekleri' : 'Müşteriler';
+  const backTo = '/odeme-istekleri';
+  const backLabel = 'Ödeme İstekleri';
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
@@ -89,6 +118,67 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     const t = window.setTimeout(() => setToast(null), 2400);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!isEdit || !reqId || !token) return;
+    let cancelled = false;
+    editHydrated.current = false;
+    void (async () => {
+      setEditLoading(true);
+      setEditError(null);
+      try {
+        const data = await api.get<{
+          id: number;
+          type: 'ch' | 'fatura' | 'diger';
+          status: 'pending' | 'paid';
+          customerId: string | null;
+          customerTitle: string;
+          amount: number;
+          commissionIncluded: boolean;
+          description: string;
+          installments: number[];
+        }>(`/api/payment-requests/${encodeURIComponent(reqId)}`, token);
+        if (cancelled) return;
+        if (data.status === 'paid') {
+          setEditError('Ödenmiş istek düzenlenemez');
+          setEditLoading(false);
+          return;
+        }
+        if (!data.customerId) {
+          setEditError('Bu isteğe müşteri bağlı değil');
+          setEditLoading(false);
+          return;
+        }
+        setEditCustomer({
+          id: data.customerId,
+          title: data.customerTitle,
+          code: '',
+        });
+        setPayType(data.type === 'fatura' ? 'fatura' : 'ch');
+        setAmountText(formatMoneyTr(data.amount));
+        setCommissionIncluded(data.commissionIncluded);
+        setInstallments(data.installments.length ? data.installments : [1]);
+        // Açıklama editöre — bir tick sonra DOM hazır
+        window.requestAnimationFrame(() => {
+          if (editorRef.current && data.description) {
+            editorRef.current.innerHTML = data.description.includes('<')
+              ? data.description
+              : `<p>${data.description}</p>`;
+          }
+          editHydrated.current = true;
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setEditError(err instanceof Error ? err.message : 'Ödeme isteği yüklenemedi');
+        }
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, reqId, token]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -169,31 +259,71 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     setSaving(true);
     try {
       const descHtml = editorRef.current?.innerHTML?.trim() || '';
-      await api.post(
-        '/api/payment-requests',
-        {
-          musteriId: Number(customer.id),
-          payType,
-          amount,
-          commissionIncluded,
-          installments,
-          description: descHtml,
-          dosya: fileName,
-        },
-        token,
-      );
-      navigate(backTo, {
-        replace: true,
-        state: { flash: `Ödeme isteği oluşturuldu — ${customer.title}` },
-      });
+      const body = {
+        payType,
+        amount,
+        commissionIncluded,
+        installments,
+        description: descHtml,
+        dosya: fileName,
+      };
+      if (isEdit && reqId) {
+        const data = await api.patch<{ id: number }>(
+          `/api/payment-requests/${encodeURIComponent(reqId)}`,
+          body,
+          token,
+        );
+        navigate('/odeme-istekleri', {
+          replace: true,
+          state: {
+            flash: `Ödeme isteği güncellendi — ${customer.title}`,
+            highlightId: String(data.id ?? reqId),
+          },
+        });
+      } else {
+        const data = await api.post<{ id: number }>(
+          '/api/payment-requests',
+          { ...body, musteriId: Number(customer.id) },
+          token,
+        );
+        navigate('/odeme-istekleri', {
+          replace: true,
+          state: {
+            flash: `Ödeme isteği oluşturuldu — ${customer.title}`,
+            highlightId: String(data.id),
+          },
+        });
+      }
     } catch (err) {
-      flash(err instanceof Error ? err.message : 'Ödeme isteği oluşturulamadı');
+      flash(err instanceof Error ? err.message : 'Ödeme isteği kaydedilemedi');
     } finally {
       setSaving(false);
     }
   }
 
-  if (!forPanel && customerLoading) {
+  if (isEdit && editLoading) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
+        Ödeme isteği yükleniyor…
+      </div>
+    );
+  }
+
+  if (isEdit && (editError || !customer)) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
+        <p className="text-[var(--panel-ink)]">{editError || 'Ödeme isteği bulunamadı.'}</p>
+        <Link
+          to={backTo}
+          className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]"
+        >
+          Listeye dön
+        </Link>
+      </div>
+    );
+  }
+
+  if (!forPanel && !isEdit && customerLoading) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
         Müşteri yükleniyor…
@@ -201,12 +331,12 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     );
   }
 
-  if (!forPanel && !customer) {
+  if (!forPanel && !isEdit && !customer) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
         <p className="text-[var(--panel-ink)]">{customerError || 'Müşteri bulunamadı.'}</p>
         <Link
-          to={backTo}
+          to="/musteriler"
           className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]"
         >
           Listeye dön
@@ -227,23 +357,26 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         </Link>
         <span className="mx-1.5 opacity-50">›</span>
         <span className="font-semibold text-[var(--panel-ink)]">
-          Ödeme İsteği Oluştur{customer ? ` (${customer.title})` : ''}
+          {isEdit ? 'Ödeme İsteği Düzenle' : 'Ödeme İsteği Oluştur'}
+          {customer ? ` (${customer.title})` : ''}
         </span>
       </nav>
 
       <div data-anim className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[1.65rem] font-bold tracking-tight text-[var(--panel-ink)]">
-            Ödeme İsteği Oluştur
+            {isEdit ? 'Ödeme İsteği Düzenle' : 'Ödeme İsteği Oluştur'}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
-            {forPanel
+            {forPanel && !isEdit
               ? panelCustomersLoading
                 ? 'Müşteriler yükleniyor…'
                 : customer
                   ? `${customer.title} · ${customer.code}`
                   : 'Ödeme isteği için müşteri seçin'
-              : `${customer!.title} · ${customer!.code}`}
+              : customer
+                ? `${customer.title}${customer.code ? ` · ${customer.code}` : ''}`
+                : ''}
             {balance != null ? (
               <span className="ml-2 font-semibold text-[var(--color-brand-600)]">
                 Bakiye {formatMoneyTr(balance)} ₺
@@ -259,8 +392,21 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         </Link>
       </div>
 
+      {isEdit ? (
+        <div
+          data-anim
+          className="mb-5 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-sm leading-relaxed text-[var(--panel-ink)]"
+        >
+          <p className="font-semibold text-amber-800 dark:text-amber-300">Düzenleme uyarısı</p>
+          <p className="mt-1 text-[var(--panel-muted)]">
+            Link hâlâ geçerli — karşı taraf bu sırada ödeme yapabilir. Değişiklikleri kaydettikten
+            sonra müşteriyi bilgilendirmenizi öneririz.
+          </p>
+        </div>
+      ) : null}
+
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
-        {forPanel ? (
+        {forPanel && !isEdit ? (
           <section
             data-anim
             className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6"
@@ -670,7 +816,11 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
             disabled={saving}
             className="inline-flex min-w-[260px] items-center justify-center rounded-xl bg-[var(--color-brand-600)] px-8 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:opacity-60"
           >
-            {saving ? 'Oluşturuluyor…' : 'Ödeme İsteği Oluştur'}
+            {saving
+              ? 'Kaydediliyor…'
+              : isEdit
+                ? 'Değişiklikleri Kaydet'
+                : 'Ödeme İsteği Oluştur'}
           </button>
         </div>
       </form>

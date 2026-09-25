@@ -25,8 +25,8 @@ html[data-theme='light'] {
   --panel-muted: #6b7280;
   --panel-line: #e4ebf3;
   --panel-shadow: 0 8px 24px rgba(26, 29, 35, 0.06);
-  --nav-active-bg: #e8f1ff;
-  --nav-active-text: #1859b0;
+  --nav-active-bg: color-mix(in srgb, var(--color-brand-500) 22%, #ffffff);
+  --nav-active-text: var(--color-brand-700);
   --chart-bg: #f7f9fc;
   /* Ortak outlined input — login + panel */
   --input-bg: #ffffff;
@@ -35,11 +35,11 @@ html[data-theme='light'] {
   --input-label: var(--color-brand-600);
   /* Etiket çentiği = input’un OTURDUĞU zemin (kart/sayfa), dolgu değil */
   --input-notch: var(--panel-elevated);
-  /* Sidebar — zemin nötr; vurgu rengi sadece seçici / CTA */
+  /* Sidebar — zemin nötr; seçici vurgu rengi (belirgin) */
   --sidebar-open-bg: #ffffff;
   --sidebar-open-ink: var(--panel-ink);
   --sidebar-open-hover: var(--panel-hover);
-  --sidebar-active-bg: var(--panel-bg);
+  --sidebar-active-bg: color-mix(in srgb, var(--color-brand-500) 20%, #ffffff);
   --sidebar-active-text: var(--color-brand-700);
   --sidebar-cta-bg: var(--color-brand-600);
   --sidebar-cta-text: #ffffff;
@@ -68,7 +68,7 @@ html[data-theme='dark'] {
   --sidebar-open-bg: #07090c;
   --sidebar-open-ink: #e8eef6;
   --sidebar-open-hover: rgba(255, 255, 255, 0.06);
-  --sidebar-active-bg: var(--panel-bg);
+  --sidebar-active-bg: color-mix(in srgb, var(--color-brand-500) 28%, transparent);
   --sidebar-active-text: var(--brand-on-soft);
   --sidebar-cta-bg: var(--color-brand-600);
   --sidebar-cta-text: #ffffff;
@@ -117,6 +117,7 @@ html[data-theme='dark'][data-accent='blue'] {
   --brand-on-soft: #bfdbfe;
   --nav-active-bg: color-mix(in srgb, #2563c7 22%, transparent);
   --nav-active-text: #bfdbfe;
+  --sidebar-active-bg: color-mix(in srgb, #2563c7 30%, transparent);
   --sidebar-active-text: #bfdbfe;
   --sidebar-cta-bg: #1a4fa3;
   --sidebar-cta-text: #ffffff;
@@ -132,6 +133,7 @@ html[data-theme='dark'][data-accent='green'] {
   --brand-on-soft: #bbf7d0;
   --nav-active-bg: color-mix(in srgb, #16a34a 22%, transparent);
   --nav-active-text: #bbf7d0;
+  --sidebar-active-bg: color-mix(in srgb, #16a34a 30%, transparent);
   --sidebar-active-text: #bbf7d0;
   --sidebar-cta-bg: #166534;
   --sidebar-cta-text: #ffffff;
@@ -147,20 +149,23 @@ html[data-theme='dark'][data-accent='purple'] {
   --brand-on-soft: #e9d5ff;
   --nav-active-bg: color-mix(in srgb, #a855f7 22%, transparent);
   --nav-active-text: #e9d5ff;
+  --sidebar-active-bg: color-mix(in srgb, #a855f7 30%, transparent);
   --sidebar-active-text: #e9d5ff;
   --sidebar-cta-bg: #6d28b0;
   --sidebar-cta-text: #ffffff;
 }
 
 html[data-theme='light'][data-accent='green'] {
-  --nav-active-bg: #ecfdf3;
+  --nav-active-bg: color-mix(in srgb, #16a34a 20%, #ffffff);
   --nav-active-text: #166534;
+  --sidebar-active-bg: color-mix(in srgb, #16a34a 20%, #ffffff);
   --sidebar-active-text: #166534;
 }
 
 html[data-theme='light'][data-accent='purple'] {
-  --nav-active-bg: #f5f0ff;
+  --nav-active-bg: color-mix(in srgb, #a855f7 20%, #ffffff);
   --nav-active-text: #7e22ce;
+  --sidebar-active-bg: color-mix(in srgb, #a855f7 20%, #ffffff);
   --sidebar-active-text: #7e22ce;
 }
 
@@ -525,8 +530,9 @@ html[data-theme='dark'] .log-chip--other {
 }
 
 /* Kullanıcı satırı highlight (roller avatarından gelince) */
-.user-row-highlight {
-  animation: user-row-highlight 0.55s ease-in-out 4;
+.user-row-highlight,
+.pay-req-row-highlight {
+  animation: user-row-highlight 0.5s ease-in-out 3;
 }
 
 @keyframes user-row-highlight {
@@ -643,46 +649,25 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
-/* Sidebar — kitap kenarı aktif göstergesi (içbükey köşe) */
+/* Sidebar — yumuşak marka pill (kitap kenarı kaldırıldı; beyaz zeminde okunur) */
 .sidebar-active-pill {
   pointer-events: none;
   position: absolute;
   z-index: 0;
   background: var(--sidebar-active-bg);
-  border-radius: 18px 0 0 18px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-500) 28%, transparent);
 }
 
 .sidebar-active-pill::before,
 .sidebar-active-pill::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  width: 14px;
-  height: 14px;
-  background: transparent;
+  display: none;
 }
 
-.sidebar-active-pill::before {
-  top: -14px;
-  border-bottom-right-radius: 14px;
-  box-shadow: 4px 4px 0 4px var(--sidebar-active-bg);
-}
-
-.sidebar-active-pill::after {
-  bottom: -14px;
-  border-top-right-radius: 14px;
-  box-shadow: 4px -4px 0 4px var(--sidebar-active-bg);
-}
-
-/* Dar mod — yumuşak pill, içbükey yok */
 .sidebar-active-pill--compact {
   border-radius: 12px;
   background: var(--nav-active-bg);
-}
-
-.sidebar-active-pill--compact::before,
-.sidebar-active-pill--compact::after {
-  display: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-500) 22%, transparent);
 }
 
 .sidebar-nav {

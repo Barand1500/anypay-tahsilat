@@ -228,6 +228,114 @@ export async function sendCustomerCredentialsMail(
   return sendMail({ to, subject, html, text });
 }
 
+/** Ödeme isteği linki — müşteriye SMTP */
+export async function sendPaymentRequestMail(opts: {
+  to: string;
+  customerTitle: string;
+  amount: number;
+  description: string;
+  payUrl: string;
+  commissionIncluded: boolean;
+}) {
+  const name = opts.customerTitle.trim() || 'Müşteri';
+  const amountStr = opts.amount.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const subject = `Ödeme isteği — ${amountStr} ₺`;
+  const safeName = escapeHtml(name);
+  const safeAmount = escapeHtml(amountStr);
+  const safeUrl = escapeHtml(opts.payUrl);
+  const safeDesc = escapeHtml((opts.description || '').slice(0, 400));
+  const komisyon = opts.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç';
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Ödeme isteği</title>
+</head>
+<body style="margin:0;padding:0;background:#0b1220;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-radius:20px;overflow:hidden;background:#111827;border:1px solid #1f2937;">
+          <tr>
+            <td style="padding:28px 28px 18px;background:linear-gradient(135deg,#0ea5e9 0%,#0369a1 55%,#0f172a 100%);">
+              <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.75);font-weight:700;">
+                GÜZEL Teknoloji
+              </p>
+              <h1 style="margin:0;font-size:22px;line-height:1.3;color:#ffffff;font-weight:800;">
+                Ödeme isteğiniz hazır
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px;">
+              <p style="margin:0 0 10px;font-size:16px;color:#e5e7eb;">
+                Sayın <strong style="color:#fff;">${safeName}</strong>,
+              </p>
+              <p style="margin:0 0 22px;font-size:14px;line-height:1.55;color:#9ca3af;">
+                Size bir ödeme isteği gönderildi. Aşağıdaki bağlantıdan güvenli ödeme yapabilirsiniz.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+                <tr>
+                  <td style="padding:18px 16px;border-radius:16px;background:#020617;border:1px solid #1f2937;">
+                    <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;">Tutar</p>
+                    <p style="margin:0 0 14px;font-size:28px;font-weight:800;color:#7dd3fc;">${safeAmount} ₺</p>
+                    <p style="margin:0 0 6px;font-size:12px;color:#64748b;">${escapeHtml(komisyon)}</p>
+                    ${
+                      safeDesc
+                        ? `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#94a3b8;">${safeDesc}</p>`
+                        : ''
+                    }
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 18px;text-align:center;">
+                <a href="${safeUrl}" style="display:inline-block;padding:12px 22px;border-radius:12px;background:#0284c7;color:#fff;font-size:14px;font-weight:700;text-decoration:none;">
+                  Ödemeyi tamamla
+                </a>
+              </p>
+              <p style="margin:0;font-size:11px;line-height:1.5;color:#64748b;word-break:break-all;">
+                Link: ${safeUrl}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 28px 22px;border-top:1px solid #1f2937;background:#0b1220;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-align:center;">
+                Powered by <span style="color:#94a3b8;font-weight:700;">GÜZEL Teknoloji®</span>
+                · tahsilat.anypay.com.tr
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    'GÜZEL Teknoloji — Ödeme isteği',
+    '',
+    `Sayın ${name},`,
+    '',
+    `Tutar: ${amountStr} ₺ (${komisyon})`,
+    opts.description ? `Açıklama: ${opts.description.slice(0, 200)}` : '',
+    '',
+    `Ödeme linki: ${opts.payUrl}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return sendMail({ to: opts.to, subject, html, text });
+}
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, '&amp;')
