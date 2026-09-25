@@ -179,27 +179,14 @@ export async function ensureSmtpAyarlarColumn(): Promise<void> {
   }
 }
 
-/** eposta_sablonlari tablosu */
+/** eposta_sablonlari — gerçek dump şeması (self-heal gerekmez) */
 export async function ensureEpostaSablonlariTable(): Promise<void> {
-  try {
-    const { ensureEpostaSablonTable, seedEmailTemplatesIfEmpty } = await import(
-      '../services/emailTemplatesService.js'
-    );
-    await ensureEpostaSablonTable();
-    await seedEmailTemplatesIfEmpty();
-  } catch (err) {
-    console.warn('[schema] eposta_sablonlari atlandı:', err);
-  }
+  /* no-op */
 }
 
-/** SMS tabloları + ayarlar.sms_ayarlar */
+/** SMS tabloları dump’ta mevcut */
 export async function ensureSmsSchema(): Promise<void> {
-  try {
-    const { bootstrapSms } = await import('../services/smsSettingsService.js');
-    await bootstrapSms();
-  } catch (err) {
-    console.warn('[schema] sms atlandı:', err);
-  }
+  /* no-op */
 }
 
 export async function ensureSchema(): Promise<void> {

@@ -20,6 +20,7 @@ import {
 } from '../services/emailSmtpService.js';
 import {
   createEmailTemplate,
+  listEmailSablonOptions,
   listEmailTemplates,
   softDeleteEmailTemplate,
   updateEmailTemplate,
@@ -30,6 +31,7 @@ import {
   createSmsTemplate,
   getSmsSettings,
   listSmsProviders,
+  listSmsSablonOptions,
   listSmsTemplates,
   sendSmsTest,
   softDeleteSmsProvider,
@@ -38,6 +40,13 @@ import {
   updateSmsSettings,
   updateSmsTemplate,
 } from '../services/smsSettingsService.js';
+import {
+  createTemplateVariable,
+  listModules,
+  listTemplateVariables,
+  softDeleteTemplateVariable,
+  updateTemplateVariable,
+} from '../services/templateVariablesService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
 import {
   getInstallmentPriority,
@@ -298,6 +307,15 @@ settingsRouter.get('/email/templates', async (_req, res) => {
   }
 });
 
+settingsRouter.get('/email/template-options', async (_req, res) => {
+  try {
+    return sendSuccess(res, await listEmailSablonOptions());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Şablon seçenekleri yüklenemedi');
+  }
+});
+
 settingsRouter.post('/email/templates', async (req: AuthedRequest, res) => {
   const parsed = emailTplSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -516,6 +534,15 @@ settingsRouter.get('/sms/templates', async (_req, res) => {
   }
 });
 
+settingsRouter.get('/sms/template-options', async (_req, res) => {
+  try {
+    return sendSuccess(res, await listSmsSablonOptions());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Şablon seçenekleri yüklenemedi');
+  }
+});
+
 settingsRouter.post('/sms/templates', async (req: AuthedRequest, res) => {
   const parsed = smsTplSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -561,5 +588,90 @@ settingsRouter.delete('/sms/templates/:id', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Şablon silinemedi');
+  }
+});
+
+/* ─── Şablon değişkenleri (essablonlar) ─── */
+
+const tvarSchema = z.object({
+  name: z.string().min(1).max(255),
+  moduleId: z.string().min(1).max(32),
+  type: z.enum(['email', 'sms']),
+  code: z.string().max(255).nullable().optional(),
+  variables: z
+    .array(
+      z.object({
+        dbColumn: z.string().min(1).max(120),
+        key: z.string().min(1).max(120),
+      }),
+    )
+    .min(1)
+    .max(80),
+});
+
+settingsRouter.get('/template-variables', async (_req, res) => {
+  try {
+    return sendSuccess(res, await listTemplateVariables());
+  } catch (err) {
+    console.error('[template-variables]', err);
+    const detail = err instanceof Error ? err.message : 'Değişkenler yüklenemedi';
+    return sendError(res, 500, detail || 'Değişkenler yüklenemedi');
+  }
+});
+
+settingsRouter.get('/template-variables/modules', async (_req, res) => {
+  try {
+    return sendSuccess(res, await listModules());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Modüller yüklenemedi');
+  }
+});
+
+settingsRouter.post('/template-variables', async (req: AuthedRequest, res) => {
+  const parsed = tvarSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await createTemplateVariable(parsed.data);
+    await writePanelLog(req.auth!.sub, `Şablon değişkeni eklendi — ${data.name}`);
+    return sendSuccess(res, data, 'Kayıt eklendi', 201);
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Kayıt eklenemedi');
+  }
+});
+
+settingsRouter.patch('/template-variables/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  const parsed = tvarSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateTemplateVariable(id, parsed.data);
+    await writePanelLog(req.auth!.sub, `Şablon değişkeni güncellendi — ${data.name}`);
+    return sendSuccess(res, data, 'Kayıt güncellendi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Kayıt güncellenemedi');
+  }
+});
+
+settingsRouter.delete('/template-variables/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  try {
+    await softDeleteTemplateVariable(id);
+    await writePanelLog(req.auth!.sub, `Şablon değişkeni silindi — #${id}`);
+    return sendSuccess(res, { id }, 'Kayıt silindi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Kayıt silinemedi');
   }
 });

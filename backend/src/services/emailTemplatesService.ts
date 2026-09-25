@@ -3,183 +3,101 @@ import { SettingsError } from './settingsService.js';
 
 export type PublicEmailTemplate = {
   id: string;
+  /** essablonlar.id */
+  sablonId: string;
   typeKey: string;
   name: string;
   subject: string;
   body: string;
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  'user-add': 'Kullanıcı Ekleme',
-  'user-edit': 'Kullanıcı Düzenleme',
-  'forgot-password': 'Şifremi Unuttum',
-  'send-password': 'Şifre Gönder',
-  dekont: 'Dekont Gönderme',
-  'payment-request': 'Ödeme İsteği Gönderme',
-  'collect-ok': 'Başarılı Tahsilat',
-  'collect-fail': 'Hatalı Tahsilat',
-  '2fa': '2 Faktörlü Doğrulama',
-  'app-verify': 'Uygulama Kullanıcı Doğrulama',
+export type EmailSablonOption = {
+  id: string;
+  name: string;
+  used: boolean;
 };
-
-const ALLOWED_TYPES = new Set(Object.keys(TYPE_LABELS));
-
-const SEED: { tip: string; adi: string; konu: string; icerik: string }[] = [
-  {
-    tip: '2fa',
-    adi: '2 Faktörlü Doğrulama',
-    konu: 'Giriş Doğrulama Kodunuz',
-    icerik: 'Merhaba {{adsoyad}},\n\nDoğrulama kodunuz: {{kod}}',
-  },
-  {
-    tip: 'collect-ok',
-    adi: 'Başarılı Tahsilat',
-    konu: 'Başarılı Tahsilat',
-    icerik:
-      'Merhaba {{adsoyad}},\n\n{{tutar}} tutarındaki tahsilatınız başarılı. Ref: {{referans}}',
-  },
-  {
-    tip: 'dekont',
-    adi: 'Dekont Gönderme',
-    konu: 'E-Dekont',
-    icerik:
-      'Merhaba {{adsoyad}},\n\n{{tarih}} tarihli {{tutar}} tutarındaki dekontunuz ektedir.',
-  },
-  {
-    tip: 'collect-fail',
-    adi: 'Hatalı Tahsilat',
-    konu: 'Hatalı Tahsilat',
-    icerik: 'Merhaba {{adsoyad}},\n\n{{tutar}} tutarındaki işlem başarısız: {{hata}}',
-  },
-  {
-    tip: 'user-edit',
-    adi: 'Kullanıcı Düzenleme',
-    konu: 'Giriş Bilgileriniz Güncellendi',
-    icerik: 'Merhaba {{adsoyad}},\n\nHesap bilgileriniz güncellendi. E-posta: {{email}}',
-  },
-  {
-    tip: 'user-add',
-    adi: 'Kullanıcı Ekleme',
-    konu: 'Giriş Bilgileriniz',
-    icerik:
-      'Merhaba {{adsoyad}},\n\nHesabınız oluşturuldu.\nE-posta: {{email}}\nŞifre: {{sifre}}\n{{link}}',
-  },
-  {
-    tip: 'payment-request',
-    adi: 'Ödeme İsteği Gönderme',
-    konu: 'Ödeme İsteği',
-    icerik: 'Merhaba {{adsoyad}},\n\n{{tutar}} tutarında ödeme isteği: {{link}}',
-  },
-  {
-    tip: 'send-password',
-    adi: 'Şifre Gönder',
-    konu: 'Yeni Şifreniz',
-    icerik: 'Merhaba {{adsoyad}},\n\nYeni şifreniz: {{sifre}}',
-  },
-  {
-    tip: 'forgot-password',
-    adi: 'Şifremi Unuttum',
-    konu: 'Şifre Yenileme Kodunuz',
-    icerik: 'Merhaba {{adsoyad}},\n\nKodunuz: {{kod}}',
-  },
-  {
-    tip: 'app-verify',
-    adi: 'Uygulama Kullanıcı Doğrulama',
-    konu: 'Firma bilgilerinizi doğrulayın',
-    icerik: '{{firma}} için doğrulama: {{link}}',
-  },
-];
 
 function notRemoved() {
   return { OR: [{ remove: null }, { remove: false }] };
 }
 
-function mapRow(r: {
-  id: number;
-  tip: string;
-  adi: string;
-  konu: string;
-  icerik: string;
-}): PublicEmailTemplate {
-  return {
+export async function listEmailTemplates(): Promise<PublicEmailTemplate[]> {
+  const rows = await prisma.$queryRaw<
+    {
+      id: number;
+      sablon_id: number;
+      konu: string;
+      icerik: string;
+      adi: string | null;
+    }[]
+  >`
+    SELECT e.\`id\`, e.\`sablon_id\`, e.\`konu\`, e.\`icerik\`, s.\`adi\`
+    FROM \`eposta_sablonlari\` e
+    LEFT JOIN \`essablonlar\` s ON s.\`id\` = e.\`sablon_id\`
+    WHERE e.\`remove\` IS NULL OR e.\`remove\` = 0
+    ORDER BY COALESCE(s.\`adi\`, e.\`konu\`) ASC
+  `;
+  return rows.map((r) => ({
     id: String(r.id),
-    typeKey: r.tip,
-    name: r.adi,
+    sablonId: String(r.sablon_id),
+    typeKey: String(r.sablon_id),
+    name: r.adi || r.konu || `Şablon #${r.sablon_id}`,
     subject: r.konu,
     body: r.icerik,
-  };
+  }));
 }
 
-/** Tablo yoksa oluştur — her API çağrısında güvenli */
-export async function ensureEpostaSablonTable(): Promise<void> {
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS \`eposta_sablonlari\` (
-      \`id\` INT NOT NULL AUTO_INCREMENT,
-      \`tip\` VARCHAR(64) NOT NULL,
-      \`adi\` VARCHAR(255) NOT NULL,
-      \`konu\` VARCHAR(255) NOT NULL,
-      \`icerik\` LONGTEXT NOT NULL,
-      \`remove\` TINYINT(1) NULL,
-      PRIMARY KEY (\`id\`),
-      UNIQUE KEY \`eposta_sablonlari_tip_key\` (\`tip\`)
-    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-  `);
-}
-
-export async function seedEmailTemplatesIfEmpty(): Promise<void> {
-  await ensureEpostaSablonTable();
-
-  const countRows = await prisma.$queryRaw<{ c: bigint | number }[]>`
-    SELECT COUNT(*) AS c FROM \`eposta_sablonlari\`
+/** E-posta tipi (tip=0) essablonlar — create modal seçenekleri */
+export async function listEmailSablonOptions(): Promise<EmailSablonOption[]> {
+  const used = await prisma.$queryRaw<{ sablon_id: number }[]>`
+    SELECT \`sablon_id\` FROM \`eposta_sablonlari\`
     WHERE \`remove\` IS NULL OR \`remove\` = 0
   `;
-  const count = Number(countRows[0]?.c ?? 0);
-  if (count > 0) return;
+  const usedSet = new Set(used.map((u) => u.sablon_id));
 
-  for (const s of SEED) {
-    await prisma.$executeRawUnsafe(
-      `INSERT IGNORE INTO \`eposta_sablonlari\` (\`tip\`, \`adi\`, \`konu\`, \`icerik\`, \`remove\`)
-       VALUES (?, ?, ?, ?, 0)`,
-      s.tip,
-      s.adi,
-      s.konu,
-      s.icerik,
-    );
-  }
-  console.log('[schema] eposta_sablonlari seed eklendi');
-}
-
-export async function listEmailTemplates(): Promise<PublicEmailTemplate[]> {
-  await ensureEpostaSablonTable();
-  await seedEmailTemplatesIfEmpty();
-
-  const rows = await prisma.$queryRaw<
-    { id: number; tip: string; adi: string; konu: string; icerik: string }[]
-  >`
-    SELECT \`id\`, \`tip\`, \`adi\`, \`konu\`, \`icerik\`
-    FROM \`eposta_sablonlari\`
-    WHERE \`remove\` IS NULL OR \`remove\` = 0
+  const rows = await prisma.$queryRaw<{ id: number; adi: string }[]>`
+    SELECT \`id\`, \`adi\` FROM \`essablonlar\`
+    WHERE (\`remove\` IS NULL OR \`remove\` = 0) AND \`tip\` = 0
     ORDER BY \`adi\` ASC
   `;
-  return rows.map(mapRow);
+  return rows.map((r) => ({
+    id: String(r.id),
+    name: r.adi,
+    used: usedSet.has(r.id),
+  }));
 }
 
 export async function getEmailTemplateByType(
   typeKey: string,
 ): Promise<PublicEmailTemplate | null> {
-  await ensureEpostaSablonTable();
-  await seedEmailTemplatesIfEmpty();
+  const sablonId = Number(typeKey);
+  if (!Number.isFinite(sablonId)) return null;
   const rows = await prisma.$queryRaw<
-    { id: number; tip: string; adi: string; konu: string; icerik: string }[]
+    {
+      id: number;
+      sablon_id: number;
+      konu: string;
+      icerik: string;
+      adi: string | null;
+    }[]
   >`
-    SELECT \`id\`, \`tip\`, \`adi\`, \`konu\`, \`icerik\`
-    FROM \`eposta_sablonlari\`
-    WHERE \`tip\` = ${typeKey}
-      AND (\`remove\` IS NULL OR \`remove\` = 0)
+    SELECT e.\`id\`, e.\`sablon_id\`, e.\`konu\`, e.\`icerik\`, s.\`adi\`
+    FROM \`eposta_sablonlari\` e
+    LEFT JOIN \`essablonlar\` s ON s.\`id\` = e.\`sablon_id\`
+    WHERE e.\`sablon_id\` = ${sablonId}
+      AND (e.\`remove\` IS NULL OR e.\`remove\` = 0)
     LIMIT 1
   `;
-  const row = rows[0];
-  return row ? mapRow(row) : null;
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: String(r.id),
+    sablonId: String(r.sablon_id),
+    typeKey: String(r.sablon_id),
+    name: r.adi || r.konu,
+    subject: r.konu,
+    body: r.icerik,
+  };
 }
 
 export async function createEmailTemplate(input: {
@@ -187,101 +105,141 @@ export async function createEmailTemplate(input: {
   subject: string;
   body: string;
 }): Promise<PublicEmailTemplate> {
-  await ensureEpostaSablonTable();
-
-  const typeKey = input.typeKey.trim();
-  if (!ALLOWED_TYPES.has(typeKey)) throw new SettingsError('Geçersiz şablon tipi');
-
-  const active = await prisma.epostaSablon.findFirst({
-    where: { tip: typeKey, ...notRemoved() },
-  });
-  if (active) throw new SettingsError('Bu şablon tipi zaten ekli');
-
+  const sablonId = Number(input.typeKey);
+  if (!Number.isFinite(sablonId)) throw new SettingsError('Geçersiz şablon');
   const subject = input.subject.trim();
   const body = input.body.trim();
   if (!subject) throw new SettingsError('Konu gerekli');
   if (!body) throw new SettingsError('İçerik gerekli');
 
-  const soft = await prisma.epostaSablon.findFirst({
-    where: { tip: typeKey, remove: true },
-  });
-  if (soft) {
-    const row = await prisma.epostaSablon.update({
-      where: { id: soft.id },
-      data: {
-        adi: TYPE_LABELS[typeKey] || typeKey,
-        konu: subject.slice(0, 255),
-        icerik: body,
-        remove: false,
-      },
-    });
-    return mapRow(row);
+  const meta = await prisma.$queryRaw<{ id: number; adi: string }[]>`
+    SELECT \`id\`, \`adi\` FROM \`essablonlar\`
+    WHERE \`id\` = ${sablonId} AND \`tip\` = 0
+      AND (\`remove\` IS NULL OR \`remove\` = 0)
+    LIMIT 1
+  `;
+  if (!meta[0]) throw new SettingsError('Şablon değişkeni bulunamadı (e-posta)');
+
+  const existing = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT \`id\` FROM \`eposta_sablonlari\`
+    WHERE \`sablon_id\` = ${sablonId}
+      AND (\`remove\` IS NULL OR \`remove\` = 0)
+    LIMIT 1
+  `;
+  if (existing[0]) throw new SettingsError('Bu şablon zaten ekli');
+
+  const soft = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT \`id\` FROM \`eposta_sablonlari\`
+    WHERE \`sablon_id\` = ${sablonId} AND \`remove\` = 1
+    LIMIT 1
+  `;
+  if (soft[0]) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE \`eposta_sablonlari\` SET \`konu\` = ?, \`icerik\` = ?, \`remove\` = 0 WHERE \`id\` = ?`,
+      subject.slice(0, 255),
+      body,
+      soft[0].id,
+    );
+    return {
+      id: String(soft[0].id),
+      sablonId: String(sablonId),
+      typeKey: String(sablonId),
+      name: meta[0].adi,
+      subject: subject.slice(0, 255),
+      body,
+    };
   }
 
-  try {
-    const row = await prisma.epostaSablon.create({
-      data: {
-        tip: typeKey,
-        adi: TYPE_LABELS[typeKey] || typeKey,
-        konu: subject.slice(0, 255),
-        icerik: body,
-        remove: false,
-      },
-    });
-    return mapRow(row);
-  } catch {
-    throw new SettingsError('Bu şablon tipi kaydedilemedi');
-  }
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO \`eposta_sablonlari\` (\`sablon_id\`, \`konu\`, \`icerik\`, \`remove\`, \`info\`)
+     VALUES (?, ?, ?, 0, NULL)`,
+    sablonId,
+    subject.slice(0, 255),
+    body,
+  );
+  const created = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT \`id\` FROM \`eposta_sablonlari\` WHERE \`sablon_id\` = ${sablonId}
+    ORDER BY \`id\` DESC LIMIT 1
+  `;
+  return {
+    id: String(created[0]!.id),
+    sablonId: String(sablonId),
+    typeKey: String(sablonId),
+    name: meta[0].adi,
+    subject: subject.slice(0, 255),
+    body,
+  };
 }
 
 export async function updateEmailTemplate(
   id: number,
   input: { typeKey: string; subject: string; body: string },
 ): Promise<PublicEmailTemplate> {
-  await ensureEpostaSablonTable();
+  const rows = await prisma.$queryRaw<{ id: number; sablon_id: number }[]>`
+    SELECT \`id\`, \`sablon_id\` FROM \`eposta_sablonlari\`
+    WHERE \`id\` = ${id} AND (\`remove\` IS NULL OR \`remove\` = 0)
+    LIMIT 1
+  `;
+  if (!rows[0]) throw new SettingsError('Şablon bulunamadı');
 
-  const existing = await prisma.epostaSablon.findFirst({
-    where: { id, ...notRemoved() },
-  });
-  if (!existing) throw new SettingsError('Şablon bulunamadı');
-
-  const typeKey = input.typeKey.trim();
-  if (!ALLOWED_TYPES.has(typeKey)) throw new SettingsError('Geçersiz şablon tipi');
-
-  const clash = await prisma.epostaSablon.findFirst({
-    where: { tip: typeKey, ...notRemoved(), NOT: { id } },
-  });
-  if (clash) throw new SettingsError('Bu şablon tipi zaten ekli');
-
+  const nextSablon = Number(input.typeKey) || rows[0].sablon_id;
   const subject = input.subject.trim();
   const body = input.body.trim();
   if (!subject) throw new SettingsError('Konu gerekli');
   if (!body) throw new SettingsError('İçerik gerekli');
 
-  const row = await prisma.epostaSablon.update({
-    where: { id },
-    data: {
-      tip: typeKey,
-      adi: TYPE_LABELS[typeKey] || typeKey,
-      konu: subject.slice(0, 255),
-      icerik: body,
-    },
-  });
-  return mapRow(row);
+  if (nextSablon !== rows[0].sablon_id) {
+    const clash = await prisma.$queryRaw<{ id: number }[]>`
+      SELECT \`id\` FROM \`eposta_sablonlari\`
+      WHERE \`sablon_id\` = ${nextSablon}
+        AND (\`remove\` IS NULL OR \`remove\` = 0)
+        AND \`id\` <> ${id}
+      LIMIT 1
+    `;
+    if (clash[0]) throw new SettingsError('Bu şablon zaten ekli');
+  }
+
+  await prisma.$executeRawUnsafe(
+    `UPDATE \`eposta_sablonlari\` SET \`sablon_id\` = ?, \`konu\` = ?, \`icerik\` = ? WHERE \`id\` = ?`,
+    nextSablon,
+    subject.slice(0, 255),
+    body,
+    id,
+  );
+
+  const meta = await prisma.$queryRaw<{ adi: string }[]>`
+    SELECT \`adi\` FROM \`essablonlar\` WHERE \`id\` = ${nextSablon} LIMIT 1
+  `;
+  return {
+    id: String(id),
+    sablonId: String(nextSablon),
+    typeKey: String(nextSablon),
+    name: meta[0]?.adi || subject,
+    subject: subject.slice(0, 255),
+    body,
+  };
 }
 
 export async function softDeleteEmailTemplate(id: number): Promise<void> {
-  await ensureEpostaSablonTable();
-
-  const existing = await prisma.epostaSablon.findFirst({
-    where: { id, ...notRemoved() },
-  });
-  if (!existing) throw new SettingsError('Şablon bulunamadı');
-  await prisma.epostaSablon.update({
-    where: { id },
-    data: {
-      remove: true,
-      tip: `${existing.tip}__del_${id}`.slice(0, 64),
-    },
-  });
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT \`id\` FROM \`eposta_sablonlari\`
+    WHERE \`id\` = ${id} AND (\`remove\` IS NULL OR \`remove\` = 0)
+    LIMIT 1
+  `;
+  if (!rows[0]) throw new SettingsError('Şablon bulunamadı');
+  await prisma.$executeRawUnsafe(
+    `UPDATE \`eposta_sablonlari\` SET \`remove\` = 1 WHERE \`id\` = ?`,
+    id,
+  );
 }
+
+/** Eski ensure — artık no-op (gerçek tablo dump’ta var) */
+export async function ensureEpostaSablonTable(): Promise<void> {
+  /* gerçek şema: sablon_id, konu, icerik — tip kolonu yok */
+}
+
+export async function seedEmailTemplatesIfEmpty(): Promise<void> {
+  /* seed yok — canlı veri essablonlar + eposta_sablonlari */
+}
+
+void notRemoved;

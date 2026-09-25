@@ -1,21 +1,19 @@
 import gsap from 'gsap';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
-import {
-  EMAIL_TEMPLATE_TYPE_OPTIONS,
-  templateTypeMeta,
-  type EmailTemplate,
-} from './emailTemplateTypes';
+import { type EmailTemplate } from './emailTemplateTypes';
 
 type Mode = { type: 'create' } | { type: 'edit'; template: EmailTemplate };
 
 type Props = {
   mode: Mode;
-  /** Create’de zaten kullanılan tip anahtarları — listeden çıkar */
-  usedTypeKeys: string[];
+  /** essablonlar seçenekleri (id = typeKey) */
+  options: { value: string; label: string }[];
+  /** typeKey → #degisken# listesi */
+  varHints?: Record<string, string[]>;
   onClose: () => void;
   onSave: (t: Omit<EmailTemplate, 'id'> & { id?: string }) => void | Promise<void>;
   saving?: boolean;
@@ -24,7 +22,8 @@ type Props = {
 
 export function EmailTemplateModal({
   mode,
-  usedTypeKeys,
+  options,
+  varHints,
   onClose,
   onSave,
   saving,
@@ -39,11 +38,14 @@ export function EmailTemplateModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const typeOptions = EMAIL_TEMPLATE_TYPE_OPTIONS.filter(
-    (o) => o.value === src?.typeKey || !usedTypeKeys.includes(o.value),
-  ).map((o) => ({ value: o.value, label: o.label }));
+  const typeOptions = useMemo(() => {
+    if (isEdit && src && !options.some((o) => o.value === src.typeKey)) {
+      return [{ value: src.typeKey, label: src.name }, ...options];
+    }
+    return options;
+  }, [options, isEdit, src]);
 
-  const meta = typeKey ? templateTypeMeta(typeKey) : null;
+  const hints = typeKey ? varHints?.[typeKey] || [] : [];
 
   useEffect(() => {
     const el = panelRef.current;
@@ -57,23 +59,11 @@ export function EmailTemplateModal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !saving) onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  function onPickType(v: string | null) {
-    setTypeKey(v);
-    if (!v) return;
-    const m = templateTypeMeta(v);
-    if (m && !isEdit) {
-      setSubject(m.subject);
-      if (!body.trim()) {
-        setBody(`Merhaba,\n\n${m.label} şablonu içeriği.\n\n${m.vars.join(' ')}`);
-      }
-    }
-  }
+  }, [onClose, saving]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -85,11 +75,11 @@ export function EmailTemplateModal({
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const m = templateTypeMeta(typeKey!);
+    const label = typeOptions.find((o) => o.value === typeKey)?.label ?? typeKey!;
     await onSave({
       id: src?.id,
       typeKey: typeKey!,
-      name: m?.label ?? typeKey!,
+      name: label,
       subject: subject.trim(),
       body: body.trim(),
     });
@@ -111,15 +101,16 @@ export function EmailTemplateModal({
           </h2>
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-50"
             aria-label="Kapat"
           >
             ✕
           </button>
         </div>
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={(e) => void submit(e)} className="flex min-h-0 flex-1 flex-col">
           <div className="space-y-4 overflow-y-auto px-5 py-4">
             {error ? (
               <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
@@ -130,7 +121,7 @@ export function EmailTemplateModal({
               label="Şablon *"
               options={typeOptions}
               value={typeKey}
-              onChange={onPickType}
+              onChange={setTypeKey}
               placeholder="Şablon seçiniz."
               required
               kmJump
@@ -146,13 +137,13 @@ export function EmailTemplateModal({
               required
             />
 
-            {meta ? (
+            {hints.length ? (
               <div>
                 <p className="mb-1.5 text-xs font-semibold text-[var(--panel-muted)]">
                   Kullanılabilir Değişkenler
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {meta.vars.map((v) => (
+                  {hints.map((v) => (
                     <button
                       key={v}
                       type="button"
@@ -167,7 +158,7 @@ export function EmailTemplateModal({
               </div>
             ) : (
               <p className="text-xs text-[var(--panel-muted)]">
-                Kullanılabilir Değişkenler — şablon seçince listelenir.
+                Kullanılabilir değişkenler — Şablon Değişkenleri kaydından gelir.
               </p>
             )}
 
@@ -186,8 +177,9 @@ export function EmailTemplateModal({
           <div className="flex items-center justify-end gap-2 border-t border-[var(--panel-line)] px-5 py-3">
             <button
               type="button"
+              disabled={saving}
               onClick={onClose}
-              className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
+              className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               Kapat
             </button>

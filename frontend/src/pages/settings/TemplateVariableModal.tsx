@@ -4,21 +4,29 @@ import { createPortal } from 'react-dom';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import {
-  TEMPLATE_VAR_MODULE_OPTIONS,
   TEMPLATE_VAR_TYPE_OPTIONS,
   formatTemplateVarKey,
   normalizeTemplateVarKey,
+  type ModuleOption,
   type TemplateVarPair,
   type TemplateVarType,
   type TemplateVariableSet,
-} from './mockTemplateVariables';
+} from './templateVariableTypes';
 
 type Mode = { type: 'create' } | { type: 'edit'; row: TemplateVariableSet };
 
 type Props = {
   mode: Mode;
+  modules: ModuleOption[];
   onClose: () => void;
-  onSave: (row: Omit<TemplateVariableSet, 'id' | 'displayId'> & { id?: string }) => void;
+  onSave: (
+    row: Omit<TemplateVariableSet, 'id' | 'displayId' | 'module'> & {
+      id?: string;
+      moduleId: string;
+    },
+  ) => void | Promise<void>;
+  saving?: boolean;
+  error?: string | null;
 };
 
 type DraftPair = TemplateVarPair & { uid: string };
@@ -27,13 +35,20 @@ function emptyPair(): DraftPair {
   return { uid: `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, dbColumn: '', key: '' };
 }
 
-export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
+export function TemplateVariableModal({
+  mode,
+  modules,
+  onClose,
+  onSave,
+  saving,
+  error,
+}: Props) {
   const isEdit = mode.type === 'edit';
   const src = isEdit ? mode.row : null;
 
   const [name, setName] = useState(src?.name ?? '');
   const [type, setType] = useState<string | null>(src?.type ?? null);
-  const [module, setModule] = useState<string | null>(src?.module ?? null);
+  const [moduleId, setModuleId] = useState<string | null>(src?.moduleId ?? null);
   const [pairs, setPairs] = useState<DraftPair[]>(() =>
     src?.variables.length
       ? src.variables.map((v, i) => ({ ...v, uid: `p-${i}-${v.key}` }))
@@ -41,6 +56,8 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const moduleOptions = modules.map((m) => ({ value: m.id, label: m.label }));
 
   useEffect(() => {
     const el = panelRef.current;
@@ -54,11 +71,11 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !saving) onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, saving]);
 
   function patchPair(uid: string, patch: Partial<TemplateVarPair>) {
     setPairs((list) => list.map((p) => (p.uid === uid ? { ...p, ...patch } : p)));
@@ -68,12 +85,13 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
     setPairs((list) => (list.length <= 1 ? list : list.filter((p) => p.uid !== uid)));
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = 'Ad gerekli';
     if (!type) next.type = 'Tip seçin';
-    if (!module) next.module = 'Modül seçin';
+    if (!moduleId) next.module = 'Modül seçin';
 
     const cleaned = pairs
       .map((p) => ({
@@ -90,10 +108,10 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    onSave({
+    await onSave({
       id: src?.id,
       name: name.trim(),
-      module: module!,
+      moduleId: moduleId!,
       type: type as TemplateVarType,
       variables: cleaned,
     });
@@ -115,16 +133,23 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
           </h2>
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-50"
             aria-label="Kapat"
           >
             ✕
           </button>
         </div>
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={(e) => void submit(e)} className="flex min-h-0 flex-1 flex-col">
           <div className="space-y-4 overflow-y-auto px-5 py-4">
+            {error ? (
+              <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
+                {error}
+              </p>
+            ) : null}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <TextInput
                 data-km-jump
@@ -151,9 +176,9 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
             <div>
               <FloatingSearchSelect
                 label="Modül *"
-                options={[...TEMPLATE_VAR_MODULE_OPTIONS]}
-                value={module}
-                onChange={setModule}
+                options={moduleOptions}
+                value={moduleId}
+                onChange={setModuleId}
                 placeholder="Modül seçiniz."
                 required
                 kmJump
@@ -229,17 +254,19 @@ export function TemplateVariableModal({ mode, onClose, onSave }: Props) {
           <div className="flex items-center justify-end gap-2 border-t border-[var(--panel-line)] px-5 py-3">
             <button
               type="button"
+              disabled={saving}
               onClick={onClose}
-              className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
+              className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               Kapat
             </button>
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

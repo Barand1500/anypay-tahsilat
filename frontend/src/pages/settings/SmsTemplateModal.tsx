@@ -1,26 +1,31 @@
 import gsap from 'gsap';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextArea } from '../../components/ui/TextArea';
-import {
-  SMS_TEMPLATE_TYPE_OPTIONS,
-  smsTemplateTypeMeta,
-  type SmsTemplate,
-} from './smsTypes';
+import { type SmsTemplate } from './smsTypes';
 
 type Mode = { type: 'create' } | { type: 'edit'; template: SmsTemplate };
 
 type Props = {
   mode: Mode;
-  usedTypeKeys: string[];
+  options: { value: string; label: string }[];
+  varHints?: Record<string, string[]>;
   onClose: () => void;
   onSave: (t: Omit<SmsTemplate, 'id'> & { id?: string }) => void | Promise<void>;
   saving?: boolean;
   error?: string | null;
 };
 
-export function SmsTemplateModal({ mode, usedTypeKeys, onClose, onSave, saving, error }: Props) {
+export function SmsTemplateModal({
+  mode,
+  options,
+  varHints,
+  onClose,
+  onSave,
+  saving,
+  error,
+}: Props) {
   const isEdit = mode.type === 'edit';
   const src = isEdit ? mode.template : null;
 
@@ -29,11 +34,14 @@ export function SmsTemplateModal({ mode, usedTypeKeys, onClose, onSave, saving, 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const typeOptions = SMS_TEMPLATE_TYPE_OPTIONS.filter(
-    (o) => o.value === src?.typeKey || !usedTypeKeys.includes(o.value),
-  ).map((o) => ({ value: o.value, label: o.label }));
+  const typeOptions = useMemo(() => {
+    if (isEdit && src && !options.some((o) => o.value === src.typeKey)) {
+      return [{ value: src.typeKey, label: src.name }, ...options];
+    }
+    return options;
+  }, [options, isEdit, src]);
 
-  const meta = typeKey ? smsTemplateTypeMeta(typeKey) : null;
+  const hints = typeKey ? varHints?.[typeKey] || [] : [];
 
   useEffect(() => {
     const el = panelRef.current;
@@ -53,15 +61,6 @@ export function SmsTemplateModal({ mode, usedTypeKeys, onClose, onSave, saving, 
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose, saving]);
 
-  function onPickType(v: string | null) {
-    setTypeKey(v);
-    if (!v || isEdit) return;
-    const m = smsTemplateTypeMeta(v);
-    if (m && !body.trim()) {
-      setBody(`${m.label}: ${m.vars.join(' ')}`);
-    }
-  }
-
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (saving) return;
@@ -71,11 +70,11 @@ export function SmsTemplateModal({ mode, usedTypeKeys, onClose, onSave, saving, 
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const m = smsTemplateTypeMeta(typeKey!);
+    const label = typeOptions.find((o) => o.value === typeKey)?.label ?? typeKey!;
     await onSave({
       id: src?.id,
       typeKey: typeKey!,
-      name: m?.label ?? typeKey!,
+      name: label,
       body: body.trim(),
     });
   }
@@ -117,20 +116,20 @@ export function SmsTemplateModal({ mode, usedTypeKeys, onClose, onSave, saving, 
               label="Şablon *"
               options={typeOptions}
               value={typeKey}
-              onChange={onPickType}
+              onChange={setTypeKey}
               placeholder="Şablon seçiniz."
               required
               kmJump
             />
             {errors.typeKey ? <p className="-mt-2 text-xs text-red-500">{errors.typeKey}</p> : null}
 
-            {meta ? (
+            {hints.length ? (
               <div>
                 <p className="mb-1.5 text-xs font-semibold text-[var(--panel-muted)]">
                   Kullanılabilir Değişkenler
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {meta.vars.map((v) => (
+                  {hints.map((v) => (
                     <button
                       key={v}
                       type="button"
@@ -145,7 +144,7 @@ export function SmsTemplateModal({ mode, usedTypeKeys, onClose, onSave, saving, 
               </div>
             ) : (
               <p className="text-xs text-[var(--panel-muted)]">
-                Kullanılabilir Değişkenler — şablon seçince listelenir.
+                Kullanılabilir değişkenler — Şablon Değişkenleri kaydından gelir.
               </p>
             )}
 

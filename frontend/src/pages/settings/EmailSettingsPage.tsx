@@ -10,6 +10,7 @@ import { api } from '../../lib/api';
 import { emailSuggestions } from '../../lib/emailSuggestions';
 import { EmailTemplateModal } from './EmailTemplateModal';
 import {
+  type EmailSablonOption,
   type EmailTemplate,
   type SmtpSettings,
 } from './emailTemplateTypes';
@@ -53,6 +54,8 @@ export default function EmailSettingsPage() {
   const [testOk, setTestOk] = useState(false);
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [tplOptions, setTplOptions] = useState<EmailSablonOption[]>([]);
+  const [varHints, setVarHints] = useState<Record<string, string[]>>({});
   const [tplLoading, setTplLoading] = useState(true);
   const [tplError, setTplError] = useState<string | null>(null);
   const [tplSaving, setTplSaving] = useState(false);
@@ -96,8 +99,22 @@ export default function EmailSettingsPage() {
     setTplLoading(true);
     setTplError(null);
     try {
-      const list = await api.get<EmailTemplate[]>('/api/settings/email/templates', token);
+      const [list, opts, vars] = await Promise.all([
+        api.get<EmailTemplate[]>('/api/settings/email/templates', token),
+        api.get<EmailSablonOption[]>('/api/settings/email/template-options', token),
+        api.get<{ id: string; type: string; variables: { key: string }[] }[]>(
+          '/api/settings/template-variables',
+          token,
+        ),
+      ]);
       setTemplates(list);
+      setTplOptions(opts);
+      const hints: Record<string, string[]> = {};
+      for (const v of vars) {
+        if (v.type !== 'email') continue;
+        hints[v.id] = v.variables.map((x) => `#${x.key.replace(/^#+|#+$/g, '')}#`);
+      }
+      setVarHints(hints);
     } catch (err) {
       setTplError(err instanceof Error ? err.message : 'Şablonlar yüklenemedi');
       setTemplates([]);
@@ -137,7 +154,9 @@ export default function EmailSettingsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const slice = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const usedTypeKeys = templates.map((t) => t.typeKey);
+  const createOptions = tplOptions
+    .filter((o) => !o.used)
+    .map((o) => ({ value: o.id, label: o.name }));
 
   const showSmtp = focus !== 'templates';
   const showTemplates = focus !== 'smtp';
@@ -701,7 +720,15 @@ export default function EmailSettingsPage() {
       {modal ? (
         <EmailTemplateModal
           mode={modal}
-          usedTypeKeys={usedTypeKeys}
+          options={
+            modal.type === 'edit'
+              ? [
+                  { value: modal.template.typeKey, label: modal.template.name },
+                  ...createOptions.filter((o) => o.value !== modal.template.typeKey),
+                ]
+              : createOptions
+          }
+          varHints={varHints}
           saving={tplSaving}
           error={tplModalError}
           onClose={() => {

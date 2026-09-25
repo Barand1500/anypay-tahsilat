@@ -281,22 +281,33 @@ model Ayarlar {
   varsayilanlar          String?   @map("varsayilanlar") @db.LongText
   /** SMTP ayarları — JSON (host, port, email, password, ssl, tls) */
   smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
-  /** SMS ayarları — JSON (providerId, username, password, title, active) */
-  smsAyarlar             String?   @map("sms_ayarlar") @db.LongText
 
   @@map("ayarlar")
 }
 
-/** E-posta şablonları — tip anahtarı benzersiz */
-model EpostaSablon {
-  id     Int      @id @default(autoincrement())
-  tip    String   @db.VarChar(64)
-  adi    String   @db.VarChar(255)
-  konu   String   @db.VarChar(255)
-  icerik String   @db.LongText
-  remove Boolean?
+/** Şablon değişken tanımları — e-posta/SMS şablonlarının üst kaydı */
+model EsSablon {
+  id          Int      @id @default(autoincrement())
+  modulId     Int      @map("modul_id")
+  adi         String   @db.VarChar(255)
+  degiskenler String   @db.LongText
+  remove      Boolean?
+  /** 0=e-posta, 1=sms */
+  tip         Int
+  kodu        String?  @db.VarChar(255)
 
-  @@unique([tip])
+  @@map("essablonlar")
+}
+
+/** E-posta şablon içerikleri — essablonlar.id ile bağlı */
+model EpostaSablon {
+  id       Int      @id @default(autoincrement())
+  sablonId Int      @map("sablon_id")
+  konu     String   @db.VarChar(255)
+  icerik   String   @db.LongText
+  remove   Boolean?
+  info     String?  @db.LongText
+
   @@map("eposta_sablonlari")
 }
 
@@ -304,22 +315,31 @@ model EpostaSablon {
 model SmsSaglayici {
   id          Int      @id @default(autoincrement())
   adi         String   @db.VarChar(255)
-  kod         String   @db.LongText
-  degiskenler String?  @db.LongText
+  code        String   @db.LongText
+  degiskenler String   @db.LongText
   remove      Boolean?
 
-  @@map("sms_saglayicilar")
+  @@map("sms_saglayicilari")
 }
 
-/** SMS şablonları — tip anahtarı benzersiz */
-model SmsSablon {
-  id     Int      @id @default(autoincrement())
-  tip    String   @db.VarChar(64)
-  adi    String   @db.VarChar(255)
-  icerik String   @db.LongText
-  remove Boolean?
+/** SMS ayarları — tek/az satır */
+model SmsAyar {
+  id          Int      @id @default(autoincrement())
+  saglayiciId Int      @map("saglayici_id")
+  degiskenler String   @db.LongText
+  status      Boolean?
 
-  @@unique([tip])
+  @@map("sms_ayarlari")
+}
+
+/** SMS şablon içerikleri — essablonlar.id ile bağlı */
+model SmsSablon {
+  id       Int      @id @default(autoincrement())
+  sablonId Int      @map("sablon_id")
+  icerik   String   @db.LongText
+  info     String?  @db.LongText
+  remove   Boolean?
+
   @@map("sms_sablonlari")
 }
 

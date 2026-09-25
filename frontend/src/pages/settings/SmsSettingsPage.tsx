@@ -74,6 +74,8 @@ export default function SmsSettingsPage() {
   const [testOk, setTestOk] = useState(false);
 
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
+  const [tplOptions, setTplOptions] = useState<{ id: string; name: string; used: boolean }[]>([]);
+  const [varHints, setVarHints] = useState<Record<string, string[]>>({});
   const [tplLoading, setTplLoading] = useState(true);
   const [tplError, setTplError] = useState<string | null>(null);
   const [tplSaving, setTplSaving] = useState(false);
@@ -140,7 +142,25 @@ export default function SmsSettingsPage() {
     setTplLoading(true);
     setTplError(null);
     try {
-      setTemplates(await api.get<SmsTemplate[]>('/api/settings/sms/templates', token));
+      const [list, opts, vars] = await Promise.all([
+        api.get<SmsTemplate[]>('/api/settings/sms/templates', token),
+        api.get<{ id: string; name: string; used: boolean }[]>(
+          '/api/settings/sms/template-options',
+          token,
+        ),
+        api.get<{ id: string; type: string; variables: { key: string }[] }[]>(
+          '/api/settings/template-variables',
+          token,
+        ),
+      ]);
+      setTemplates(list);
+      setTplOptions(opts);
+      const hints: Record<string, string[]> = {};
+      for (const v of vars) {
+        if (v.type !== 'sms') continue;
+        hints[v.id] = v.variables.map((x) => `#${x.key.replace(/^#+|#+$/g, '')}#`);
+      }
+      setVarHints(hints);
     } catch (err) {
       setTplError(err instanceof Error ? err.message : 'Şablonlar yüklenemedi');
       setTemplates([]);
@@ -186,7 +206,9 @@ export default function SmsSettingsPage() {
     (tplSafePage - 1) * tplPageSize,
     tplSafePage * tplPageSize,
   );
-  const usedTypeKeys = templates.map((t) => t.typeKey);
+  const createTplOptions = tplOptions
+    .filter((o) => !o.used)
+    .map((o) => ({ value: o.id, label: o.name }));
 
   const provFiltered = useMemo(() => {
     const q = provQuery.trim().toLocaleLowerCase('tr');
@@ -790,7 +812,15 @@ export default function SmsSettingsPage() {
       {tplModal ? (
         <SmsTemplateModal
           mode={tplModal}
-          usedTypeKeys={usedTypeKeys}
+          options={
+            tplModal.type === 'edit'
+              ? [
+                  { value: tplModal.template.typeKey, label: tplModal.template.name },
+                  ...createTplOptions.filter((o) => o.value !== tplModal.template.typeKey),
+                ]
+              : createTplOptions
+          }
+          varHints={varHints}
           saving={tplSaving}
           error={tplModalError}
           onClose={() => {

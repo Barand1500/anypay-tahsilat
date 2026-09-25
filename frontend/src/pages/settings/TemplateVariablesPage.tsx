@@ -1,26 +1,31 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { TemplateVariableModal } from './TemplateVariableModal';
 import {
-  INITIAL_TEMPLATE_VARIABLES,
   formatTemplateVarKey,
   templateVarTypeLabel,
+  type ModuleOption,
   type TemplateVariableSet,
-} from './mockTemplateVariables';
+} from './templateVariableTypes';
 
 /**
- * Ayarlar › Şablon Değişkenleri — çarşaf liste; çift tık düzenle, sil ikonu.
+ * Ayarlar › Şablon Değişkenleri — essablonlar DB.
  */
 export default function TemplateVariablesPage() {
+  const { token } = useAuth();
   const tableRef = useRef<HTMLDivElement>(null);
-  const [rows, setRows] = useState<TemplateVariableSet[]>(() =>
-    INITIAL_TEMPLATE_VARIABLES.map((r) => ({
-      ...r,
-      variables: r.variables.map((v) => ({ ...v })),
-    })),
-  );
+  const [rows, setRows] = useState<TemplateVariableSet[]>([]);
+  const [modules, setModules] = useState<ModuleOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -29,6 +34,29 @@ export default function TemplateVariablesPage() {
     { type: 'create' } | { type: 'edit'; row: TemplateVariableSet } | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<TemplateVariableSet | null>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [list, mods] = await Promise.all([
+        api.get<TemplateVariableSet[]>('/api/settings/template-variables', token),
+        api.get<ModuleOption[]>('/api/settings/template-variables/modules', token),
+      ]);
+      setRows(list);
+      setModules(mods);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -112,8 +140,49 @@ export default function TemplateVariablesPage() {
     );
   }
 
-  function nextDisplayId() {
-    return rows.reduce((m, r) => Math.max(m, r.displayId), 0) + 1;
+  async function saveRow(
+    row: Omit<TemplateVariableSet, 'id' | 'displayId' | 'module'> & {
+      id?: string;
+      moduleId: string;
+    },
+  ) {
+    if (!token || saving) return;
+    setSaving(true);
+    setModalError(null);
+    try {
+      const payload = {
+        name: row.name,
+        moduleId: row.moduleId,
+        type: row.type,
+        variables: row.variables,
+      };
+      if (row.id) {
+        await api.patch(`/api/settings/template-variables/${row.id}`, payload, token);
+      } else {
+        await api.post('/api/settings/template-variables', payload, token);
+      }
+      await load();
+      setModal(null);
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!token || !deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/settings/template-variables/${deleteTarget.id}`, token);
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Silinemedi');
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -132,7 +201,10 @@ export default function TemplateVariablesPage() {
           <button
             type="button"
             data-km-jump
-            onClick={() => setModal({ type: 'create' })}
+            onClick={() => {
+              setModalError(null);
+              setModal({ type: 'create' });
+            }}
             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
           >
             <span className="text-lg leading-none">+</span>
@@ -140,6 +212,12 @@ export default function TemplateVariablesPage() {
           </button>
         </div>
       </div>
+
+      {error ? (
+        <p className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-600">
+          {error}
+        </p>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
@@ -189,7 +267,10 @@ export default function TemplateVariablesPage() {
                   key={r.id}
                   data-tvar-row
                   title="Çift tıkla: düzenle"
-                  onDoubleClick={() => setModal({ type: 'edit', row: r })}
+                  onDoubleClick={() => {
+                    setModalError(null);
+                    setModal({ type: 'edit', row: r });
+                  }}
                   className="grid cursor-default grid-cols-[52px_minmax(140px,1fr)_minmax(110px,0.8fr)_88px_minmax(200px,1.4fr)_44px] items-center gap-3 border-b border-[var(--panel-line)]/70 px-5 py-3 transition hover:bg-[var(--panel-hover)]"
                 >
                   <span className="tabular-nums text-sm text-[var(--panel-muted)]">
@@ -231,7 +312,7 @@ export default function TemplateVariablesPage() {
               ))
             ) : (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
-                Kayıt bulunamadı
+                {loading ? 'Yükleniyor…' : 'Kayıt bulunamadı'}
               </p>
             )}
           </div>
@@ -269,37 +350,13 @@ export default function TemplateVariablesPage() {
       {modal ? (
         <TemplateVariableModal
           mode={modal}
-          onClose={() => setModal(null)}
-          onSave={(row) => {
-            if (row.id) {
-              setRows((list) =>
-                list.map((r) =>
-                  r.id === row.id
-                    ? {
-                        ...r,
-                        name: row.name,
-                        module: row.module,
-                        type: row.type,
-                        variables: row.variables,
-                      }
-                    : r,
-                ),
-              );
-            } else {
-              setRows((list) => [
-                ...list,
-                {
-                  id: `tv-${Date.now()}`,
-                  displayId: nextDisplayId(),
-                  name: row.name,
-                  module: row.module,
-                  type: row.type,
-                  variables: row.variables,
-                },
-              ]);
-            }
-            setModal(null);
+          modules={modules}
+          saving={saving}
+          error={modalError}
+          onClose={() => {
+            if (!saving) setModal(null);
           }}
+          onSave={saveRow}
         />
       ) : null}
 
@@ -320,20 +377,19 @@ export default function TemplateVariablesPage() {
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     type="button"
+                    disabled={deleting}
                     onClick={() => setDeleteTarget(null)}
-                    className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold"
+                    className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
                   >
                     Vazgeç
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
-                      setDeleteTarget(null);
-                    }}
-                    className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
+                    disabled={deleting}
+                    onClick={() => void confirmDelete()}
+                    className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    Sil
+                    {deleting ? 'Siliniyor…' : 'Sil'}
                   </button>
                 </div>
               </div>
