@@ -1,25 +1,52 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { MonthMultiSelect } from '../../components/ui/MonthMultiSelect';
-import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { api } from '../../lib/api';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { formatMoneyTr } from './collectionReportTypes';
 import { defaultStatYears } from './statisticsTypes';
-import {
-  avgOf,
-  INITIAL_CUSTOMER_COLLECTION,
-  scaleCustomerRows,
-} from './mockCustomerCollection';
+
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 
+type CustomerCollectionRow = {
+  id: string;
+  title: string;
+  count: number;
+  total: number;
+};
+
+type ApiCustomerCollection = {
+  rows: CustomerCollectionRow[];
+  totalCount: number;
+  filters: {
+    branches: { value: string; label: string }[];
+    users: { value: string; label: string }[];
+    years: { value: string; label: string }[];
+  };
+};
+
+function avgOf(row: CustomerCollectionRow) {
+  return row.count > 0 ? row.total / row.count : 0;
+}
+
+function currentMonthStr() {
+  return String(new Date().getMonth() + 1);
+}
+
+function currentYearStr() {
+  return String(new Date().getFullYear());
+}
+
 export default function CustomerCollectionReportPage() {
+  const { token } = useAuth();
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('musteri-tahsilat'));
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [year, setYear] = useState<string | null>('2026');
-  const [months, setMonths] = useState<string[]>(['9']);
+  const [year, setYear] = useState<string | null>(() => currentYearStr());
+  const [months, setMonths] = useState<string[]>(() => [currentMonthStr()]);
   const [fullYear, setFullYear] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
@@ -27,34 +54,52 @@ export default function CustomerCollectionReportPage() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
 
-  const branchOptions = useMemo(
-    () => getBranchOptions().map((b) => ({ value: b, label: b })),
-    [],
-  );
-  const userOptions = useMemo(
-    () => INITIAL_USERS.map((u) => ({ value: String(u.id), label: u.name })),
-    [],
-  );
+  const [rows, setRows] = useState<CustomerCollectionRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+  const [userOptions, setUserOptions] = useState<{ value: string; label: string }[]>([]);
+  const [yearOptions, setYearOptions] = useState(() => defaultStatYears());
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const scaled = useMemo(
-    () =>
-      scaleCustomerRows(INITIAL_CUSTOMER_COLLECTION, {
-        year: year || '2026',
-        months: fullYear ? [] : months,
-        fullYear,
-        branch,
-        userId,
-      }),
-    [year, months, fullYear, branch, userId],
-  );
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const qs = new URLSearchParams();
+      qs.set('year', year || currentYearStr());
+      if (!fullYear && months.length) qs.set('months', months.join(','));
+      if (branch) qs.set('branchId', branch);
+      if (userId) qs.set('userId', userId);
+      const data = await api.get<ApiCustomerCollection>(
+        `/api/reports/customer-collection?${qs.toString()}`,
+        token,
+      );
+      setRows(data.rows ?? []);
+      setTotalCount(data.totalCount ?? data.rows?.length ?? 0);
+      if (data.filters?.branches?.length) setBranchOptions(data.filters.branches);
+      if (data.filters?.users?.length) setUserOptions(data.filters.users);
+      if (data.filters?.years?.length) setYearOptions(data.filters.years);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Müşteri tahsilat raporu yüklenemedi');
+      setRows([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, year, months, fullYear, branch, userId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
-    if (!q) return scaled;
-    return scaled.filter((r) => r.title.toLocaleLowerCase('tr').includes(q));
-  }, [scaled, query]);
+    if (!q) return rows;
+    return rows.filter((r) => r.title.toLocaleLowerCase('tr').includes(q));
+  }, [rows, query]);
 
-  const unfilteredTotal = INITIAL_CUSTOMER_COLLECTION.length;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const slice = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -68,16 +113,16 @@ export default function CustomerCollectionReportPage() {
   const filtersActive =
     !!branch ||
     !!userId ||
-    year !== '2026' ||
-    months.join(',') !== '9' ||
+    year !== currentYearStr() ||
+    months.join(',') !== currentMonthStr() ||
     fullYear ||
     !!query.trim();
 
   function resetFilters() {
     setBranch(null);
     setUserId(null);
-    setYear('2026');
-    setMonths(['9']);
+    setYear(currentYearStr());
+    setMonths([currentMonthStr()]);
     setFullYear(false);
     setQuery('');
   }
@@ -200,7 +245,7 @@ export default function CustomerCollectionReportPage() {
               />
               <FloatingSearchSelect
                 label="Yıl Seçin"
-                options={defaultStatYears()}
+                options={yearOptions}
                 value={year}
                 onChange={setYear}
                 placeholder="Yıl seçiniz."
@@ -221,6 +266,12 @@ export default function CustomerCollectionReportPage() {
           </div>
         ) : null}
       </section>
+
+      {loadError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
+          {loadError}
+        </div>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
@@ -265,7 +316,9 @@ export default function CustomerCollectionReportPage() {
               <span className="text-right">Ortalama tutar</span>
             </div>
 
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Kayıt bulunamadı.</p>
             ) : (
               slice.map((r) => (
@@ -289,9 +342,22 @@ export default function CustomerCollectionReportPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-[var(--panel-muted)]">
           <p>
-            {fromIdx} ile {toIdx} arasında veri gösteriliyor. Toplam:{' '}
-            <strong className="text-[var(--panel-ink)]">{filtered.length}</strong> (Filtrelenmemiş
-            toplam: {unfilteredTotal})
+            {loading
+              ? 'Yükleniyor…'
+              : filtered.length === 0
+                ? '0 kayıt'
+                : `${fromIdx} ile ${toIdx} arasında veri gösteriliyor. Toplam: `}
+            {!loading && filtered.length > 0 ? (
+              <>
+                <strong className="text-[var(--panel-ink)]">{filtered.length}</strong>
+                {query.trim() ? (
+                  <>
+                    {' '}
+                    (Filtrelenmemiş toplam: {totalCount})
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </p>
           <div className="flex items-center gap-1">
             <PagerBtn disabled={safePage <= 1} onClick={() => setPage(1)}>

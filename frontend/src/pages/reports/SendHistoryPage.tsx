@@ -1,24 +1,36 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
-import { useCustomersList } from '../customers/useCustomersList';
+import { api } from '../../lib/api';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
   formatSendDate,
-  INITIAL_SEND_HISTORY,
   SEND_TYPE_LABEL,
   SEND_TYPE_OPTIONS,
   type SendHistoryRow,
   type SendType,
-} from './mockSendHistory';
+} from './sendHistoryTypes';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 
+type ApiSendHistory = {
+  rows: SendHistoryRow[];
+  totalCount: number;
+  filters: {
+    customers: { value: string; label: string }[];
+  };
+};
+
 export default function SendHistoryPage() {
-  const { customers } = useCustomersList({ parentId: 'all' });
-  const [rows] = useState<SendHistoryRow[]>(() => [...INITIAL_SEND_HISTORY]);
+  const { token } = useAuth();
+  const [rows, setRows] = useState<SendHistoryRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [customerOptions, setCustomerOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('gonderim-gecmisi'));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -30,41 +42,42 @@ export default function SendHistoryPage() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
 
-  const customerOptions = useMemo(
-    () => customers.map((c) => ({ value: c.id, label: c.title })),
-    [customers],
-  );
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const qs = new URLSearchParams();
+      if (dateFrom) qs.set('from', dateFrom);
+      if (dateTo) qs.set('to', dateTo);
+      if (sendType) qs.set('type', sendType);
+      if (customerId) qs.set('customerId', customerId);
+      if (query.trim()) qs.set('q', query.trim());
+      const data = await api.get<ApiSendHistory>(
+        `/api/reports/send-history?${qs.toString()}`,
+        token,
+      );
+      setRows(data.rows ?? []);
+      setTotalCount(data.totalCount ?? data.rows?.length ?? 0);
+      if (data.filters?.customers?.length) setCustomerOptions(data.filters.customers);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Gönderim geçmişi yüklenemedi');
+      setRows([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, dateFrom, dateTo, sendType, customerId, query]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase('tr');
-    return rows.filter((r) => {
-      if (sendType && r.type !== sendType) return false;
-      if (customerId && r.customerId !== customerId) return false;
-      if (dateFrom) {
-        const day = r.sentAt.slice(0, 10);
-        if (day < dateFrom) return false;
-      }
-      if (dateTo) {
-        const day = r.sentAt.slice(0, 10);
-        if (day > dateTo) return false;
-      }
-      if (q) {
-        const hay =
-          `${r.id} ${r.customerTitle} ${SEND_TYPE_LABEL[r.type]} ${r.recipient} ${r.content} ${formatSendDate(r.sentAt)}`.toLocaleLowerCase(
-            'tr',
-          );
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [rows, sendType, customerId, dateFrom, dateTo, query]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const unfilteredTotal = rows.length;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const slice = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const fromIdx = filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
-  const toIdx = Math.min(safePage * pageSize, filtered.length);
+  const slice = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const fromIdx = rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const toIdx = Math.min(safePage * pageSize, rows.length);
 
   useEffect(() => {
     setPage(1);
@@ -99,7 +112,7 @@ export default function SendHistoryPage() {
 
   function exportCsv() {
     const header = 'ID;Müşteri;Gönderim Tipi;Alıcı;İçerik;Gönderim Tarihi\n';
-    const body = filtered
+    const body = rows
       .map(
         (r) =>
           `${r.id};${r.customerTitle};${SEND_TYPE_LABEL[r.type]};${r.recipient};"${r.content.replace(/"/g, '""').replace(/\n/g, ' ')}";${formatSendDate(r.sentAt)}`,
@@ -115,7 +128,7 @@ export default function SendHistoryPage() {
   }
 
   function copyList() {
-    const text = filtered
+    const text = rows
       .map(
         (r) =>
           `${r.id}\t${r.customerTitle}\t${SEND_TYPE_LABEL[r.type]}\t${r.recipient}\t${r.content.replace(/\n/g, ' ')}\t${formatSendDate(r.sentAt)}`,
@@ -183,6 +196,12 @@ export default function SendHistoryPage() {
         ) : null}
       </section>
 
+      {loadError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
+          {loadError}
+        </div>
+      ) : null}
+
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <label className="flex items-center gap-2 text-sm text-[var(--panel-muted)]">
@@ -228,8 +247,12 @@ export default function SendHistoryPage() {
               <span>Gönderim tarihi</span>
             </div>
 
-            {slice.length === 0 ? (
-              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Kayıt bulunamadı.</p>
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+            ) : slice.length === 0 ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
+                Kayıt bulunamadı. Yeni e-posta gönderimleri burada listelenir.
+              </p>
             ) : (
               slice.map((r) => (
                 <div
@@ -243,12 +266,8 @@ export default function SendHistoryPage() {
                   <span>
                     <TypeBadge type={r.type} />
                   </span>
-                  <span className="min-w-0 break-all text-[var(--panel-ink)]">
-                    {r.recipient}
-                  </span>
-                  <span
-                    className="min-w-0 whitespace-pre-wrap break-words text-[12px] leading-snug text-[var(--panel-muted)]"
-                  >
+                  <span className="min-w-0 break-all text-[var(--panel-ink)]">{r.recipient}</span>
+                  <span className="min-w-0 whitespace-pre-wrap break-words text-[12px] leading-snug text-[var(--panel-muted)]">
                     {r.content}
                   </span>
                   <span className="tabular-nums text-[12px] text-[var(--panel-ink)]">
@@ -262,9 +281,14 @@ export default function SendHistoryPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-[var(--panel-muted)]">
           <p>
-            {fromIdx} ile {toIdx} arasında veri gösteriliyor. Toplam:{' '}
-            <strong className="text-[var(--panel-ink)]">{filtered.length}</strong> (Filtrelenmemiş
-            toplam: {unfilteredTotal})
+            {loading
+              ? 'Yükleniyor…'
+              : rows.length === 0
+                ? '0 kayıt'
+                : `${fromIdx} ile ${toIdx} arasında veri gösteriliyor. Toplam: `}
+            {!loading && rows.length > 0 ? (
+              <strong className="text-[var(--panel-ink)]">{totalCount}</strong>
+            ) : null}
           </p>
           <div className="flex items-center gap-1">
             <PagerBtn disabled={safePage <= 1} onClick={() => setPage(1)}>

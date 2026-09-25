@@ -20,7 +20,7 @@ import { paymentRequestsRouter } from './routes/paymentRequests.js';
 import { payPublicRouter } from './routes/payPublic.js';
 import { sendError } from './utils/response.js';
 import { UPLOADS_ROOT } from './services/settingsService.js';
-import { ensurePayRequestDosyaColumn } from './lib/ensureSchema.js';
+import { ensureSchema } from './lib/ensureSchema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -67,7 +67,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   sendError(res, 500, 'Sunucu hatası');
 });
 
-void ensurePayRequestDosyaColumn()
+void ensureSchema()
   .catch((err) => console.warn('[schema] ensure failed', err))
   .finally(() => {
     app.listen(port, () => {

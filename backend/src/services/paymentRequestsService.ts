@@ -426,6 +426,29 @@ export async function emailPaymentRequest(
       files: fileLinks,
       attachments,
     });
+    const { recordSendHistory } = await import('./sendHistoryService.js');
+    const amountStr = pub.amount.toLocaleString('tr-TR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const contentLines = [
+      `Ödeme isteği — ${amountStr} ₺`,
+      pub.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç',
+      pub.description ? `Açıklama: ${pub.description.slice(0, 200)}` : '',
+      `Link: ${payUrl}`,
+      ...(fileLinks.length
+        ? ['Ekler:', ...fileLinks.map((f) => `- ${f.name}: ${f.url}`)]
+        : []),
+    ].filter(Boolean);
+    await recordSendHistory({
+      musteriId: pub.customerId ? Number(pub.customerId) : null,
+      type: 'email',
+      recipient: to,
+      content: contentLines.join('\n'),
+      kaynak: 'odeme_istegi',
+      refId: id,
+      basarili: true,
+    });
     return { to, emailSent: true };
   } catch (err) {
     console.error('[payment-request-mail]', err);

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { sendCustomerCredentialsMail } from '../lib/mail.js';
+import { recordSendHistory } from './sendHistoryService.js';
 import { prisma } from '../lib/prisma.js';
 
 export class CustomerDetailError extends Error {
@@ -25,6 +26,35 @@ async function releaseUserEmail(userId: number, email: string) {
       email: `del.${userId}.${stamp}.${email}`.slice(0, 180),
     },
   });
+}
+
+async function sendAndLogCredentials(
+  musteriId: number,
+  email: string,
+  name: string,
+  plain: string,
+): Promise<boolean> {
+  try {
+    await sendCustomerCredentialsMail(email, name, email, plain);
+    await recordSendHistory({
+      musteriId,
+      type: 'email',
+      recipient: email,
+      content: [
+        'AnyPay Tahsilat — Giriş bilgileriniz',
+        `Kullanıcı: ${name}`,
+        `E-posta: ${email}`,
+        'Geçici şifre e-posta ile iletildi.',
+        'https://tahsilat.anypay.com.tr/',
+      ].join('\n'),
+      kaynak: 'musteri_giris',
+      basarili: true,
+    });
+    return true;
+  } catch (err) {
+    console.error('Giriş bilgisi e-postası gönderilemedi', err);
+    return false;
+  }
 }
 
 function digitsPhone(raw: string | null | undefined): string {
@@ -245,12 +275,7 @@ export async function createCustomerUser(
     });
     let emailSent = false;
     if (input.sendEmail) {
-      try {
-        await sendCustomerCredentialsMail(email, name, email, plain);
-        emailSent = true;
-      } catch (err) {
-        console.error('Giriş bilgisi e-postası gönderilemedi', err);
-      }
+      emailSent = await sendAndLogCredentials(musteriId, email, name, plain);
     }
     return {
       id: String(row.id),
@@ -316,12 +341,7 @@ export async function createCustomerUser(
 
   let emailSent = false;
   if (input.sendEmail) {
-    try {
-      await sendCustomerCredentialsMail(email, name, email, plain);
-      emailSent = true;
-    } catch (err) {
-      console.error('Giriş bilgisi e-postası gönderilemedi', err);
-    }
+    emailSent = await sendAndLogCredentials(musteriId, email, name, plain);
   }
 
   return {
@@ -360,13 +380,8 @@ export async function resetCustomerUserPassword(
 
   if (channel === 'mail') {
     if (!email.includes('@')) throw new CustomerDetailError('E-posta adresi yok');
-    try {
-      await sendCustomerCredentialsMail(email, name, email, plain);
-      return { name, email, phone, channel, emailSent: true };
-    } catch (err) {
-      console.error('Şifre e-postası gönderilemedi', err);
-      return { name, email, phone, channel, emailSent: false };
-    }
+    const emailSent = await sendAndLogCredentials(musteriId, email, name, plain);
+    return { name, email, phone, channel, emailSent };
   }
 
   return { password: plain, name, email, phone, channel };

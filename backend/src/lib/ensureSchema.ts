@@ -28,3 +28,32 @@ export async function ensurePayRequestDosyaColumn(): Promise<void> {
     console.warn('[schema] dosya sütunu kontrolü atlandı:', err);
   }
 }
+
+/** Gönderim geçmişi tablosu — dump’ta yoksa oluştur */
+export async function ensureGonderimGecmisiTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`gonderim_gecmisi\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`musteri_id\` INT NULL,
+        \`tip\` VARCHAR(16) NOT NULL,
+        \`alici\` VARCHAR(255) NOT NULL,
+        \`icerik\` LONGTEXT NULL,
+        \`tarih\` DATETIME(3) NOT NULL,
+        \`kaynak\` VARCHAR(64) NULL,
+        \`ref_id\` INT NULL,
+        \`basarili\` TINYINT(1) NOT NULL DEFAULT 1,
+        PRIMARY KEY (\`id\`),
+        INDEX \`gonderim_gecmisi_tarih_idx\` (\`tarih\`),
+        INDEX \`gonderim_gecmisi_musteri_id_idx\` (\`musteri_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] gonderim_gecmisi oluşturma atlandı:', err);
+  }
+}
+
+export async function ensureSchema(): Promise<void> {
+  await ensurePayRequestDosyaColumn();
+  await ensureGonderimGecmisiTable();
+}

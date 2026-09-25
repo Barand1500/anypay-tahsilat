@@ -97,6 +97,23 @@ model Log {
   @@map("log")
 }
 
+/** E-posta / SMS gönderim geçmişi */
+model GonderimGecmisi {
+  id        Int      @id @default(autoincrement())
+  musteriId Int?     @map("musteri_id")
+  tip       String   @db.VarChar(16)
+  alici     String   @db.VarChar(255)
+  icerik    String?  @db.LongText
+  tarih     DateTime
+  kaynak    String?  @db.VarChar(64)
+  refId     Int?     @map("ref_id")
+  basarili  Boolean  @default(true)
+
+  @@index([tarih])
+  @@index([musteriId])
+  @@map("gonderim_gecmisi")
+}
+
 /** Müşteriler / cari hesaplar */
 model Musteri {
   id              Int       @id @default(autoincrement())
