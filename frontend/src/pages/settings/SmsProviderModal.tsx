@@ -3,17 +3,19 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
-import { parseProviderVariables, type SmsProvider } from './mockSmsSettings';
+import { parseProviderVariables, type SmsProvider } from './smsTypes';
 
 type Mode = { type: 'create' } | { type: 'edit'; provider: SmsProvider };
 
 type Props = {
   mode: Mode;
   onClose: () => void;
-  onSave: (p: Omit<SmsProvider, 'id'> & { id?: string }) => void;
+  onSave: (p: Omit<SmsProvider, 'id'> & { id?: string }) => void | Promise<void>;
+  saving?: boolean;
+  error?: string | null;
 };
 
-export function SmsProviderModal({ mode, onClose, onSave }: Props) {
+export function SmsProviderModal({ mode, onClose, onSave, saving, error }: Props) {
   const isEdit = mode.type === 'edit';
   const src = isEdit ? mode.provider : null;
 
@@ -35,21 +37,22 @@ export function SmsProviderModal({ mode, onClose, onSave }: Props) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !saving) onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, saving]);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = 'Sağlayıcı adı gerekli';
     if (!code.trim()) next.code = 'Gönderim kodu gerekli';
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    onSave({
+    await onSave({
       id: src?.id,
       name: name.trim(),
       code: code.trim(),
@@ -73,16 +76,23 @@ export function SmsProviderModal({ mode, onClose, onSave }: Props) {
           </h2>
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-50"
             aria-label="Kapat"
           >
             ✕
           </button>
         </div>
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={(e) => void submit(e)} className="flex min-h-0 flex-1 flex-col">
           <div className="space-y-4 overflow-y-auto px-5 py-4">
+            {error ? (
+              <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
+                {error}
+              </p>
+            ) : null}
+
             <TextInput
               data-km-jump
               label="Sağlayıcı Adı *"
@@ -128,17 +138,19 @@ export function SmsProviderModal({ mode, onClose, onSave }: Props) {
           <div className="flex items-center justify-end gap-2 border-t border-[var(--panel-line)] px-5 py-3">
             <button
               type="button"
+              disabled={saving}
               onClick={onClose}
-              className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
+              className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               Kapat
             </button>
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

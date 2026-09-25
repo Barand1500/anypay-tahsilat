@@ -192,6 +192,16 @@ export async function ensureEpostaSablonlariTable(): Promise<void> {
   }
 }
 
+/** SMS tabloları + ayarlar.sms_ayarlar */
+export async function ensureSmsSchema(): Promise<void> {
+  try {
+    const { bootstrapSms } = await import('../services/smsSettingsService.js');
+    await bootstrapSms();
+  } catch (err) {
+    console.warn('[schema] sms atlandı:', err);
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
@@ -202,4 +212,5 @@ export async function ensureSchema(): Promise<void> {
   await ensureVarsayilanlarColumn();
   await ensureSmtpAyarlarColumn();
   await ensureEpostaSablonlariTable();
+  await ensureSmsSchema();
 }

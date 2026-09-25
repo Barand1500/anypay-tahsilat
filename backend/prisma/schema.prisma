@@ -281,6 +281,8 @@ model Ayarlar {
   varsayilanlar          String?   @map("varsayilanlar") @db.LongText
   /** SMTP ayarları — JSON (host, port, email, password, ssl, tls) */
   smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
+  /** SMS ayarları — JSON (providerId, username, password, title, active) */
+  smsAyarlar             String?   @map("sms_ayarlar") @db.LongText
 
   @@map("ayarlar")
 }
@@ -296,6 +298,29 @@ model EpostaSablon {
 
   @@unique([tip])
   @@map("eposta_sablonlari")
+}
+
+/** SMS sağlayıcıları */
+model SmsSaglayici {
+  id          Int      @id @default(autoincrement())
+  adi         String   @db.VarChar(255)
+  kod         String   @db.LongText
+  degiskenler String?  @db.LongText
+  remove      Boolean?
+
+  @@map("sms_saglayicilar")
+}
+
+/** SMS şablonları — tip anahtarı benzersiz */
+model SmsSablon {
+  id     Int      @id @default(autoincrement())
+  tip    String   @db.VarChar(64)
+  adi    String   @db.VarChar(255)
+  icerik String   @db.LongText
+  remove Boolean?
+
+  @@unique([tip])
+  @@map("sms_sablonlari")
 }
 
 /** Firma iletişim bilgileri — tek satır */

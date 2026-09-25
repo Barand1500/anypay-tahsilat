@@ -1,6 +1,7 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -10,30 +11,40 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { SmsProviderModal } from './SmsProviderModal';
 import { SmsTemplateModal } from './SmsTemplateModal';
 import {
-  INITIAL_SMS_PROVIDERS,
-  INITIAL_SMS_SETTINGS,
-  INITIAL_SMS_TEMPLATES,
   type SmsProvider,
   type SmsSettings,
   type SmsTemplate,
-} from './mockSmsSettings';
+} from './smsTypes';
 
 gsap.registerPlugin(useGSAP);
 
 type Section = 'ayarlar' | 'saglayicilar';
 type PanelFocus = 'both' | 'settings' | 'templates';
 
+type SmsSettingsApi = SmsSettings & { passwordSet: boolean };
+
+const EMPTY_SETTINGS: SmsSettings = {
+  providerId: '',
+  username: '',
+  password: '',
+  title: '',
+  active: true,
+};
+
 /**
- * Ayarlar › SMS — sol ayar+sınama / sağ şablon; Sağlayıcılar ayrı çarşaf liste.
+ * Ayarlar › SMS — sağlayıcı / ayar / şablon DB bağlı.
  */
 export default function SmsSettingsPage() {
+  const { token } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const tplTableRef = useRef<HTMLDivElement>(null);
   const provTableRef = useRef<HTMLDivElement>(null);
@@ -41,23 +52,34 @@ export default function SmsSettingsPage() {
   const [section, setSection] = useState<Section>('ayarlar');
   const [focus, setFocus] = useState<PanelFocus>('both');
 
-  const [providers, setProviders] = useState<SmsProvider[]>(() =>
-    INITIAL_SMS_PROVIDERS.map((p) => ({ ...p, variables: [...p.variables] })),
-  );
-  const [settings, setSettings] = useState<SmsSettings>(() => ({ ...INITIAL_SMS_SETTINGS }));
-  const [settingsBase, setSettingsBase] = useState(settings);
+  const [providers, setProviders] = useState<SmsProvider[]>([]);
+  const [provLoading, setProvLoading] = useState(true);
+  const [provError, setProvError] = useState<string | null>(null);
+  const [provSaving, setProvSaving] = useState(false);
+  const [provModalError, setProvModalError] = useState<string | null>(null);
+  const [deletingProv, setDeletingProv] = useState(false);
+
+  const [settings, setSettings] = useState<SmsSettings>({ ...EMPTY_SETTINGS });
+  const [settingsBase, setSettingsBase] = useState<SmsSettings>({ ...EMPTY_SETTINGS });
+  const [passwordSet, setPasswordSet] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
 
   const [testPhone, setTestPhone] = useState('');
   const [testBusy, setTestBusy] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [testOk, setTestOk] = useState(false);
 
-  const [templates, setTemplates] = useState<SmsTemplate[]>(() =>
-    INITIAL_SMS_TEMPLATES.map((t) => ({ ...t })),
-  );
+  const [templates, setTemplates] = useState<SmsTemplate[]>([]);
+  const [tplLoading, setTplLoading] = useState(true);
+  const [tplError, setTplError] = useState<string | null>(null);
+  const [tplSaving, setTplSaving] = useState(false);
+  const [tplModalError, setTplModalError] = useState<string | null>(null);
+  const [deletingTpl, setDeletingTpl] = useState(false);
 
-  // Şablon liste
   const [tplQuery, setTplQuery] = useState('');
   const [tplPageSizeText, setTplPageSizeText] = useState('10');
   const [tplPageSize, setTplPageSize] = useState(10);
@@ -67,7 +89,6 @@ export default function SmsSettingsPage() {
   >(null);
   const [tplDelete, setTplDelete] = useState<SmsTemplate | null>(null);
 
-  // Sağlayıcı liste
   const [provQuery, setProvQuery] = useState('');
   const [provPageSizeText, setProvPageSizeText] = useState('10');
   const [provPageSize, setProvPageSize] = useState(10);
@@ -77,10 +98,73 @@ export default function SmsSettingsPage() {
   >(null);
   const [provDelete, setProvDelete] = useState<SmsProvider | null>(null);
 
+  const loadProviders = useCallback(async () => {
+    if (!token) return;
+    setProvLoading(true);
+    setProvError(null);
+    try {
+      setProviders(await api.get<SmsProvider[]>('/api/settings/sms/providers', token));
+    } catch (err) {
+      setProvError(err instanceof Error ? err.message : 'Sağlayıcılar yüklenemedi');
+      setProviders([]);
+    } finally {
+      setProvLoading(false);
+    }
+  }, [token]);
+
+  const loadSettings = useCallback(async () => {
+    if (!token) return;
+    setSettingsLoading(true);
+    setSettingsError(null);
+    try {
+      const data = await api.get<SmsSettingsApi>('/api/settings/sms', token);
+      const next: SmsSettings = {
+        providerId: data.providerId || '',
+        username: data.username || '',
+        password: '',
+        title: data.title || '',
+        active: data.active !== false,
+      };
+      setSettings(next);
+      setSettingsBase({ ...next });
+      setPasswordSet(Boolean(data.passwordSet));
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'SMS ayarları yüklenemedi');
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [token]);
+
+  const loadTemplates = useCallback(async () => {
+    if (!token) return;
+    setTplLoading(true);
+    setTplError(null);
+    try {
+      setTemplates(await api.get<SmsTemplate[]>('/api/settings/sms/templates', token));
+    } catch (err) {
+      setTplError(err instanceof Error ? err.message : 'Şablonlar yüklenemedi');
+      setTemplates([]);
+    } finally {
+      setTplLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadProviders();
+  }, [loadProviders]);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
+
   const settingsDirty =
     settings.providerId !== settingsBase.providerId ||
     settings.username !== settingsBase.username ||
-    settings.password !== settingsBase.password ||
+    settings.password !== '' ||
     settings.title !== settingsBase.title ||
     settings.active !== settingsBase.active;
 
@@ -123,6 +207,7 @@ export default function SmsSettingsPage() {
 
   const showSettings = section === 'ayarlar' && focus !== 'templates';
   const showTemplates = section === 'ayarlar' && focus !== 'settings';
+  const pageError = settingsError || tplError || provError;
 
   useGSAP(
     () => {
@@ -188,31 +273,177 @@ export default function SmsSettingsPage() {
     setSettings((s) => ({ ...s, [key]: value }));
   }
 
-  function saveSettings(e: FormEvent) {
+  async function saveSettings(e: FormEvent) {
     e.preventDefault();
-    setSettingsBase({ ...settings });
-    setSaveOk(true);
-    window.setTimeout(() => setSaveOk(false), 1600);
+    if (!token || !settingsDirty || settingsSaving) return;
+    setSettingsSaving(true);
+    setSettingsError(null);
+    try {
+      const data = await api.patch<SmsSettingsApi>(
+        '/api/settings/sms',
+        {
+          providerId: settings.providerId,
+          username: settings.username,
+          password: settings.password,
+          title: settings.title,
+          active: settings.active,
+        },
+        token,
+      );
+      const next: SmsSettings = {
+        providerId: data.providerId,
+        username: data.username,
+        password: '',
+        title: data.title,
+        active: data.active,
+      };
+      setSettings(next);
+      setSettingsBase({ ...next });
+      setPasswordSet(Boolean(data.passwordSet));
+      setSaveOk(true);
+      window.setTimeout(() => setSaveOk(false), 1600);
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSettingsSaving(false);
+    }
   }
 
-  function resetSettings() {
-    setSettings({ ...INITIAL_SMS_SETTINGS });
-    setSettingsBase({ ...INITIAL_SMS_SETTINGS });
+  async function resetSettings() {
+    if (!token || settingsSaving) return;
+    setSettingsSaving(true);
+    setSettingsError(null);
+    try {
+      const data = await api.delete<SmsSettingsApi>('/api/settings/sms', token);
+      const next: SmsSettings = {
+        providerId: data.providerId || '',
+        username: data.username || '',
+        password: '',
+        title: data.title || '',
+        active: data.active !== false,
+      };
+      setSettings(next);
+      setSettingsBase({ ...next });
+      setPasswordSet(Boolean(data.passwordSet));
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'Sıfırlanamadı');
+    } finally {
+      setSettingsSaving(false);
+    }
   }
 
-  function sendTest(e: FormEvent) {
+  async function sendTest(e: FormEvent) {
     e.preventDefault();
+    if (!token || testBusy) return;
     const digits = testPhone.replace(/\D/g, '');
     if (digits.length < 10) {
       setTestMsg('Geçerli bir telefon numarası girin');
+      setTestOk(false);
       return;
     }
     setTestBusy(true);
     setTestMsg(null);
-    window.setTimeout(() => {
+    setTestOk(false);
+    try {
+      const data = await api.post<{ sent: true; to: string }>(
+        '/api/settings/sms/test',
+        { phone: testPhone },
+        token,
+      );
+      setTestMsg(`Sınama SMS gönderildi → ${data.to}`);
+      setTestOk(true);
+    } catch (err) {
+      setTestMsg(err instanceof Error ? err.message : 'Sınama gönderilemedi');
+      setTestOk(false);
+    } finally {
       setTestBusy(false);
-      setTestMsg(`Sınama SMS gönderildi → ${testPhone} (mock)`);
-    }, 700);
+    }
+  }
+
+  async function saveTemplate(row: Omit<SmsTemplate, 'id'> & { id?: string }) {
+    if (!token || tplSaving) return;
+    setTplSaving(true);
+    setTplModalError(null);
+    try {
+      if (row.id) {
+        await api.patch(`/api/settings/sms/templates/${row.id}`, {
+          typeKey: row.typeKey,
+          body: row.body,
+        }, token);
+      } else {
+        await api.post('/api/settings/sms/templates', {
+          typeKey: row.typeKey,
+          body: row.body,
+        }, token);
+      }
+      await loadTemplates();
+      setTplModal(null);
+    } catch (err) {
+      setTplModalError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setTplSaving(false);
+    }
+  }
+
+  async function confirmDeleteTemplate() {
+    if (!token || !tplDelete || deletingTpl) return;
+    setDeletingTpl(true);
+    try {
+      await api.delete(`/api/settings/sms/templates/${tplDelete.id}`, token);
+      setTplDelete(null);
+      await loadTemplates();
+    } catch (err) {
+      setTplError(err instanceof Error ? err.message : 'Silinemedi');
+      setTplDelete(null);
+    } finally {
+      setDeletingTpl(false);
+    }
+  }
+
+  async function saveProvider(row: Omit<SmsProvider, 'id'> & { id?: string }) {
+    if (!token || provSaving) return;
+    setProvSaving(true);
+    setProvModalError(null);
+    try {
+      if (row.id) {
+        await api.patch(`/api/settings/sms/providers/${row.id}`, {
+          name: row.name,
+          code: row.code,
+          variables: row.variables,
+        }, token);
+      } else {
+        await api.post('/api/settings/sms/providers', {
+          name: row.name,
+          code: row.code,
+          variables: row.variables,
+        }, token);
+      }
+      await loadProviders();
+      setProvModal(null);
+    } catch (err) {
+      setProvModalError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setProvSaving(false);
+    }
+  }
+
+  async function confirmDeleteProvider() {
+    if (!token || !provDelete || deletingProv) return;
+    const id = provDelete.id;
+    setDeletingProv(true);
+    try {
+      await api.delete(`/api/settings/sms/providers/${id}`, token);
+      setProvDelete(null);
+      await loadProviders();
+      if (settings.providerId === id) {
+        await loadSettings();
+      }
+    } catch (err) {
+      setProvError(err instanceof Error ? err.message : 'Silinemedi');
+      setProvDelete(null);
+    } finally {
+      setDeletingProv(false);
+    }
   }
 
   function exportTemplatesCsv() {
@@ -316,6 +547,12 @@ export default function SmsSettingsPage() {
         </div>
       </div>
 
+      {pageError ? (
+        <p className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-600">
+          {pageError}
+        </p>
+      ) : null}
+
       {section === 'ayarlar' ? (
         <div
           className={[
@@ -334,6 +571,9 @@ export default function SmsSettingsPage() {
               >
                 <div>
                   <h2 className="text-base font-bold text-[var(--panel-ink)]">SMS Ayarları</h2>
+                  {settingsLoading ? (
+                    <p className="mt-1 text-xs text-[var(--panel-muted)]">Yükleniyor…</p>
+                  ) : null}
                 </div>
 
                 <FloatingSearchSelect
@@ -354,9 +594,10 @@ export default function SmsSettingsPage() {
                   />
                   <TextInput
                     data-km-jump
-                    label="Şifre"
+                    label={passwordSet ? 'Şifre (değiştirmek için yazın)' : 'Şifre'}
                     type={showPass ? 'text' : 'password'}
                     value={settings.password}
+                    placeholder={passwordSet ? '••••••••••' : ''}
                     onChange={(e) => patchSettings('password', e.target.value)}
                     endAdornment={
                       <button
@@ -383,10 +624,14 @@ export default function SmsSettingsPage() {
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <div className="min-w-[11rem] flex-1 sm:flex-none sm:min-w-[12rem]">
-                    <Button type="submit" disabled={!settingsDirty && !saveOk} success={saveOk}>
+                    <Button
+                      type="submit"
+                      disabled={(!settingsDirty && !saveOk) || settingsSaving || settingsLoading}
+                      success={saveOk}
+                    >
                       <span className="inline-flex items-center gap-2">
                         <SaveIcon />
-                        Değişiklikleri Kaydet
+                        {settingsSaving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}
                       </span>
                     </Button>
                   </div>
@@ -395,8 +640,9 @@ export default function SmsSettingsPage() {
                     data-km-jump
                     title="Sıfırla"
                     aria-label="Sıfırla"
-                    onClick={resetSettings}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/8 text-rose-500 transition hover:bg-rose-500/15"
+                    disabled={settingsSaving}
+                    onClick={() => void resetSettings()}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/8 text-rose-500 transition hover:bg-rose-500/15 disabled:opacity-50"
                   >
                     <TrashIcon />
                   </button>
@@ -431,7 +677,7 @@ export default function SmsSettingsPage() {
                   <button
                     type="submit"
                     data-km-jump
-                    disabled={testBusy}
+                    disabled={testBusy || settingsLoading}
                     className="inline-flex h-[3.25rem] shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
                   >
                     <SendIcon />
@@ -439,7 +685,14 @@ export default function SmsSettingsPage() {
                   </button>
                 </div>
                 {testMsg ? (
-                  <p className="mt-2 text-xs font-medium text-[var(--panel-muted)]">{testMsg}</p>
+                  <p
+                    className={[
+                      'mt-2 text-xs font-medium',
+                      testOk ? 'text-emerald-600' : 'text-rose-600',
+                    ].join(' ')}
+                  >
+                    {testMsg}
+                  </p>
                 ) : null}
               </form>
             </div>
@@ -456,14 +709,20 @@ export default function SmsSettingsPage() {
               setQuery={setTplQuery}
               onExportCsv={exportTemplatesCsv}
               onCopy={copyTemplates}
-              onAdd={() => setTplModal({ type: 'create' })}
+              onAdd={() => {
+                setTplModalError(null);
+                setTplModal({ type: 'create' });
+              }}
               columns={['Şablon Adı']}
               gridCols="grid-cols-[minmax(0,1fr)_44px]"
-              empty="Şablon bulunamadı"
+              empty={tplLoading ? 'Yükleniyor…' : 'Şablon bulunamadı'}
               rows={tplSlice.map((t) => ({
                 key: t.id,
                 rowAttr: 'data-tpl-row' as const,
-                onDoubleClick: () => setTplModal({ type: 'edit', template: t }),
+                onDoubleClick: () => {
+                  setTplModalError(null);
+                  setTplModal({ type: 'edit', template: t });
+                },
                 onDelete: () => setTplDelete(t),
                 cells: [
                   <span key="n" className="truncate text-sm font-medium text-[var(--panel-ink)]">
@@ -489,14 +748,20 @@ export default function SmsSettingsPage() {
           setQuery={setProvQuery}
           onExportCsv={exportProvidersCsv}
           onCopy={copyProviders}
-          onAdd={() => setProvModal({ type: 'create' })}
+          onAdd={() => {
+            setProvModalError(null);
+            setProvModal({ type: 'create' });
+          }}
           columns={['Sağlayıcı Adı', 'Değişkenler']}
           gridCols="grid-cols-[minmax(140px,0.9fr)_minmax(200px,1.2fr)_44px]"
-          empty="Sağlayıcı bulunamadı"
+          empty={provLoading ? 'Yükleniyor…' : 'Sağlayıcı bulunamadı'}
           rows={provSlice.map((p) => ({
             key: p.id,
             rowAttr: 'data-prov-row' as const,
-            onDoubleClick: () => setProvModal({ type: 'edit', provider: p }),
+            onDoubleClick: () => {
+              setProvModalError(null);
+              setProvModal({ type: 'edit', provider: p });
+            },
             onDelete: () => setProvDelete(p),
             cells: [
               <span key="n" className="truncate text-sm font-medium text-[var(--panel-ink)]">
@@ -526,54 +791,24 @@ export default function SmsSettingsPage() {
         <SmsTemplateModal
           mode={tplModal}
           usedTypeKeys={usedTypeKeys}
-          onClose={() => setTplModal(null)}
-          onSave={(row) => {
-            if (row.id) {
-              setTemplates((list) =>
-                list.map((t) =>
-                  t.id === row.id
-                    ? { ...t, typeKey: row.typeKey, name: row.name, body: row.body }
-                    : t,
-                ),
-              );
-            } else {
-              setTemplates((list) => [
-                ...list,
-                {
-                  id: `st-${Date.now()}`,
-                  typeKey: row.typeKey,
-                  name: row.name,
-                  body: row.body,
-                },
-              ]);
-            }
-            setTplModal(null);
+          saving={tplSaving}
+          error={tplModalError}
+          onClose={() => {
+            if (!tplSaving) setTplModal(null);
           }}
+          onSave={saveTemplate}
         />
       ) : null}
 
       {provModal ? (
         <SmsProviderModal
           mode={provModal}
-          onClose={() => setProvModal(null)}
-          onSave={(row) => {
-            if (row.id) {
-              setProviders((list) =>
-                list.map((p) =>
-                  p.id === row.id
-                    ? { ...p, name: row.name, code: row.code, variables: row.variables }
-                    : p,
-                ),
-              );
-            } else {
-              const id = `sp-${Date.now()}`;
-              setProviders((list) => [
-                ...list,
-                { id, name: row.name, code: row.code, variables: row.variables },
-              ]);
-            }
-            setProvModal(null);
+          saving={provSaving}
+          error={provModalError}
+          onClose={() => {
+            if (!provSaving) setProvModal(null);
           }}
+          onSave={saveProvider}
         />
       ) : null}
 
@@ -582,11 +817,9 @@ export default function SmsSettingsPage() {
             <ConfirmDelete
               title="Şablonu sil"
               name={tplDelete.name}
-              onCancel={() => setTplDelete(null)}
-              onConfirm={() => {
-                setTemplates((list) => list.filter((t) => t.id !== tplDelete.id));
-                setTplDelete(null);
-              }}
+              busy={deletingTpl}
+              onCancel={() => !deletingTpl && setTplDelete(null)}
+              onConfirm={() => void confirmDeleteTemplate()}
             />,
             document.body,
           )
@@ -597,16 +830,9 @@ export default function SmsSettingsPage() {
             <ConfirmDelete
               title="Sağlayıcıyı sil"
               name={provDelete.name}
-              onCancel={() => setProvDelete(null)}
-              onConfirm={() => {
-                const id = provDelete.id;
-                setProviders((list) => list.filter((p) => p.id !== id));
-                if (settings.providerId === id) {
-                  const next = providers.find((p) => p.id !== id);
-                  patchSettings('providerId', next?.id ?? '');
-                }
-                setProvDelete(null);
-              }}
+              busy={deletingProv}
+              onCancel={() => !deletingProv && setProvDelete(null)}
+              onConfirm={() => void confirmDeleteProvider()}
             />,
             document.body,
           )
@@ -780,11 +1006,13 @@ function SheetList({
 function ConfirmDelete({
   title,
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   title: string;
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -803,17 +1031,19 @@ function ConfirmDelete({
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold"
+            className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
+            className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
