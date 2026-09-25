@@ -2,7 +2,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SearchableCombobox } from '../../components/ui/SearchableCombobox';
-import { formatMoneyTr, type StatRankItem } from './mockStatistics';
+import { formatMoneyTr, type StatRankItem } from './statisticsTypes';
 
 gsap.registerPlugin(useGSAP);
 

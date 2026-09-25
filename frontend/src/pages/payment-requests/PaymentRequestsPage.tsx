@@ -19,6 +19,7 @@ import {
   PAY_REQ_STATUS_LABEL,
   PAY_REQ_TYPE_LABEL,
   payLinkOf,
+  payShareMessage,
   type PaymentRequest,
   type PayRequestType,
 } from './paymentRequestTypes';
@@ -44,6 +45,7 @@ type ApiPayRequest = {
   email: string;
   whatsapp: string;
   description: string;
+  files?: { name: string; path: string; url: string }[];
 };
 
 function mapRow(r: ApiPayRequest): PaymentRequest {
@@ -65,6 +67,7 @@ function mapRow(r: ApiPayRequest): PaymentRequest {
     email: r.email,
     whatsapp: r.whatsapp,
     description: r.description,
+    files: r.files,
   };
 }
 
@@ -329,11 +332,15 @@ export default function PaymentRequestsPage() {
   }
 
   async function copyLink(r: PaymentRequest) {
-    const link = payLinkOf(r.token);
+    const text = payShareMessage({
+      amount: r.amount,
+      token: r.token,
+      files: r.files,
+    });
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(text);
       setCopiedId(r.id);
-      flash('Kopyalandı');
+      flash(r.files?.length ? 'Link ve ekler kopyalandı' : 'Kopyalandı');
     } catch {
       flash('Kopyalanamadı');
     }
@@ -341,9 +348,12 @@ export default function PaymentRequestsPage() {
 
   function sendWhatsApp(r: PaymentRequest) {
     if (!r.whatsapp) return;
-    const link = payLinkOf(r.token);
     const text = encodeURIComponent(
-      `Merhaba, ödeme isteğiniz hazır:\n${link}\nTutar: ${formatMoneyTr(r.amount)} ₺`,
+      payShareMessage({
+        amount: r.amount,
+        token: r.token,
+        files: r.files,
+      }),
     );
     const phone = r.whatsapp.replace(/\D/g, '');
     window.open(`https://wa.me/90${phone}?text=${text}`, '_blank', 'noopener,noreferrer');
@@ -375,8 +385,14 @@ export default function PaymentRequestsPage() {
 
   function sendSms(r: PaymentRequest) {
     if (!r.phone) return;
-    const link = payLinkOf(r.token);
-    const body = encodeURIComponent(`Ödeme linkiniz: ${link} — Tutar: ${formatMoneyTr(r.amount)} ₺`);
+    const body = encodeURIComponent(
+      payShareMessage({
+        amount: r.amount,
+        token: r.token,
+        files: r.files,
+        greeting: 'Ödeme linkiniz:',
+      }),
+    );
     window.open(`sms:+90${r.phone.replace(/\D/g, '')}?body=${body}`, '_self');
   }
 

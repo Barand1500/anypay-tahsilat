@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { STAT_MONTHS } from '../../pages/reports/mockStatistics';
+import { STAT_MONTHS } from '../../pages/reports/statisticsTypes';
 
 type Props = {
   label: string;

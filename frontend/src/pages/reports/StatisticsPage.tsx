@@ -1,20 +1,35 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { MonthMultiSelect } from '../../components/ui/MonthMultiSelect';
-import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { api } from '../../lib/api';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { StatRankingCard } from './StatRankingCard';
 import {
-  getStatistics,
-  STAT_YEARS,
+  defaultStatYears,
   type StatisticsBundle,
-} from './mockStatistics';
+  type StatRankItem,
+} from './statisticsTypes';
 
 gsap.registerPlugin(useGSAP);
 
 type SectionId = keyof StatisticsBundle;
+
+type ApiStatistics = StatisticsBundle & {
+  filters: {
+    branches: { value: string; label: string }[];
+    users: { value: string; label: string }[];
+    years: { value: string; label: string }[];
+  };
+};
 
 const SECTION_META: Record<
   SectionId,
@@ -36,58 +51,85 @@ const SECTION_META: Record<
 };
 
 const DEFAULT_ORDER: SectionId[] = ['customers', 'banks', 'cards'];
+const EMPTY: StatisticsBundle = { customers: [], banks: [], cards: [] };
+
+function currentMonthStr() {
+  return String(new Date().getMonth() + 1);
+}
+
+function currentYearStr() {
+  return String(new Date().getFullYear());
+}
 
 export default function StatisticsPage() {
+  const { token } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('istatistikler'));
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [year, setYear] = useState<string | null>('2026');
-  const [months, setMonths] = useState<string[]>(['9']);
+  const [year, setYear] = useState<string | null>(() => currentYearStr());
+  const [months, setMonths] = useState<string[]>(() => [currentMonthStr()]);
   const [fullYear, setFullYear] = useState(false);
   const [order, setOrder] = useState<SectionId[]>(DEFAULT_ORDER);
   const [rearrange, setRearrange] = useState(false);
   const [dragId, setDragId] = useState<SectionId | null>(null);
   const [overId, setOverId] = useState<SectionId | null>(null);
 
+  const [data, setData] = useState<StatisticsBundle>(EMPTY);
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+  const [userOptions, setUserOptions] = useState<{ value: string; label: string }[]>([]);
+  const [yearOptions, setYearOptions] = useState(() => defaultStatYears());
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const dragIdRef = useRef<SectionId | null>(null);
   const orderRef = useRef(order);
   orderRef.current = order;
 
-  const branchOptions = useMemo(
-    () => getBranchOptions().map((b) => ({ value: b, label: b })),
-    [],
-  );
-  const userOptions = useMemo(
-    () => INITIAL_USERS.map((u) => ({ value: String(u.id), label: u.name })),
-    [],
-  );
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const qs = new URLSearchParams();
+      qs.set('year', year || currentYearStr());
+      if (!fullYear && months.length) qs.set('months', months.join(','));
+      if (branch) qs.set('branchId', branch);
+      if (userId) qs.set('userId', userId);
+      const next = await api.get<ApiStatistics>(`/api/statistics?${qs.toString()}`, token);
+      setData({
+        customers: next.customers ?? [],
+        banks: next.banks ?? [],
+        cards: next.cards ?? [],
+      });
+      if (next.filters?.branches?.length) setBranchOptions(next.filters.branches);
+      if (next.filters?.users?.length) setUserOptions(next.filters.users);
+      if (next.filters?.years?.length) setYearOptions(next.filters.years);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'İstatistikler yüklenemedi');
+      setData(EMPTY);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, year, months, fullYear, branch, userId]);
 
-  const data = useMemo(
-    () =>
-      getStatistics({
-        year: year || '2026',
-        months: fullYear ? [] : months,
-        fullYear,
-        branch,
-        userId,
-      }),
-    [year, months, fullYear, branch, userId],
-  );
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtersActive =
     !!branch ||
     !!userId ||
-    year !== '2026' ||
-    months.join(',') !== '9' ||
+    year !== currentYearStr() ||
+    months.join(',') !== currentMonthStr() ||
     fullYear;
 
   function resetFilters() {
     setBranch(null);
     setUserId(null);
-    setYear('2026');
-    setMonths(['9']);
+    setYear(currentYearStr());
+    setMonths([currentMonthStr()]);
     setFullYear(false);
   }
 
@@ -158,7 +200,6 @@ export default function StatisticsPage() {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    // Metin seçimini engelle
     window.getSelection()?.removeAllRanges();
     dragIdRef.current = id;
     setDragId(id);
@@ -239,7 +280,7 @@ export default function StatisticsPage() {
               />
               <FloatingSearchSelect
                 label="Yıl Seçin"
-                options={[...STAT_YEARS]}
+                options={yearOptions}
                 value={year}
                 onChange={(v) => setYear(v)}
                 placeholder="Yıl seçiniz."
@@ -261,36 +302,61 @@ export default function StatisticsPage() {
         ) : null}
       </section>
 
+      {loadError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
+          {loadError}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-10 text-center text-sm text-[var(--panel-muted)]">
+          İstatistikler yükleniyor…
+        </div>
+      ) : null}
+
+      {!loading && !loadError && emptyBundle(data) ? (
+        <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-10 text-center text-sm text-[var(--panel-muted)]">
+          Seçilen dönemde tahsilat bulunamadı.
+        </div>
+      ) : null}
+
       {rearrange ? (
         <div className="select-none rounded-xl border border-[var(--color-brand-500)]/35 bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-elevated))] px-3 py-2 text-center text-xs font-semibold text-[var(--color-brand-700)]">
           Taşıma modu — kartlar daraltıldı, bırakınca açılır
         </div>
       ) : null}
 
-      <div ref={listRef} className={['space-y-3', rearrange ? 'select-none' : ''].join(' ')}>
-        {order.map((id) => {
-          const meta = SECTION_META[id];
-          return (
-            <div
-              key={id}
-              data-section-id={id}
-              className={overId === id && dragId !== id ? 'ring-2 ring-[var(--color-brand-500)]/40 rounded-2xl' : ''}
-            >
-              <StatRankingCard
-                title={meta.title}
-                subtitle={meta.subtitle}
-                items={data[id]}
-                showLogo={meta.showLogo}
-                collapsed={rearrange}
-                dragging={dragId === id}
-                onDragHandleDown={(e) => onDragHandleDown(id, e)}
-              />
-            </div>
-          );
-        })}
-      </div>
+      {!loading ? (
+        <div ref={listRef} className={['space-y-3', rearrange ? 'select-none' : ''].join(' ')}>
+          {order.map((id) => {
+            const meta = SECTION_META[id];
+            const items = data[id] as StatRankItem[];
+            return (
+              <div
+                key={id}
+                data-section-id={id}
+                className={overId === id && dragId !== id ? 'ring-2 ring-[var(--color-brand-500)]/40 rounded-2xl' : ''}
+              >
+                <StatRankingCard
+                  title={meta.title}
+                  subtitle={meta.subtitle}
+                  items={items}
+                  showLogo={meta.showLogo}
+                  collapsed={rearrange}
+                  dragging={dragId === id}
+                  onDragHandleDown={(e) => onDragHandleDown(id, e)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function emptyBundle(d: StatisticsBundle) {
+  return d.customers.length + d.banks.length + d.cards.length === 0;
 }
 
 function FilterIcon() {

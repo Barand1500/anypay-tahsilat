@@ -15,7 +15,15 @@ import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
 type PayType = '' | 'ch' | 'fatura';
 type Currency = '' | 'TRY';
 
+type AttachedFile = { name: string; path: string; url: string };
+
 const INSTALLMENTS = Array.from({ length: 12 }, (_, i) => i + 1);
+const MAX_ATTACH = 12;
+const FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.xls,.xlsx';
+
+function isPdfFile(f: AttachedFile) {
+  return f.name.toLowerCase().endsWith('.pdf') || f.path.toLowerCase().endsWith('.pdf');
+}
 
 /**
  * Ödeme İsteği — oluştur / düzenle (müşteri satırı veya panel).
@@ -89,7 +97,9 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
   const [installments, setInstallments] = useState<number[]>([]);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [files, setFiles] = useState<AttachedFile[]>([]);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [mergePick, setMergePick] = useState<Set<string>>(() => new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -137,6 +147,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           commissionIncluded: boolean;
           description: string;
           installments: number[];
+          files?: AttachedFile[];
         }>(`/api/payment-requests/${encodeURIComponent(reqId)}`, token);
         if (cancelled) return;
         if (data.status === 'paid') {
@@ -158,6 +169,8 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         setAmountText(formatMoneyTr(data.amount));
         setCommissionIncluded(data.commissionIncluded);
         setInstallments(data.installments.length ? data.installments : [1]);
+        setFiles(data.files ?? []);
+        setMergePick(new Set());
         // Açıklama editöre — bir tick sonra DOM hazır
         window.requestAnimationFrame(() => {
           if (editorRef.current && data.description) {
@@ -240,6 +253,77 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     });
   }
 
+  async function onPickFiles(list: FileList | null) {
+    if (!list?.length || !token) return;
+    if (files.length + list.length > MAX_ATTACH) {
+      flash(`En fazla ${MAX_ATTACH} dosya ekleyebilirsiniz`);
+      return;
+    }
+    const fd = new FormData();
+    for (const f of Array.from(list)) fd.append('files', f);
+    setFileBusy(true);
+    try {
+      const uploaded = await api.postForm<AttachedFile[]>(
+        '/api/payment-requests/files',
+        fd,
+        token,
+      );
+      setFiles((prev) => [...prev, ...uploaded].slice(0, MAX_ATTACH));
+      flash(`${uploaded.length} dosya yüklendi`);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Dosya yüklenemedi');
+    } finally {
+      setFileBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function removeFile(path: string) {
+    setFiles((prev) => prev.filter((f) => f.path !== path));
+    setMergePick((prev) => {
+      if (!prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+  }
+
+  function toggleMergePick(path: string) {
+    setMergePick((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }
+
+  async function mergeSelectedPdfs() {
+    if (!token) return;
+    const paths = files.filter((f) => mergePick.has(f.path) && isPdfFile(f)).map((f) => f.path);
+    if (paths.length < 2) {
+      flash('Birleştirmek için en az 2 PDF seçin');
+      return;
+    }
+    setFileBusy(true);
+    try {
+      const merged = await api.post<AttachedFile>(
+        '/api/payment-requests/files/merge',
+        { paths },
+        token,
+      );
+      setFiles((prev) => {
+        const kept = prev.filter((f) => !paths.includes(f.path));
+        return [...kept, merged].slice(0, MAX_ATTACH);
+      });
+      setMergePick(new Set());
+      flash(`PDF birleştirildi — ${merged.name}`);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'PDF birleştirilemedi');
+    } finally {
+      setFileBusy(false);
+    }
+  }
+
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (forPanel && !customer) next.customer = 'Müşteri seçin';
@@ -259,13 +343,17 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     setSaving(true);
     try {
       const descHtml = editorRef.current?.innerHTML?.trim() || '';
+      const dosya =
+        files.length > 0
+          ? JSON.stringify(files.map((f) => ({ name: f.name, path: f.path })))
+          : null;
       const body = {
         payType,
         amount,
         commissionIncluded,
         installments,
         description: descHtml,
-        dosya: fileName,
+        dosya,
       };
       if (isEdit && reqId) {
         const data = await api.patch<{ id: number }>(
@@ -670,32 +758,94 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                 <input
                   ref={fileRef}
                   type="file"
+                  multiple
+                  accept={FILE_ACCEPT}
                   className="hidden"
-                  onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                  onChange={(e) => void onPickFiles(e.target.files)}
                 />
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--panel-line)] bg-[var(--input-bg)] px-3 py-2.5">
-                  <button
-                    type="button"
-                    data-km-jump
-                    onClick={() => fileRef.current?.click()}
-                    className="rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
-                  >
-                    Göz at…
-                  </button>
-                  <span className="min-w-0 flex-1 truncate text-sm text-[var(--panel-muted)]">
-                    {fileName ?? 'Dosya seçilmedi.'}
-                  </span>
-                  {fileName ? (
+                <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--input-bg)] px-3 py-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setFileName(null);
-                        if (fileRef.current) fileRef.current.value = '';
-                      }}
-                      className="text-xs font-semibold text-rose-500 hover:underline"
+                      data-km-jump
+                      disabled={fileBusy || files.length >= MAX_ATTACH}
+                      onClick={() => fileRef.current?.click()}
+                      className="rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-50"
                     >
-                      Kaldır
+                      {fileBusy ? 'Yükleniyor…' : 'Dosya ekle…'}
                     </button>
+                    <button
+                      type="button"
+                      data-km-jump
+                      disabled={
+                        fileBusy ||
+                        files.filter((f) => mergePick.has(f.path) && isPdfFile(f)).length < 2
+                      }
+                      onClick={() => void mergeSelectedPdfs()}
+                      className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-500/20 disabled:opacity-40 dark:text-sky-300"
+                    >
+                      PDF birleştir
+                    </button>
+                    <span className="text-xs text-[var(--panel-muted)]">
+                      {files.length}/{MAX_ATTACH} · PDF, görsel, Office
+                    </span>
+                  </div>
+
+                  {files.length === 0 ? (
+                    <p className="mt-2 text-sm text-[var(--panel-muted)]">Dosya seçilmedi.</p>
+                  ) : (
+                    <ul className="mt-2.5 space-y-1.5">
+                      {files.map((f) => {
+                        const pdf = isPdfFile(f);
+                        const picked = mergePick.has(f.path);
+                        return (
+                          <li
+                            key={f.path}
+                            className="flex items-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-2.5 py-1.5"
+                          >
+                            {pdf ? (
+                              <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
+                                <input
+                                  type="checkbox"
+                                  checked={picked}
+                                  onChange={() => toggleMergePick(f.path)}
+                                  className="size-3.5 rounded border-[var(--panel-line)]"
+                                />
+                                <span className="sr-only">Birleştir</span>
+                              </label>
+                            ) : (
+                              <span className="w-3.5 shrink-0" />
+                            )}
+                            <a
+                              href={f.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--panel-ink)] hover:text-[var(--color-brand-600)] hover:underline"
+                              title={f.name}
+                            >
+                              {f.name}
+                            </a>
+                            {pdf ? (
+                              <span className="shrink-0 rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                                PDF
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => removeFile(f.path)}
+                              className="shrink-0 text-xs font-semibold text-rose-500 hover:underline"
+                            >
+                              Sil
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {files.some(isPdfFile) ? (
+                    <p className="mt-2 text-[11px] text-[var(--panel-muted)]">
+                      PDF birleştirmek için soldaki kutuları işaretleyin (en az 2).
+                    </p>
                   ) : null}
                 </div>
               </div>

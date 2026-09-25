@@ -1,6 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { createPayment, PaymentsError } from './paymentsService.js';
+import {
+  parsePayRequestFiles,
+  type PayRequestFile,
+} from './payRequestFilesService.js';
 
 export class PaymentRequestsError extends Error {
   constructor(message: string) {
@@ -32,6 +36,7 @@ export type PublicPayView = {
   installments: number[];
   merchantTitle: string;
   paidAt: string | null;
+  files: PayRequestFile[];
 };
 
 export type PayByTokenInput = {
@@ -62,6 +67,7 @@ export type PublicPaymentRequest = {
   whatsapp: string;
   description: string;
   installments: number[];
+  files: PayRequestFile[];
 };
 
 function tipFromPayType(payType: 'ch' | 'fatura'): number {
@@ -97,6 +103,7 @@ type Row = {
   komisyonDahil: boolean;
   taksitler: string | null;
   aciklama: string | null;
+  dosya: string | null;
   musteriId: number | null;
   tarih: Date;
   odemeZamani: Date | null;
@@ -162,6 +169,7 @@ async function hydrate(rows: Row[]): Promise<PublicPaymentRequest[]> {
       whatsapp: phone,
       description: (r.aciklama || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
       installments: parseTaksitler(r.taksitler),
+      files: parsePayRequestFiles(r.dosya),
     };
   });
 }
@@ -258,6 +266,7 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     installments: parseTaksitler(row.taksitler),
     merchantTitle: await merchantTitle(),
     paidAt: row.odemeZamani ? row.odemeZamani.toISOString() : null,
+    files: parsePayRequestFiles(row.dosya),
   };
 }
 
@@ -275,8 +284,8 @@ export async function payPaymentRequestByToken(
   }
 
   const allowed = parseTaksitler(row.taksitler);
-  if (!allowed.length) throw new PaymentRequestsError('Taksit seçenekleri tanımsız');
-  if (!allowed.includes(input.installment)) {
+  const taksitOpts = allowed.length ? allowed : [1];
+  if (!taksitOpts.includes(input.installment)) {
     throw new PaymentRequestsError('Geçersiz taksit seçimi');
   }
 
@@ -387,9 +396,24 @@ export async function emailPaymentRequest(
   if (pub.status === 'paid') throw new PaymentRequestsError('Bu istek zaten ödenmiş');
 
   const { sendPaymentRequestMail } = await import('../lib/mail.js');
+  const { absolutePayRequestFile } = await import('./payRequestFilesService.js');
   const base =
     process.env.PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://tahsilat.anypay.com.tr';
   const payUrl = `${base}/pay/${encodeURIComponent(pub.token)}`;
+
+  const fileLinks = pub.files.map((f) => ({
+    name: f.name,
+    url: f.url.startsWith('http') ? f.url : `${base}${f.url.startsWith('/') ? '' : '/'}${f.url}`,
+  }));
+  const attachments = pub.files
+    .map((f) => {
+      try {
+        return { filename: f.name, path: absolutePayRequestFile(f.path) };
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is { filename: string; path: string } => x != null);
 
   try {
     await sendPaymentRequestMail({
@@ -399,6 +423,8 @@ export async function emailPaymentRequest(
       description: pub.description,
       payUrl,
       commissionIncluded: pub.commissionIncluded,
+      files: fileLinks,
+      attachments,
     });
     return { to, emailSent: true };
   } catch (err) {

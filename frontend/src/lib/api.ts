@@ -58,6 +58,29 @@ export const api = {
       token,
     ),
 
+  /** multipart (dosya yükleme) — Content-Type sınırını tarayıcı koyar */
+  postForm: async <T,>(path: string, formData: FormData, token?: string | null): Promise<T> => {
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    let res: Response;
+    try {
+      res = await fetch(path, { method: 'POST', headers, body: formData });
+    } catch {
+      throw new ApiUnavailableError();
+    }
+    const text = await res.text();
+    let json: ApiEnvelope<T>;
+    try {
+      json = JSON.parse(text) as ApiEnvelope<T>;
+    } catch {
+      throw new ApiUnavailableError();
+    }
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'İstek başarısız');
+    }
+    return json.data as T;
+  },
+
   patch: <T,>(path: string, body?: unknown, token?: string | null) =>
     request<T>(
       path,

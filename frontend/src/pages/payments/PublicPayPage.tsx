@@ -24,6 +24,7 @@ type PublicPayView = {
   installments: number[];
   merchantTitle: string;
   paidAt: string | null;
+  files?: { name: string; path: string; url: string }[];
 };
 
 /**
@@ -193,9 +194,37 @@ export default function PublicPayPage() {
             </p>
             <p className="mt-1 text-xs text-[var(--panel-muted)]">
               {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
-              {view.description ? ` · ${view.description.slice(0, 120)}` : ''}
+              {view.description ? ` · ${view.description.replace(/<[^>]+>/g, '').slice(0, 120)}` : ''}
             </p>
           </div>
+
+          {view.files && view.files.length > 0 ? (
+            <div
+              data-anim
+              className="mb-5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3.5"
+            >
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-brand-600)]">
+                Ekler
+              </p>
+              <ul className="space-y-1.5">
+                {view.files.map((f) => (
+                  <li key={f.path || f.url}>
+                    <a
+                      href={f.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-sm font-medium text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)] hover:text-[var(--color-brand-600)]"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                      <span className="shrink-0 text-xs font-semibold text-[var(--panel-muted)]">
+                        İndir
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {alreadyPaid ? (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-5 text-center">

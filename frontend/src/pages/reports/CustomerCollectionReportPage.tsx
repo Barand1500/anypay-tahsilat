@@ -5,7 +5,7 @@ import { MonthMultiSelect } from '../../components/ui/MonthMultiSelect';
 import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { formatMoneyTr } from './mockCollectionReport';
-import { STAT_YEARS } from './mockStatistics';
+import { defaultStatYears } from './statisticsTypes';
 import {
   avgOf,
   INITIAL_CUSTOMER_COLLECTION,
@@ -200,7 +200,7 @@ export default function CustomerCollectionReportPage() {
               />
               <FloatingSearchSelect
                 label="Yıl Seçin"
-                options={[...STAT_YEARS]}
+                options={defaultStatYears()}
                 value={year}
                 onChange={setYear}
                 placeholder="Yıl seçiniz."

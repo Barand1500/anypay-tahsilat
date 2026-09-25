@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import {
@@ -10,11 +11,21 @@ import {
   softDeletePaymentRequest,
   updatePaymentRequest,
 } from '../services/paymentRequestsService.js';
+import {
+  mergePayRequestPdfs,
+  PayRequestFilesError,
+  savePayRequestUploads,
+} from '../services/payRequestFilesService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const paymentRequestsRouter = Router();
 paymentRequestsRouter.use(requireAuth);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024, files: 12 },
+});
 
 const createSchema = z.object({
   musteriId: z.number().int().positive(),
@@ -24,7 +35,7 @@ const createSchema = z.object({
   installments: z.array(z.number().int().min(1).max(12)).min(1),
   description: z.string().min(1).max(20000),
   faturaNo: z.string().max(255).optional().default(''),
-  dosya: z.string().max(255).nullable().optional(),
+  dosya: z.string().max(50000).nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -34,7 +45,11 @@ const updateSchema = z.object({
   installments: z.array(z.number().int().min(1).max(12)).min(1),
   description: z.string().min(1).max(20000),
   faturaNo: z.string().max(255).optional().default(''),
-  dosya: z.string().max(255).nullable().optional(),
+  dosya: z.string().max(50000).nullable().optional(),
+});
+
+const mergeSchema = z.object({
+  paths: z.array(z.string().min(1).max(500)).min(2).max(12),
 });
 
 paymentRequestsRouter.get('/', async (_req, res) => {
@@ -44,6 +59,41 @@ paymentRequestsRouter.get('/', async (_req, res) => {
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'Ödeme istekleri yüklenemedi');
+  }
+});
+
+paymentRequestsRouter.post('/files', upload.array('files', 12), async (req: AuthedRequest, res) => {
+  try {
+    const files = (req.files as Express.Multer.File[] | undefined) || [];
+    const data = await savePayRequestUploads(
+      files.map((f) => ({
+        originalname: f.originalname,
+        buffer: f.buffer,
+        mimetype: f.mimetype,
+      })),
+    );
+    await writePanelLog(req.auth!.sub, `Ödeme isteği dosya yüklendi — ${data.length} adet`);
+    return sendSuccess(res, data, 'Dosyalar yüklendi', 201);
+  } catch (err) {
+    if (err instanceof PayRequestFilesError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Dosya yüklenemedi');
+  }
+});
+
+paymentRequestsRouter.post('/files/merge', async (req: AuthedRequest, res) => {
+  const parsed = mergeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await mergePayRequestPdfs(parsed.data.paths);
+    await writePanelLog(req.auth!.sub, `Ödeme isteği PDF birleştirildi — ${data.name}`);
+    return sendSuccess(res, data, 'PDF birleştirildi', 201);
+  } catch (err) {
+    if (err instanceof PayRequestFilesError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'PDF birleştirilemedi');
   }
 });
 

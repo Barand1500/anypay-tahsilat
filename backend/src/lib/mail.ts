@@ -37,6 +37,7 @@ export async function sendMail(opts: {
   subject: string;
   html: string;
   text?: string;
+  attachments?: { filename: string; path: string }[];
 }) {
   const from = process.env.SMTP_FROM?.trim() || requireEnv('SMTP_USER');
   const info = await getTransporter().sendMail({
@@ -45,6 +46,7 @@ export async function sendMail(opts: {
     subject: opts.subject,
     html: opts.html,
     text: opts.text,
+    attachments: opts.attachments,
   });
   return info;
 }
@@ -236,6 +238,8 @@ export async function sendPaymentRequestMail(opts: {
   description: string;
   payUrl: string;
   commissionIncluded: boolean;
+  files?: { name: string; url: string }[];
+  attachments?: { filename: string; path: string }[];
 }) {
   const name = opts.customerTitle.trim() || 'Müşteri';
   const amountStr = opts.amount.toLocaleString('tr-TR', {
@@ -248,6 +252,23 @@ export async function sendPaymentRequestMail(opts: {
   const safeUrl = escapeHtml(opts.payUrl);
   const safeDesc = escapeHtml((opts.description || '').slice(0, 400));
   const komisyon = opts.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç';
+  const files = opts.files || [];
+  const filesHtml = files.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+        <tr>
+          <td style="padding:16px;border-radius:14px;background:#020617;border:1px solid #1f2937;">
+            <p style="margin:0 0 10px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#7dd3fc;font-weight:700;">Ekler</p>
+            ${files
+              .map(
+                (f) =>
+                  `<p style="margin:0 0 8px;font-size:13px;"><a href="${escapeHtml(f.url)}" style="color:#38bdf8;text-decoration:none;font-weight:600;">📎 ${escapeHtml(f.name)}</a></p>`,
+              )
+              .join('')}
+            <p style="margin:8px 0 0;font-size:11px;color:#64748b;">Dosyalar e-postaya da eklenmiştir.</p>
+          </td>
+        </tr>
+      </table>`
+    : '';
 
   const html = `<!DOCTYPE html>
 <html lang="tr">
@@ -295,6 +316,8 @@ export async function sendPaymentRequestMail(opts: {
                 </tr>
               </table>
 
+              ${filesHtml}
+
               <p style="margin:0 0 18px;text-align:center;">
                 <a href="${safeUrl}" style="display:inline-block;padding:12px 22px;border-radius:12px;background:#0284c7;color:#fff;font-size:14px;font-weight:700;text-decoration:none;">
                   Ödemeyi tamamla
@@ -329,11 +352,20 @@ export async function sendPaymentRequestMail(opts: {
     opts.description ? `Açıklama: ${opts.description.slice(0, 200)}` : '',
     '',
     `Ödeme linki: ${opts.payUrl}`,
+    ...(files.length
+      ? ['', 'Ekler:', ...files.map((f) => `- ${f.name}: ${f.url}`)]
+      : []),
   ]
     .filter(Boolean)
     .join('\n');
 
-  return sendMail({ to: opts.to, subject, html, text });
+  return sendMail({
+    to: opts.to,
+    subject,
+    html,
+    text,
+    attachments: opts.attachments,
+  });
 }
 
 function escapeHtml(s: string) {

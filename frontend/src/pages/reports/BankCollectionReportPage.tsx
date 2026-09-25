@@ -10,7 +10,7 @@ import {
   INITIAL_CARD_COLLECTION,
   scaleCardRows,
 } from './mockCardCollection';
-import { STAT_YEARS } from './mockStatistics';
+import { defaultStatYears } from './statisticsTypes';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
@@ -201,7 +201,7 @@ export default function BankCollectionReportPage() {
               />
               <FloatingSearchSelect
                 label="Yıl Seçin"
-                options={[...STAT_YEARS]}
+                options={defaultStatYears()}
                 value={year}
                 onChange={setYear}
                 placeholder="Yıl seçiniz."

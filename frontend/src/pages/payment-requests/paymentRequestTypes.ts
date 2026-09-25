@@ -22,6 +22,8 @@ export type PaymentRequest = {
   email: string;
   whatsapp: string;
   description: string;
+  installments?: number[];
+  files?: { name: string; path: string; url: string }[];
 };
 
 export const PAY_REQ_STATUS_LABEL: Record<PayRequestStatus, string> = {
@@ -49,6 +51,40 @@ export function payLinkOf(token: string) {
     return `${window.location.origin}/pay/${token}`;
   }
   return `https://tahsilat.anypay.com.tr/pay/${token}`;
+}
+
+export function absoluteAssetUrl(url: string): string {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://tahsilat.anypay.com.tr';
+  return `${origin}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
+/** Kopyala / WhatsApp / SMS — ödeme linki + ekler */
+export function payShareMessage(opts: {
+  amount: number;
+  token: string;
+  files?: { name: string; url: string }[] | null;
+  greeting?: string;
+}): string {
+  const link = payLinkOf(opts.token);
+  const lines = [
+    opts.greeting ?? 'Merhaba, ödeme isteğiniz hazır:',
+    link,
+    `Tutar: ${formatMoneyTr(opts.amount)} ₺`,
+  ];
+  const files = opts.files?.filter((f) => f?.name && f?.url) ?? [];
+  if (files.length) {
+    lines.push('', 'Ekler:');
+    for (const f of files) {
+      lines.push(`• ${f.name}`);
+      lines.push(`  ${absoluteAssetUrl(f.url)}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 export function formatMoneyTr(n: number): string {

@@ -203,7 +203,7 @@ model OdemeIstegi {
   komisyonDahil   Boolean   @map("komisyon_dahil")
   taksitler       String?   @db.LongText
   aciklama        String?   @db.LongText
-  dosya           String?   @db.VarChar(255)
+  dosya           String?   @db.LongText
   musteriId       Int?      @map("musteri_id")
   tarih           DateTime
   odemeZamani     DateTime? @map("odeme_zamani")
