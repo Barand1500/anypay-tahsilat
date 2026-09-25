@@ -134,7 +134,15 @@ paymentRequestsRouter.post('/', async (req: AuthedRequest, res) => {
     return sendSuccess(res, data, 'Ödeme isteği oluşturuldu', 201);
   } catch (err) {
     if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
+    const msg = err instanceof Error ? err.message : String(err);
     console.error(err);
+    if (/Data too long|ER_DATA_TOO_LONG/i.test(msg)) {
+      return sendError(
+        res,
+        500,
+        'Dosya alanı veritabanında kısa (VARCHAR). Deploy sonrası şema güncellenmeli — dosya sütunu LONGTEXT olmalı.',
+      );
+    }
     return sendError(res, 500, 'Ödeme isteği oluşturulamadı');
   }
 });
@@ -163,7 +171,15 @@ paymentRequestsRouter.patch('/:id', async (req: AuthedRequest, res) => {
     return sendSuccess(res, data, 'Ödeme isteği güncellendi');
   } catch (err) {
     if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
+    const msg = err instanceof Error ? err.message : String(err);
     console.error(err);
+    if (/Data too long|ER_DATA_TOO_LONG/i.test(msg)) {
+      return sendError(
+        res,
+        500,
+        'Dosya alanı veritabanında kısa (VARCHAR). Deploy sonrası şema güncellenmeli — dosya sütunu LONGTEXT olmalı.',
+      );
+    }
     return sendError(res, 500, 'Ödeme isteği güncellenemedi');
   }
 });

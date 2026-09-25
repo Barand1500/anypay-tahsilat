@@ -12,6 +12,7 @@ import { logsRouter } from './routes/logs.js';
 import { systemResetRouter } from './routes/systemReset.js';
 import { overviewRouter } from './routes/overview.js';
 import { statisticsRouter } from './routes/statistics.js';
+import { reportsRouter } from './routes/reports.js';
 import { settingsRouter } from './routes/settings.js';
 import { customersRouter } from './routes/customers.js';
 import { paymentsRouter } from './routes/payments.js';
@@ -19,6 +20,7 @@ import { paymentRequestsRouter } from './routes/paymentRequests.js';
 import { payPublicRouter } from './routes/payPublic.js';
 import { sendError } from './utils/response.js';
 import { UPLOADS_ROOT } from './services/settingsService.js';
+import { ensurePayRequestDosyaColumn } from './lib/ensureSchema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -46,6 +48,7 @@ app.use('/api/logs', logsRouter);
 app.use('/api/system-reset', systemResetRouter);
 app.use('/api/overview', overviewRouter);
 app.use('/api/statistics', statisticsRouter);
+app.use('/api/reports', reportsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/customers', customersRouter);
 app.use('/api/payments', paymentsRouter);
@@ -64,6 +67,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   sendError(res, 500, 'Sunucu hatası');
 });
 
-app.listen(port, () => {
-  console.log(`API dinleniyor: http://127.0.0.1:${port}`);
-});
+void ensurePayRequestDosyaColumn()
+  .catch((err) => console.warn('[schema] ensure failed', err))
+  .finally(() => {
+    app.listen(port, () => {
+      console.log(`API dinleniyor: http://127.0.0.1:${port}`);
+    });
+  });

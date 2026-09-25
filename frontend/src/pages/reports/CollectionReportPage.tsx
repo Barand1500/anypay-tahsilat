@@ -1,74 +1,104 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { StatCard } from '../../components/widgets/StatCard';
-import { BANKS } from '../payments/mockBanks';
-import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
+import { api } from '../../lib/api';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
+  defaultMonthRange,
   formatDateTr,
   formatMoneyTr,
-  INITIAL_COLLECTION_ROWS,
   netOf,
   REPORT_TYPE_OPTIONS,
   type CollectionRow,
-} from './mockCollectionReport';
+} from './collectionReportTypes';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
 
+type ApiCollection = {
+  rows: CollectionRow[];
+  totals: { amount: number; commission: number; net: number };
+  filters: {
+    branches: { value: string; label: string }[];
+    users: { value: string; label: string }[];
+    banks: { value: string; label: string }[];
+  };
+};
+
 export default function CollectionReportPage() {
-  const [rows] = useState<CollectionRow[]>(() => [...INITIAL_COLLECTION_ROWS]);
+  const { token } = useAuth();
+  const monthDefaults = useMemo(() => defaultMonthRange(), []);
+  const [rows, setRows] = useState<CollectionRow[]>([]);
+  const [totals, setTotals] = useState({ amount: 0, commission: 0, net: 0 });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('tahsilat-raporu'));
   const [branch, setBranch] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState('2026-09-01');
-  const [dateTo, setDateTo] = useState('2026-09-30');
+  const [dateFrom, setDateFrom] = useState(monthDefaults.from);
+  const [dateTo, setDateTo] = useState(monthDefaults.to);
   const [bankId, setBankId] = useState<string | null>(null);
-  const [reportType, setReportType] = useState<string | null>('ozet');
+  const [reportType, setReportType] = useState<string | null>('detay');
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+  const [userOptions, setUserOptions] = useState<{ value: string; label: string }[]>([]);
+  const [bankOptions, setBankOptions] = useState<{ value: string; label: string }[]>([]);
 
-  const branchOptions = useMemo(
-    () => getBranchOptions().map((b) => ({ value: b, label: b })),
-    [],
-  );
-  const userOptions = useMemo(
-    () => INITIAL_USERS.map((u) => ({ value: String(u.id), label: u.name })),
-    [],
-  );
-  const bankOptions = useMemo(
-    () => BANKS.map((b) => ({ value: b.id, label: b.name })),
-    [],
-  );
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const qs = new URLSearchParams();
+      if (dateFrom) qs.set('from', dateFrom);
+      if (dateTo) qs.set('to', dateTo);
+      if (branch) qs.set('branchId', branch);
+      if (userId) qs.set('userId', userId);
+      if (bankId) qs.set('bankId', bankId);
+      if (reportType) qs.set('reportType', reportType);
+      const data = await api.get<ApiCollection>(`/api/reports/collection?${qs.toString()}`, token);
+      setRows(data.rows ?? []);
+      setTotals(data.totals ?? { amount: 0, commission: 0, net: 0 });
+      if (data.filters?.branches?.length) setBranchOptions(data.filters.branches);
+      if (data.filters?.users?.length) setUserOptions(data.filters.users);
+      if (data.filters?.banks?.length) setBankOptions(data.filters.banks);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Tahsilat raporu yüklenemedi');
+      setRows([]);
+      setTotals({ amount: 0, commission: 0, net: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [token, dateFrom, dateTo, branch, userId, bankId, reportType]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
+    if (!q) return rows;
     return rows.filter((r) => {
-      if (branch && r.branch !== branch) return false;
-      if (userId && r.userId !== userId) return false;
-      if (bankId && r.bankId !== bankId) return false;
-      if (dateFrom && r.collectionDate < dateFrom) return false;
-      if (dateTo && r.collectionDate > dateTo) return false;
-      if (q) {
-        const hay = `${r.bankName} ${r.userName} ${r.branch} ${formatMoneyTr(r.amount)}`.toLocaleLowerCase(
-          'tr',
-        );
-        if (!hay.includes(q)) return false;
-      }
-      return true;
+      const hay = `${r.bankName} ${r.userName} ${r.branch} ${formatMoneyTr(r.amount)}`.toLocaleLowerCase(
+        'tr',
+      );
+      return hay.includes(q);
     });
-  }, [rows, branch, userId, bankId, dateFrom, dateTo, query]);
+  }, [rows, query]);
 
-  const totals = useMemo(() => {
+  const displayTotals = useMemo(() => {
+    if (!query.trim()) return totals;
     const amount = filtered.reduce((s, r) => s + r.amount, 0);
     const commission = filtered.reduce((s, r) => s + r.commission, 0);
     return { amount, commission, net: amount - commission };
-  }, [filtered]);
+  }, [filtered, query, totals]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -84,18 +114,18 @@ export default function CollectionReportPage() {
     !!branch ||
     !!userId ||
     !!bankId ||
-    dateFrom !== '2026-09-01' ||
-    dateTo !== '2026-09-30' ||
-    reportType !== 'ozet' ||
+    dateFrom !== monthDefaults.from ||
+    dateTo !== monthDefaults.to ||
+    reportType !== 'detay' ||
     !!query.trim();
 
   function resetFilters() {
     setBranch(null);
     setUserId(null);
-    setDateFrom('2026-09-01');
-    setDateTo('2026-09-30');
+    setDateFrom(monthDefaults.from);
+    setDateTo(monthDefaults.to);
     setBankId(null);
-    setReportType('ozet');
+    setReportType('detay');
     setQuery('');
   }
 
@@ -123,12 +153,13 @@ export default function CollectionReportPage() {
           `${formatDateTr(r.paymentDate)};${formatDateTr(r.collectionDate)};${r.bankName};${formatMoneyTr(r.amount)};${formatMoneyTr(r.commission)};${formatMoneyTr(netOf(r))}`,
       )
       .join('\n');
-    const blob = new Blob(['\ufeff' + header + body], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['\uFEFF' + header + body], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'tahsilat-raporu.csv';
+    a.href = url;
+    a.download = `tahsilat-raporu-${dateFrom}_${dateTo}.csv`;
     a.click();
-    URL.revokeObjectURL(a.href);
+    URL.revokeObjectURL(url);
     flash('CSV indirildi');
   }
 
@@ -177,9 +208,9 @@ export default function CollectionReportPage() {
 
         {filtersOpen ? (
           <div className="border-t border-[var(--panel-line)] px-4 pb-4 pt-3 sm:px-5">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <FloatingSearchSelect
-                label="Şube/Departman Seçin"
+                label="Şube/Departman"
                 options={branchOptions}
                 value={branch}
                 onChange={setBranch}
@@ -187,15 +218,13 @@ export default function CollectionReportPage() {
                 kmJump
               />
               <FloatingSearchSelect
-                label="Kullanıcı Seçin"
+                label="Kullanıcı"
                 options={userOptions}
                 value={userId}
                 onChange={setUserId}
                 placeholder="Kullanıcı seçiniz."
                 kmJump
               />
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <DateField label="Başlangıç Tarihi" value={dateFrom} onChange={setDateFrom} kmJump />
               <DateField label="Bitiş Tarihi" value={dateTo} onChange={setDateTo} kmJump />
               <FloatingSearchSelect
@@ -219,22 +248,28 @@ export default function CollectionReportPage() {
         ) : null}
       </section>
 
+      {loadError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
+          {loadError}
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           title="Toplam tutar"
-          value={`${formatMoneyTr(totals.amount)} ₺`}
+          value={`${formatMoneyTr(displayTotals.amount)} ₺`}
           meta="Filtrelenen kayıtlar"
           tone="blue"
         />
         <StatCard
           title="Toplam komisyon"
-          value={`${formatMoneyTr(totals.commission)} ₺`}
+          value={`${formatMoneyTr(displayTotals.commission)} ₺`}
           meta="Banka komisyonları"
           tone="orange"
         />
         <StatCard
           title="Toplam net tutar"
-          value={`${formatMoneyTr(totals.net)} ₺`}
+          value={`${formatMoneyTr(displayTotals.net)} ₺`}
           meta="Tutar − komisyon"
           tone="green"
         />
@@ -285,7 +320,9 @@ export default function CollectionReportPage() {
               <span className="text-right">Net tutar</span>
             </div>
 
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Kayıt bulunamadı.</p>
             ) : (
               slice.map((r) => (
@@ -297,21 +334,19 @@ export default function CollectionReportPage() {
                   <span className="tabular-nums text-[var(--panel-ink)]">
                     {formatDateTr(r.collectionDate)}
                   </span>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <img
-                      src={r.bankLogo}
-                      alt=""
-                      className="h-7 w-12 shrink-0 rounded object-contain bg-white/90 p-0.5 dark:bg-white/10"
-                    />
-                    <span className="truncate font-medium text-[var(--panel-ink)]">{r.bankName}</span>
-                  </div>
-                  <span className="text-right font-semibold tabular-nums text-[var(--panel-ink)]">
+                  <span className="flex min-w-0 items-center gap-2 text-[var(--panel-ink)]">
+                    {r.bankLogo ? (
+                      <img src={r.bankLogo} alt="" className="h-6 w-6 shrink-0 object-contain" />
+                    ) : null}
+                    <span className="truncate font-medium">{r.bankName}</span>
+                  </span>
+                  <span className="text-right tabular-nums font-semibold text-[var(--panel-ink)]">
                     {formatMoneyTr(r.amount)} ₺
                   </span>
                   <span className="text-right tabular-nums text-[var(--panel-muted)]">
                     {formatMoneyTr(r.commission)} ₺
                   </span>
-                  <span className="text-right font-bold tabular-nums text-[var(--panel-ink)]">
+                  <span className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                     {formatMoneyTr(netOf(r))} ₺
                   </span>
                 </div>
@@ -320,36 +355,31 @@ export default function CollectionReportPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-[var(--panel-muted)]">
-          <p>
-            {fromIdx} ile {toIdx} arasında veri gösteriliyor. Toplam:{' '}
-            <strong className="text-[var(--panel-ink)]">{filtered.length}</strong>
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm text-[var(--panel-muted)] sm:px-5">
+          <span>
+            {filtered.length === 0
+              ? '0 kayıt'
+              : `${fromIdx}–${toIdx} / ${filtered.length} kayıt`}
+          </span>
           <div className="flex items-center gap-1">
-            <PagerBtn disabled={safePage <= 1} onClick={() => setPage(1)}>
-              İlk
-            </PagerBtn>
             <PagerBtn disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-              Geri
+              ‹
             </PagerBtn>
-            <span className="rounded-lg bg-[var(--color-brand-600)] px-2.5 py-1 text-xs font-bold text-white">
-              {safePage}
+            <span className="px-2 tabular-nums">
+              {safePage} / {totalPages}
             </span>
             <PagerBtn
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              İleri
-            </PagerBtn>
-            <PagerBtn disabled={safePage >= totalPages} onClick={() => setPage(totalPages)}>
-              Son
+              ›
             </PagerBtn>
           </div>
         </div>
       </section>
 
       {toast ? (
-        <div className="fixed bottom-6 left-1/2 z-[10050] -translate-x-1/2 rounded-xl bg-[var(--panel-ink)] px-4 py-2.5 text-sm font-medium text-[var(--panel-elevated)] shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[var(--panel-ink)] px-4 py-2 text-sm font-medium text-[var(--panel-elevated)] shadow-lg">
           {toast}
         </div>
       ) : null}
@@ -358,20 +388,20 @@ export default function CollectionReportPage() {
 }
 
 function PagerBtn({
+  children,
   disabled,
   onClick,
-  children,
 }: {
+  children: ReactNode;
   disabled?: boolean;
   onClick: () => void;
-  children: ReactNode;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-lg border border-[var(--panel-line)] px-2.5 py-1 text-xs font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex size-8 items-center justify-center rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-40"
     >
       {children}
     </button>
@@ -381,7 +411,12 @@ function PagerBtn({
 function FilterIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -403,22 +438,16 @@ function ResetIcon() {
         strokeWidth="1.8"
         strokeLinecap="round"
       />
-      <path
-        d="M4 5v5h5M20 19v-5h-5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M4 5v5h5M20 19v-5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 function SearchIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.7" />
-      <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M20 20l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

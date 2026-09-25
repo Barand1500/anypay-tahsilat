@@ -4,7 +4,7 @@ import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { MonthMultiSelect } from '../../components/ui/MonthMultiSelect';
 import { getBranchOptions, INITIAL_USERS } from '../users/mockUsers';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
-import { formatMoneyTr } from './mockCollectionReport';
+import { formatMoneyTr } from './collectionReportTypes';
 import {
   avgOf,
   INITIAL_CARD_COLLECTION,
