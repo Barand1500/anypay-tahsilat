@@ -1,34 +1,37 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-
-function requireEnv(name: string) {
-  const v = process.env[name]?.trim();
-  if (!v) throw new Error(`${name} tanımlı değil`);
-  return v;
-}
-
-/** Gmail app password boşluklu gelebilir — birleştir */
-function smtpPass() {
-  return requireEnv('SMTP_PASS').replace(/\s+/g, '');
-}
+import { resolveSmtpConfig } from '../services/emailSmtpService.js';
 
 let transporter: Transporter | null = null;
+let transporterKey = '';
 
-function getTransporter() {
-  if (transporter) return transporter;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure =
-    process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1' || port === 465;
+export function resetMailTransporter() {
+  transporter = null;
+  transporterKey = '';
+}
 
+async function getTransporter(): Promise<Transporter> {
+  const cfg = await resolveSmtpConfig();
+  const key = `${cfg.host}|${cfg.port}|${cfg.email}|${cfg.ssl}|${cfg.tls}|${cfg.password.length}`;
+  if (transporter && transporterKey === key) return transporter;
+
+  const secure = cfg.ssl || cfg.port === 465;
   transporter = nodemailer.createTransport({
-    host: requireEnv('SMTP_HOST'),
-    port,
+    host: cfg.host,
+    port: cfg.port,
     secure,
+    ...(secure
+      ? {}
+      : {
+          requireTLS: cfg.tls,
+          tls: { rejectUnauthorized: false },
+        }),
     auth: {
-      user: requireEnv('SMTP_USER'),
-      pass: smtpPass(),
+      user: cfg.email,
+      pass: cfg.password,
     },
   });
+  transporterKey = key;
   return transporter;
 }
 
@@ -39,9 +42,10 @@ export async function sendMail(opts: {
   text?: string;
   attachments?: { filename: string; path: string }[];
 }) {
-  const from = process.env.SMTP_FROM?.trim() || requireEnv('SMTP_USER');
-  const info = await getTransporter().sendMail({
-    from,
+  const cfg = await resolveSmtpConfig();
+  const transport = await getTransporter();
+  const info = await transport.sendMail({
+    from: cfg.from || cfg.email,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
@@ -49,6 +53,30 @@ export async function sendMail(opts: {
     attachments: opts.attachments,
   });
   return info;
+}
+
+/** Ayarlar sayfası — sınama maili */
+export async function sendSmtpTestMail(to: string) {
+  const cfg = await resolveSmtpConfig();
+  const subject = 'AnyPay Tahsilat — SMTP sınama';
+  const html = `<p>Bu bir sınama e-postasıdır.</p>
+<p>Sunucu: <strong>${escapeHtml(cfg.host)}</strong> · Port: <strong>${cfg.port}</strong></p>
+<p>Gönderen: <strong>${escapeHtml(cfg.email)}</strong></p>
+<p style="color:#64748b;font-size:12px;">E-Posta Ayarları doğru çalışıyor.</p>`;
+  return sendMail({
+    to,
+    subject,
+    html,
+    text: `SMTP sınama — ${cfg.host}:${cfg.port} — ${cfg.email}`,
+  });
+}
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export async function sendLoginOtpMail(to: string, adsoyad: string | null, code: string) {
@@ -369,12 +397,4 @@ export async function sendPaymentRequestMail(opts: {
     text,
     attachments: opts.attachments,
   });
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

@@ -1,48 +1,117 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { api } from '../../lib/api';
 import { useTheme } from '../../theme/ThemeProvider';
-import { CONTACT_TAX_OFFICE_OPTIONS } from './mockSettings';
+import type { AccountTypeDef } from '../definitions/accountTypeTypes';
+import type { CurrencyDef } from '../definitions/currencyTypes';
 import {
-  ACCOUNT_TYPE_OPTIONS,
   applyDisplayMode,
-  COUNTRY_OPTIONS,
-  CURRENCY_OPTIONS,
   CUSTOMER_KIND_DEFAULT_OPTIONS,
   DISPLAY_MODE_OPTIONS,
   FILTER_PAGE_KEYS,
   FILTER_STATE_OPTIONS,
-  getAppDefaults,
   LANDING_OPTIONS,
   LOGIN_THEME_OPTIONS,
   PANEL_THEME_OPTIONS,
   PAY_TYPE_OPTIONS,
   setAppDefaults,
   VIRTUAL_POS_OPTIONS,
+  COUNTRY_OPTIONS,
   type AppDefaults,
   type FilterPageKey,
+  defaultAppDefaults,
 } from './defaultsStore';
 
 gsap.registerPlugin(useGSAP);
 
-const TAX_OPTS = [
-  { value: '', label: 'Belirtilmemiş' },
-  ...CONTACT_TAX_OFFICE_OPTIONS,
-];
-
 /**
- * Ayarlar › Varsayılanlar — panel geneli varsayılan seçimler.
+ * Ayarlar › Varsayılanlar — DB (ayarlar.varsayilanlar).
  */
 export default function DefaultsSettingsPage() {
+  const { token } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const { applyTheme } = useTheme();
-  const [draft, setDraft] = useState<AppDefaults>(() => getAppDefaults());
-  const [baseline, setBaseline] = useState(draft);
+  const [draft, setDraft] = useState<AppDefaults | null>(null);
+  const [baseline, setBaseline] = useState<AppDefaults | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+  const [accountOptions, setAccountOptions] = useState<{ value: string; label: string }[]>([
+    { value: '', label: 'Belirtilmemiş' },
+  ]);
+  const [currencyOptions, setCurrencyOptions] = useState<{ value: string; label: string }[]>([
+    { value: '', label: 'Belirtilmemiş' },
+  ]);
+  const [taxOptions, setTaxOptions] = useState<{ value: string; label: string }[]>([
+    { value: '', label: 'Belirtilmemiş' },
+  ]);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [saved, accounts, currencies, contact] = await Promise.all([
+        api.get<AppDefaults>('/api/settings/defaults', token),
+        api.get<AccountTypeDef[]>('/api/account-types', token).catch(() => [] as AccountTypeDef[]),
+        api
+          .get<CurrencyDef[]>('/api/currencies?active=1', token)
+          .catch(() => [] as CurrencyDef[]),
+        api
+          .get<{ taxOffices?: { value: string; label: string }[] }>('/api/settings/contact', token)
+          .catch(() => ({ taxOffices: [] as { value: string; label: string }[] })),
+      ]);
+
+      const next: AppDefaults = {
+        ...defaultAppDefaults(),
+        ...saved,
+        filterOpen: {
+          ...defaultAppDefaults().filterOpen,
+          ...(saved.filterOpen ?? {}),
+        },
+      };
+      setDraft(next);
+      setBaseline({ ...next, filterOpen: { ...next.filterOpen } });
+      setAppDefaults(next);
+
+      setAccountOptions([
+        { value: '', label: 'Belirtilmemiş' },
+        ...accounts.map((a) => ({ value: a.name, label: a.name })),
+      ]);
+      setCurrencyOptions([
+        { value: '', label: 'Belirtilmemiş' },
+        ...currencies.map((c) => ({
+          value: c.id,
+          label: `${c.symbol} — ${c.name} (${c.shortName})`,
+        })),
+      ]);
+      setTaxOptions([
+        { value: '', label: 'Belirtilmemiş' },
+        ...(contact.taxOffices || []).map((t) => ({ value: t.label, label: t.label })),
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Varsayılanlar yüklenemedi');
+      setDraft(null);
+      setBaseline(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const dirty = useMemo(() => {
+    if (!draft || !baseline) return false;
+    return JSON.stringify(draft) !== JSON.stringify(baseline);
+  }, [draft, baseline]);
 
   useGSAP(
     () => {
@@ -54,22 +123,27 @@ export default function DefaultsSettingsPage() {
         { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.05, ease: 'power3.out' },
       );
     },
-    { scope: rootRef },
+    { scope: rootRef, dependencies: [draft] },
   );
 
   function patch<K extends keyof AppDefaults>(key: K, value: AppDefaults[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
 
   function patchFilter(key: FilterPageKey, open: boolean) {
-    setDraft((d) => ({
-      ...d,
-      filterOpen: { ...d.filterOpen, [key]: open },
-    }));
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            filterOpen: { ...d.filterOpen, [key]: open },
+          }
+        : d,
+    );
   }
 
   function setAllFilters(open: boolean) {
     setDraft((d) => {
+      if (!d) return d;
       const next = { ...d.filterOpen };
       for (const p of FILTER_PAGE_KEYS) next[p.key] = open;
       return { ...d, filterOpen: next };
@@ -77,12 +151,54 @@ export default function DefaultsSettingsPage() {
   }
 
   async function save() {
-    setAppDefaults(draft);
-    applyTheme(draft.panelTheme);
-    await applyDisplayMode(draft.displayMode);
-    setBaseline({ ...draft, filterOpen: { ...draft.filterOpen } });
-    setSaveSuccess(true);
-    window.setTimeout(() => setSaveSuccess(false), 1800);
+    if (!token || !draft || !dirty || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.patch<AppDefaults>('/api/settings/defaults', draft, token);
+      const next: AppDefaults = {
+        ...defaultAppDefaults(),
+        ...saved,
+        filterOpen: {
+          ...defaultAppDefaults().filterOpen,
+          ...(saved.filterOpen ?? {}),
+        },
+      };
+      setDraft(next);
+      setBaseline({ ...next, filterOpen: { ...next.filterOpen } });
+      setAppDefaults(next);
+      applyTheme(next.panelTheme);
+      await applyDisplayMode(next.displayMode);
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 1800);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kayıt başarısız');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && !draft) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-10 text-center text-sm text-[var(--panel-muted)]">
+        Varsayılanlar yükleniyor…
+      </div>
+    );
+  }
+
+  if (!draft) {
+    return (
+      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
+        {error || 'Varsayılanlar yüklenemedi'}
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="mt-2 block text-sm font-semibold text-[var(--color-brand-600)]"
+        >
+          Yeniden dene
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -94,6 +210,12 @@ export default function DefaultsSettingsPage() {
         </p>
       </div>
 
+      {error ? (
+        <p className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-600">
+          {error}
+        </p>
+      ) : null}
+
       <form
         className="space-y-5 [--input-notch:var(--panel-elevated)]"
         onSubmit={(e) => {
@@ -101,7 +223,6 @@ export default function DefaultsSettingsPage() {
           if (dirty) void save();
         }}
       >
-        {/* Görünüm & giriş */}
         <Section
           dataAnim
           title="Görünüm & Giriş"
@@ -139,12 +260,11 @@ export default function DefaultsSettingsPage() {
           </div>
         </Section>
 
-        {/* Müşteri */}
         <Section dataAnim title="Müşteri Varsayılanları" hint="Yeni müşteri formunda ön seçimler">
           <div className="grid gap-4 sm:grid-cols-2">
             <FloatingSearchSelect
               label="Cari Tipi"
-              options={ACCOUNT_TYPE_OPTIONS}
+              options={accountOptions}
               value={draft.accountType}
               onChange={(v) => patch('accountType', v ?? '')}
               kmJump
@@ -158,7 +278,7 @@ export default function DefaultsSettingsPage() {
             />
             <FloatingSearchSelect
               label="Vergi Dairesi"
-              options={TAX_OPTS}
+              options={taxOptions}
               value={draft.taxOffice}
               onChange={(v) => patch('taxOffice', v ?? '')}
               kmJump
@@ -173,7 +293,6 @@ export default function DefaultsSettingsPage() {
           </div>
         </Section>
 
-        {/* Ödeme */}
         <Section dataAnim title="Ödeme Varsayılanları" hint="Tahsilat ve ödeme isteklerinde ön seçimler">
           <div className="grid gap-4 md:grid-cols-3">
             <FloatingSearchSelect
@@ -185,9 +304,9 @@ export default function DefaultsSettingsPage() {
             />
             <FloatingSearchSelect
               label="Para Birimi"
-              options={CURRENCY_OPTIONS}
+              options={currencyOptions}
               value={draft.currency}
-              onChange={(v) => v && patch('currency', v)}
+              onChange={(v) => patch('currency', v ?? '')}
               kmJump
             />
             <FloatingSearchSelect
@@ -201,7 +320,6 @@ export default function DefaultsSettingsPage() {
           </div>
         </Section>
 
-        {/* Filtre akordeonları */}
         <Section
           dataAnim
           title="Liste Filtreleri"
@@ -250,7 +368,12 @@ export default function DefaultsSettingsPage() {
             </span>
           ) : null}
           <div className="w-full max-w-[12rem] sm:w-auto sm:min-w-[10rem]">
-            <Button type="submit" disabled={!dirty && !saveSuccess} success={saveSuccess}>
+            <Button
+              type="submit"
+              disabled={(!dirty && !saveSuccess) || saving}
+              loading={saving}
+              success={saveSuccess}
+            >
               Kaydet
             </Button>
           </div>

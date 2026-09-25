@@ -137,6 +137,72 @@ export async function ensureSubeInstallmentsColumn(): Promise<void> {
   }
 }
 
+/** ayarlar.varsayilanlar — panel varsayılanları JSON */
+export async function ensureVarsayilanlarColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'varsayilanlar'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `varsayilanlar` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.varsayilanlar eklendi');
+  } catch (err) {
+    console.warn('[schema] varsayilanlar atlandı:', err);
+  }
+}
+
+/** ayarlar.smtp_ayarlar — SMTP JSON */
+export async function ensureSmtpAyarlarColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'smtp_ayarlar'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `smtp_ayarlar` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.smtp_ayarlar eklendi');
+  } catch (err) {
+    console.warn('[schema] smtp_ayarlar atlandı:', err);
+  }
+}
+
+/** eposta_sablonlari tablosu */
+export async function ensureEpostaSablonlariTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`eposta_sablonlari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`tip\` VARCHAR(64) NOT NULL,
+        \`adi\` VARCHAR(255) NOT NULL,
+        \`konu\` VARCHAR(255) NOT NULL,
+        \`icerik\` LONGTEXT NOT NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`eposta_sablonlari_tip_key\` (\`tip\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+    const { seedEmailTemplatesIfEmpty } = await import(
+      '../services/emailTemplatesService.js'
+    );
+    await seedEmailTemplatesIfEmpty();
+  } catch (err) {
+    console.warn('[schema] eposta_sablonlari atlandı:', err);
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
@@ -144,4 +210,7 @@ export async function ensureSchema(): Promise<void> {
   await ensureCariTipiInstallmentsColumn();
   await ensureSubeInstallmentsColumn();
   await ensureTaksitSiralamaColumn();
+  await ensureVarsayilanlarColumn();
+  await ensureSmtpAyarlarColumn();
+  await ensureEpostaSablonlariTable();
 }

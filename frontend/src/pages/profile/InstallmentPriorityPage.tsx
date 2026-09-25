@@ -169,7 +169,7 @@ export default function InstallmentPriorityPage() {
 
       <div
         data-anim
-        className="mb-5 flex gap-3 rounded-xl border border-rose-500/25 bg-rose-500/[0.08] px-4 py-3"
+        className="mb-5 flex gap-3 rounded-xl border border-rose-600/40 bg-rose-50 px-4 py-3 dark:border-rose-500/50 dark:bg-rose-950/60"
       >
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-600 text-white">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
@@ -181,9 +181,9 @@ export default function InstallmentPriorityPage() {
           </svg>
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-bold text-rose-700 dark:text-rose-400">Dikkat ediniz</p>
-          <p className="mt-0.5 text-sm leading-relaxed text-rose-800/80 dark:text-rose-300/90">
-            Sistem önce <strong className="font-semibold">1.</strong> kaynağa bakar; doluysa o
+          <p className="text-sm font-bold text-rose-800 dark:text-rose-200">Dikkat ediniz</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-rose-900 dark:text-rose-100">
+            Sistem önce <strong className="font-bold">1.</strong> kaynağa bakar; doluysa o
             kullanılır, boşsa sıradaki kaynağa geçilir. Hepsi boşsa kısıt uygulanmaz. Tutamaçtan
             sürükleyip kaydedin.
           </p>

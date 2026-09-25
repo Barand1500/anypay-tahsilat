@@ -277,8 +277,25 @@ model Ayarlar {
   uygulamaKayit          Boolean?  @map("uygulama_kayit")
   /** Taksit öncelik sırası — CSV: user,cari,sube */
   taksitSiralama         String?   @map("taksit_siralama") @db.VarChar(64)
+  /** Panel varsayılanları — JSON */
+  varsayilanlar          String?   @map("varsayilanlar") @db.LongText
+  /** SMTP ayarları — JSON (host, port, email, password, ssl, tls) */
+  smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
 
   @@map("ayarlar")
+}
+
+/** E-posta şablonları — tip anahtarı benzersiz */
+model EpostaSablon {
+  id     Int      @id @default(autoincrement())
+  tip    String   @db.VarChar(64)
+  adi    String   @db.VarChar(255)
+  konu   String   @db.VarChar(255)
+  icerik String   @db.LongText
+  remove Boolean?
+
+  @@unique([tip])
+  @@map("eposta_sablonlari")
 }
 
 /** Firma iletişim bilgileri — tek satır */

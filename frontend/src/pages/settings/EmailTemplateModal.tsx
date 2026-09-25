@@ -8,7 +8,7 @@ import {
   EMAIL_TEMPLATE_TYPE_OPTIONS,
   templateTypeMeta,
   type EmailTemplate,
-} from './mockEmailSettings';
+} from './emailTemplateTypes';
 
 type Mode = { type: 'create' } | { type: 'edit'; template: EmailTemplate };
 
@@ -17,10 +17,19 @@ type Props = {
   /** Create’de zaten kullanılan tip anahtarları — listeden çıkar */
   usedTypeKeys: string[];
   onClose: () => void;
-  onSave: (t: Omit<EmailTemplate, 'id'> & { id?: string }) => void;
+  onSave: (t: Omit<EmailTemplate, 'id'> & { id?: string }) => void | Promise<void>;
+  saving?: boolean;
+  error?: string | null;
 };
 
-export function EmailTemplateModal({ mode, usedTypeKeys, onClose, onSave }: Props) {
+export function EmailTemplateModal({
+  mode,
+  usedTypeKeys,
+  onClose,
+  onSave,
+  saving,
+  error,
+}: Props) {
   const isEdit = mode.type === 'edit';
   const src = isEdit ? mode.template : null;
 
@@ -66,8 +75,9 @@ export function EmailTemplateModal({ mode, usedTypeKeys, onClose, onSave }: Prop
     }
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     const next: Record<string, string> = {};
     if (!typeKey) next.typeKey = 'Şablon seçin';
     if (!subject.trim()) next.subject = 'Konu gerekli';
@@ -76,7 +86,7 @@ export function EmailTemplateModal({ mode, usedTypeKeys, onClose, onSave }: Prop
     if (Object.keys(next).length) return;
 
     const m = templateTypeMeta(typeKey!);
-    onSave({
+    await onSave({
       id: src?.id,
       typeKey: typeKey!,
       name: m?.label ?? typeKey!,
@@ -111,6 +121,11 @@ export function EmailTemplateModal({ mode, usedTypeKeys, onClose, onSave }: Prop
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="space-y-4 overflow-y-auto px-5 py-4">
+            {error ? (
+              <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
+                {error}
+              </p>
+            ) : null}
             <FloatingSearchSelect
               label="Şablon *"
               options={typeOptions}
@@ -179,9 +194,10 @@ export function EmailTemplateModal({ mode, usedTypeKeys, onClose, onSave }: Prop
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

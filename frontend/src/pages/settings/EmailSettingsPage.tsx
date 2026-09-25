@@ -1,43 +1,63 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { emailSuggestions } from '../../lib/emailSuggestions';
 import { EmailTemplateModal } from './EmailTemplateModal';
 import {
-  INITIAL_EMAIL_TEMPLATES,
-  INITIAL_SMTP,
   type EmailTemplate,
   type SmtpSettings,
-} from './mockEmailSettings';
+} from './emailTemplateTypes';
 
 gsap.registerPlugin(useGSAP);
 
 type PanelFocus = 'both' | 'smtp' | 'templates';
 
+type SmtpApi = SmtpSettings & { passwordSet: boolean };
+
+const EMPTY_SMTP: SmtpSettings = {
+  host: '',
+  port: '587',
+  email: '',
+  password: '',
+  ssl: false,
+  tls: true,
+};
+
 /**
- * Ayarlar › E-Posta — sol SMTP + sınama, sağ çarşaf şablon listesi; ok ile panel büyüt/küçült.
+ * Ayarlar › E-Posta — SMTP DB; şablonlar şimdilik local mock.
  */
 export default function EmailSettingsPage() {
+  const { token } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const [focus, setFocus] = useState<PanelFocus>('both');
 
-  const [smtp, setSmtp] = useState<SmtpSettings>(() => ({ ...INITIAL_SMTP }));
-  const [smtpBase, setSmtpBase] = useState(smtp);
+  const [smtp, setSmtp] = useState<SmtpSettings>({ ...EMPTY_SMTP });
+  const [smtpBase, setSmtpBase] = useState<SmtpSettings>({ ...EMPTY_SMTP });
+  const [passwordSet, setPasswordSet] = useState(false);
+  const [smtpLoading, setSmtpLoading] = useState(true);
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpError, setSmtpError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testOpen, setTestOpen] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [testOk, setTestOk] = useState(false);
 
-  const [templates, setTemplates] = useState<EmailTemplate[]>(() =>
-    INITIAL_EMAIL_TEMPLATES.map((t) => ({ ...t })),
-  );
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [tplLoading, setTplLoading] = useState(true);
+  const [tplError, setTplError] = useState<string | null>(null);
+  const [tplSaving, setTplSaving] = useState(false);
+  const [tplModalError, setTplModalError] = useState<string | null>(null);
+  const [deletingTpl, setDeletingTpl] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -47,11 +67,58 @@ export default function EmailSettingsPage() {
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<EmailTemplate | null>(null);
 
+  const loadSmtp = useCallback(async () => {
+    if (!token) return;
+    setSmtpLoading(true);
+    setSmtpError(null);
+    try {
+      const data = await api.get<SmtpApi>('/api/settings/email/smtp', token);
+      const next: SmtpSettings = {
+        host: data.host || '',
+        port: data.port || '587',
+        email: data.email || '',
+        password: '',
+        ssl: Boolean(data.ssl),
+        tls: data.tls !== false,
+      };
+      setSmtp(next);
+      setSmtpBase({ ...next });
+      setPasswordSet(Boolean(data.passwordSet));
+    } catch (err) {
+      setSmtpError(err instanceof Error ? err.message : 'SMTP yüklenemedi');
+    } finally {
+      setSmtpLoading(false);
+    }
+  }, [token]);
+
+  const loadTemplates = useCallback(async () => {
+    if (!token) return;
+    setTplLoading(true);
+    setTplError(null);
+    try {
+      const list = await api.get<EmailTemplate[]>('/api/settings/email/templates', token);
+      setTemplates(list);
+    } catch (err) {
+      setTplError(err instanceof Error ? err.message : 'Şablonlar yüklenemedi');
+      setTemplates([]);
+    } finally {
+      setTplLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadSmtp();
+  }, [loadSmtp]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
+
   const smtpDirty =
     smtp.host !== smtpBase.host ||
     smtp.port !== smtpBase.port ||
     smtp.email !== smtpBase.email ||
-    smtp.password !== smtpBase.password ||
+    smtp.password !== '' ||
     smtp.ssl !== smtpBase.ssl ||
     smtp.tls !== smtpBase.tls;
 
@@ -121,30 +188,130 @@ export default function EmailSettingsPage() {
     setSmtp((s) => ({ ...s, [key]: value }));
   }
 
-  function saveSmtp(e: FormEvent) {
+  async function saveSmtp(e: FormEvent) {
     e.preventDefault();
-    setSmtpBase({ ...smtp });
-    setSaveOk(true);
-    window.setTimeout(() => setSaveOk(false), 1600);
+    if (!token || !smtpDirty || smtpSaving) return;
+    setSmtpSaving(true);
+    setSmtpError(null);
+    try {
+      const data = await api.patch<SmtpApi>(
+        '/api/settings/email/smtp',
+        {
+          host: smtp.host,
+          port: smtp.port,
+          email: smtp.email,
+          password: smtp.password,
+          ssl: smtp.ssl,
+          tls: smtp.tls,
+        },
+        token,
+      );
+      const next: SmtpSettings = {
+        host: data.host,
+        port: data.port,
+        email: data.email,
+        password: '',
+        ssl: data.ssl,
+        tls: data.tls,
+      };
+      setSmtp(next);
+      setSmtpBase({ ...next });
+      setPasswordSet(Boolean(data.passwordSet));
+      setSaveOk(true);
+      window.setTimeout(() => setSaveOk(false), 1600);
+    } catch (err) {
+      setSmtpError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSmtpSaving(false);
+    }
   }
 
-  function resetSmtp() {
-    setSmtp({ ...INITIAL_SMTP });
-    setSmtpBase({ ...INITIAL_SMTP });
+  async function resetSmtp() {
+    if (!token) return;
+    setSmtpSaving(true);
+    setSmtpError(null);
+    try {
+      await api.delete('/api/settings/email/smtp', token);
+      setSmtp({ ...EMPTY_SMTP });
+      setSmtpBase({ ...EMPTY_SMTP });
+      setPasswordSet(false);
+    } catch (err) {
+      setSmtpError(err instanceof Error ? err.message : 'Sıfırlanamadı');
+    } finally {
+      setSmtpSaving(false);
+    }
   }
 
-  function sendTest(e: FormEvent) {
+  async function sendTest(e: FormEvent) {
     e.preventDefault();
+    if (!token) return;
     if (!testEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail)) {
       setTestMsg('Geçerli bir e-posta girin');
+      setTestOk(false);
       return;
     }
     setTestBusy(true);
     setTestMsg(null);
-    window.setTimeout(() => {
+    setTestOk(false);
+    try {
+      await api.post('/api/settings/email/test', { email: testEmail.trim().toLowerCase() }, token);
+      setTestMsg(`Sınama gönderildi → ${testEmail}`);
+      setTestOk(true);
+    } catch (err) {
+      setTestMsg(err instanceof Error ? err.message : 'Sınama gönderilemedi');
+      setTestOk(false);
+    } finally {
       setTestBusy(false);
-      setTestMsg(`Sınama gönderildi → ${testEmail} (mock)`);
-    }, 700);
+    }
+  }
+
+  async function saveTemplate(row: Omit<EmailTemplate, 'id'> & { id?: string }) {
+    if (!token) return;
+    setTplSaving(true);
+    setTplModalError(null);
+    try {
+      const payload = { typeKey: row.typeKey, subject: row.subject, body: row.body };
+      if (row.id) {
+        const updated = await api.patch<EmailTemplate>(
+          `/api/settings/email/templates/${encodeURIComponent(row.id)}`,
+          payload,
+          token,
+        );
+        setTemplates((list) => list.map((t) => (t.id === row.id ? updated : t)));
+      } else {
+        const created = await api.post<EmailTemplate>(
+          '/api/settings/email/templates',
+          payload,
+          token,
+        );
+        setTemplates((list) =>
+          [...list, created].sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+        );
+      }
+      setModal(null);
+    } catch (err) {
+      setTplModalError(err instanceof Error ? err.message : 'Şablon kaydedilemedi');
+    } finally {
+      setTplSaving(false);
+    }
+  }
+
+  async function confirmDeleteTemplate() {
+    if (!token || !deleteTarget) return;
+    setDeletingTpl(true);
+    setTplError(null);
+    try {
+      await api.delete(
+        `/api/settings/email/templates/${encodeURIComponent(deleteTarget.id)}`,
+        token,
+      );
+      setTemplates((list) => list.filter((t) => t.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setTplError(err instanceof Error ? err.message : 'Şablon silinemedi');
+    } finally {
+      setDeletingTpl(false);
+    }
   }
 
   function exportCsv() {
@@ -169,12 +336,10 @@ export default function EmailSettingsPage() {
   }
 
   function onArrowLeft() {
-    // Sol ok → sol paneli kapat, şablonlar büyüsün
     setFocus((f) => (f === 'templates' ? 'templates' : f === 'smtp' ? 'both' : 'templates'));
   }
 
   function onArrowRight() {
-    // Sağ ok → sağ paneli kapat, SMTP büyüsün
     setFocus((f) => (f === 'smtp' ? 'smtp' : f === 'templates' ? 'both' : 'smtp'));
   }
 
@@ -186,7 +351,7 @@ export default function EmailSettingsPage() {
             E-Posta Ayarları
           </h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">
-            E-posta gönderebilmek için gerekli ayarlar. Doldurun ve sınayın.
+            E-posta gönderebilmek için gerekli ayarlar. Kaydedin ve sınayın.
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -215,6 +380,12 @@ export default function EmailSettingsPage() {
         </div>
       </div>
 
+      {smtpError || tplError ? (
+        <p className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-600">
+          {smtpError || tplError}
+        </p>
+      ) : null}
+
       <div
         className={[
           'grid gap-5 transition-[grid-template-columns] duration-300',
@@ -227,11 +398,14 @@ export default function EmailSettingsPage() {
           <div className="space-y-5">
             <form
               data-anim
-              onSubmit={saveSmtp}
+              onSubmit={(e) => void saveSmtp(e)}
               className="space-y-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6 [--input-notch:var(--panel-elevated)]"
             >
               <div>
                 <h2 className="text-base font-bold text-[var(--panel-ink)]">Sunucu Ayarları</h2>
+                {smtpLoading ? (
+                  <p className="mt-1 text-xs text-[var(--panel-muted)]">Yükleniyor…</p>
+                ) : null}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -240,6 +414,7 @@ export default function EmailSettingsPage() {
                   label="E-Posta Sunucusu"
                   value={smtp.host}
                   onChange={(e) => patchSmtp('host', e.target.value)}
+                  disabled={smtpLoading}
                 />
                 <TextInput
                   data-km-jump
@@ -248,6 +423,7 @@ export default function EmailSettingsPage() {
                   value={smtp.port}
                   onChange={(e) => patchSmtp('port', e.target.value.replace(/\D/g, '').slice(0, 5))}
                   className="font-mono tabular-nums"
+                  disabled={smtpLoading}
                 />
                 <TextInput
                   data-km-jump
@@ -255,13 +431,16 @@ export default function EmailSettingsPage() {
                   type="email"
                   value={smtp.email}
                   onChange={(e) => patchSmtp('email', e.target.value.toLowerCase())}
+                  disabled={smtpLoading}
                 />
                 <TextInput
                   data-km-jump
-                  label="E-Posta Şifresi"
+                  label={passwordSet ? 'E-Posta Şifresi (değiştirmek için yazın)' : 'E-Posta Şifresi'}
                   type={showPass ? 'text' : 'password'}
                   value={smtp.password}
+                  placeholder={passwordSet ? '••••••••••' : ''}
                   onChange={(e) => patchSmtp('password', e.target.value)}
+                  disabled={smtpLoading}
                   endAdornment={
                     <button
                       type="button"
@@ -289,7 +468,12 @@ export default function EmailSettingsPage() {
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <div className="min-w-[11rem] flex-1 sm:flex-none sm:min-w-[12rem]">
-                  <Button type="submit" disabled={!smtpDirty && !saveOk} success={saveOk}>
+                  <Button
+                    type="submit"
+                    disabled={(!smtpDirty && !saveOk) || smtpSaving || smtpLoading}
+                    loading={smtpSaving}
+                    success={saveOk}
+                  >
                     <span className="inline-flex items-center gap-2">
                       <SaveIcon />
                       Değişiklikleri Kaydet
@@ -301,8 +485,9 @@ export default function EmailSettingsPage() {
                   data-km-jump
                   title="Sıfırla"
                   aria-label="Sıfırla"
-                  onClick={resetSmtp}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/8 text-rose-500 transition hover:bg-rose-500/15"
+                  disabled={smtpSaving || smtpLoading}
+                  onClick={() => void resetSmtp()}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/8 text-rose-500 transition hover:bg-rose-500/15 disabled:opacity-50"
                 >
                   <TrashIcon />
                 </button>
@@ -311,13 +496,13 @@ export default function EmailSettingsPage() {
 
             <form
               data-anim
-              onSubmit={sendTest}
+              onSubmit={(e) => void sendTest(e)}
               className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6 [--input-notch:var(--panel-elevated)]"
             >
               <div className="mb-4">
                 <h2 className="text-base font-bold text-[var(--panel-ink)]">E-Posta Sınama</h2>
                 <p className="mt-0.5 text-xs text-[var(--panel-muted)]">
-                  E-Posta ayarlarınızı kontrol edin!
+                  Kayıtlı SMTP ayarlarıyla gerçek sınama gönderir.
                 </p>
               </div>
               <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -367,7 +552,14 @@ export default function EmailSettingsPage() {
                 </button>
               </div>
               {testMsg ? (
-                <p className="mt-2 text-xs font-medium text-[var(--panel-muted)]">{testMsg}</p>
+                <p
+                  className={[
+                    'mt-2 text-xs font-medium',
+                    testOk ? 'text-emerald-600' : 'text-rose-600',
+                  ].join(' ')}
+                >
+                  {testMsg}
+                </p>
               ) : null}
             </form>
           </div>
@@ -411,7 +603,10 @@ export default function EmailSettingsPage() {
                 <button
                   type="button"
                   data-km-jump
-                  onClick={() => setModal({ type: 'create' })}
+                  onClick={() => {
+                    setTplModalError(null);
+                    setModal({ type: 'create' });
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
                 >
                   <span className="text-lg leading-none">+</span>
@@ -428,13 +623,20 @@ export default function EmailSettingsPage() {
                   <span className="sr-only">Sil</span>
                 </div>
 
-                {slice.length ? (
+                {tplLoading ? (
+                  <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
+                    Şablonlar yükleniyor…
+                  </p>
+                ) : slice.length ? (
                   slice.map((t) => (
                     <div
                       key={t.id}
                       data-tpl-row
                       title="Çift tıkla: düzenle"
-                      onDoubleClick={() => setModal({ type: 'edit', template: t })}
+                      onDoubleClick={() => {
+                        setTplModalError(null);
+                        setModal({ type: 'edit', template: t });
+                      }}
                       className="grid cursor-default grid-cols-[minmax(160px,1.1fr)_minmax(160px,1fr)_44px] gap-3 border-b border-[var(--panel-line)]/70 px-5 py-3 transition hover:bg-[var(--panel-hover)]"
                     >
                       <span className="truncate text-sm font-medium text-[var(--panel-ink)]">
@@ -500,36 +702,15 @@ export default function EmailSettingsPage() {
         <EmailTemplateModal
           mode={modal}
           usedTypeKeys={usedTypeKeys}
-          onClose={() => setModal(null)}
-          onSave={(row) => {
-            if (row.id) {
-              setTemplates((list) =>
-                list.map((t) =>
-                  t.id === row.id
-                    ? {
-                        ...t,
-                        typeKey: row.typeKey,
-                        name: row.name,
-                        subject: row.subject,
-                        body: row.body,
-                      }
-                    : t,
-                ),
-              );
-            } else {
-              setTemplates((list) => [
-                ...list,
-                {
-                  id: `et-${Date.now()}`,
-                  typeKey: row.typeKey,
-                  name: row.name,
-                  subject: row.subject,
-                  body: row.body,
-                },
-              ]);
+          saving={tplSaving}
+          error={tplModalError}
+          onClose={() => {
+            if (!tplSaving) {
+              setModal(null);
+              setTplModalError(null);
             }
-            setModal(null);
           }}
+          onSave={(row) => void saveTemplate(row)}
         />
       ) : null}
 
@@ -550,20 +731,19 @@ export default function EmailSettingsPage() {
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     type="button"
+                    disabled={deletingTpl}
                     onClick={() => setDeleteTarget(null)}
-                    className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold"
+                    className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
                   >
                     Vazgeç
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setTemplates((list) => list.filter((t) => t.id !== deleteTarget.id));
-                      setDeleteTarget(null);
-                    }}
-                    className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
+                    disabled={deletingTpl}
+                    onClick={() => void confirmDeleteTemplate()}
+                    className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    Sil
+                    {deletingTpl ? 'Siliniyor…' : 'Sil'}
                   </button>
                 </div>
               </div>

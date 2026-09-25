@@ -10,6 +10,22 @@ import {
   updateGeneralSettings,
 } from '../services/settingsService.js';
 import {
+  getAppDefaultsSettings,
+  updateAppDefaultsSettings,
+} from '../services/defaultsService.js';
+import {
+  clearSmtpSettings,
+  getSmtpSettings,
+  updateSmtpSettings,
+} from '../services/emailSmtpService.js';
+import {
+  createEmailTemplate,
+  listEmailTemplates,
+  softDeleteEmailTemplate,
+  updateEmailTemplate,
+} from '../services/emailTemplatesService.js';
+import { sendSmtpTestMail } from '../lib/mail.js';
+import {
   getInstallmentPriority,
   updateInstallmentPriority,
   type InstallmentSource,
@@ -143,6 +159,176 @@ settingsRouter.patch('/contact', async (req: AuthedRequest, res) => {
 
 const prioritySchema = z.object({
   order: z.array(z.enum(['user', 'cari', 'sube'])).min(2).max(3),
+});
+
+const defaultsSchema = z.object({
+  loginTheme: z.enum(['classic', 'globe']),
+  panelTheme: z.enum(['light', 'dark']),
+  landingPath: z.string().max(128),
+  payType: z.enum(['ch', 'fatura']),
+  currency: z.string().max(64),
+  accountType: z.string().max(255),
+  customerKind: z.enum(['gercek', 'tuzel', 'yabanci']),
+  virtualPos: z.enum(['bank', 'external']),
+  taxOffice: z.string().max(255),
+  country: z.string().max(8),
+  displayMode: z.enum(['window', 'fullscreen']),
+  filterOpen: z.record(z.string(), z.boolean()),
+});
+
+settingsRouter.get('/defaults', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getAppDefaultsSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Varsayılanlar yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/defaults', async (req: AuthedRequest, res) => {
+  const parsed = defaultsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateAppDefaultsSettings(parsed.data);
+    await writePanelLog(req.auth!.sub, 'Ayarlar - Varsayılanlar güncellendi.');
+    return sendSuccess(res, data, 'Varsayılanlar kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Varsayılanlar kaydedilemedi');
+  }
+});
+
+const smtpSchema = z.object({
+  host: z.string().min(1).max(255),
+  port: z.string().min(1).max(5),
+  email: z.string().email().max(255),
+  password: z.string().max(255).optional().default(''),
+  ssl: z.boolean(),
+  tls: z.boolean(),
+});
+
+settingsRouter.get('/email/smtp', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getSmtpSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'SMTP ayarları yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/email/smtp', async (req: AuthedRequest, res) => {
+  const parsed = smtpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateSmtpSettings(parsed.data);
+    await writePanelLog(req.auth!.sub, 'Ayarlar - SMTP ayarları güncellendi.');
+    return sendSuccess(res, data, 'SMTP ayarları kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'SMTP ayarları kaydedilemedi');
+  }
+});
+
+settingsRouter.delete('/email/smtp', async (req: AuthedRequest, res) => {
+  try {
+    const data = await clearSmtpSettings();
+    await writePanelLog(req.auth!.sub, 'Ayarlar - SMTP ayarları sıfırlandı.');
+    return sendSuccess(res, data, 'SMTP ayarları sıfırlandı');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'SMTP sıfırlanamadı');
+  }
+});
+
+settingsRouter.post('/email/test', async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({ email: z.string().email('Geçerli bir e-posta girin').max(255) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz e-posta');
+  }
+  try {
+    await sendSmtpTestMail(parsed.data.email.trim().toLowerCase());
+    await writePanelLog(req.auth!.sub, `SMTP sınama gönderildi → ${parsed.data.email}`);
+    return sendSuccess(res, { sent: true }, 'Sınama e-postası gönderildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    const msg = err instanceof Error ? err.message : 'Sınama gönderilemedi';
+    return sendError(res, 500, msg);
+  }
+});
+
+const emailTplSchema = z.object({
+  typeKey: z.string().min(1).max(64),
+  subject: z.string().min(1).max(255),
+  body: z.string().min(1).max(50_000),
+});
+
+settingsRouter.get('/email/templates', async (_req, res) => {
+  try {
+    return sendSuccess(res, await listEmailTemplates());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Şablonlar yüklenemedi');
+  }
+});
+
+settingsRouter.post('/email/templates', async (req: AuthedRequest, res) => {
+  const parsed = emailTplSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await createEmailTemplate(parsed.data);
+    await writePanelLog(req.auth!.sub, `E-posta şablonu eklendi — ${data.name}`);
+    return sendSuccess(res, data, 'Şablon eklendi', 201);
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Şablon eklenemedi');
+  }
+});
+
+settingsRouter.patch('/email/templates/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  const parsed = emailTplSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateEmailTemplate(id, parsed.data);
+    await writePanelLog(req.auth!.sub, `E-posta şablonu güncellendi — ${data.name}`);
+    return sendSuccess(res, data, 'Şablon güncellendi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Şablon güncellenemedi');
+  }
+});
+
+settingsRouter.delete('/email/templates/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  try {
+    await softDeleteEmailTemplate(id);
+    await writePanelLog(req.auth!.sub, `E-posta şablonu silindi — #${id}`);
+    return sendSuccess(res, { id }, 'Şablon silindi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Şablon silinemedi');
+  }
 });
 
 settingsRouter.get('/installment-priority', async (_req, res) => {

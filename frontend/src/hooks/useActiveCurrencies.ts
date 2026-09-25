@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../lib/api';
 import type { CurrencyDef } from '../pages/definitions/currencyTypes';
+import { getDefaultCurrency } from '../pages/settings/defaultsStore';
 
 /** Aktif para birimleri — ödeme / istek formları */
 export function useActiveCurrencies() {
@@ -29,7 +30,18 @@ export function useActiveCurrencies() {
     void load();
   }, [load]);
 
+  const preferred = getDefaultCurrency().trim();
+  const byId = preferred ? currencies.find((c) => c.id === preferred) : undefined;
+  const byCode = preferred
+    ? currencies.find(
+        (c) =>
+          c.shortName.toUpperCase() === preferred.toUpperCase() ||
+          (preferred === 'TRY' && (c.shortName === 'TL' || c.shortName === 'TRY')),
+      )
+    : undefined;
   const defaultId =
+    byId?.id ??
+    byCode?.id ??
     currencies.find((c) => c.shortName === 'TL' || c.shortName === 'TRY')?.id ??
     currencies[0]?.id ??
     '';

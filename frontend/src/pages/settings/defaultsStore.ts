@@ -135,7 +135,7 @@ export function defaultAppDefaults(): AppDefaults {
     panelTheme: (localStorage.getItem('anypay_tahsilat_theme') === 'dark' ? 'dark' : 'light') as ThemeMode,
     landingPath: '/',
     payType: 'ch',
-    currency: 'TRY',
+    currency: '',
     accountType: '',
     customerKind: 'gercek',
     virtualPos: 'bank',
@@ -170,6 +170,26 @@ export function setAppDefaults(next: AppDefaults) {
   }
   setLoginTheme(next.loginTheme);
   window.dispatchEvent(new CustomEvent('anypay:defaults', { detail: next }));
+}
+
+/** Sunucudan çekip local cache’e yazar — AppShell açılışında */
+export async function hydrateAppDefaults(token: string): Promise<AppDefaults | null> {
+  try {
+    const { api } = await import('../../lib/api');
+    const saved = await api.get<AppDefaults>('/api/settings/defaults', token);
+    const next: AppDefaults = {
+      ...defaultAppDefaults(),
+      ...saved,
+      filterOpen: {
+        ...defaultAppDefaults().filterOpen,
+        ...(saved.filterOpen ?? {}),
+      },
+    };
+    setAppDefaults(next);
+    return next;
+  } catch {
+    return null;
+  }
 }
 
 export function getDefaultFiltersOpen(page: FilterPageKey): boolean {

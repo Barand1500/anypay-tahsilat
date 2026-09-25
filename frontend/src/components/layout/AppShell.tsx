@@ -1,7 +1,13 @@
 import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
 import { Outlet } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { KeyboardModeProvider } from '../../keyboard/KeyboardModeContext';
-import { applyDisplayMode, getAppDefaults } from '../../pages/settings/defaultsStore';
+import {
+  applyDisplayMode,
+  getAppDefaults,
+  hydrateAppDefaults,
+} from '../../pages/settings/defaultsStore';
+import { useTheme } from '../../theme/ThemeProvider';
 import { DockModeProvider, useDockMode } from './DockModeContext';
 import { Footer } from './Footer';
 import {
@@ -36,6 +42,8 @@ export function AppShell() {
 }
 
 function AppShellInner() {
+  const { token } = useAuth();
+  const { applyTheme } = useTheme();
   const { enabled: dockOn, animating } = useDockMode();
   const { phase: ratesPhase } = useRates();
   const [collapsed, setCollapsed] = useState(false);
@@ -75,6 +83,19 @@ function AppShellInner() {
   useEffect(() => {
     void applyDisplayMode(getAppDefaults().displayMode);
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void hydrateAppDefaults(token).then((next) => {
+      if (cancelled || !next) return;
+      applyTheme(next.panelTheme);
+      void applyDisplayMode(next.displayMode);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, applyTheme]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
