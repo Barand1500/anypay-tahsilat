@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
+import type { Customer, CustomerKind } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
@@ -19,6 +20,32 @@ import {
 type PayType = '' | 'ch' | 'fatura';
 type Currency = '' | 'TRY';
 
+type ContactApi = {
+  title: string;
+  kind: CustomerKind;
+  taxNo: string;
+  taxOffice: string;
+  identityNo: string;
+  address: string;
+  email: string;
+  phone: string;
+};
+
+const DEFAULT_MERCHANT: Customer = {
+  id: 'panel-merchant',
+  code: '',
+  title: 'GÜZEL Teknoloji',
+  phone: '',
+  email: '',
+  taxNo: '',
+  taxOffice: '',
+  kind: 'tuzel',
+  accountType: '',
+  parentId: null,
+  address: '',
+  identityNo: '',
+};
+
 /**
  * Hızlı Ödeme — firma adına; 3 kart (ödeme / kart / banka).
  */
@@ -28,7 +55,7 @@ export default function QuickPayPage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
-  const [merchantTitle, setMerchantTitle] = useState('GÜZEL Teknoloji');
+  const [merchant, setMerchant] = useState<Customer>(DEFAULT_MERCHANT);
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
@@ -81,8 +108,19 @@ export default function QuickPayPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const data = await api.get<{ title: string }>('/api/settings/contact', token);
-        if (!cancelled && data.title?.trim()) setMerchantTitle(data.title.trim());
+        const data = await api.get<ContactApi>('/api/settings/contact', token);
+        if (cancelled) return;
+        setMerchant({
+          ...DEFAULT_MERCHANT,
+          title: data.title?.trim() || DEFAULT_MERCHANT.title,
+          kind: data.kind || 'tuzel',
+          taxNo: data.taxNo || '',
+          taxOffice: data.taxOffice || '',
+          identityNo: data.identityNo || '',
+          address: data.address || '',
+          email: data.email || '',
+          phone: data.phone || '',
+        });
       } catch {
         /* başlık opsiyonel */
       }
@@ -182,7 +220,7 @@ export default function QuickPayPage() {
         data-anim
         className="mb-5 text-center text-base font-bold uppercase tracking-wide text-[var(--panel-ink)] sm:text-lg"
       >
-        {merchantTitle}
+        {merchant.title}
       </h1>
 
       <form onSubmit={onSubmit} className="space-y-5">
