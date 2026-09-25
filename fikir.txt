@@ -1,0 +1,64 @@
+AnyPay Tahsilat — sol panel 5. buton için 20 yeni fikir
+(Yapay zeka / önceki öneriler yok. Kabuk seviyesi, özgün.)
+
+1. ZARF RENGİ
+Tüm panelin kenar çerçevesi, vadesi geçmiş borç oranına göre yavaşça renk değiştirir (sakin yeşil → uyarı amber → kritik kızıl). Tek bakışta portföy gerilimi.
+
+2. ZAMAN KAPSÜLÜ
+Ekranın o anki hâlinin + filtrelerin dondurulmuş kopyasını alır. İtiraz/şikâyet gelince “o gün ne görüyordum?” diye geri açılır.
+
+3. PARA PRİZMASI
+Görünen tüm tutarların üstüne seçilen dövizle hayalet katman basar (₺ yanında $ / €). Sayfa değişince de takip eder; kur şeridinden bağımsızdır.
+
+4. JEST RÜZGÂRI
+Boş alana parmak/fare ile kısa bir çizgi çizince komut olur: daire → özet, sağa sürükle → müşteriler, aşağı → tahsilat. Menüye bakmadan gezinme.
+
+5. KASA ZİLİ
+Şirkette başka birinin tahsilatı başarılı olunca panelde çok hafif bir “tik” / ışık nabzı. Takım masasında canlılık hissi; ses kapalı da çalışır.
+
+6. İZ ŞERİDİ
+Son 10 gezinmeni mini film şeridi gibi gösterir; bir kareye tıklayınca o ekrana + o filtreye dönersin. “Neredeydim?” sorusunun cevabı.
+
+7. MIKNATIS
+Açık müşteri/kayıt etrafında ilgili hareket, bekleyen istek ve son kart denemesini uydu gibi çeker. Sayfa değişmeden bağlam toplanır.
+
+8. VARDİYA DEVİR
+Mesai bitince tek tuş: bugünkü açık işler, yarım kalan tahsilatlar ve notlar sonraki vardiyaya paketlenir. Devir tutanağı gibi.
+
+9. ÇERÇEVE MODU
+Chrome’u (menü gürültüsünü) soyup sayfayı fiş/rapor baskısına hazır “temiz kâğıt” hâline getirir. Yazdır / PDF öncesi.
+
+10. RADAR
+Küçük bir harita/ısı: bugünkü tahsilatların şehir bazlı yoğunluğu. Footer/köşe radarı; rapor sayfasına gitmeden coğrafi his.
+
+11. KİLİTLİ ÇEKMECE
+Sık kullanılan IBAN, sanal POS test kartı, şube kodlarını yerel şifreli çekmecede tutar. Panik anında “neredeydi o IBAN?” bitmesin.
+
+12. METRONOM
+Kişisel tempo: saatte kaç tahsilat hedefi. Gerideysen yumuşak titreşim, öndeysen sakin ışık. Baskı değil ritim.
+
+13. GÖLGE EŞLEŞME
+Açık müşteri formunun yanında, benzer risk/profildeki müşterilerin ödeme ritmini siluet olarak gösterir (kural tabanlı; sohbet değil).
+
+14. KABLO KÖPRÜSÜ
+İki bağlamı geçici bağlar (ör. tahsilat + hareket). Aradaki “kablo” kopana kadar ikisi senkron kayar; mutabakat için.
+
+15. PUL / DAMGA
+Bulunduğun kayda “incelendi / arandı / söz alındı” damgası basar; kim, ne zaman — denetim izi. Küçük ama kurumsal.
+
+16. DESTE
+Bekleyen ödeme isteklerini iskambil gibi kaydırılabilir desteye çevirir; “aldım / erteledim / reddettim” jestleriyle eritirsin.
+
+17. AMBİYANS IŞIĞI
+Saate göre panelin sıcak/soğuk ışığı (sabah serin, akşam yumuşak). Hedef nabzından farklı: sadece göz yorgunluğu / masa atmosferi.
+
+18. DERİN LİNK
+Tam olarak bu filtre + bu müşteri + bu sekmenin kalıcı linkini kopyalar; meslektaşa “şuraya bak” diye atarsın.
+
+19. ÇİFT DİL CİLT
+Arayüz etiketlerini anlık TR↔EN (veya TR↔AR) kaplar; yabancı ortak ekrana bakarken utangaç çeviri yok.
+
+20. KIRILACAK CAM
+Olağanüstü yetkileri (büyük iade, sistem kilidi açma) tek tuşla, zorunlu gerekçe + log ile açar. Acil durum; günlük kullanım değil.
+
+— Hangisi 5. buton olsun, söylemen yeterli.

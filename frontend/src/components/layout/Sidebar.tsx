@@ -110,27 +110,6 @@ function SoonIcon() {
   );
 }
 
-function CollapseIcon({ collapsed }: { collapsed: boolean }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-      className={collapsed ? 'rotate-180' : ''}
-    >
-      <path
-        d="M15 6 9 12l6 6"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function BoltIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -580,16 +559,8 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         title="Boş alana çift tıkla: menüyü aç/kapa"
         className="flex h-full min-h-0 w-[76px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--panel-sidebar)] transition-[width] duration-300 ease-out"
       >
-        <div className="flex shrink-0 flex-col items-center gap-2 px-2 py-4">
+        <div className="flex shrink-0 flex-col items-center px-2 py-4">
           <img src={collapsedLogo} alt={systemName} className="h-10 w-10 object-contain" />
-          <button
-            type="button"
-            aria-label="Menüyü aç"
-            onClick={onToggle}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
-          >
-            <CollapseIcon collapsed />
-          </button>
         </div>
         <div className="shrink-0 px-2 pb-3">
           <Link
@@ -617,7 +588,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       title="Boş alana çift tıkla: menüyü aç/kapa"
       className="sidebar-open flex h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--sidebar-open-bg)] text-[var(--sidebar-open-ink)] transition-[width] duration-300 ease-out"
     >
-      <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-5">
+      <div className="flex shrink-0 items-center px-4 pb-3 pt-5">
         <div className="flex min-w-0 flex-1 items-center">
           <img
             src={expandedLogo}
@@ -625,14 +596,6 @@ export function Sidebar({ collapsed, onToggle }: Props) {
             className="h-14 w-auto max-w-[210px] object-contain object-left drop-shadow-sm"
           />
         </div>
-        <button
-          type="button"
-          aria-label="Menüyü daralt"
-          onClick={onToggle}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--sidebar-open-ink)]/75 hover:bg-[var(--sidebar-open-hover)] hover:text-[var(--sidebar-open-ink)]"
-        >
-          <CollapseIcon collapsed={false} />
-        </button>
       </div>
 
       <div className="shrink-0 px-3 pb-4">
