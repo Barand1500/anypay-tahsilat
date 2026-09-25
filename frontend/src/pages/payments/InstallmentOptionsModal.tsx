@@ -13,12 +13,19 @@ type Props = {
   amount: number;
   preferredBankId?: string | null;
   onClose: () => void;
+  /** null = hepsi; dizi = yalnızca izinli */
+  allowedInstallments?: number[] | null;
   /** İleride satır seçimi / alt limit sayfası; şimdilik opsiyonel */
   onPick?: (bank: BankInfo, installment: number) => void;
 };
 
 /** Taksit karşılaştırma — Esc / X */
-export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Props) {
+export function InstallmentOptionsModal({
+  amount,
+  preferredBankId,
+  onClose,
+  allowedInstallments,
+}: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [segment, setSegment] = useState<CardSegment>('tumu');
   const banks = banksForCompare(preferredBankId);
@@ -155,10 +162,20 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((r) => (
+                      {rows.map((r) => {
+                        const ok =
+                          !allowedInstallments?.length ||
+                          allowedInstallments.includes(r.n);
+                        return (
                         <tr
                           key={r.n}
-                          className="border-t border-[var(--panel-line)]/80 hover:bg-[var(--panel-hover)]/50"
+                          title={ok ? undefined : 'Size atanmadı'}
+                          className={[
+                            'border-t border-[var(--panel-line)]/80',
+                            ok
+                              ? 'hover:bg-[var(--panel-hover)]/50'
+                              : 'cursor-not-allowed opacity-45',
+                          ].join(' ')}
                         >
                           <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
                             {r.plusN > 0 ? `${r.n}+${r.plusN}` : r.n}
@@ -173,10 +190,11 @@ export function InstallmentOptionsModal({ amount, preferredBankId, onClose }: Pr
                             {formatMoneyTr(r.totalAmount)} ₺
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
-                            —
+                            {ok ? '—' : 'Size atanmadı'}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </article>

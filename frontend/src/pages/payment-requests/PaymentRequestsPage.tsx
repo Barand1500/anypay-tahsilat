@@ -46,6 +46,9 @@ type ApiPayRequest = {
   whatsapp: string;
   description: string;
   files?: { name: string; path: string; url: string }[];
+  currencyId?: string;
+  currencySymbol?: string;
+  currencyShortName?: string;
 };
 
 function mapRow(r: ApiPayRequest): PaymentRequest {
@@ -68,6 +71,9 @@ function mapRow(r: ApiPayRequest): PaymentRequest {
     whatsapp: r.whatsapp,
     description: r.description,
     files: r.files,
+    currencyId: r.currencyId,
+    currencySymbol: r.currencySymbol,
+    currencyShortName: r.currencyShortName,
   };
 }
 
@@ -336,6 +342,7 @@ export default function PaymentRequestsPage() {
       amount: r.amount,
       token: r.token,
       files: r.files,
+      currencySymbol: r.currencySymbol,
     });
     try {
       await navigator.clipboard.writeText(text);
@@ -353,6 +360,7 @@ export default function PaymentRequestsPage() {
         amount: r.amount,
         token: r.token,
         files: r.files,
+        currencySymbol: r.currencySymbol,
       }),
     );
     const phone = r.whatsapp.replace(/\D/g, '');
@@ -391,6 +399,7 @@ export default function PaymentRequestsPage() {
         token: r.token,
         files: r.files,
         greeting: 'Ödeme linkiniz:',
+        currencySymbol: r.currencySymbol,
       }),
     );
     window.open(`sms:+90${r.phone.replace(/\D/g, '')}?body=${body}`, '_self');
@@ -703,7 +712,7 @@ export default function PaymentRequestsPage() {
 
                   <div className="min-w-0 self-center">
                     <p className="text-sm font-bold tabular-nums text-[var(--panel-ink)]">
-                      {formatMoneyTr(r.amount)} ₺
+                      {formatMoneyTr(r.amount)} {r.currencySymbol || '₺'}
                     </p>
                     <p className="text-[11px] text-[var(--panel-muted)]">
                       {r.commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}

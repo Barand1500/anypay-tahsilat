@@ -25,6 +25,15 @@ function normalizeStoredPhone(raw: string | null | undefined): string {
   return '';
 }
 
+function parseInstallments(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  const nums = raw
+    .split(/[,;]+/)
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 12);
+  return [...new Set(nums)].sort((a, b) => a - b);
+}
+
 function toPublicUser(user: {
   id: number;
   email: string;
@@ -32,6 +41,7 @@ function toPublicUser(user: {
   telefon: string;
   roles: unknown;
   twoFactor: boolean | null;
+  izinliTaksitler?: string | null;
 }) {
   return {
     id: user.id,
@@ -40,6 +50,8 @@ function toPublicUser(user: {
     telefon: normalizeStoredPhone(user.telefon),
     roles: parseRoles(user.roles),
     twoFactor: Boolean(user.twoFactor),
+    /** Boş = kısıt yok (tümü); dolu = yalnızca bunlar */
+    installments: parseInstallments(user.izinliTaksitler),
   };
 }
 

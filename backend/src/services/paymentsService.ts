@@ -1,5 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
+import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
+import {
+  assertInstallmentsAllowed,
+  getUserAllowedInstallments,
+  UsersError,
+} from './usersService.js';
 
 export class PaymentsError extends Error {
   constructor(message: string) {
@@ -20,6 +26,8 @@ export type CreatePaymentInput = {
   installment: number;
   note?: string;
   kullaniciId: number;
+  /** Yoksa aktif varsayılan (TL) */
+  parabirimiId?: number | null;
 };
 
 export type TxStatus = 'paid' | 'cancelled' | 'refunded' | 'pending' | 'failed';
@@ -319,13 +327,30 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     throw new PaymentsError('Kart numarası geçersiz');
   }
 
+  let currency;
+  try {
+    currency = await resolveCurrencyId(input.parabirimiId ?? null);
+  } catch (err) {
+    if (err instanceof CurrenciesError) throw new PaymentsError(err.message);
+    throw err;
+  }
+
+  try {
+    const allowed = await getUserAllowedInstallments(input.kullaniciId);
+    assertInstallmentsAllowed(allowed, [input.installment > 0 ? input.installment : 1]);
+  } catch (err) {
+    if (err instanceof UsersError) throw new PaymentsError(err.message);
+    throw err;
+  }
+
   const now = new Date();
   const odemeNo = makeOdemeNo();
   const row = await prisma.odeme.create({
     data: {
-      parabirimiId: 1,
+      parabirimiId: currency.id,
       musteriId: input.musteriId,
       tutar: input.amount,
+      kur: currency.kur,
       gercekTutar: input.amount,
       komisyonDahil: input.commissionIncluded,
       aciklama: (input.note || '').trim() || null,

@@ -1,10 +1,10 @@
 import gsap from 'gsap';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { OptionMultiSelect } from '../../components/ui/OptionMultiSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import {
-  getBranchOptions,
   emailSuggestions,
   formatPhoneLive,
   INSTALLMENT_OPTIONS,
@@ -47,7 +47,12 @@ export function UserModal({
   const [email, setEmail] = useState(isEdit ? mode.user.email : '');
   const [phone, setPhone] = useState(isEdit ? mode.user.phone : '5');
   const [roleId, setRoleId] = useState(isEdit ? mode.user.roleId : '');
-  const [branch, setBranch] = useState(isEdit ? mode.user.branch : '');
+  const [branchIds, setBranchIds] = useState<string[]>(() => {
+    if (!isEdit) return [];
+    if (mode.user.branchIds?.length) return mode.user.branchIds.map(String);
+    if (mode.user.branchId != null) return [String(mode.user.branchId)];
+    return [];
+  });
   const [status, setStatus] = useState<UserStatus>(isEdit ? mode.user.status : 'Aktif');
   const [installments, setInstallments] = useState<number[]>(
     isEdit ? [...mode.user.installments] : [],
@@ -62,7 +67,7 @@ export function UserModal({
 
   const branchSelectOptions = useMemo(() => {
     if (branchOptions?.length) return branchOptions;
-    return getBranchOptions().map((b) => ({ value: b, label: b }));
+    return [];
   }, [branchOptions]);
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -184,7 +189,12 @@ export function UserModal({
         phone,
         roleId,
         roleName: role?.label || '',
-        branch: branch || '',
+        branchIds: branchIds.map(Number).filter((n) => Number.isFinite(n)),
+        branchId: branchIds[0] != null ? Number(branchIds[0]) : null,
+        branch: branchSelectOptions
+          .filter((o) => branchIds.includes(o.value))
+          .map((o) => o.label)
+          .join(', '),
         status,
         installments,
         password: password.trim() || undefined,
@@ -310,12 +320,12 @@ export function UserModal({
               pulse={pulse === 'role'}
             />
 
-            <FloatingSearchSelect
-              label="Şube/Departman"
-              placeholder="Şube/Departman seçiniz."
+            <OptionMultiSelect
+              label="Şube / Departman"
+              placeholder="Şube / departman seçiniz."
               options={branchSelectOptions}
-              value={branch || null}
-              onChange={(v) => setBranch(v ?? '')}
+              value={branchIds}
+              onChange={setBranchIds}
               kmJump
               pulse={pulse === 'branch'}
             />

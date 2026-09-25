@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { api } from '../../lib/api';
 import { useCustomer } from '../customers/useCustomer';
 import { useCustomersList } from '../customers/useCustomersList';
@@ -13,7 +14,6 @@ import { loadReadyDescriptions } from './mockReadyDescriptions';
 import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
 
 type PayType = '' | 'ch' | 'fatura';
-type Currency = '' | 'TRY';
 
 type AttachedFile = { name: string; path: string; url: string };
 
@@ -30,8 +30,9 @@ function isPdfFile(f: AttachedFile) {
  */
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id, reqId } = useParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const allowedInstallments = user?.installments?.length ? user.installments : null;
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
@@ -89,11 +90,13 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const backTo = '/odeme-istekleri';
   const backLabel = 'Ödeme İstekleri';
 
+  const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
+
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
-  const [currency, setCurrency] = useState<Currency>('TRY');
+  const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
   const [installments, setInstallments] = useState<number[]>([]);
@@ -130,6 +133,13 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   }, [toast]);
 
   useEffect(() => {
+    if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
+  }, [currencyId, defaultCurrencyId]);
+
+  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
+  const currencySymbol = selectedCurrency?.symbol || '₺';
+
+  useEffect(() => {
     if (!isEdit || !reqId || !token) return;
     let cancelled = false;
     editHydrated.current = false;
@@ -148,6 +158,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           description: string;
           installments: number[];
           files?: AttachedFile[];
+          currencyId?: string;
         }>(`/api/payment-requests/${encodeURIComponent(reqId)}`, token);
         if (cancelled) return;
         if (data.status === 'paid') {
@@ -167,6 +178,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         });
         setPayType(data.type === 'fatura' ? 'fatura' : 'ch');
         setAmountText(formatMoneyTr(data.amount));
+        if (data.currencyId) setCurrencyId(data.currencyId);
         setCommissionIncluded(data.commissionIncluded);
         setInstallments(data.installments.length ? data.installments : [1]);
         setFiles(data.files ?? []);
@@ -221,7 +233,9 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   }
 
   function selectAllInstallments() {
-    setInstallments([...INSTALLMENTS]);
+    setInstallments(
+      allowedInstallments?.length ? [...allowedInstallments] : [...INSTALLMENTS],
+    );
   }
 
   function clearInstallments() {
@@ -328,9 +342,15 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     const next: Record<string, string> = {};
     if (forPanel && !customer) next.customer = 'Müşteri seçin';
     if (!payType) next.payType = 'Ödeme tipi seçin';
-    if (!currency) next.currency = 'Para birimi seçin';
+    if (!currencyId) next.currency = 'Para birimi seçin';
     if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
     if (installments.length === 0) next.installments = 'En az bir taksit seçin';
+    else if (
+      allowedInstallments?.length &&
+      installments.some((n) => !allowedInstallments.includes(n))
+    ) {
+      next.installments = 'İzin verilmeyen taksit seçildi';
+    }
     const desc = editorRef.current?.innerText?.trim() ?? '';
     if (!desc) next.desc = 'Açıklama girin';
     setErrors(next);
@@ -354,6 +374,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         installments,
         description: descHtml,
         dosya,
+        parabirimiId: Number(currencyId),
       };
       if (isEdit && reqId) {
         const data = await api.patch<{ id: number }>(
@@ -637,42 +658,38 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                       className="flex h-full min-h-[46px] items-center gap-1.5 rounded-r-xl bg-[var(--panel-surface)] px-3 text-sm font-bold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
                     >
                       <span className="min-w-[1.1rem] text-center">
-                        {currency === 'TRY' ? '₺' : '—'}
+                        {currencySymbol || '—'}
                       </span>
                       <ChevronIcon />
                     </button>
                     {currencyOpen ? (
-                      <ul className="absolute right-0 z-30 mt-1 w-28 overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
-                        <li>
-                          <button
-                            type="button"
-                            className={[
-                              'w-full px-3 py-2 text-left text-sm font-semibold',
-                              currency === '' ? 'bg-[var(--panel-hover)]' : 'hover:bg-[var(--panel-hover)]',
-                            ].join(' ')}
-                            onClick={() => {
-                              setCurrency('');
-                              setCurrencyOpen(false);
-                            }}
-                          >
-                            Seçiniz
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            type="button"
-                            className={[
-                              'w-full px-3 py-2 text-left text-lg font-bold',
-                              currency === 'TRY' ? 'bg-[var(--panel-hover)]' : 'hover:bg-[var(--panel-hover)]',
-                            ].join(' ')}
-                            onClick={() => {
-                              setCurrency('TRY');
-                              setCurrencyOpen(false);
-                            }}
-                          >
-                            ₺
-                          </button>
-                        </li>
+                      <ul className="absolute right-0 z-30 mt-1 max-h-56 w-40 overflow-y-auto rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
+                        {currencies.length === 0 ? (
+                          <li className="px-3 py-2 text-xs text-[var(--panel-muted)]">
+                            Aktif para birimi yok
+                          </li>
+                        ) : (
+                          currencies.map((c) => (
+                            <li key={c.id}>
+                              <button
+                                type="button"
+                                className={[
+                                  'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold',
+                                  currencyId === c.id
+                                    ? 'bg-[var(--panel-hover)]'
+                                    : 'hover:bg-[var(--panel-hover)]',
+                                ].join(' ')}
+                                onClick={() => {
+                                  setCurrencyId(c.id);
+                                  setCurrencyOpen(false);
+                                }}
+                              >
+                                <span>{c.shortName}</span>
+                                <span className="text-base">{c.symbol}</span>
+                              </button>
+                            </li>
+                          ))
+                        )}
                       </ul>
                     ) : null}
                   </div>
@@ -725,6 +742,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                     options={INSTALLMENTS}
                     value={installments}
                     onChange={setInstallments}
+                    allowed={allowedInstallments}
                     kmJump
                   />
                   <div className="mt-3 flex flex-wrap gap-2">

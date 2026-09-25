@@ -27,6 +27,7 @@ const createSchema = z.object({
   cardDigits: z.string().min(15).max(19),
   installment: z.number().int().min(1).max(12).optional().default(1),
   note: z.string().max(5000).optional().default(''),
+  parabirimiId: z.number().int().positive().nullable().optional(),
 });
 
 const listSchema = z.object({
@@ -85,11 +86,12 @@ paymentsRouter.post('/', async (req: AuthedRequest, res) => {
     const data = await createPayment({
       ...parsed.data,
       musteriId: parsed.data.musteriId ?? null,
+      parabirimiId: parsed.data.parabirimiId ?? null,
       kullaniciId: req.auth!.sub,
     });
     await writePanelLog(
       req.auth!.sub,
-      `Ödeme alındı — #${data.odemeNo} / ${data.amount.toFixed(2)} ₺`,
+      `Ödeme alındı — #${data.odemeNo} / ${data.amount.toFixed(2)}`,
     );
     return sendSuccess(res, data, 'Ödeme kaydedildi', 201);
   } catch (err) {

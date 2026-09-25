@@ -36,6 +36,7 @@ const createSchema = z.object({
   description: z.string().min(1).max(20000),
   faturaNo: z.string().max(255).optional().default(''),
   dosya: z.string().max(50000).nullable().optional(),
+  parabirimiId: z.number().int().positive().nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -46,6 +47,7 @@ const updateSchema = z.object({
   description: z.string().min(1).max(20000),
   faturaNo: z.string().max(255).optional().default(''),
   dosya: z.string().max(50000).nullable().optional(),
+  parabirimiId: z.number().int().positive().nullable().optional(),
 });
 
 const mergeSchema = z.object({
@@ -125,11 +127,12 @@ paymentRequestsRouter.post('/', async (req: AuthedRequest, res) => {
       description: parsed.data.description,
       faturaNo: parsed.data.faturaNo,
       dosya: parsed.data.dosya ?? null,
+      parabirimiId: parsed.data.parabirimiId ?? null,
       kullaniciId: req.auth!.sub,
     });
     await writePanelLog(
       req.auth!.sub,
-      `Ödeme isteği oluşturuldu — ${data.customerTitle} / ${data.amount.toFixed(2)} ₺`,
+      `Ödeme isteği oluşturuldu — ${data.customerTitle} / ${data.amount.toFixed(2)} ${data.currencySymbol}`,
     );
     return sendSuccess(res, data, 'Ödeme isteği oluşturuldu', 201);
   } catch (err) {
@@ -163,10 +166,11 @@ paymentRequestsRouter.patch('/:id', async (req: AuthedRequest, res) => {
       description: parsed.data.description,
       faturaNo: parsed.data.faturaNo,
       dosya: parsed.data.dosya ?? null,
+      parabirimiId: parsed.data.parabirimiId ?? null,
     });
     await writePanelLog(
       req.auth!.sub,
-      `Ödeme isteği güncellendi — #${id} / ${data.amount.toFixed(2)} ₺`,
+      `Ödeme isteği güncellendi — #${id} / ${data.amount.toFixed(2)} ${data.currencySymbol}`,
     );
     return sendSuccess(res, data, 'Ödeme isteği güncellendi');
   } catch (err) {

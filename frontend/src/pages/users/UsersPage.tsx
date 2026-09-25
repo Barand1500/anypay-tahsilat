@@ -72,7 +72,7 @@ export default function UsersPage() {
       ]);
       setUsers(list);
       setLiveUsers(list);
-      setBranchOptions(branches.map((b) => ({ value: b.name, label: b.name })));
+      setBranchOptions(branches.map((b) => ({ value: String(b.id), label: b.name })));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Kullanıcılar yüklenemedi');
       setUsers([]);
@@ -178,8 +178,8 @@ export default function UsersPage() {
       email: next.email,
       phone: next.phone,
       roleId: next.roleId,
-      branch: next.branch,
-      branchId: next.branchId ?? undefined,
+      branchIds: next.branchIds ?? [],
+      branchId: next.branchId ?? null,
       status: next.status,
       installments: next.installments,
       password: next.password,

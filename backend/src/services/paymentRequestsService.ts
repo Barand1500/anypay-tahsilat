@@ -1,6 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
+import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
 import { createPayment, PaymentsError } from './paymentsService.js';
+import {
+  assertInstallmentsAllowed,
+  getUserAllowedInstallments,
+  UsersError,
+} from './usersService.js';
 import {
   parsePayRequestFiles,
   type PayRequestFile,
@@ -23,6 +29,7 @@ export type CreatePaymentRequestInput = {
   faturaNo?: string;
   dosya?: string | null;
   kullaniciId: number;
+  parabirimiId?: number | null;
 };
 
 export type PublicPayView = {
@@ -37,6 +44,9 @@ export type PublicPayView = {
   merchantTitle: string;
   paidAt: string | null;
   files: PayRequestFile[];
+  currencyId: string;
+  currencySymbol: string;
+  currencyShortName: string;
 };
 
 export type PayByTokenInput = {
@@ -68,6 +78,9 @@ export type PublicPaymentRequest = {
   description: string;
   installments: number[];
   files: PayRequestFile[];
+  currencyId: string;
+  currencySymbol: string;
+  currencyShortName: string;
 };
 
 function tipFromPayType(payType: 'ch' | 'fatura'): number {
@@ -98,6 +111,7 @@ function notRemoved(): { OR: [{ remove: null }, { remove: false }] } {
 
 type Row = {
   id: number;
+  parabirimiId: number;
   odemeTipi: number;
   tutar: number;
   komisyonDahil: boolean;
@@ -119,8 +133,9 @@ async function hydrate(rows: Row[]): Promise<PublicPaymentRequest[]> {
   const branchIds = [
     ...new Set(rows.map((r) => r.subeDepartmanId).filter((x): x is number => x != null)),
   ];
+  const currencyIds = [...new Set(rows.map((r) => r.parabirimiId).filter((x) => Number.isFinite(x)))];
 
-  const [musteriler, users, branches] = await Promise.all([
+  const [musteriler, users, branches, currencies] = await Promise.all([
     musteriIds.length
       ? prisma.musteri.findMany({
           where: { id: { in: musteriIds } },
@@ -139,16 +154,24 @@ async function hydrate(rows: Row[]): Promise<PublicPaymentRequest[]> {
           select: { id: true, adi: true },
         })
       : Promise.resolve([]),
+    currencyIds.length
+      ? prisma.parabirimi.findMany({
+          where: { id: { in: currencyIds } },
+          select: { id: true, sembol: true, kisaAdi: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const mMap = new Map(musteriler.map((m) => [m.id, m]));
   const uMap = new Map(users.map((u) => [u.id, u]));
   const bMap = new Map(branches.map((b) => [b.id, b]));
+  const cMap = new Map(currencies.map((c) => [c.id, c]));
 
   return rows.map((r) => {
     const m = r.musteriId != null ? mMap.get(r.musteriId) : undefined;
     const u = r.kullaniciId != null ? uMap.get(r.kullaniciId) : undefined;
     const b = r.subeDepartmanId != null ? bMap.get(r.subeDepartmanId) : undefined;
+    const c = cMap.get(r.parabirimiId);
     const phone = (m?.telefon || '').replace(/\D/g, '').slice(-10);
     return {
       id: r.id,
@@ -170,6 +193,9 @@ async function hydrate(rows: Row[]): Promise<PublicPaymentRequest[]> {
       description: (r.aciklama || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
       installments: parseTaksitler(r.taksitler),
       files: parsePayRequestFiles(r.dosya),
+      currencyId: String(r.parabirimiId),
+      currencySymbol: c?.sembol || '₺',
+      currencyShortName: c?.kisaAdi || 'TL',
     };
   });
 }
@@ -214,11 +240,27 @@ export async function createPaymentRequest(
     select: { subeDepartmanId: true },
   });
 
+  let currency;
+  try {
+    currency = await resolveCurrencyId(input.parabirimiId ?? null);
+  } catch (err) {
+    if (err instanceof CurrenciesError) throw new PaymentRequestsError(err.message);
+    throw err;
+  }
+
+  try {
+    const allowed = await getUserAllowedInstallments(input.kullaniciId);
+    assertInstallmentsAllowed(allowed, input.installments);
+  } catch (err) {
+    if (err instanceof UsersError) throw new PaymentRequestsError(err.message);
+    throw err;
+  }
+
   const istekNo = makeIstekNo();
   const now = new Date();
   const row = await prisma.odemeIstegi.create({
     data: {
-      parabirimiId: 1,
+      parabirimiId: currency.id,
       odemeTipi: tipFromPayType(input.payType),
       tutar: input.amount,
       faturaNo: (input.faturaNo || '').trim() || null,
@@ -255,6 +297,11 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     customerTitle = (m?.unvan || '').trim() || '—';
   }
 
+  const currency = await prisma.parabirimi.findFirst({
+    where: { id: row.parabirimiId },
+    select: { id: true, sembol: true, kisaAdi: true },
+  });
+
   return {
     token: row.istekNo,
     type: payTypeFromTip(row.odemeTipi),
@@ -267,6 +314,9 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     merchantTitle: await merchantTitle(),
     paidAt: row.odemeZamani ? row.odemeZamani.toISOString() : null,
     files: parsePayRequestFiles(row.dosya),
+    currencyId: String(row.parabirimiId),
+    currencySymbol: currency?.sembol || '₺',
+    currencyShortName: currency?.kisaAdi || 'TL',
   };
 }
 
@@ -308,6 +358,7 @@ export async function payPaymentRequestByToken(
       installment: input.installment,
       note: input.note || (row.aciklama || '').replace(/<[^>]+>/g, ' ').trim() || undefined,
       kullaniciId,
+      parabirimiId: row.parabirimiId,
     });
   } catch (err) {
     if (err instanceof PaymentsError) throw err;
@@ -352,6 +403,7 @@ export type UpdatePaymentRequestInput = {
   description: string;
   faturaNo?: string;
   dosya?: string | null;
+  parabirimiId?: number | null;
 };
 
 export async function updatePaymentRequest(
@@ -366,14 +418,36 @@ export async function updatePaymentRequest(
   }
   const existing = await prisma.odemeIstegi.findFirst({
     where: { id, ...notRemoved() },
-    select: { id: true, durum: true },
+    select: { id: true, durum: true, kullaniciId: true },
   });
   if (!existing) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
   if (existing.durum) throw new PaymentRequestsError('Ödenmiş istek düzenlenemez');
 
+  if (existing.kullaniciId != null) {
+    try {
+      const allowed = await getUserAllowedInstallments(existing.kullaniciId);
+      assertInstallmentsAllowed(allowed, input.installments);
+    } catch (err) {
+      if (err instanceof UsersError) throw new PaymentRequestsError(err.message);
+      throw err;
+    }
+  }
+
+  let currencyId: number | undefined;
+  if (input.parabirimiId != null) {
+    try {
+      const currency = await resolveCurrencyId(input.parabirimiId);
+      currencyId = currency.id;
+    } catch (err) {
+      if (err instanceof CurrenciesError) throw new PaymentRequestsError(err.message);
+      throw err;
+    }
+  }
+
   await prisma.odemeIstegi.update({
     where: { id },
     data: {
+      ...(currencyId != null ? { parabirimiId: currencyId } : {}),
       odemeTipi: tipFromPayType(input.payType),
       tutar: input.amount,
       faturaNo: (input.faturaNo || '').trim() || null,
@@ -423,6 +497,7 @@ export async function emailPaymentRequest(
       description: pub.description,
       payUrl,
       commissionIncluded: pub.commissionIncluded,
+      currencySymbol: pub.currencySymbol,
       files: fileLinks,
       attachments,
     });
@@ -432,7 +507,7 @@ export async function emailPaymentRequest(
       maximumFractionDigits: 2,
     });
     const contentLines = [
-      `Ödeme isteği — ${amountStr} ₺`,
+      `Ödeme isteği — ${amountStr} ${pub.currencySymbol}`,
       pub.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç',
       pub.description ? `Açıklama: ${pub.description.slice(0, 200)}` : '',
       `Link: ${payUrl}`,

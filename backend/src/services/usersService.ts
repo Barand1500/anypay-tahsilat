@@ -11,6 +11,7 @@ export type PublicPanelUser = {
   roleId: string;
   roleName: string;
   branchId: number | null;
+  branchIds: number[];
   branch: string;
   status: UserStatus;
   installments: number[];
@@ -47,6 +48,58 @@ function encodeInstallments(list: number[]): string {
   return nums.join(',');
 }
 
+function parseIdList(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  const nums = raw
+    .split(/[,;]+/)
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return [...new Set(nums)];
+}
+
+function encodeIdList(list: number[]): string | null {
+  const nums = [...new Set(list.filter((n) => Number.isFinite(n) && n > 0))];
+  return nums.length ? nums.join(',') : null;
+}
+
+/** null = kısıt yok (eski kayıt); dizi = yalnızca bunlar */
+export function userAllowedInstallments(raw: string | null | undefined): number[] | null {
+  if (raw == null || String(raw).trim() === '') return null;
+  return parseInstallments(raw);
+}
+
+export async function getUserAllowedInstallments(userId: number): Promise<number[] | null> {
+  const row = await prisma.user.findFirst({
+    where: { id: userId, OR: [{ remove: null }, { remove: false }] },
+    select: { izinliTaksitler: true },
+  });
+  if (!row) return null;
+  return userAllowedInstallments(row.izinliTaksitler);
+}
+
+export function assertInstallmentsAllowed(
+  allowed: number[] | null,
+  requested: number[],
+): void {
+  if (allowed == null) return;
+  if (!allowed.length) {
+    throw new UsersError('Bu kullanıcıya taksit atanmamış');
+  }
+  const bad = requested.filter((n) => !allowed.includes(n));
+  if (bad.length) {
+    throw new UsersError(`İzin verilmeyen taksit: ${bad.join(', ')}`);
+  }
+}
+
+function branchIdsOf(row: {
+  subeDepartmanId: number | null;
+  subeDepartmanIds: string | null;
+}): number[] {
+  const fromList = parseIdList(row.subeDepartmanIds);
+  if (fromList.length) return fromList;
+  return row.subeDepartmanId != null ? [row.subeDepartmanId] : [];
+}
+
 function toPublic(
   row: {
     id: number;
@@ -56,11 +109,13 @@ function toPublic(
     isVerified: boolean;
     rolId: number | null;
     subeDepartmanId: number | null;
+    subeDepartmanIds: string | null;
     izinliTaksitler: string | null;
   },
   roleName: string,
-  branchName: string,
+  branchNames: string[],
 ): PublicPanelUser {
+  const ids = branchIdsOf(row);
   return {
     id: row.id,
     name: (row.adsoyad || row.email).trim(),
@@ -68,8 +123,9 @@ function toPublic(
     phone: digitsPhone(row.telefon),
     roleId: row.rolId != null ? String(row.rolId) : '',
     roleName,
-    branchId: row.subeDepartmanId,
-    branch: branchName,
+    branchId: ids[0] ?? null,
+    branchIds: ids,
+    branch: branchNames.join(', '),
     status: row.isVerified ? 'Aktif' : 'Pasif',
     installments: parseInstallments(row.izinliTaksitler),
   };
@@ -84,35 +140,67 @@ async function roleMeta(rolId: number | null) {
   return { name: rol?.adi || '', code: rol?.code ?? null };
 }
 
-async function branchName(subeId: number | null): Promise<string> {
-  if (subeId == null) return '';
-  const b = await prisma.subeDepartman.findFirst({
-    where: { id: subeId, OR: [{ remove: null }, { remove: false }] },
-    select: { adi: true },
+async function branchNamesFor(ids: number[]): Promise<string[]> {
+  if (!ids.length) return [];
+  const rows = await prisma.subeDepartman.findMany({
+    where: { id: { in: ids }, OR: [{ remove: null }, { remove: false }] },
+    select: { id: true, adi: true },
   });
-  return b?.adi || '';
+  const map = new Map(rows.map((b) => [b.id, b.adi]));
+  return ids.map((id) => map.get(id) || '').filter(Boolean);
 }
 
-async function resolveBranchId(branch: string | undefined, branchId?: number | null) {
-  if (branchId != null && Number.isFinite(branchId)) {
+async function resolveBranchIds(input: {
+  branchIds?: number[] | null;
+  branchId?: number | null;
+  branch?: string;
+  branches?: string[];
+}): Promise<number[]> {
+  if (input.branchIds != null) {
+    const ids = [...new Set(input.branchIds.filter((n) => Number.isFinite(n) && n > 0))];
+    if (!ids.length) return [];
+    const found = await prisma.subeDepartman.findMany({
+      where: { id: { in: ids }, OR: [{ remove: null }, { remove: false }] },
+      select: { id: true },
+    });
+    if (found.length !== ids.length) throw new UsersError('Şube bulunamadı');
+    return ids;
+  }
+
+  const names = [
+    ...(input.branches || []),
+    ...(input.branch ? [input.branch] : []),
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (input.branchId != null && Number.isFinite(input.branchId)) {
     const hit = await prisma.subeDepartman.findFirst({
-      where: { id: branchId, OR: [{ remove: null }, { remove: false }] },
+      where: { id: input.branchId, OR: [{ remove: null }, { remove: false }] },
+      select: { id: true },
     });
     if (!hit) throw new UsersError('Şube bulunamadı');
-    return hit.id;
+    if (!names.length) return [hit.id];
   }
-  const name = (branch || '').trim();
-  if (!name) return null;
+
+  if (!names.length) {
+    if (input.branchId != null && Number.isFinite(input.branchId)) return [input.branchId];
+    return [];
+  }
 
   const all = await prisma.subeDepartman.findMany({
     where: { OR: [{ remove: null }, { remove: false }] },
     select: { id: true, adi: true },
   });
-  const hit = all.find(
-    (b) => b.adi.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'),
-  );
-  if (hit) return hit.id;
-  throw new UsersError('Şube listeden seçilmeli');
+  const ids: number[] = [];
+  for (const name of names) {
+    const hit = all.find(
+      (b) => b.adi.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'),
+    );
+    if (!hit) throw new UsersError(`Şube listeden seçilmeli: ${name}`);
+    if (!ids.includes(hit.id)) ids.push(hit.id);
+  }
+  return ids;
 }
 
 export async function listPanelUsers(): Promise<PublicPanelUser[]> {
@@ -125,17 +213,17 @@ export async function listPanelUsers(): Promise<PublicPanelUser[]> {
   });
 
   const roleIds = [...new Set(rows.map((r) => r.rolId).filter((x): x is number => x != null))];
-  const branchIds = [
-    ...new Set(rows.map((r) => r.subeDepartmanId).filter((x): x is number => x != null)),
+  const allBranchIds = [
+    ...new Set(rows.flatMap((r) => branchIdsOf(r))),
   ];
 
   const [roles, branches] = await Promise.all([
     roleIds.length
       ? prisma.rol.findMany({ where: { id: { in: roleIds } }, select: { id: true, adi: true } })
       : Promise.resolve([] as { id: number; adi: string }[]),
-    branchIds.length
+    allBranchIds.length
       ? prisma.subeDepartman.findMany({
-          where: { id: { in: branchIds } },
+          where: { id: { in: allBranchIds } },
           select: { id: true, adi: true },
         })
       : Promise.resolve([] as { id: number; adi: string }[]),
@@ -144,13 +232,11 @@ export async function listPanelUsers(): Promise<PublicPanelUser[]> {
   const roleMap = new Map(roles.map((r) => [r.id, r.adi]));
   const branchMap = new Map(branches.map((b) => [b.id, b.adi]));
 
-  return rows.map((row) =>
-    toPublic(
-      row,
-      row.rolId != null ? roleMap.get(row.rolId) || '' : '',
-      row.subeDepartmanId != null ? branchMap.get(row.subeDepartmanId) || '' : '',
-    ),
-  );
+  return rows.map((row) => {
+    const ids = branchIdsOf(row);
+    const names = ids.map((id) => branchMap.get(id) || '').filter(Boolean);
+    return toPublic(row, row.rolId != null ? roleMap.get(row.rolId) || '' : '', names);
+  });
 }
 
 export async function listBranches(): Promise<{ id: number; name: string }[]> {
@@ -162,17 +248,22 @@ export async function listBranches(): Promise<{ id: number; name: string }[]> {
   return rows.map((r) => ({ id: r.id, name: r.adi }));
 }
 
+type UpsertBranches = {
+  branch?: string;
+  branches?: string[];
+  branchId?: number | null;
+  branchIds?: number[] | null;
+};
+
 export async function createPanelUser(input: {
   name: string;
   email: string;
   phone: string;
   roleId: string;
-  branch?: string;
-  branchId?: number | null;
   status?: UserStatus;
   installments?: number[];
   password?: string;
-}): Promise<PublicPanelUser> {
+} & UpsertBranches): Promise<PublicPanelUser> {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   const phone = digitsPhone(input.phone);
@@ -190,7 +281,7 @@ export async function createPanelUser(input: {
   const clash = await prisma.user.findFirst({ where: { email } });
   if (clash) throw new UsersError('Bu e-posta zaten kayıtlı');
 
-  const subeId = await resolveBranchId(input.branch, input.branchId);
+  const subeIds = await resolveBranchIds(input);
   const plain = (input.password || '').trim() || randomPassword();
   if (plain.length < 6) throw new UsersError('Şifre en az 6 karakter olmalı');
   const hash = await bcrypt.hash(plain, 13);
@@ -206,13 +297,14 @@ export async function createPanelUser(input: {
       isPassword: true,
       roles: [role.code],
       rolId,
-      subeDepartmanId: subeId,
+      subeDepartmanId: subeIds[0] ?? null,
+      subeDepartmanIds: encodeIdList(subeIds),
       izinliTaksitler: encodeInstallments(input.installments || []),
       remove: null,
     },
   });
 
-  return toPublic(row, role.name, await branchName(subeId));
+  return toPublic(row, role.name, await branchNamesFor(subeIds));
 }
 
 export async function updatePanelUser(
@@ -222,12 +314,10 @@ export async function updatePanelUser(
     email?: string;
     phone?: string;
     roleId?: string;
-    branch?: string;
-    branchId?: number | null;
     status?: UserStatus;
     installments?: number[];
     password?: string;
-  },
+  } & UpsertBranches,
 ): Promise<PublicPanelUser> {
   const existing = await prisma.user.findFirst({
     where: { id, OR: [{ remove: null }, { remove: false }] },
@@ -241,6 +331,7 @@ export async function updatePanelUser(
     rolId?: number;
     roles?: string[];
     subeDepartmanId?: number | null;
+    subeDepartmanIds?: string | null;
     isVerified?: boolean;
     izinliTaksitler?: string;
     password?: string;
@@ -280,8 +371,15 @@ export async function updatePanelUser(
     data.roles = [role.code];
   }
 
-  if (input.branch !== undefined || input.branchId !== undefined) {
-    data.subeDepartmanId = await resolveBranchId(input.branch, input.branchId);
+  const branchTouched =
+    input.branchIds !== undefined ||
+    input.branchId !== undefined ||
+    input.branch !== undefined ||
+    input.branches !== undefined;
+  if (branchTouched) {
+    const subeIds = await resolveBranchIds(input);
+    data.subeDepartmanId = subeIds[0] ?? null;
+    data.subeDepartmanIds = encodeIdList(subeIds);
   }
 
   if (input.status !== undefined) {
@@ -302,7 +400,8 @@ export async function updatePanelUser(
 
   const row = await prisma.user.update({ where: { id }, data });
   const role = await roleMeta(row.rolId);
-  return toPublic(row, role.name, await branchName(row.subeDepartmanId));
+  const ids = branchIdsOf(row);
+  return toPublic(row, role.name, await branchNamesFor(ids));
 }
 
 export async function softDeletePanelUser(id: number): Promise<void> {

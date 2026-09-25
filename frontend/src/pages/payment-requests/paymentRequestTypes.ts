@@ -24,6 +24,9 @@ export type PaymentRequest = {
   description: string;
   installments?: number[];
   files?: { name: string; path: string; url: string }[];
+  currencyId?: string;
+  currencySymbol?: string;
+  currencyShortName?: string;
 };
 
 export const PAY_REQ_STATUS_LABEL: Record<PayRequestStatus, string> = {
@@ -69,12 +72,14 @@ export function payShareMessage(opts: {
   token: string;
   files?: { name: string; url: string }[] | null;
   greeting?: string;
+  currencySymbol?: string;
 }): string {
   const link = payLinkOf(opts.token);
+  const sym = opts.currencySymbol || '₺';
   const lines = [
     opts.greeting ?? 'Merhaba, ödeme isteğiniz hazır:',
     link,
-    `Tutar: ${formatMoneyTr(opts.amount)} ₺`,
+    `Tutar: ${formatMoneyTr(opts.amount)} ${sym}`,
   ];
   const files = opts.files?.filter((f) => f?.name && f?.url) ?? [];
   if (files.length) {

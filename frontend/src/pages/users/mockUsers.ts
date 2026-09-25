@@ -10,6 +10,7 @@ export type AppUser = {
   roleId: string;
   roleName: string;
   branchId?: number | null;
+  branchIds?: number[];
   branch: string;
   status: UserStatus;
   installments: number[]; // 1–12

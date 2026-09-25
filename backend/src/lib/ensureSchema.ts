@@ -53,7 +53,29 @@ export async function ensureGonderimGecmisiTable(): Promise<void> {
   }
 }
 
+/** user.sube_departman_ids — çoklu şube CSV */
+export async function ensureUserBranchIdsColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'user'
+        AND COLUMN_NAME = 'sube_departman_ids'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `user` ADD COLUMN `sube_departman_ids` LONGTEXT NULL',
+    );
+    console.log('[schema] user.sube_departman_ids eklendi');
+  } catch (err) {
+    console.warn('[schema] sube_departman_ids kontrolü atlandı:', err);
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
+  await ensureUserBranchIdsColumn();
 }

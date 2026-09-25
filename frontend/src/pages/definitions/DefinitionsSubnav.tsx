@@ -9,7 +9,7 @@ import {
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuickAccess } from '../../components/layout/QuickAccessContext';
 import { EXTRA_QUICK_ITEMS, findNavItem, type NavItem } from '../../components/layout/navItems';
-import { DEFINITIONS_SUBNAV } from './mockCurrencies';
+import { DEFINITIONS_SUBNAV } from './currencyTypes';
 
 const HOLD_MS = 380;
 

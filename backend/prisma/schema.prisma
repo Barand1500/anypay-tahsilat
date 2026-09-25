@@ -32,6 +32,8 @@ model User {
   twoFactor        Boolean?  @map("two_factor")
   twoFactorType    Int?      @map("two_factor_type")
   subeDepartmanId  Int?      @map("sube_departman_id")
+  /** Çoklu şube — CSV id listesi (1,2,3) */
+  subeDepartmanIds String?   @map("sube_departman_ids") @db.LongText
   rolId            Int?      @map("rol_id")
   izinliTaksitler  String?   @map("izinli_taksitler") @db.LongText
 
@@ -161,6 +163,28 @@ model Banka {
   remove  Boolean?
 
   @@map("bankalar")
+}
+
+/**
+ * Para birimleri — dump: para_birimleri
+ * kur_tipi: 1=Döviz Alış, 2=Döviz Satış, 3=Efektif Alış, 4=Efektif Satış
+ */
+model Parabirimi {
+  id         Int      @id @default(autoincrement())
+  adi        String   @db.VarChar(255)
+  kisaAdi    String   @map("kisa_adi") @db.VarChar(255)
+  sembol     String   @db.VarChar(255)
+  kur        Float
+  guncelleme Boolean
+  apiUrl     String?  @map("api_url") @db.VarChar(255)
+  info       String?  @db.LongText
+  remove     Boolean?
+  kurTipi    Int      @map("kur_tipi")
+  aktif      Boolean?
+  erp        String?  @db.VarChar(255)
+  erpStatus  Boolean? @map("erp_status")
+
+  @@map("para_birimleri")
 }
 
 /**

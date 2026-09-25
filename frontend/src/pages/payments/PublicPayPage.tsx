@@ -25,6 +25,9 @@ type PublicPayView = {
   merchantTitle: string;
   paidAt: string | null;
   files?: { name: string; path: string; url: string }[];
+  currencyId?: string;
+  currencySymbol?: string;
+  currencyShortName?: string;
 };
 
 /**
@@ -190,7 +193,7 @@ export default function PublicPayPage() {
           <div className="mb-5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3.5">
             <p className="text-sm font-semibold text-[var(--panel-ink)]">{view.customerTitle}</p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-brand-600)]">
-              {formatMoneyTr(view.amount)} ₺
+              {formatMoneyTr(view.amount)} {view.currencySymbol || '₺'}
             </p>
             <p className="mt-1 text-xs text-[var(--panel-muted)]">
               {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
@@ -231,7 +234,7 @@ export default function PublicPayPage() {
               <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">Ödeme alındı</p>
               <p className="mt-1 text-sm text-[var(--panel-muted)]">
                 {done
-                  ? `${done.odemeNo} · ${formatMoneyTr(done.amount)} ₺`
+                  ? `${done.odemeNo} · ${formatMoneyTr(done.amount)} ${view.currencySymbol || '₺'}`
                   : 'Bu link daha önce kullanıldı.'}
               </p>
             </div>
@@ -314,7 +317,7 @@ export default function PublicPayPage() {
                 disabled={saving}
                 className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-[var(--color-brand-600)] text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:opacity-60"
               >
-                {saving ? 'İşleniyor…' : `Öde — ${formatMoneyTr(view.amount)} ₺`}
+                {saving ? 'İşleniyor…' : `Öde — ${formatMoneyTr(view.amount)} ${view.currencySymbol || '₺'}`}
               </button>
               <p className="text-center text-[11px] text-[var(--panel-muted)]">
                 Kart bilgileri bankaya iletilmeden önce panel kaydı oluşturulur; 3D Secure sonraki adım.

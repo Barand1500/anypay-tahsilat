@@ -65,6 +65,41 @@ function notRemoved(): { OR: [{ remove: null }, { remove: false }] } {
   return { OR: [{ remove: null }, { remove: false }] };
 }
 
+/** Panel kullanıcıları (Kullanıcılar sayfası) — müşteri olarak eklenemez */
+async function assertNotPanelUserContact(email: string, phone: string) {
+  const panelFilter = {
+    musteriId: null as null,
+    OR: [{ remove: null }, { remove: false }] as [
+      { remove: null },
+      { remove: false },
+    ],
+  };
+
+  if (email) {
+    const byEmail = await prisma.user.findFirst({
+      where: { ...panelFilter, email },
+      select: { id: true },
+    });
+    if (byEmail) {
+      throw new CustomersError(
+        'Bu e-posta kullanıcılar listesinde kayıtlı — müşteri olarak eklenemez',
+      );
+    }
+  }
+
+  if (phone.length === 10) {
+    const users = await prisma.user.findMany({
+      where: panelFilter,
+      select: { telefon: true },
+    });
+    if (users.some((u) => digitsPhone(u.telefon) === phone)) {
+      throw new CustomersError(
+        'Bu telefon kullanıcılar listesinde kayıtlı — müşteri olarak eklenemez',
+      );
+    }
+  }
+}
+
 async function taxOfficeName(vdId: number | null | undefined): Promise<string> {
   if (vdId == null) return '';
   const vd = await prisma.vergiDairesi.findFirst({
@@ -270,6 +305,8 @@ export async function createCustomer(input: UpsertCustomerInput): Promise<Public
     throw new CustomersError('Geçerli e-posta girin');
   }
 
+  await assertNotPanelUserContact(email, phone);
+
   let parentId: number | null = input.parentId ?? null;
   if (parentId != null) {
     const parent = await prisma.musteri.findFirst({
@@ -349,6 +386,8 @@ export async function updateCustomer(
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new CustomersError('Geçerli e-posta girin');
   }
+
+  await assertNotPanelUserContact(email, phone);
 
   let parentId: number | null = input.parentId ?? null;
   if (parentId === id) throw new CustomersError('Müşteri kendisinin üstü olamaz');

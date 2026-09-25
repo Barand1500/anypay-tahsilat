@@ -10,7 +10,7 @@ import {
   type CurrencyDef,
   type CurrencyStatus,
   type RateType,
-} from './mockCurrencies';
+} from './currencyTypes';
 
 export type CurrencyFocusField =
   | 'name'
@@ -27,7 +27,7 @@ type Mode = { type: 'create' } | { type: 'edit'; currency: CurrencyDef };
 type Props = {
   mode: Mode;
   onClose: () => void;
-  onSave: (c: Omit<CurrencyDef, 'id'> & { id?: string }) => void;
+  onSave: (c: Omit<CurrencyDef, 'id'> & { id?: string }) => void | Promise<void>;
   /** Çift tıklanan sütuna göre odak / yanıp sönme */
   focusField?: CurrencyFocusField | null;
 };
@@ -120,7 +120,7 @@ export function CurrencyModal({ mode, onClose, onSave, focusField = null }: Prop
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    onSave({
+    void onSave({
       id: src?.id,
       name: name.trim(),
       shortName: shortName.trim().toUpperCase(),

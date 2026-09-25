@@ -16,6 +16,8 @@ export type AuthUser = {
   telefon: string;
   roles: string[];
   twoFactor: boolean;
+  /** Boş = kısıt yok; dolu = yalnızca bu taksitler */
+  installments: number[];
 };
 
 export type ProfileUpdatePayload = {
@@ -49,6 +51,9 @@ function normalizeUser(raw: AuthUser): AuthUser {
     telefon: raw.telefon || '',
     roles: Array.isArray(raw.roles) ? raw.roles : [],
     twoFactor: Boolean(raw.twoFactor),
+    installments: Array.isArray(raw.installments)
+      ? raw.installments.filter((n) => n >= 1 && n <= 12)
+      : [],
   };
 }
 

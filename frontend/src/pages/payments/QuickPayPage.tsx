@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
+import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { api } from '../../lib/api';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
@@ -18,7 +19,6 @@ import {
 } from './mockBanks';
 
 type PayType = '' | 'ch' | 'fatura';
-type Currency = '' | 'TRY';
 
 type ContactApi = {
   title: string;
@@ -50,18 +50,20 @@ const DEFAULT_MERCHANT: Customer = {
  * Hızlı Ödeme — firma adına; 3 kart (ödeme / kart / banka).
  */
 export default function QuickPayPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const allowedInstallments = user?.installments?.length ? user.installments : null;
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
   const [merchant, setMerchant] = useState<Customer>(DEFAULT_MERCHANT);
+  const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
-  const [currency, setCurrency] = useState<Currency>('TRY');
+  const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
   const [note, setNote] = useState('');
@@ -137,6 +139,13 @@ export default function QuickPayPage() {
   }, [toast]);
 
   useEffect(() => {
+    if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
+  }, [currencyId, defaultCurrencyId]);
+
+  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
+  const currencySymbol = selectedCurrency?.symbol || '₺';
+
+  useEffect(() => {
     function onDoc(e: MouseEvent) {
       const t = e.target as Node;
       if (!payTypeRef.current?.contains(t)) setPayTypeOpen(false);
@@ -158,7 +167,7 @@ export default function QuickPayPage() {
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!payType) next.payType = 'Ödeme tipi seçin';
-    if (!currency) next.currency = 'Para birimi seçin';
+    if (!currencyId) next.currency = 'Para birimi seçin';
     if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
     if (digitsOnly(tc).length !== 11) next.tc = '11 haneli T.C. girin';
@@ -190,13 +199,14 @@ export default function QuickPayPage() {
           cardDigits: digitsOnly(card),
           installment: pickedInstall?.n ?? 1,
           note: note.trim(),
+          parabirimiId: Number(currencyId),
         },
         token,
       );
       navigate('/hareketler', {
         replace: true,
         state: {
-          flash: `Hızlı ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ₺`,
+          flash: `Hızlı ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ${currencySymbol}`,
         },
       });
     } catch (err) {
@@ -312,23 +322,35 @@ export default function QuickPayPage() {
                   onClick={() => setCurrencyOpen((o) => !o)}
                   className="flex h-full min-h-[46px] items-center gap-1 px-3 text-sm font-bold"
                 >
-                  {currency === 'TRY' ? '₺' : '—'}
+                  {currencySymbol || '—'}
                   <ChevronIcon />
                 </button>
                 {currencyOpen ? (
-                  <ul className="absolute right-0 z-30 mt-1 w-24 overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-lg">
-                    <li>
-                      <button
-                        type="button"
-                        className="w-full px-3 py-2 text-left text-lg font-bold hover:bg-[var(--panel-hover)]"
-                        onClick={() => {
-                          setCurrency('TRY');
-                          setCurrencyOpen(false);
-                        }}
-                      >
-                        ₺
-                      </button>
-                    </li>
+                  <ul className="absolute right-0 z-30 mt-1 max-h-56 w-40 overflow-y-auto rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-lg">
+                    {currencies.length === 0 ? (
+                      <li className="px-3 py-2 text-xs text-[var(--panel-muted)]">Aktif yok</li>
+                    ) : (
+                      currencies.map((c) => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            className={[
+                              'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold',
+                              currencyId === c.id
+                                ? 'bg-[var(--panel-hover)]'
+                                : 'hover:bg-[var(--panel-hover)]',
+                            ].join(' ')}
+                            onClick={() => {
+                              setCurrencyId(c.id);
+                              setCurrencyOpen(false);
+                            }}
+                          >
+                            <span>{c.shortName}</span>
+                            <span className="text-base">{c.symbol}</span>
+                          </button>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 ) : null}
               </div>
@@ -497,8 +519,13 @@ export default function QuickPayPage() {
         <InstallmentOptionsModal
           amount={amount > 0 ? amount : 1000}
           preferredBankId={bank?.id}
+          allowedInstallments={allowedInstallments}
           onClose={() => setInstallOpen(false)}
           onPick={(b, n) => {
+            if (allowedInstallments?.length && !allowedInstallments.includes(n)) {
+              setToast('Size atanmadı');
+              return;
+            }
             setPickedInstall({ n, bank: b });
             setInstallOpen(false);
             setToast(`${b.name} · ${n} taksit seçildi`);

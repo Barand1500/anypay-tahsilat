@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
+import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { api } from '../../lib/api';
 import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
 import { useCustomer } from '../customers/useCustomer';
@@ -24,26 +25,27 @@ import {
 } from './mockBanks';
 
 type PayType = '' | 'ch' | 'fatura';
-type Currency = '' | 'TRY';
 
 /**
  * Ödeme Al — ortak inputlar; taksit yalnızca modal / seçili özet.
  */
 export default function PaymentCollectPage() {
   const { id } = useParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const allowedInstallments = user?.installments?.length ? user.installments : null;
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
 
   const { customer, loading: customerLoading, error: customerError } = useCustomer(id);
+  const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState(() => formatMoneyTr(1000));
-  const [currency, setCurrency] = useState<Currency>('TRY');
+  const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
   const [note, setNote] = useState('');
@@ -72,6 +74,13 @@ export default function PaymentCollectPage() {
     setPhone(customer.phone || '5');
     if (customer.kind === 'gercek' && customer.identityNo) setTc(customer.identityNo);
   }, [customer]);
+
+  useEffect(() => {
+    if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
+  }, [currencyId, defaultCurrencyId]);
+
+  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
+  const currencySymbol = selectedCurrency?.symbol || '₺';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -160,8 +169,11 @@ export default function PaymentCollectPage() {
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!payType) next.payType = 'Ödeme tipi seçin';
-    if (!currency) next.currency = 'Para birimi seçin';
+    if (!currencyId) next.currency = 'Para birimi seçin';
     if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
+    if (allowedInstallments?.length && !allowedInstallments.includes(installment)) {
+      next.installment = 'Size atanmadı';
+    }
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
     if (tc && tc.length !== 11) next.tc = 'TC 11 hane olmalı';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
@@ -195,10 +207,11 @@ export default function PaymentCollectPage() {
           cardDigits,
           installment,
           note: note.trim(),
+          parabirimiId: Number(currencyId),
         },
         token,
       );
-      flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ₺`);
+      flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ${currencySymbol}`);
       window.setTimeout(() => navigate('/musteriler'), 900);
     } catch (err) {
       flash(err instanceof Error ? err.message : 'Ödeme kaydedilemedi');
@@ -386,46 +399,38 @@ export default function PaymentCollectPage() {
                       className="flex h-full min-h-[46px] items-center gap-1.5 rounded-r-xl bg-[var(--panel-surface)] px-3 text-sm font-bold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
                     >
                       <span className="min-w-[1.1rem] text-center">
-                        {currency === 'TRY' ? '₺' : '—'}
+                        {currencySymbol || '—'}
                       </span>
                       <ChevronIcon />
                     </button>
                     {currencyOpen ? (
-                      <ul className="absolute right-0 z-30 mt-1 w-28 overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
-                        <li>
-                          <button
-                            type="button"
-                            className={[
-                              'w-full px-3 py-2 text-left text-sm font-semibold',
-                              currency === ''
-                                ? 'bg-[var(--panel-hover)]'
-                                : 'hover:bg-[var(--panel-hover)]',
-                            ].join(' ')}
-                            onClick={() => {
-                              setCurrency('');
-                              setCurrencyOpen(false);
-                            }}
-                          >
-                            Seçiniz
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            type="button"
-                            className={[
-                              'w-full px-3 py-2 text-left text-lg font-bold',
-                              currency === 'TRY'
-                                ? 'bg-[var(--panel-hover)]'
-                                : 'hover:bg-[var(--panel-hover)]',
-                            ].join(' ')}
-                            onClick={() => {
-                              setCurrency('TRY');
-                              setCurrencyOpen(false);
-                            }}
-                          >
-                            ₺
-                          </button>
-                        </li>
+                      <ul className="absolute right-0 z-30 mt-1 max-h-56 w-40 overflow-y-auto rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
+                        {currencies.length === 0 ? (
+                          <li className="px-3 py-2 text-xs text-[var(--panel-muted)]">
+                            Aktif para birimi yok
+                          </li>
+                        ) : (
+                          currencies.map((c) => (
+                            <li key={c.id}>
+                              <button
+                                type="button"
+                                className={[
+                                  'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold',
+                                  currencyId === c.id
+                                    ? 'bg-[var(--panel-hover)]'
+                                    : 'hover:bg-[var(--panel-hover)]',
+                                ].join(' ')}
+                                onClick={() => {
+                                  setCurrencyId(c.id);
+                                  setCurrencyOpen(false);
+                                }}
+                              >
+                                <span>{c.shortName}</span>
+                                <span className="text-base">{c.symbol}</span>
+                              </button>
+                            </li>
+                          ))
+                        )}
                       </ul>
                     ) : null}
                   </div>
@@ -621,17 +626,23 @@ export default function PaymentCollectPage() {
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {buildInstallments(amount, 'bireysel', bank.id).map((r) => {
                 const active = installment === r.n;
+                const ok =
+                  !allowedInstallments || allowedInstallments.includes(r.n);
                 return (
                   <button
                     key={r.n}
                     type="button"
-                    data-km-jump
-                    onClick={() => setInstallment(r.n)}
+                    data-km-jump={ok || undefined}
+                    title={ok ? undefined : 'Size atanmadı'}
+                    disabled={!ok}
+                    onClick={() => ok && setInstallment(r.n)}
                     className={[
                       'relative overflow-hidden rounded-xl border px-3 py-3.5 text-left transition',
-                      active
-                        ? 'border-[var(--color-brand-500)] bg-[var(--color-brand-600)] text-white shadow-md'
-                        : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:border-[var(--color-brand-500)]/40 hover:bg-[var(--panel-hover)]',
+                      !ok
+                        ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
+                        : active
+                          ? 'border-[var(--color-brand-500)] bg-[var(--color-brand-600)] text-white shadow-md'
+                          : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:border-[var(--color-brand-500)]/40 hover:bg-[var(--panel-hover)]',
                     ].join(' ')}
                   >
                     {r.commissionPct === 0 ? (
@@ -729,6 +740,7 @@ export default function PaymentCollectPage() {
         <InstallmentOptionsModal
           amount={amount}
           preferredBankId={bank?.id}
+          allowedInstallments={allowedInstallments}
           onClose={() => setCompareOpen(false)}
         />
       ) : null}

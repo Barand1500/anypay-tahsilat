@@ -238,17 +238,20 @@ export async function sendPaymentRequestMail(opts: {
   description: string;
   payUrl: string;
   commissionIncluded: boolean;
+  currencySymbol?: string;
   files?: { name: string; url: string }[];
   attachments?: { filename: string; path: string }[];
 }) {
   const name = opts.customerTitle.trim() || 'Müşteri';
+  const sym = opts.currencySymbol?.trim() || '₺';
   const amountStr = opts.amount.toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const subject = `Ödeme isteği — ${amountStr} ₺`;
+  const subject = `Ödeme isteği — ${amountStr} ${sym}`;
   const safeName = escapeHtml(name);
   const safeAmount = escapeHtml(amountStr);
+  const safeSym = escapeHtml(sym);
   const safeUrl = escapeHtml(opts.payUrl);
   const safeDesc = escapeHtml((opts.description || '').slice(0, 400));
   const komisyon = opts.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç';
@@ -305,7 +308,7 @@ export async function sendPaymentRequestMail(opts: {
                 <tr>
                   <td style="padding:18px 16px;border-radius:16px;background:#020617;border:1px solid #1f2937;">
                     <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;">Tutar</p>
-                    <p style="margin:0 0 14px;font-size:28px;font-weight:800;color:#7dd3fc;">${safeAmount} ₺</p>
+                    <p style="margin:0 0 14px;font-size:28px;font-weight:800;color:#7dd3fc;">${safeAmount} ${safeSym}</p>
                     <p style="margin:0 0 6px;font-size:12px;color:#64748b;">${escapeHtml(komisyon)}</p>
                     ${
                       safeDesc
@@ -348,7 +351,7 @@ export async function sendPaymentRequestMail(opts: {
     '',
     `Sayın ${name},`,
     '',
-    `Tutar: ${amountStr} ₺ (${komisyon})`,
+    `Tutar: ${amountStr} ${sym} (${komisyon})`,
     opts.description ? `Açıklama: ${opts.description.slice(0, 200)}` : '',
     '',
     `Ödeme linki: ${opts.payUrl}`,
