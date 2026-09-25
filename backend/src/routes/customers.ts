@@ -23,10 +23,10 @@ import {
   listStreets,
   listTowns,
   resetCustomerUserPassword,
-  setCustomerUserActive,
   softDeleteCustomerAddress,
   softDeleteCustomerUser,
   updateCustomerAddress,
+  updateCustomerUser,
 } from '../services/customerDetailService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
@@ -154,9 +154,17 @@ const userCreateSchema = z.object({
   password: z.string().max(128).optional(),
 });
 
-const userPatchSchema = z.object({
-  active: z.boolean(),
-});
+const userPatchSchema = z
+  .object({
+    active: z.boolean().optional(),
+    name: z.string().min(1).max(255).optional(),
+    email: z.string().email().max(180).optional(),
+    phone: z.string().min(10).max(20).optional(),
+  })
+  .refine(
+    (d) => d.active !== undefined || d.name != null || d.email != null || d.phone != null,
+    { message: 'Güncellenecek alan yok' },
+  );
 
 const addressCreateSchema = z.object({
   label: z.string().min(1).max(255),
@@ -212,7 +220,7 @@ customersRouter.patch('/:id/users/:userId', async (req: AuthedRequest, res) => {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   }
   try {
-    const data = await setCustomerUserActive(id, userId, parsed.data.active);
+    const data = await updateCustomerUser(id, userId, parsed.data);
     return sendSuccess(res, data, 'Kullanıcı güncellendi');
   } catch (err) {
     if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);

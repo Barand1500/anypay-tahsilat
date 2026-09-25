@@ -156,6 +156,26 @@ export async function listCustomerUsers(musteriId: number): Promise<PublicCustom
   if (matchIdx >= 0) {
     const [hit] = list.splice(matchIdx, 1);
     list.unshift({ ...hit, isPrimary: true, name: hit.name || cariName });
+  } else if (cariEmail.includes('@') && cariPhone.length >= 10) {
+    try {
+      const created = await createCustomerUser(musteriId, {
+        name: cariName,
+        email: cariEmail,
+        phone: cariPhone,
+      });
+      list.unshift({ ...created, isPrimary: true });
+    } catch {
+      list.unshift({
+        id: `primary-${musteriId}`,
+        customerId: String(musteriId),
+        name: cariName,
+        email: cariEmail,
+        phone: cariPhone,
+        active: true,
+        lastLogin: null,
+        isPrimary: true,
+      });
+    }
   } else if (cariName || cariEmail || cariPhone) {
     list.unshift({
       id: `primary-${musteriId}`,
@@ -244,20 +264,60 @@ export async function resetCustomerUserPassword(
   };
 }
 
-export async function setCustomerUserActive(
+export async function updateCustomerUser(
   musteriId: number,
   userId: number,
-  active: boolean,
+  input: { name?: string; email?: string; phone?: string; active?: boolean },
 ): Promise<PublicCustomerUser> {
-  await assertMusteri(musteriId);
+  const musteri = await assertMusteri(musteriId);
   const row = await prisma.user.findFirst({
     where: { id: userId, musteriId, ...notRemoved() },
   });
   if (!row) throw new CustomerDetailError('Kullanıcı bulunamadı');
+
+  const name = input.name != null ? input.name.trim() : undefined;
+  const email = input.email != null ? input.email.trim().toLowerCase() : undefined;
+  const phone = input.phone != null ? digitsPhone(input.phone) : undefined;
+
+  if (name !== undefined && !name) throw new CustomerDetailError('Ad soyad gerekli');
+  if (email !== undefined && !email.includes('@')) {
+    throw new CustomerDetailError('Geçerli e-posta girin');
+  }
+  if (phone !== undefined && phone.length < 10) {
+    throw new CustomerDetailError('Telefon gerekli');
+  }
+  if (email && email !== row.email) {
+    const taken = await prisma.user.findFirst({
+      where: { email, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (taken) throw new CustomerDetailError('Bu e-posta zaten kayıtlı');
+  }
+
   const updated = await prisma.user.update({
     where: { id: userId },
-    data: { isVerified: active },
+    data: {
+      ...(name !== undefined ? { adsoyad: name } : {}),
+      ...(email !== undefined ? { email } : {}),
+      ...(phone !== undefined ? { telefon: phone } : {}),
+      ...(input.active !== undefined ? { isVerified: input.active } : {}),
+    },
   });
+
+  const cariEmail = (musteri.eposta || '').trim().toLowerCase();
+  const isCariContact =
+    !cariEmail || cariEmail === row.email.toLowerCase() || cariEmail === updated.email.toLowerCase();
+  if (isCariContact && (name !== undefined || email !== undefined || phone !== undefined)) {
+    await prisma.musteri.update({
+      where: { id: musteriId },
+      data: {
+        ...(name !== undefined ? { unvan: name } : {}),
+        ...(email !== undefined ? { eposta: email } : {}),
+        ...(phone !== undefined ? { telefon: phone } : {}),
+      },
+    });
+  }
+
   return {
     id: String(updated.id),
     customerId: String(musteriId),
@@ -266,7 +326,16 @@ export async function setCustomerUserActive(
     phone: digitsPhone(updated.telefon),
     active: updated.isVerified,
     lastLogin: updated.lastLogin ? updated.lastLogin.toISOString() : null,
+    isPrimary: isCariContact,
   };
+}
+
+export async function setCustomerUserActive(
+  musteriId: number,
+  userId: number,
+  active: boolean,
+): Promise<PublicCustomerUser> {
+  return updateCustomerUser(musteriId, userId, { active });
 }
 
 export async function softDeleteCustomerUser(musteriId: number, userId: number): Promise<void> {
