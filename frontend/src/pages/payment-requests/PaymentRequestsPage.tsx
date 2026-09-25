@@ -14,13 +14,13 @@ import {
   formatDt,
   formatElapsed,
   formatMoneyTr,
+  PAY_REQ_STATUS_FILTER,
   PAY_REQ_STATUS_LABEL,
   PAY_REQ_TYPE_LABEL,
   payLinkOf,
   type PaymentRequest,
-  type PayRequestStatus,
   type PayRequestType,
-} from './mockPaymentRequests';
+} from './paymentRequestTypes';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
@@ -67,10 +67,7 @@ function mapRow(r: ApiPayRequest): PaymentRequest {
   };
 }
 
-const STATUS_OPTIONS = (Object.keys(PAY_REQ_STATUS_LABEL) as PayRequestStatus[]).map((id) => ({
-  value: id,
-  label: PAY_REQ_STATUS_LABEL[id],
-}));
+const STATUS_OPTIONS = PAY_REQ_STATUS_FILTER;
 
 /**
  * Ödeme İstekleri — filtre + liste; iletişim butonları aktif/pasif.
@@ -629,9 +626,18 @@ export default function PaymentRequestsPage() {
                   </div>
 
                   <div className="min-w-0 self-center">
-                    <p className="text-sm font-medium leading-snug text-[var(--panel-ink)]">
-                      {r.customerTitle}
-                    </p>
+                    {r.customerId ? (
+                      <Link
+                        to={`/musteriler/${encodeURIComponent(r.customerId)}`}
+                        className="text-sm font-medium leading-snug text-[var(--color-brand-600)] hover:underline"
+                      >
+                        {r.customerTitle}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-medium leading-snug text-[var(--panel-ink)]">
+                        {r.customerTitle}
+                      </p>
+                    )}
                   </div>
 
                   <div className="min-w-0 self-center">

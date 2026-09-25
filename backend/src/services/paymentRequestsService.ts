@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
+import { createPayment, PaymentsError } from './paymentsService.js';
 
 export class PaymentRequestsError extends Error {
   constructor(message: string) {
@@ -9,7 +10,7 @@ export class PaymentRequestsError extends Error {
 }
 
 export type CreatePaymentRequestInput = {
-  musteriId: number | null;
+  musteriId: number;
   payType: 'ch' | 'fatura';
   amount: number;
   commissionIncluded: boolean;
@@ -18,6 +19,28 @@ export type CreatePaymentRequestInput = {
   faturaNo?: string;
   dosya?: string | null;
   kullaniciId: number;
+};
+
+export type PublicPayView = {
+  token: string;
+  type: 'ch' | 'fatura' | 'diger';
+  status: 'pending' | 'paid';
+  customerTitle: string;
+  amount: number;
+  commissionIncluded: boolean;
+  description: string;
+  installments: number[];
+  merchantTitle: string;
+  paidAt: string | null;
+};
+
+export type PayByTokenInput = {
+  holder: string;
+  tc?: string;
+  phone: string;
+  cardDigits: string;
+  installment: number;
+  note?: string;
 };
 
 export type PublicPaymentRequest = {
@@ -152,6 +175,14 @@ export async function listPaymentRequests(): Promise<PublicPaymentRequest[]> {
   return hydrate(rows);
 }
 
+async function merchantTitle(): Promise<string> {
+  const [ayar, iletisim] = await Promise.all([
+    prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } }),
+    prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } }),
+  ]);
+  return (iletisim?.unvan || ayar?.sistemAdi || 'GÜZEL Teknoloji').trim() || 'GÜZEL Teknoloji';
+}
+
 export async function createPaymentRequest(
   input: CreatePaymentRequestInput,
 ): Promise<PublicPaymentRequest> {
@@ -161,13 +192,19 @@ export async function createPaymentRequest(
   if (!input.installments.length) {
     throw new PaymentRequestsError('En az bir taksit seçin');
   }
-  if (input.musteriId != null) {
-    const m = await prisma.musteri.findFirst({
-      where: { id: input.musteriId, ...notRemoved() },
-      select: { id: true },
-    });
-    if (!m) throw new PaymentRequestsError('Müşteri bulunamadı');
+  if (!Number.isFinite(input.musteriId) || input.musteriId <= 0) {
+    throw new PaymentRequestsError('Müşteri seçin');
   }
+  const m = await prisma.musteri.findFirst({
+    where: { id: input.musteriId, ...notRemoved() },
+    select: { id: true },
+  });
+  if (!m) throw new PaymentRequestsError('Müşteri bulunamadı');
+
+  const user = await prisma.user.findFirst({
+    where: { id: input.kullaniciId },
+    select: { subeDepartmanId: true },
+  });
 
   const istekNo = makeIstekNo();
   const now = new Date();
@@ -186,12 +223,95 @@ export async function createPaymentRequest(
       durum: false,
       istekNo,
       kullaniciId: input.kullaniciId,
+      subeDepartmanId: user?.subeDepartmanId ?? null,
       remove: false,
     },
   });
 
   const [pub] = await hydrate([row]);
   return pub!;
+}
+
+export async function getPaymentRequestByToken(token: string): Promise<PublicPayView> {
+  const row = await prisma.odemeIstegi.findFirst({
+    where: { istekNo: token, ...notRemoved() },
+  });
+  if (!row) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
+
+  let customerTitle = '—';
+  if (row.musteriId != null) {
+    const m = await prisma.musteri.findFirst({
+      where: { id: row.musteriId },
+      select: { unvan: true },
+    });
+    customerTitle = (m?.unvan || '').trim() || '—';
+  }
+
+  return {
+    token: row.istekNo,
+    type: payTypeFromTip(row.odemeTipi),
+    status: row.durum ? 'paid' : 'pending',
+    customerTitle,
+    amount: row.tutar,
+    commissionIncluded: row.komisyonDahil,
+    description: (row.aciklama || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    installments: parseTaksitler(row.taksitler),
+    merchantTitle: await merchantTitle(),
+    paidAt: row.odemeZamani ? row.odemeZamani.toISOString() : null,
+  };
+}
+
+export async function payPaymentRequestByToken(
+  token: string,
+  input: PayByTokenInput,
+): Promise<{ odemeNo: string; amount: number }> {
+  const row = await prisma.odemeIstegi.findFirst({
+    where: { istekNo: token, ...notRemoved() },
+  });
+  if (!row) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
+  if (row.durum) throw new PaymentRequestsError('Bu ödeme isteği zaten ödendi');
+  if (row.musteriId == null) {
+    throw new PaymentRequestsError('Ödeme isteğine müşteri bağlı değil');
+  }
+
+  const allowed = parseTaksitler(row.taksitler);
+  if (!allowed.length) throw new PaymentRequestsError('Taksit seçenekleri tanımsız');
+  if (!allowed.includes(input.installment)) {
+    throw new PaymentRequestsError('Geçersiz taksit seçimi');
+  }
+
+  const tip = payTypeFromTip(row.odemeTipi);
+  const payType = tip === 'fatura' ? 'fatura' : 'ch';
+  const kullaniciId = row.kullaniciId ?? 0;
+  if (!kullaniciId) throw new PaymentRequestsError('Ödeme isteği kullanıcı bilgisi eksik');
+
+  let payment;
+  try {
+    payment = await createPayment({
+      musteriId: row.musteriId,
+      payType,
+      amount: row.tutar,
+      commissionIncluded: row.komisyonDahil,
+      holder: input.holder,
+      tc: input.tc,
+      phone: input.phone,
+      cardDigits: input.cardDigits,
+      installment: input.installment,
+      note: input.note || (row.aciklama || '').replace(/<[^>]+>/g, ' ').trim() || undefined,
+      kullaniciId,
+    });
+  } catch (err) {
+    if (err instanceof PaymentsError) throw err;
+    throw err;
+  }
+
+  const now = new Date();
+  await prisma.odemeIstegi.update({
+    where: { id: row.id },
+    data: { durum: true, odemeZamani: now },
+  });
+
+  return { odemeNo: payment.odemeNo, amount: payment.amount };
 }
 
 export async function softDeletePaymentRequest(id: number): Promise<void> {

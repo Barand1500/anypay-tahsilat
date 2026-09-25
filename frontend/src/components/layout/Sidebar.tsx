@@ -209,9 +209,13 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     const height = a.height;
 
     if (open) {
-      // Sağa yaslı kitap kenarı
+      // Sağa yaslı kitap kenarı — aside genişliğine oturt (scrollbar gutter etkisi yok)
+      const aside = asideRef.current;
+      const asideBox = aside?.getBoundingClientRect();
       const left = 12;
-      const width = Math.max(0, nav.clientWidth - left);
+      const width = asideBox
+        ? Math.max(0, asideBox.right - (navBox.left + left))
+        : Math.max(0, nav.clientWidth - left);
       gsap.to(pill, {
         autoAlpha: 1,
         top,
@@ -330,7 +334,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   function navClass(isActive: boolean) {
     if (!open) {
       return [
-        'relative z-[1] flex items-center justify-center rounded-xl px-3 py-2.5 transition-colors select-none',
+        'relative z-[1] mx-auto flex w-full max-w-[52px] items-center justify-center rounded-xl px-0 py-2.5 transition-colors select-none',
         isActive
           ? 'is-nav-active text-[var(--nav-active-text)]'
           : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
@@ -350,8 +354,8 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     <nav
       ref={navRef}
       className={[
-        'sidebar-nav relative min-h-0 flex-1 overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:thin]',
-        open ? 'pb-4 pl-0 pr-0' : 'px-2 pb-4',
+        'sidebar-nav relative min-h-0 flex-1 overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none]',
+        open ? 'pb-4 pl-0 pr-0' : 'flex flex-col items-stretch px-2 pb-4',
       ].join(' ')}
     >
       <div
@@ -384,72 +388,27 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     </nav>
   );
 
-  /** Alt bar — açık: ikisi birden · dar: tek buton + scroll */
+  /** Alt bar — açık/dar aynı dil (zemin nötr; aktif = vurgu rengi) */
   const footerBtnBase = [
     'relative flex size-10 shrink-0 items-center justify-center rounded-xl transition',
   ].join(' ');
 
-  const kmBtnClass = [
-    footerBtnBase,
-    open
-      ? kmOn
-        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
-        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-      : kmOn
-        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
-        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-  ].join(' ');
+  const footerIdle = open
+    ? 'text-[var(--sidebar-open-ink)]/70 hover:bg-[var(--sidebar-open-hover)] hover:text-[var(--sidebar-open-ink)]'
+    : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]';
 
-  const ratesBtnClass = [
-    footerBtnBase,
-    open
-      ? ratesOn
-        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
-        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-      : ratesOn
-        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
-        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-  ].join(' ');
+  const footerOn =
+    'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md';
 
-  const gwBtnClass = [
-    footerBtnBase,
-    open
-      ? gwOn
-        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
-        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-      : gwOn
-        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
-        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-  ].join(' ');
-
-  const dockBtnClass = [
-    footerBtnBase,
-    open
-      ? dockOn
-        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22)] backdrop-blur-md'
-        : 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-      : dockOn
-        ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
-        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-  ].join(' ');
-
+  const kmBtnClass = [footerBtnBase, kmOn ? footerOn : footerIdle].join(' ');
+  const ratesBtnClass = [footerBtnBase, ratesOn ? footerOn : footerIdle].join(' ');
+  const gwBtnClass = [footerBtnBase, gwOn ? footerOn : footerIdle].join(' ');
+  const dockBtnClass = [footerBtnBase, dockOn ? footerOn : footerIdle].join(' ');
   const settingsBtnClass = [
     footerBtnBase,
-    settingsActive
-      ? open
-        ? 'bg-white/18 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_8px_22px_rgba(0,0,0,0.18)] backdrop-blur-md'
-        : 'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md'
-      : open
-        ? 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+    settingsActive ? footerOn : footerIdle,
   ].join(' ');
-
-  const soonBtnClass = [
-    footerBtnBase,
-    open
-      ? 'text-[var(--sidebar-open-ink)]/85 hover:bg-[var(--sidebar-open-hover)]'
-      : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
-  ].join(' ');
+  const soonBtnClass = [footerBtnBase, footerIdle].join(' ');
 
   const kmButton = (
     <button
@@ -575,7 +534,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     : null;
 
   const footerBar = open ? (
-    <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--sidebar-open-ink)]/15 px-1.5">
+    <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--panel-line)] px-1.5">
       {kmButton}
       {ratesButton}
       {gwButton}
@@ -656,7 +615,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       onDoubleClick={onAsideDoubleClick}
       onWheel={onAsideWheel}
       title="Boş alana çift tıkla: menüyü aç/kapa"
-      className="sidebar-open flex h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden bg-[var(--sidebar-open-bg)] text-[var(--sidebar-open-ink)] transition-[width] duration-300 ease-out"
+      className="sidebar-open flex h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--sidebar-open-bg)] text-[var(--sidebar-open-ink)] transition-[width] duration-300 ease-out"
     >
       <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-5">
         <div className="flex min-w-0 flex-1 items-center">

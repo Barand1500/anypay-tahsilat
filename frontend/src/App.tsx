@@ -8,6 +8,7 @@ import CustomerDetailPage from './pages/customers/CustomerDetailPage';
 import PaymentCollectPage from './pages/payments/PaymentCollectPage';
 import PaymentRequestPage from './pages/payments/PaymentRequestPage';
 import QuickPayPage from './pages/payments/QuickPayPage';
+import PublicPayPage from './pages/payments/PublicPayPage';
 import TransactionsPage from './pages/transactions/TransactionsPage';
 import PaymentRequestsPage from './pages/payment-requests/PaymentRequestsPage';
 import LoginPage from './pages/login/LoginPage';
@@ -158,6 +159,8 @@ export default function App() {
         <Route path="log-kayitlari" element={<LogsPage />} />
         <Route path="sistem-sifirlama" element={<SystemResetPage />} />
       </Route>
+
+      <Route path="/pay/:token" element={<PublicPayPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

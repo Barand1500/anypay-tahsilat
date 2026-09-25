@@ -262,7 +262,7 @@ async function hydrate(
       bankName: bank ? (bank.adi || bank.kisaAdi || '—').trim() : '—',
       bankLogo: bank ? bankLogoUrl(bank.logo) : '',
       installments: r.taksit && r.taksit > 0 ? r.taksit : 1,
-      customerTitle: (m?.unvan || '').trim() || '—',
+      customerTitle: (m?.unvan || r.adsoyad || '').trim() || '—',
       customerId: r.musteriId != null ? String(r.musteriId) : '',
       amount,
       commission,

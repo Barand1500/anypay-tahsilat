@@ -2,10 +2,11 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { api } from '../../lib/api';
 import { useCustomer } from '../customers/useCustomer';
+import { useCustomersList } from '../customers/useCustomersList';
 import { getDefaultPayType } from '../settings/defaultsStore';
-import { panelCompanyAsCustomer } from '../payment-requests/mockPaymentRequests';
 import { formatMoneyTr, maskMoneyInput, parseTrMoney } from './mockBanks';
 import { InstallmentPaintGrid } from './InstallmentPaintGrid';
 import { loadReadyDescriptions } from './mockReadyDescriptions';
@@ -17,7 +18,7 @@ type Currency = '' | 'TRY';
 const INSTALLMENTS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 /**
- * Ödeme İsteği Oluştur — müşteri satırından veya panel şirketi adına (Ekle).
+ * Ödeme İsteği Oluştur — müşteri satırından veya panelden (müşteri seçerek).
  */
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id } = useParams();
@@ -29,11 +30,24 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const panelCustomer = useMemo(() => (forPanel ? panelCompanyAsCustomer() : null), [forPanel]);
+  const { customers: panelCustomers, loading: panelCustomersLoading } = useCustomersList({
+    enabled: forPanel,
+    parentId: 'all',
+  });
+  const [panelCustomerId, setPanelCustomerId] = useState<string | null>(null);
+  const panelCustomer = useMemo(
+    () => (forPanel ? panelCustomers.find((c) => c.id === panelCustomerId) ?? null : null),
+    [forPanel, panelCustomers, panelCustomerId],
+  );
   const { customer: apiCustomer, loading: customerLoading, error: customerError } = useCustomer(
     forPanel ? undefined : id,
   );
   const customer = forPanel ? panelCustomer : apiCustomer;
+
+  const customerOptions = useMemo(
+    () => panelCustomers.map((c) => ({ value: c.id, label: `${c.title}${c.code ? ` · ${c.code}` : ''}` })),
+    [panelCustomers],
+  );
 
   const backTo = forPanel ? '/odeme-istekleri' : '/musteriler';
   const backLabel = forPanel ? 'Ödeme İstekleri' : 'Müşteriler';
@@ -138,6 +152,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
 
   function validate(): boolean {
     const next: Record<string, string> = {};
+    if (forPanel && !customer) next.customer = 'Müşteri seçin';
     if (!payType) next.payType = 'Ödeme tipi seçin';
     if (!currency) next.currency = 'Para birimi seçin';
     if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
@@ -157,7 +172,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
       await api.post(
         '/api/payment-requests',
         {
-          musteriId: forPanel ? null : Number(customer.id),
+          musteriId: Number(customer.id),
           payType,
           amount,
           commissionIncluded,
@@ -186,7 +201,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     );
   }
 
-  if (!customer) {
+  if (!forPanel && !customer) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
         <p className="text-[var(--panel-ink)]">{customerError || 'Müşteri bulunamadı.'}</p>
@@ -212,7 +227,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
         </Link>
         <span className="mx-1.5 opacity-50">›</span>
         <span className="font-semibold text-[var(--panel-ink)]">
-          Ödeme İsteği Oluştur ({customer.title})
+          Ödeme İsteği Oluştur{customer ? ` (${customer.title})` : ''}
         </span>
       </nav>
 
@@ -222,7 +237,13 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
             Ödeme İsteği Oluştur
           </h1>
           <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
-            {customer.title} · {customer.code}
+            {forPanel
+              ? panelCustomersLoading
+                ? 'Müşteriler yükleniyor…'
+                : customer
+                  ? `${customer.title} · ${customer.code}`
+                  : 'Ödeme isteği için müşteri seçin'
+              : `${customer!.title} · ${customer!.code}`}
             {balance != null ? (
               <span className="ml-2 font-semibold text-[var(--color-brand-600)]">
                 Bakiye {formatMoneyTr(balance)} ₺
@@ -239,6 +260,26 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
       </div>
 
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
+        {forPanel ? (
+          <section
+            data-anim
+            className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6"
+          >
+            <FloatingSearchSelect
+              label="Müşteri"
+              options={customerOptions}
+              value={panelCustomerId}
+              onChange={setPanelCustomerId}
+              placeholder="Müşteri seçiniz."
+              required
+              kmJump
+            />
+            {errors.customer ? (
+              <p className="mt-1.5 text-xs text-rose-500">{errors.customer}</p>
+            ) : null}
+          </section>
+        ) : null}
+
         <section
           data-anim
           className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"

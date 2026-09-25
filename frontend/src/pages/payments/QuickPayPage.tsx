@@ -5,7 +5,6 @@ import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
-import { panelCompanyAsCustomer } from '../payment-requests/mockPaymentRequests';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
@@ -21,7 +20,7 @@ type PayType = '' | 'ch' | 'fatura';
 type Currency = '' | 'TRY';
 
 /**
- * Hızlı Ödeme — panel şirketi adına; 3 kart (ödeme / kart / banka).
+ * Hızlı Ödeme — firma adına; 3 kart (ödeme / kart / banka).
  */
 export default function QuickPayPage() {
   const { token } = useAuth();
@@ -29,7 +28,7 @@ export default function QuickPayPage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
-  const merchant = useMemo(() => panelCompanyAsCustomer(), []);
+  const [merchantTitle, setMerchantTitle] = useState('GÜZEL Teknoloji');
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
@@ -76,6 +75,22 @@ export default function QuickPayPage() {
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{ title: string }>('/api/settings/contact', token);
+        if (!cancelled && data.title?.trim()) setMerchantTitle(data.title.trim());
+      } catch {
+        /* başlık opsiyonel */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!toast) return;
@@ -167,7 +182,7 @@ export default function QuickPayPage() {
         data-anim
         className="mb-5 text-center text-base font-bold uppercase tracking-wide text-[var(--panel-ink)] sm:text-lg"
       >
-        {merchant.title}
+        {merchantTitle}
       </h1>
 
       <form onSubmit={onSubmit} className="space-y-5">

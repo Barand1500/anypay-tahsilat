@@ -140,27 +140,45 @@ export default function CustomerDetailPage() {
         ) : null}
       </nav>
 
-      <div data-anim className="mb-4 flex flex-wrap gap-2">
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              data-km-jump
-              onClick={() => setTab(t.id)}
-              className={[
-                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition',
-                active
-                  ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                  : 'border border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]',
-              ].join(' ')}
+      <div data-anim className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                data-km-jump
+                onClick={() => setTab(t.id)}
+                className={[
+                  'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition',
+                  active
+                    ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
+                    : 'border border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]',
+                ].join(' ')}
+              >
+                <TabIcon id={t.id} active={active} />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+        {tab === 'bilgi' ? (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to={`/musteriler/${encodeURIComponent(customer.id)}/odeme-al`}
+              className="inline-flex items-center rounded-xl bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
             >
-              <TabIcon id={t.id} active={active} />
-              {t.label}
-            </button>
-          );
-        })}
+              Ödeme Al
+            </Link>
+            <Link
+              to={`/musteriler/${encodeURIComponent(customer.id)}/odeme-istegi`}
+              className="inline-flex items-center rounded-xl bg-[var(--color-brand-600)] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-brand-500)]"
+            >
+              Ödeme İsteği
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       {tab === 'bilgi' ? (

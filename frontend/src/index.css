@@ -35,15 +35,14 @@ html[data-theme='light'] {
   --input-label: var(--color-brand-600);
   /* Etiket çentiği = input’un OTURDUĞU zemin (kart/sayfa), dolgu değil */
   --input-notch: var(--panel-elevated);
-  /* Açık sidebar (geniş) */
-  --sidebar-open-bg: var(--color-brand-600);
-  --sidebar-open-ink: #ffffff;
-  --sidebar-open-hover: rgba(255, 255, 255, 0.12);
-  /* Kitap kenarı — ana içerik zeminiyle birleşir */
+  /* Sidebar — zemin nötr; vurgu rengi sadece seçici / CTA */
+  --sidebar-open-bg: #ffffff;
+  --sidebar-open-ink: var(--panel-ink);
+  --sidebar-open-hover: var(--panel-hover);
   --sidebar-active-bg: var(--panel-bg);
   --sidebar-active-text: var(--color-brand-700);
-  --sidebar-cta-bg: #ffffff;
-  --sidebar-cta-text: var(--color-brand-700);
+  --sidebar-cta-bg: var(--color-brand-600);
+  --sidebar-cta-text: #ffffff;
   /* Soft brand yüzey + okunur yazı (avatar, badge) */
   --brand-soft-bg: var(--color-brand-100);
   --brand-on-soft: var(--color-brand-700);
@@ -65,12 +64,12 @@ html[data-theme='dark'] {
   --chart-bg: #121820;
   --color-brand-50: #152033;
   --color-brand-100: #1a2a44;
-  /* Gece: panel siyah; seçici/CTA vurgu rengi */
+  /* Gece: sidebar koyu; seçici/CTA vurgu rengi */
   --sidebar-open-bg: #07090c;
   --sidebar-open-ink: #e8eef6;
   --sidebar-open-hover: rgba(255, 255, 255, 0.06);
   --sidebar-active-bg: var(--panel-bg);
-  --sidebar-active-text: var(--panel-ink);
+  --sidebar-active-text: var(--brand-on-soft);
   --sidebar-cta-bg: var(--color-brand-600);
   --sidebar-cta-text: #ffffff;
   --brand-soft-bg: color-mix(in srgb, var(--color-brand-500) 26%, var(--panel-surface));
@@ -107,7 +106,7 @@ html[data-accent='purple'] {
   --color-brand-700: #7e22ce;
 }
 
-/* Dark — koyu vurgu; sidebar siyah kalır, seçiciler renk alır */
+/* Dark — koyu zemin; seçici metin / CTA vurgu rengi */
 html[data-theme='dark'][data-accent='blue'] {
   --color-brand-50: #101820;
   --color-brand-100: #152033;
@@ -116,9 +115,9 @@ html[data-theme='dark'][data-accent='blue'] {
   --color-brand-700: #143d7a;
   --brand-soft-bg: color-mix(in srgb, #2563c7 28%, #1c2430);
   --brand-on-soft: #bfdbfe;
-  --sidebar-open-bg: #07090c;
-  --sidebar-active-bg: var(--panel-bg);
-  --sidebar-active-text: var(--panel-ink);
+  --nav-active-bg: color-mix(in srgb, #2563c7 22%, transparent);
+  --nav-active-text: #bfdbfe;
+  --sidebar-active-text: #bfdbfe;
   --sidebar-cta-bg: #1a4fa3;
   --sidebar-cta-text: #ffffff;
 }
@@ -131,9 +130,9 @@ html[data-theme='dark'][data-accent='green'] {
   --color-brand-700: #14532d;
   --brand-soft-bg: color-mix(in srgb, #16a34a 28%, #1c2430);
   --brand-on-soft: #bbf7d0;
-  --sidebar-open-bg: #07090c;
-  --sidebar-active-bg: var(--panel-bg);
-  --sidebar-active-text: var(--panel-ink);
+  --nav-active-bg: color-mix(in srgb, #16a34a 22%, transparent);
+  --nav-active-text: #bbf7d0;
+  --sidebar-active-text: #bbf7d0;
   --sidebar-cta-bg: #166534;
   --sidebar-cta-text: #ffffff;
 }
@@ -146,9 +145,9 @@ html[data-theme='dark'][data-accent='purple'] {
   --color-brand-700: #581c8d;
   --brand-soft-bg: color-mix(in srgb, #a855f7 28%, #1c2430);
   --brand-on-soft: #e9d5ff;
-  --sidebar-open-bg: #07090c;
-  --sidebar-active-bg: var(--panel-bg);
-  --sidebar-active-text: var(--panel-ink);
+  --nav-active-bg: color-mix(in srgb, #a855f7 22%, transparent);
+  --nav-active-text: #e9d5ff;
+  --sidebar-active-text: #e9d5ff;
   --sidebar-cta-bg: #6d28b0;
   --sidebar-cta-text: #ffffff;
 }
@@ -156,11 +155,13 @@ html[data-theme='dark'][data-accent='purple'] {
 html[data-theme='light'][data-accent='green'] {
   --nav-active-bg: #ecfdf3;
   --nav-active-text: #166534;
+  --sidebar-active-text: #166534;
 }
 
 html[data-theme='light'][data-accent='purple'] {
   --nav-active-bg: #f5f0ff;
   --nav-active-text: #7e22ce;
+  --sidebar-active-text: #7e22ce;
 }
 
 * {
@@ -687,21 +688,15 @@ html[data-theme='dark'] .log-chip--other {
 .sidebar-nav {
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-gutter: stable;
+  /* Chrome gutter simetriyi bozar (Zen/Firefox overlay) — yer ayırma yok */
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
 }
 
 .sidebar-nav::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 4px;
-}
-
-.sidebar-nav:hover::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--sidebar-open-ink, #fff) 22%, transparent);
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 /* Özet — düzenleme modu (titreme yok; yumuşak vurgu) */
