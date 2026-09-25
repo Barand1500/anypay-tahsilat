@@ -7,6 +7,7 @@ import { CopyLine } from '../../components/ui/CopyLine';
 import { DateField } from '../../components/ui/DateField';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { ArchiveBoxOverlay, type ArchiveAnimPayload } from '../../components/ui/ArchiveBoxOverlay';
 import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { useCustomersList } from '../customers/useCustomersList';
@@ -80,6 +81,11 @@ export default function TransactionsPage() {
   const [dekontTx, setDekontTx] = useState<Transaction | null>(null);
   const [reverseTx, setReverseTx] = useState<Transaction | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [archiveAnim, setArchiveAnim] = useState<ArchiveAnimPayload | null>(null);
+  const archivePendingRef = useRef<{
+    updated: Transaction;
+    flash: string;
+  } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('hareketler'));
 
   const [branch, setBranch] = useState<string | null>(null);
@@ -322,7 +328,20 @@ export default function TransactionsPage() {
   }
 
   async function onArchive(tx: Transaction) {
-    if (!guard('m-hareketler', 'save', 'Hareketler') || !token) return;
+    if (!guard('m-hareketler', 'save', 'Hareketler') || !token || archiveAnim) return;
+    const rowEl = document.querySelector(
+      `[data-tx-id="${CSS.escape(String(tx.dbId))}"]`,
+    ) as HTMLElement | null;
+    const rect = rowEl?.getBoundingClientRect();
+    const from = rect
+      ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+      : {
+          left: window.innerWidth / 2 - 160,
+          top: window.innerHeight * 0.35,
+          width: 320,
+          height: 64,
+        };
+
     setBusyId(tx.dbId);
     try {
       const updated = await api.patch<ApiTx>(
@@ -330,22 +349,64 @@ export default function TransactionsPage() {
         { archived: !tx.archived },
         token,
       );
-      setRows((prev) => {
-        const next = prev.map((r) => (r.dbId === updated.dbId ? updated : r));
-        if (archive === 'no' && updated.archived) {
-          return next.filter((r) => r.dbId !== updated.dbId);
-        }
-        if (archive === 'yes' && !updated.archived) {
-          return next.filter((r) => r.dbId !== updated.dbId);
-        }
-        return next;
+      const flashMsg = updated.archived
+        ? `Arşivlendi — ${updated.id}`
+        : `Arşivden çıkarıldı — ${updated.id}`;
+      archivePendingRef.current = { updated, flash: flashMsg };
+
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) {
+        applyArchiveResult(updated);
+        flash(flashMsg);
+        archivePendingRef.current = null;
+        return;
+      }
+
+      if (rowEl) {
+        gsap.set(rowEl, { autoAlpha: 0 });
+      }
+
+      setArchiveAnim({
+        mode: updated.archived ? 'in' : 'out',
+        id: updated.id,
+        title: updated.customerTitle,
+        amountLabel: `${formatMoneyTr(updated.amount + updated.commission)} ₺`,
+        from,
       });
-      flash(updated.archived ? `Arşivlendi — ${updated.id}` : `Arşivden çıkarıldı — ${updated.id}`);
     } catch (err) {
       flash(err instanceof Error ? err.message : 'Arşiv güncellenemedi');
     } finally {
       setBusyId(null);
     }
+  }
+
+  function applyArchiveResult(updated: Transaction) {
+    setRows((prev) => {
+      const next = prev.map((r) => (r.dbId === updated.dbId ? updated : r));
+      if (archive === 'no' && updated.archived) {
+        return next.filter((r) => r.dbId !== updated.dbId);
+      }
+      if (archive === 'yes' && !updated.archived) {
+        return next.filter((r) => r.dbId !== updated.dbId);
+      }
+      return next;
+    });
+    // Filtre satırı listede bırakıyorsa görünürlüğü geri ver
+    window.requestAnimationFrame(() => {
+      const el = document.querySelector(
+        `[data-tx-id="${CSS.escape(String(updated.dbId))}"]`,
+      ) as HTMLElement | null;
+      if (el) gsap.set(el, { clearProps: 'opacity,visibility' });
+    });
+  }
+
+  function onArchiveAnimDone() {
+    const pending = archivePendingRef.current;
+    setArchiveAnim(null);
+    if (!pending) return;
+    applyArchiveResult(pending.updated);
+    flash(pending.flash);
+    archivePendingRef.current = null;
   }
 
   function openDekont(tx: Transaction) {
@@ -544,6 +605,7 @@ export default function TransactionsPage() {
               slice.map((tx) => (
                 <div
                   key={tx.dbId}
+                  data-tx-id={tx.dbId}
                   className="grid grid-cols-[minmax(140px,1fr)_minmax(160px,1.1fr)_minmax(180px,1.3fr)_minmax(130px,0.9fr)_120px] gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition hover:bg-[var(--panel-hover)]/50"
                 >
                   <div className="min-w-0">
@@ -630,7 +692,7 @@ export default function TransactionsPage() {
                       <ReceiptIcon />
                     </IconBtn>
                     <IconBtn
-                      title="Arşivle"
+                      title={tx.archived ? 'Arşivden çıkar' : 'Arşivle'}
                       bg="bg-sky-100 dark:bg-sky-500/20"
                       fg="text-sky-600 dark:text-sky-400"
                       onClick={() => {
@@ -676,6 +738,7 @@ export default function TransactionsPage() {
       </section>
 
       {dekontTx ? <DekontModal tx={dekontTx} onClose={() => setDekontTx(null)} /> : null}
+      <ArchiveBoxOverlay payload={archiveAnim} onDone={onArchiveAnimDone} />
       {reverseTx ? (
         <ReverseTxModal
           id={reverseTx.id}
