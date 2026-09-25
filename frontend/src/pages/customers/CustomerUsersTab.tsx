@@ -34,7 +34,11 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
   const [phone, setPhone] = useState('5');
   const [saving, setSaving] = useState(false);
   const [passwordUser, setPasswordUser] = useState<CustomerUser | null>(null);
-  const [courier, setCourier] = useState<{ email: string; flash: string } | null>(null);
+  const [courier, setCourier] = useState<{
+    email: string;
+    flash: string;
+    failed?: boolean;
+  } | null>(null);
 
   async function reload() {
     if (!token) return;
@@ -158,14 +162,13 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
         });
         setFormOpen(false);
         resetForm();
-        if (created.emailSent) {
-          setCourier({
-            email: created.email,
-            flash: `Kullanıcı güncellendi · giriş bilgileri ${created.email} adresine gönderildi`,
-          });
-        } else {
-          flash('Kullanıcı güncellendi · e-posta gönderilemedi');
-        }
+        setCourier({
+          email: created.email,
+          flash: created.emailSent
+            ? `Kullanıcı güncellendi · giriş bilgileri ${created.email} adresine gönderildi`
+            : 'Kullanıcı güncellendi · e-posta iletilemedi',
+          failed: !created.emailSent,
+        });
         return;
       } else {
         const u = await api.post<CustomerUser & { emailSent?: boolean }>(
@@ -176,14 +179,13 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
         setUsers((prev) => [u, ...prev]);
         setFormOpen(false);
         resetForm();
-        if (u.emailSent) {
-          setCourier({
-            email: u.email,
-            flash: `Kullanıcı eklendi · giriş bilgileri ${u.email} adresine gönderildi`,
-          });
-        } else {
-          flash('Kullanıcı eklendi · e-posta gönderilemedi');
-        }
+        setCourier({
+          email: u.email,
+          flash: u.emailSent
+            ? `Kullanıcı eklendi · giriş bilgileri ${u.email} adresine gönderildi`
+            : 'Kullanıcı eklendi · e-posta iletilemedi',
+          failed: !u.emailSent,
+        });
         return;
       }
       setFormOpen(false);
@@ -432,9 +434,9 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
           user={passwordUser}
           flash={flash}
           onClose={() => setPasswordUser(null)}
-          onMailSent={(email, msg) => {
+          onMailSent={(email, msg, ok) => {
             setPasswordUser(null);
-            setCourier({ email, flash: msg });
+            setCourier({ email, flash: msg, failed: !ok });
           }}
         />
       ) : null}
@@ -442,6 +444,7 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
       <PasswordCourierOverlay
         open={Boolean(courier)}
         toEmail={courier?.email}
+        failed={courier?.failed}
         onDone={() => {
           if (courier?.flash) flash(courier.flash);
           setCourier(null);
@@ -462,7 +465,7 @@ function SendPasswordModal({
   user: CustomerUser;
   flash: (m: string) => void;
   onClose: () => void;
-  onMailSent: (email: string, msg: string) => void;
+  onMailSent: (email: string, msg: string, ok: boolean) => void;
 }) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -513,15 +516,11 @@ function SendPasswordModal({
         token,
       );
       if (channel === 'mail') {
-        const msg = data.emailSent
+        const ok = Boolean(data.emailSent);
+        const msg = ok
           ? `Yeni şifre ${data.email} adresine gönderildi`
-          : 'Şifre oluşturuldu ama e-posta gönderilemedi';
-        if (data.emailSent) {
-          onMailSent(data.email, msg);
-        } else {
-          flash(msg);
-          onClose();
-        }
+          : 'Şifre oluşturuldu ama e-posta iletilemedi';
+        onMailSent(data.email, msg, ok);
         return;
       }
       if (!data.password) {

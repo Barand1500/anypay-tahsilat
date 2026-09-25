@@ -181,7 +181,7 @@ export async function listCustomers(query?: {
 
   const rows = await prisma.musteri.findMany({
     where,
-    orderBy: [{ unvan: 'asc' }, { id: 'asc' }],
+    orderBy: [{ id: 'desc' }],
   });
 
   const ids = rows.map((r) => r.id);
@@ -422,9 +422,28 @@ export async function softDeleteCustomer(id: number): Promise<void> {
     throw new CustomersError('Alt müşterisi olan kayıt silinemez');
   }
 
-  await prisma.musteri.update({
-    where: { id },
-    data: { remove: true },
+  const linkedUsers = await prisma.user.findMany({
+    where: { musteriId: id, ...notRemoved() },
+    select: { id: true, email: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.musteri.update({
+      where: { id },
+      data: { remove: true },
+    });
+    await tx.adres.updateMany({
+      where: { musteriId: id, ...notRemoved() },
+      data: { remove: true },
+    });
+    for (const u of linkedUsers) {
+      const stamp = Date.now().toString(36);
+      const freed = `del.${u.id}.${stamp}.${u.email}`.slice(0, 180);
+      await tx.user.update({
+        where: { id: u.id },
+        data: { remove: true, isVerified: false, email: freed },
+      });
+    }
   });
 }
 

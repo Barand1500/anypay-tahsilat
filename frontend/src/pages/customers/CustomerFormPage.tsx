@@ -17,7 +17,6 @@ import {
   type CustomerKind,
 } from './mockCustomers';
 import { type ApiCustomer } from './customersApi';
-import { PasswordCourierOverlay } from '../../components/ui/PasswordCourierOverlay';
 import {
   getDefaultAccountType,
   getDefaultCustomerKind,
@@ -68,7 +67,6 @@ export default function CustomerFormPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [courier, setCourier] = useState<{ email: string; flash: string } | null>(null);
 
   const suggestions = useMemo(() => emailSuggestions(email), [email]);
   const idMax = kind === 'yabanci' ? 20 : 11;
@@ -169,6 +167,8 @@ export default function CustomerFormPage() {
       );
 
       let flash = 'Müşteri kaydedildi';
+      let courierEmail: string | undefined;
+      let courierFailed = false;
       if (createUser) {
         const user = await api.post<{
           name: string;
@@ -184,16 +184,20 @@ export default function CustomerFormPage() {
           },
           token,
         );
+        courierEmail = user.email;
+        courierFailed = !user.emailSent;
         flash = user.emailSent
           ? `Müşteri ve kullanıcı oluşturuldu · giriş bilgileri ${user.email} adresine gönderildi`
-          : `Müşteri ve kullanıcı oluşturuldu · e-posta gönderilemedi (SMTP ayarlarını kontrol edin)`;
-        if (user.emailSent) {
-          setCourier({ email: user.email, flash });
-          return;
-        }
+          : `Müşteri ve kullanıcı oluşturuldu · e-posta iletilemedi (SMTP ayarlarını kontrol edin)`;
       }
 
-      navigate('/musteriler', { replace: true, state: { flash } });
+      navigate('/musteriler', {
+        replace: true,
+        state: {
+          flash,
+          ...(courierEmail ? { courierEmail, courierFailed } : {}),
+        },
+      });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
     } finally {
@@ -512,16 +516,6 @@ export default function CustomerFormPage() {
             document.body,
           )
         : null}
-
-      <PasswordCourierOverlay
-        open={Boolean(courier)}
-        toEmail={courier?.email}
-        onDone={() => {
-          const flash = courier?.flash || 'Müşteri kaydedildi';
-          setCourier(null);
-          navigate('/musteriler', { replace: true, state: { flash } });
-        }}
-      />
     </div>
   );
 }

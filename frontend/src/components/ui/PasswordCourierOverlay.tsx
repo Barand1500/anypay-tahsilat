@@ -8,15 +8,19 @@ gsap.registerPlugin(useGSAP);
 type Props = {
   open: boolean;
   toEmail?: string;
+  /** SMTP / gönderim başarısız — uçuş ortasında yere çakılır */
+  failed?: boolean;
   onDone: () => void;
 };
 
 /** Şifre / giriş bilgisi gönderildiğinde uçan kurye + zarf animasyonu. */
-export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
+export function PasswordCourierOverlay({ open, toEmail, failed = false, onDone }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const craftRef = useRef<HTMLDivElement>(null);
   const bobRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const bubbleTitleRef = useRef<HTMLParagraphElement>(null);
+  const smokeRef = useRef<HTMLDivElement>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
 
@@ -27,6 +31,7 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
       const craft = craftRef.current;
       const bobEl = bobRef.current;
       const bubble = bubbleRef.current;
+      const smoke = smokeRef.current;
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -38,8 +43,9 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
         scale: 0.72,
         autoAlpha: 0,
       });
-      if (bobEl) gsap.set(bobEl, { y: 0 });
+      if (bobEl) gsap.set(bobEl, { y: 0, rotation: 0 });
       if (bubble) gsap.set(bubble, { autoAlpha: 0, y: 8, scale: 0.92 });
+      if (smoke) gsap.set(smoke, { autoAlpha: 0, scale: 0.4 });
 
       const tl = gsap.timeline({
         onComplete: () => {
@@ -48,10 +54,23 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
       });
 
       if (reduced) {
-        tl.to(craft, { autoAlpha: 1, duration: 0.2 })
-          .to(bubble, { autoAlpha: 1, duration: 0.2 }, '<')
-          .to(craft, { x: vw + 160, y: vh * 0.2, duration: 1.2, ease: 'power1.inOut' })
-          .to([craft, bubble], { autoAlpha: 0, duration: 0.2 }, '-=0.25');
+        tl.to(craft, { autoAlpha: 1, duration: 0.15 })
+          .to(bubble, { autoAlpha: 1, duration: 0.15 }, '<');
+        if (failed) {
+          tl.to(craft, {
+            x: vw * 0.4,
+            y: vh * 0.75,
+            rotation: 55,
+            duration: 0.7,
+            ease: 'power2.in',
+          }).to([craft, bubble], { autoAlpha: 0, duration: 0.2 });
+        } else {
+          tl.to(craft, { x: vw + 160, y: vh * 0.2, duration: 1.0, ease: 'power1.inOut' }).to(
+            [craft, bubble],
+            { autoAlpha: 0, duration: 0.2 },
+            '-=0.25',
+          );
+        }
         return;
       }
 
@@ -66,6 +85,7 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
           paused: true,
         });
 
+      // Ortak giriş + balon
       tl.to(craft, {
         autoAlpha: 1,
         x: vw * 0.18,
@@ -75,19 +95,77 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
         duration: 0.85,
         ease: 'power2.out',
         onComplete: () => bob?.play(),
-      })
-        .to(
-          bubble,
-          { autoAlpha: 1, y: 0, scale: 1, duration: 0.4, ease: 'back.out(1.6)' },
-          '-=0.35',
-        )
-        .to(craft, {
-          x: vw * 0.34,
-          y: vh * 0.24,
-          rotation: -9,
-          duration: 1.15,
+      }).to(
+        bubble,
+        { autoAlpha: 1, y: 0, scale: 1, duration: 0.4, ease: 'back.out(1.6)' },
+        '-=0.35',
+      );
+
+      if (failed) {
+        // Biraz uçar, sonra sarsılır ve yere çakılır
+        tl.to(craft, {
+          x: vw * 0.38,
+          y: vh * 0.28,
+          rotation: -8,
+          duration: 0.95,
           ease: 'sine.inOut',
         })
+          .add(() => {
+            bob?.pause();
+            if (bubbleTitleRef.current) {
+              bubbleTitleRef.current.textContent = 'İletilemedi…';
+            }
+          })
+          .to(craft, {
+            x: `+=14`,
+            rotation: '+=6',
+            duration: 0.08,
+            yoyo: true,
+            repeat: 5,
+            ease: 'power1.inOut',
+          })
+          .to(
+            bubble,
+            {
+              borderColor: 'rgba(244,63,94,0.45)',
+              duration: 0.2,
+            },
+            '<',
+          )
+          .to(craft, {
+            x: vw * 0.48,
+            y: vh * 0.78,
+            rotation: 72,
+            scale: 0.82,
+            duration: 0.75,
+            ease: 'power3.in',
+          })
+          .to(
+            smoke,
+            { autoAlpha: 1, scale: 1.35, duration: 0.35, ease: 'power2.out' },
+            '-=0.15',
+          )
+          .to(bobEl, { rotation: 25, duration: 0.2 }, '<')
+          .to(craft, {
+            y: '+=10',
+            duration: 0.12,
+            yoyo: true,
+            repeat: 2,
+            ease: 'power1.inOut',
+          })
+          .to(bubble, { autoAlpha: 0, y: 12, duration: 0.3 }, '-=0.1')
+          .to(smoke, { autoAlpha: 0, scale: 1.8, duration: 0.45 }, '-=0.1')
+          .to(craft, { autoAlpha: 0, duration: 0.35 });
+        return;
+      }
+
+      tl.to(craft, {
+        x: vw * 0.34,
+        y: vh * 0.24,
+        rotation: -9,
+        duration: 1.15,
+        ease: 'sine.inOut',
+      })
         .to(craft, {
           x: vw * 0.5,
           y: vh * 0.42,
@@ -119,7 +197,7 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
           ease: 'power2.in',
         });
     },
-    { dependencies: [open], scope: rootRef, revertOnUpdate: true },
+    { dependencies: [open, failed], scope: rootRef, revertOnUpdate: true },
   );
 
   if (!open) return null;
@@ -129,28 +207,58 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
       ref={rootRef}
       className="pointer-events-none fixed inset-0 z-[10100] overflow-hidden"
       aria-live="polite"
-      aria-label="Şifre gönderiliyor"
+      aria-label={failed ? 'Şifre gönderilemedi' : 'Şifre gönderiliyor'}
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-400/20 via-sky-300/5 to-transparent" />
+      <div
+        className={[
+          'absolute inset-0',
+          failed
+            ? 'bg-gradient-to-b from-rose-400/15 via-transparent to-transparent'
+            : 'bg-gradient-to-b from-sky-400/20 via-sky-300/5 to-transparent',
+        ].join(' ')}
+      />
 
       <div ref={craftRef} className="absolute left-0 top-0 will-change-transform">
         <div ref={bobRef} className="relative">
           <div
             ref={bubbleRef}
-            className="absolute -top-16 left-1/2 z-10 w-[230px] -translate-x-1/2 rounded-2xl border border-sky-400/35 bg-[var(--panel-elevated)] px-3.5 py-2.5 shadow-[0_16px_40px_rgba(14,165,233,0.28)]"
+            className={[
+              'absolute -top-16 left-1/2 z-10 w-[230px] -translate-x-1/2 rounded-2xl border bg-[var(--panel-elevated)] px-3.5 py-2.5 shadow-[0_16px_40px_rgba(14,165,233,0.28)]',
+              failed ? 'border-rose-400/40' : 'border-sky-400/35',
+            ].join(' ')}
           >
-            <p className="text-center text-[13px] font-bold leading-snug text-[var(--panel-ink)]">
-              Senin için şifreyi götürüyoruz
+            <p
+              ref={bubbleTitleRef}
+              className="text-center text-[13px] font-bold leading-snug text-[var(--panel-ink)]"
+            >
+              {failed ? 'Şifreyi götürmeye çalışıyoruz…' : 'Senin için şifreyi götürüyoruz'}
             </p>
             {toEmail ? (
               <p className="mt-1 truncate text-center text-[11px] text-[var(--panel-muted)]">
                 {toEmail}
               </p>
             ) : null}
-            <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-sky-400/35 bg-[var(--panel-elevated)]" />
+            <span
+              className={[
+                'absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r bg-[var(--panel-elevated)]',
+                failed ? 'border-rose-400/40' : 'border-sky-400/35',
+              ].join(' ')}
+            />
           </div>
 
-          <CourierCraft />
+          <CourierCraft distressed={failed} />
+
+          <div
+            ref={smokeRef}
+            className="pointer-events-none absolute left-1/2 top-[70%] -translate-x-1/2"
+            aria-hidden
+          >
+            <div className="relative h-16 w-28">
+              <span className="absolute left-2 top-4 h-10 w-10 rounded-full bg-slate-500/35 blur-md" />
+              <span className="absolute left-10 top-2 h-12 w-12 rounded-full bg-slate-400/30 blur-md" />
+              <span className="absolute left-16 top-6 h-9 w-9 rounded-full bg-rose-500/25 blur-md" />
+            </div>
+          </div>
         </div>
       </div>
     </div>,
@@ -158,7 +266,7 @@ export function PasswordCourierOverlay({ open, toEmail, onDone }: Props) {
   );
 }
 
-function CourierCraft() {
+function CourierCraft({ distressed }: { distressed?: boolean }) {
   return (
     <svg
       width="200"
@@ -166,7 +274,11 @@ function CourierCraft() {
       viewBox="0 0 200 150"
       fill="none"
       aria-hidden
-      className="drop-shadow-[0_18px_28px_rgba(14,165,233,0.35)]"
+      className={
+        distressed
+          ? 'drop-shadow-[0_18px_28px_rgba(244,63,94,0.28)]'
+          : 'drop-shadow-[0_18px_28px_rgba(14,165,233,0.35)]'
+      }
     >
       <style>{`
         .courier-rotor { transform-origin: center; transform-box: fill-box; animation: courier-spin 0.28s linear infinite; }
@@ -185,12 +297,12 @@ function CourierCraft() {
           height="30"
           rx="4"
           fill="#f8fafc"
-          stroke="#0ea5e9"
+          stroke={distressed ? '#f43f5e' : '#0ea5e9'}
           strokeWidth="1.6"
         />
         <path
           d="M2 2 L22 16 L42 2"
-          stroke="#0ea5e9"
+          stroke={distressed ? '#f43f5e' : '#0ea5e9'}
           strokeWidth="1.6"
           strokeLinejoin="round"
           fill="none"
@@ -216,9 +328,9 @@ function CourierCraft() {
         width="32"
         height="14"
         rx="4"
-        fill="#0ea5e9"
+        fill={distressed ? '#f43f5e' : '#0ea5e9'}
         fillOpacity="0.35"
-        stroke="#38bdf8"
+        stroke={distressed ? '#fb7185' : '#38bdf8'}
         strokeWidth="1"
       />
       <path d="M88 78 L92 86 H108 L112 78" fill="#334155" />
@@ -239,19 +351,25 @@ function CourierCraft() {
             r="16"
             fill="#0f172a"
             fillOpacity="0.15"
-            stroke="#38bdf8"
+            stroke={distressed ? '#fb7185' : '#38bdf8'}
             strokeWidth="2.2"
           />
-          <circle cx={cx} cy={cy} r="12" fill="#0ea5e9" fillOpacity="0.28" />
+          <circle
+            cx={cx}
+            cy={cy}
+            r="12"
+            fill={distressed ? '#f43f5e' : '#0ea5e9'}
+            fillOpacity="0.28"
+          />
           <g className="courier-rotor" style={{ transformOrigin: `${cx}px ${cy}px` }}>
             <ellipse cx={cx} cy={cy} rx="11" ry="2.2" fill="#e0f2fe" fillOpacity="0.95" />
             <ellipse cx={cx} cy={cy} rx="2.2" ry="11" fill="#bae6fd" fillOpacity="0.9" />
-            <circle cx={cx} cy={cy} r="2.4" fill="#0284c7" />
+            <circle cx={cx} cy={cy} r="2.4" fill={distressed ? '#e11d48' : '#0284c7'} />
           </g>
         </g>
       ))}
 
-      <circle cx="100" cy="60" r="2.5" fill="#0369a1" />
+      <circle cx="100" cy="60" r="2.5" fill={distressed ? '#be123c' : '#0369a1'} />
     </svg>
   );
 }

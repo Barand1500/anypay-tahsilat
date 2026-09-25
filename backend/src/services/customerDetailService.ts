@@ -14,6 +14,19 @@ function notRemoved(): { OR: [{ remove: null }, { remove: false }] } {
   return { OR: [{ remove: null }, { remove: false }] };
 }
 
+/** Unique e-posta serbest bırak — soft-silinen / yetim kullanıcı */
+async function releaseUserEmail(userId: number, email: string) {
+  const stamp = Date.now().toString(36);
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      remove: true,
+      isVerified: false,
+      email: `del.${userId}.${stamp}.${email}`.slice(0, 180),
+    },
+  });
+}
+
 function digitsPhone(raw: string | null | undefined): string {
   let d = (raw || '').replace(/\D/g, '');
   if (d.startsWith('90') && d.length > 10) d = d.slice(2);
@@ -215,10 +228,28 @@ export async function createCustomerUser(
   if (phone.length < 10) throw new CustomerDetailError('Telefon gerekli');
 
   const exists = await prisma.user.findFirst({
-    where: { email },
-    select: { id: true },
+    where: { email, ...notRemoved() },
+    select: { id: true, musteriId: true },
   });
-  if (exists) throw new CustomerDetailError('Bu e-posta zaten kayıtlı');
+  if (exists) {
+    let orphan = false;
+    if (exists.musteriId != null) {
+      const m = await prisma.musteri.findFirst({
+        where: { id: exists.musteriId },
+        select: { remove: true },
+      });
+      // Müşteri soft-silinmişse e-posta yeniden kullanılabilir
+      orphan = !m || m.remove === true;
+    }
+    if (!orphan) throw new CustomerDetailError('Bu e-posta zaten kayıtlı');
+    await releaseUserEmail(exists.id, email);
+  } else {
+    const ghost = await prisma.user.findFirst({
+      where: { email, remove: true },
+      select: { id: true, email: true },
+    });
+    if (ghost) await releaseUserEmail(ghost.id, ghost.email);
+  }
 
   const plain = (input.password || '').trim() || randomBytes(4).toString('hex');
   const password = await bcrypt.hash(plain, 10);
@@ -285,11 +316,11 @@ export async function resetCustomerUserPassword(
     if (!email.includes('@')) throw new CustomerDetailError('E-posta adresi yok');
     try {
       await sendCustomerCredentialsMail(email, name, email, plain);
+      return { name, email, phone, channel, emailSent: true };
     } catch (err) {
       console.error('Şifre e-postası gönderilemedi', err);
-      throw new CustomerDetailError('E-posta gönderilemedi. SMTP ayarlarını kontrol edin.');
+      return { name, email, phone, channel, emailSent: false };
     }
-    return { name, email, phone, channel, emailSent: true };
   }
 
   return { password: plain, name, email, phone, channel };
@@ -319,10 +350,27 @@ export async function updateCustomerUser(
   }
   if (email && email !== row.email) {
     const taken = await prisma.user.findFirst({
-      where: { email, NOT: { id: userId } },
-      select: { id: true },
+      where: { email, NOT: { id: userId }, ...notRemoved() },
+      select: { id: true, musteriId: true },
     });
-    if (taken) throw new CustomerDetailError('Bu e-posta zaten kayıtlı');
+    if (taken) {
+      let orphan = false;
+      if (taken.musteriId != null) {
+        const m = await prisma.musteri.findFirst({
+          where: { id: taken.musteriId },
+          select: { remove: true },
+        });
+        orphan = !m || m.remove === true;
+      }
+      if (!orphan) throw new CustomerDetailError('Bu e-posta zaten kayıtlı');
+      await releaseUserEmail(taken.id, email);
+    } else {
+      const ghost = await prisma.user.findFirst({
+        where: { email, remove: true, NOT: { id: userId } },
+        select: { id: true, email: true },
+      });
+      if (ghost) await releaseUserEmail(ghost.id, ghost.email);
+    }
   }
 
   const updated = await prisma.user.update({
@@ -373,10 +421,10 @@ export async function softDeleteCustomerUser(musteriId: number, userId: number):
   await assertMusteri(musteriId);
   const row = await prisma.user.findFirst({
     where: { id: userId, musteriId, ...notRemoved() },
-    select: { id: true },
+    select: { id: true, email: true },
   });
   if (!row) throw new CustomerDetailError('Kullanıcı bulunamadı');
-  await prisma.user.update({ where: { id: userId }, data: { remove: true } });
+  await releaseUserEmail(row.id, row.email);
 }
 
 export async function listCustomerAddresses(musteriId: number): Promise<PublicCustomerAddress[]> {

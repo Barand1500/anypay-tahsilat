@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { PasswordCourierOverlay } from '../../components/ui/PasswordCourierOverlay';
 import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { CustomerExcelModal } from './CustomerExcelModal';
@@ -81,7 +82,13 @@ export default function CustomersPage() {
   const [excelOpen, setExcelOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [exitingId, setExitingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [courier, setCourier] = useState<{
+    email: string;
+    flash: string;
+    failed?: boolean;
+  } | null>(null);
   const [cols, setCols] = useState<ColId[]>(() => readCols());
   const [dragCol, setDragCol] = useState<ColId | null>(null);
   const [overCol, setOverCol] = useState<ColId | null>(null);
@@ -106,14 +113,25 @@ export default function CustomersPage() {
     void reload();
   }, [reload]);
 
-  // Formdan dönüşte liste + toast
+  // Formdan dönüşte liste + toast (+ isteğe bağlı kurye)
   useEffect(() => {
-    const st = location.state as { flash?: string } | null;
-    if (st?.flash) {
-      void reload();
+    const st = location.state as {
+      flash?: string;
+      courierEmail?: string;
+      courierFailed?: boolean;
+    } | null;
+    if (!st?.flash && !st?.courierEmail) return;
+    void reload();
+    if (st.courierEmail) {
+      setCourier({
+        email: st.courierEmail,
+        flash: st.flash || 'Giriş bilgileri gönderildi',
+        failed: Boolean(st.courierFailed),
+      });
+    } else if (st.flash) {
       setToast(st.flash);
-      navigate('.', { replace: true, state: null });
     }
+    navigate('.', { replace: true, state: null });
   }, [location.state, navigate, reload]);
   const parentCustomer = useMemo(
     () => (ustId ? customers.find((c) => c.id === ustId) ?? null : null),
@@ -311,16 +329,41 @@ export default function CustomersPage() {
       setDeleteTarget(null);
       return;
     }
+    const target = deleteTarget;
     setDeleting(true);
     try {
-      await api.delete(`/api/customers/${deleteTarget.id}`, token);
-      setCustomers((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      await api.delete(`/api/customers/${target.id}`, token);
       setDeleteTarget(null);
+      setExitingId(target.id);
+      const el = document.querySelector(
+        `[data-customer-id="${CSS.escape(target.id)}"]`,
+      ) as HTMLElement | null;
+      if (el) {
+        const h = el.offsetHeight;
+        await new Promise<void>((resolve) => {
+          gsap.fromTo(
+            el,
+            { height: h, opacity: 1, x: 0 },
+            {
+              height: 0,
+              opacity: 0,
+              x: 64,
+              paddingTop: 0,
+              paddingBottom: 0,
+              duration: 0.45,
+              ease: 'power2.in',
+              onComplete: () => resolve(),
+            },
+          );
+        });
+      }
+      setCustomers((prev) => prev.filter((x) => x.id !== target.id));
       flash('Müşteri silindi');
     } catch (err) {
       flash(err instanceof Error ? err.message : 'Silinemedi');
       setDeleteTarget(null);
     } finally {
+      setExitingId(null);
       setDeleting(false);
     }
   }
@@ -733,6 +776,7 @@ export default function CustomersPage() {
                   style={{
                     animationDelay: `${Math.min(i, 12) * 18}ms`,
                     gridTemplateColumns: gridTemplate,
+                    overflow: exitingId === c.id ? 'hidden' : undefined,
                   }}
                   className="modules-row-in group grid items-center gap-x-6 border-b border-[var(--panel-line)] px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/50"
                 >
@@ -808,6 +852,16 @@ export default function CustomersPage() {
           }}
         />
       ) : null}
+
+      <PasswordCourierOverlay
+        open={Boolean(courier)}
+        toEmail={courier?.email}
+        failed={courier?.failed}
+        onDone={() => {
+          if (courier?.flash) setToast(courier.flash);
+          setCourier(null);
+        }}
+      />
 
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[10040] -translate-x-1/2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5 text-sm font-medium text-[var(--panel-ink)] shadow-[var(--panel-shadow)]">

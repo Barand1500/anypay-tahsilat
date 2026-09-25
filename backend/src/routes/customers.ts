@@ -256,7 +256,9 @@ customersRouter.post('/:id/users/:userId/password-reset', async (req: AuthedRequ
     const msg =
       data.channel === 'mail' && data.emailSent
         ? 'Yeni şifre e-posta ile gönderildi'
-        : 'Yeni şifre oluşturuldu';
+        : data.channel === 'mail' && !data.emailSent
+          ? 'Şifre oluşturuldu · e-posta iletilemedi'
+          : 'Yeni şifre oluşturuldu';
     return sendSuccess(res, data, msg);
   } catch (err) {
     if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);
