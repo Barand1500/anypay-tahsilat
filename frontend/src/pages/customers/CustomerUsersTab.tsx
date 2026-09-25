@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
+import { PasswordCourierOverlay } from '../../components/ui/PasswordCourierOverlay';
 import {
   initialsOf,
   type CustomerUser,
@@ -33,6 +34,7 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
   const [phone, setPhone] = useState('5');
   const [saving, setSaving] = useState(false);
   const [passwordUser, setPasswordUser] = useState<CustomerUser | null>(null);
+  const [courier, setCourier] = useState<{ email: string; flash: string } | null>(null);
 
   async function reload() {
     if (!token) return;
@@ -139,9 +141,9 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
         }
         flash('Kullanıcı güncellendi');
       } else if (editingId?.startsWith('primary-')) {
-        const created = await api.post<CustomerUser>(
+        const created = await api.post<CustomerUser & { emailSent?: boolean }>(
           `/api/customers/${encodeURIComponent(customer.id)}/users`,
-          body,
+          { ...body, sendEmail: true },
           token,
         );
         setUsers((prev) => [
@@ -154,15 +156,35 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
           email: body.email,
           phone: body.phone,
         });
-        flash('Kullanıcı güncellendi');
+        setFormOpen(false);
+        resetForm();
+        if (created.emailSent) {
+          setCourier({
+            email: created.email,
+            flash: `Kullanıcı güncellendi · giriş bilgileri ${created.email} adresine gönderildi`,
+          });
+        } else {
+          flash('Kullanıcı güncellendi · e-posta gönderilemedi');
+        }
+        return;
       } else {
-        const u = await api.post<CustomerUser>(
+        const u = await api.post<CustomerUser & { emailSent?: boolean }>(
           `/api/customers/${encodeURIComponent(customer.id)}/users`,
-          body,
+          { ...body, sendEmail: true },
           token,
         );
         setUsers((prev) => [u, ...prev]);
-        flash('Kullanıcı eklendi');
+        setFormOpen(false);
+        resetForm();
+        if (u.emailSent) {
+          setCourier({
+            email: u.email,
+            flash: `Kullanıcı eklendi · giriş bilgileri ${u.email} adresine gönderildi`,
+          });
+        } else {
+          flash('Kullanıcı eklendi · e-posta gönderilemedi');
+        }
+        return;
       }
       setFormOpen(false);
       resetForm();
@@ -410,8 +432,21 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
           user={passwordUser}
           flash={flash}
           onClose={() => setPasswordUser(null)}
+          onMailSent={(email, msg) => {
+            setPasswordUser(null);
+            setCourier({ email, flash: msg });
+          }}
         />
       ) : null}
+
+      <PasswordCourierOverlay
+        open={Boolean(courier)}
+        toEmail={courier?.email}
+        onDone={() => {
+          if (courier?.flash) flash(courier.flash);
+          setCourier(null);
+        }}
+      />
     </section>
   );
 }
@@ -421,11 +456,13 @@ function SendPasswordModal({
   user,
   flash,
   onClose,
+  onMailSent,
 }: {
   customerId: string;
   user: CustomerUser;
   flash: (m: string) => void;
   onClose: () => void;
+  onMailSent: (email: string, msg: string) => void;
 }) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -464,23 +501,45 @@ function SendPasswordModal({
     setBusy(channel);
     try {
       const data = await api.post<{
-        password: string;
+        password?: string;
         name: string;
         email: string;
         phone: string;
+        channel: CredentialChannel;
+        emailSent?: boolean;
       }>(
         `/api/customers/${encodeURIComponent(customerId)}/users/${encodeURIComponent(user.id)}/password-reset`,
-        {},
+        { channel },
         token,
       );
+      if (channel === 'mail') {
+        const msg = data.emailSent
+          ? `Yeni şifre ${data.email} adresine gönderildi`
+          : 'Şifre oluşturuldu ama e-posta gönderilemedi';
+        if (data.emailSent) {
+          onMailSent(data.email, msg);
+        } else {
+          flash(msg);
+          onClose();
+        }
+        return;
+      }
+      if (!data.password) {
+        flash('Şifre oluşturulamadı');
+        setBusy(null);
+        return;
+      }
       openCredentialChannel(channel, {
         name: data.name,
         email: data.email,
         phone: data.phone,
         password: data.password,
       });
-      const label = channel === 'mail' ? 'e-posta' : channel === 'sms' ? 'SMS' : 'WhatsApp';
-      flash(`Yeni şifre oluşturuldu · ${label} taslağı açıldı`);
+      flash(
+        channel === 'sms'
+          ? 'Yeni şifre · SMS taslağı açıldı'
+          : 'Yeni şifre · WhatsApp taslağı açıldı',
+      );
       onClose();
     } catch (err) {
       flash(err instanceof Error ? err.message : 'Şifre gönderilemedi');

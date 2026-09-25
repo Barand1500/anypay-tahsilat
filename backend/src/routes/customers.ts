@@ -152,6 +152,11 @@ const userCreateSchema = z.object({
   email: z.string().email().max(180),
   phone: z.string().min(10).max(20),
   password: z.string().max(128).optional(),
+  sendEmail: z.boolean().optional().default(false),
+});
+
+const passwordResetSchema = z.object({
+  channel: z.enum(['mail', 'sms', 'wp']).optional().default('mail'),
 });
 
 const userPatchSchema = z
@@ -201,7 +206,13 @@ customersRouter.post('/:id/users', async (req: AuthedRequest, res) => {
   try {
     const data = await createCustomerUser(id, parsed.data);
     await writePanelLog(req.auth!.sub, `Müşteri kullanıcısı eklendi — ${data.name}`);
-    return sendSuccess(res, data, 'Kullanıcı eklendi', 201);
+    const msg =
+      parsed.data.sendEmail && data.emailSent
+        ? 'Kullanıcı eklendi · giriş bilgileri e-posta ile gönderildi'
+        : parsed.data.sendEmail && !data.emailSent
+          ? 'Kullanıcı eklendi · e-posta gönderilemedi (SMTP)'
+          : 'Kullanıcı eklendi';
+    return sendSuccess(res, data, msg, 201);
   } catch (err) {
     if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);
     console.error(err);
@@ -235,10 +246,18 @@ customersRouter.post('/:id/users/:userId/password-reset', async (req: AuthedRequ
   if (!Number.isFinite(id) || !Number.isFinite(userId)) {
     return sendError(res, 400, 'Geçersiz istek');
   }
+  const parsed = passwordResetSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
   try {
-    const data = await resetCustomerUserPassword(id, userId);
+    const data = await resetCustomerUserPassword(id, userId, parsed.data.channel);
     await writePanelLog(req.auth!.sub, `Müşteri kullanıcı şifresi sıfırlandı — #${userId}`);
-    return sendSuccess(res, data, 'Yeni şifre oluşturuldu');
+    const msg =
+      data.channel === 'mail' && data.emailSent
+        ? 'Yeni şifre e-posta ile gönderildi'
+        : 'Yeni şifre oluşturuldu';
+    return sendSuccess(res, data, msg);
   } catch (err) {
     if (err instanceof CustomerDetailError) return sendError(res, 400, err.message);
     console.error(err);

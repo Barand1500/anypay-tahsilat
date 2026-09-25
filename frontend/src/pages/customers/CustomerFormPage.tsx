@@ -17,7 +17,7 @@ import {
   type CustomerKind,
 } from './mockCustomers';
 import { type ApiCustomer } from './customersApi';
-import { openCredentialChannel } from './sendCredentials';
+import { PasswordCourierOverlay } from '../../components/ui/PasswordCourierOverlay';
 import {
   getDefaultAccountType,
   getDefaultCustomerKind,
@@ -68,6 +68,7 @@ export default function CustomerFormPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [courier, setCourier] = useState<{ email: string; flash: string } | null>(null);
 
   const suggestions = useMemo(() => emailSuggestions(email), [email]);
   const idMax = kind === 'yabanci' ? 20 : 11;
@@ -172,27 +173,23 @@ export default function CustomerFormPage() {
         const user = await api.post<{
           name: string;
           email: string;
-          phone: string;
-          tempPassword?: string;
+          emailSent?: boolean;
         }>(
           `/api/customers/${created.id}/users`,
           {
             name: title.trim().toLocaleUpperCase('tr'),
             email: email.trim().toLocaleLowerCase('tr'),
             phone: phone.replace(/\D/g, '').slice(0, 10),
+            sendEmail: true,
           },
           token,
         );
-        if (user.tempPassword) {
-          openCredentialChannel('mail', {
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            password: user.tempPassword,
-          });
-          flash = `Müşteri ve kullanıcı oluşturuldu · e-posta taslağı açıldı (${user.email})`;
-        } else {
-          flash = 'Müşteri ve kullanıcı oluşturuldu';
+        flash = user.emailSent
+          ? `Müşteri ve kullanıcı oluşturuldu · giriş bilgileri ${user.email} adresine gönderildi`
+          : `Müşteri ve kullanıcı oluşturuldu · e-posta gönderilemedi (SMTP ayarlarını kontrol edin)`;
+        if (user.emailSent) {
+          setCourier({ email: user.email, flash });
+          return;
         }
       }
 
@@ -515,6 +512,16 @@ export default function CustomerFormPage() {
             document.body,
           )
         : null}
+
+      <PasswordCourierOverlay
+        open={Boolean(courier)}
+        toEmail={courier?.email}
+        onDone={() => {
+          const flash = courier?.flash || 'Müşteri kaydedildi';
+          setCourier(null);
+          navigate('/musteriler', { replace: true, state: { flash } });
+        }}
+      />
     </div>
   );
 }

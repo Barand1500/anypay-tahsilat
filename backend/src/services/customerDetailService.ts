@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
+import { sendCustomerCredentialsMail } from '../lib/mail.js';
 import { prisma } from '../lib/prisma.js';
 
 export class CustomerDetailError extends Error {
@@ -72,13 +73,16 @@ export type PublicCustomerUser = {
   tempPassword?: string;
   /** musteriler kaydından türetilen cari satırı */
   isPrimary?: boolean;
+  emailSent?: boolean;
 };
 
 export type PasswordResetResult = {
-  password: string;
+  password?: string;
   name: string;
   email: string;
   phone: string;
+  channel: 'mail' | 'sms' | 'wp';
+  emailSent?: boolean;
 };
 
 export type PublicCustomerAddress = {
@@ -194,7 +198,13 @@ export async function listCustomerUsers(musteriId: number): Promise<PublicCustom
 
 export async function createCustomerUser(
   musteriId: number,
-  input: { name: string; email: string; phone: string; password?: string },
+  input: {
+    name: string;
+    email: string;
+    phone: string;
+    password?: string;
+    sendEmail?: boolean;
+  },
 ): Promise<PublicCustomerUser> {
   await assertMusteri(musteriId);
   const name = input.name.trim();
@@ -227,6 +237,16 @@ export async function createCustomerUser(
     },
   });
 
+  let emailSent = false;
+  if (input.sendEmail) {
+    try {
+      await sendCustomerCredentialsMail(email, name, email, plain);
+      emailSent = true;
+    } catch (err) {
+      console.error('Giriş bilgisi e-postası gönderilemedi', err);
+    }
+  }
+
   return {
     id: String(row.id),
     customerId: String(musteriId),
@@ -235,13 +255,14 @@ export async function createCustomerUser(
     phone,
     active: true,
     lastLogin: null,
-    tempPassword: plain,
+    emailSent,
   };
 }
 
 export async function resetCustomerUserPassword(
   musteriId: number,
   userId: number,
+  channel: 'mail' | 'sms' | 'wp' = 'mail',
 ): Promise<PasswordResetResult> {
   await assertMusteri(musteriId);
   const row = await prisma.user.findFirst({
@@ -256,12 +277,22 @@ export async function resetCustomerUserPassword(
     data: { password, isPassword: true },
   });
 
-  return {
-    password: plain,
-    name: (row.adsoyad || row.email).trim(),
-    email: row.email,
-    phone: digitsPhone(row.telefon),
-  };
+  const name = (row.adsoyad || row.email).trim();
+  const email = row.email;
+  const phone = digitsPhone(row.telefon);
+
+  if (channel === 'mail') {
+    if (!email.includes('@')) throw new CustomerDetailError('E-posta adresi yok');
+    try {
+      await sendCustomerCredentialsMail(email, name, email, plain);
+    } catch (err) {
+      console.error('Şifre e-postası gönderilemedi', err);
+      throw new CustomerDetailError('E-posta gönderilemedi. SMTP ayarlarını kontrol edin.');
+    }
+    return { name, email, phone, channel, emailSent: true };
+  }
+
+  return { password: plain, name, email, phone, channel };
 }
 
 export async function updateCustomerUser(
