@@ -182,21 +182,10 @@ export async function ensureSmtpAyarlarColumn(): Promise<void> {
 /** eposta_sablonlari tablosu */
 export async function ensureEpostaSablonlariTable(): Promise<void> {
   try {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS \`eposta_sablonlari\` (
-        \`id\` INT NOT NULL AUTO_INCREMENT,
-        \`tip\` VARCHAR(64) NOT NULL,
-        \`adi\` VARCHAR(255) NOT NULL,
-        \`konu\` VARCHAR(255) NOT NULL,
-        \`icerik\` LONGTEXT NOT NULL,
-        \`remove\` TINYINT(1) NULL,
-        PRIMARY KEY (\`id\`),
-        UNIQUE KEY \`eposta_sablonlari_tip_key\` (\`tip\`)
-      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-    `);
-    const { seedEmailTemplatesIfEmpty } = await import(
+    const { ensureEpostaSablonTable, seedEmailTemplatesIfEmpty } = await import(
       '../services/emailTemplatesService.js'
     );
+    await ensureEpostaSablonTable();
     await seedEmailTemplatesIfEmpty();
   } catch (err) {
     console.warn('[schema] eposta_sablonlari atlandı:', err);

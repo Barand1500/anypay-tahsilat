@@ -110,39 +110,75 @@ function mapRow(r: {
   };
 }
 
+/** Tablo yoksa oluştur — her API çağrısında güvenli */
+export async function ensureEpostaSablonTable(): Promise<void> {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`eposta_sablonlari\` (
+      \`id\` INT NOT NULL AUTO_INCREMENT,
+      \`tip\` VARCHAR(64) NOT NULL,
+      \`adi\` VARCHAR(255) NOT NULL,
+      \`konu\` VARCHAR(255) NOT NULL,
+      \`icerik\` LONGTEXT NOT NULL,
+      \`remove\` TINYINT(1) NULL,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`eposta_sablonlari_tip_key\` (\`tip\`)
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+  `);
+}
+
 export async function seedEmailTemplatesIfEmpty(): Promise<void> {
-  const count = await prisma.epostaSablon.count({ where: notRemoved() });
+  await ensureEpostaSablonTable();
+
+  const countRows = await prisma.$queryRaw<{ c: bigint | number }[]>`
+    SELECT COUNT(*) AS c FROM \`eposta_sablonlari\`
+    WHERE \`remove\` IS NULL OR \`remove\` = 0
+  `;
+  const count = Number(countRows[0]?.c ?? 0);
   if (count > 0) return;
+
   for (const s of SEED) {
-    await prisma.epostaSablon.create({
-      data: {
-        tip: s.tip,
-        adi: s.adi,
-        konu: s.konu,
-        icerik: s.icerik,
-        remove: false,
-      },
-    });
+    await prisma.$executeRawUnsafe(
+      `INSERT IGNORE INTO \`eposta_sablonlari\` (\`tip\`, \`adi\`, \`konu\`, \`icerik\`, \`remove\`)
+       VALUES (?, ?, ?, ?, 0)`,
+      s.tip,
+      s.adi,
+      s.konu,
+      s.icerik,
+    );
   }
   console.log('[schema] eposta_sablonlari seed eklendi');
 }
 
 export async function listEmailTemplates(): Promise<PublicEmailTemplate[]> {
+  await ensureEpostaSablonTable();
   await seedEmailTemplatesIfEmpty();
-  const rows = await prisma.epostaSablon.findMany({
-    where: notRemoved(),
-    orderBy: { adi: 'asc' },
-  });
+
+  const rows = await prisma.$queryRaw<
+    { id: number; tip: string; adi: string; konu: string; icerik: string }[]
+  >`
+    SELECT \`id\`, \`tip\`, \`adi\`, \`konu\`, \`icerik\`
+    FROM \`eposta_sablonlari\`
+    WHERE \`remove\` IS NULL OR \`remove\` = 0
+    ORDER BY \`adi\` ASC
+  `;
   return rows.map(mapRow);
 }
 
 export async function getEmailTemplateByType(
   typeKey: string,
 ): Promise<PublicEmailTemplate | null> {
+  await ensureEpostaSablonTable();
   await seedEmailTemplatesIfEmpty();
-  const row = await prisma.epostaSablon.findFirst({
-    where: { tip: typeKey, ...notRemoved() },
-  });
+  const rows = await prisma.$queryRaw<
+    { id: number; tip: string; adi: string; konu: string; icerik: string }[]
+  >`
+    SELECT \`id\`, \`tip\`, \`adi\`, \`konu\`, \`icerik\`
+    FROM \`eposta_sablonlari\`
+    WHERE \`tip\` = ${typeKey}
+      AND (\`remove\` IS NULL OR \`remove\` = 0)
+    LIMIT 1
+  `;
+  const row = rows[0];
   return row ? mapRow(row) : null;
 }
 
@@ -151,6 +187,8 @@ export async function createEmailTemplate(input: {
   subject: string;
   body: string;
 }): Promise<PublicEmailTemplate> {
+  await ensureEpostaSablonTable();
+
   const typeKey = input.typeKey.trim();
   if (!ALLOWED_TYPES.has(typeKey)) throw new SettingsError('Geçersiz şablon tipi');
 
@@ -164,7 +202,6 @@ export async function createEmailTemplate(input: {
   if (!subject) throw new SettingsError('Konu gerekli');
   if (!body) throw new SettingsError('İçerik gerekli');
 
-  // Soft-silinmiş aynı tip varsa geri aç
   const soft = await prisma.epostaSablon.findFirst({
     where: { tip: typeKey, remove: true },
   });
@@ -181,7 +218,6 @@ export async function createEmailTemplate(input: {
     return mapRow(row);
   }
 
-  // Unique tip: silinmiş satır tip_eski#id olabilir; temiz create
   try {
     const row = await prisma.epostaSablon.create({
       data: {
@@ -194,7 +230,6 @@ export async function createEmailTemplate(input: {
     });
     return mapRow(row);
   } catch {
-    // tip unique çakışması — soft silinmiş satırı bul (tip değişmiş olabilir)
     throw new SettingsError('Bu şablon tipi kaydedilemedi');
   }
 }
@@ -203,6 +238,8 @@ export async function updateEmailTemplate(
   id: number,
   input: { typeKey: string; subject: string; body: string },
 ): Promise<PublicEmailTemplate> {
+  await ensureEpostaSablonTable();
+
   const existing = await prisma.epostaSablon.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -234,11 +271,12 @@ export async function updateEmailTemplate(
 }
 
 export async function softDeleteEmailTemplate(id: number): Promise<void> {
+  await ensureEpostaSablonTable();
+
   const existing = await prisma.epostaSablon.findFirst({
     where: { id, ...notRemoved() },
   });
   if (!existing) throw new SettingsError('Şablon bulunamadı');
-  // Unique tip serbest kalsın — tip’i serbestleştir
   await prisma.epostaSablon.update({
     where: { id },
     data: {

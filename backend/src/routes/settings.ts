@@ -278,8 +278,9 @@ settingsRouter.get('/email/templates', async (_req, res) => {
   try {
     return sendSuccess(res, await listEmailTemplates());
   } catch (err) {
-    console.error(err);
-    return sendError(res, 500, 'Şablonlar yüklenemedi');
+    console.error('[email/templates]', err);
+    const detail = err instanceof Error ? err.message : 'Şablonlar yüklenemedi';
+    return sendError(res, 500, detail || 'Şablonlar yüklenemedi');
   }
 });
 
