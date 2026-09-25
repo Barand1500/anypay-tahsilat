@@ -173,27 +173,8 @@ export async function listCustomerUsers(musteriId: number): Promise<PublicCustom
   if (matchIdx >= 0) {
     const [hit] = list.splice(matchIdx, 1);
     list.unshift({ ...hit, isPrimary: true, name: hit.name || cariName });
-  } else if (cariEmail.includes('@') && cariPhone.length >= 10) {
-    try {
-      const created = await createCustomerUser(musteriId, {
-        name: cariName,
-        email: cariEmail,
-        phone: cariPhone,
-      });
-      list.unshift({ ...created, isPrimary: true });
-    } catch {
-      list.unshift({
-        id: `primary-${musteriId}`,
-        customerId: String(musteriId),
-        name: cariName,
-        email: cariEmail,
-        phone: cariPhone,
-        active: true,
-        lastLogin: null,
-        isPrimary: true,
-      });
-    }
   } else if (cariName || cariEmail || cariPhone) {
+    // Sentetik cari satırı — otomatik user create yok (e-posta çakışması / yan etki)
     list.unshift({
       id: `primary-${musteriId}`,
       customerId: String(musteriId),
@@ -227,46 +208,109 @@ export async function createCustomerUser(
   if (!email.includes('@')) throw new CustomerDetailError('Geçerli e-posta girin');
   if (phone.length < 10) throw new CustomerDetailError('Telefon gerekli');
 
-  const exists = await prisma.user.findFirst({
-    where: { email, ...notRemoved() },
-    select: { id: true, musteriId: true },
+  const existing = await prisma.user.findFirst({
+    where: { email },
+    select: {
+      id: true,
+      musteriId: true,
+      remove: true,
+      adsoyad: true,
+      telefon: true,
+      isVerified: true,
+      lastLogin: true,
+      email: true,
+    },
   });
-  if (exists) {
-    let orphan = false;
-    if (exists.musteriId != null) {
-      const m = await prisma.musteri.findFirst({
-        where: { id: exists.musteriId },
-        select: { remove: true },
-      });
-      // Müşteri soft-silinmişse e-posta yeniden kullanılabilir
-      orphan = !m || m.remove === true;
-    }
-    if (!orphan) throw new CustomerDetailError('Bu e-posta zaten kayıtlı');
-    await releaseUserEmail(exists.id, email);
-  } else {
-    const ghost = await prisma.user.findFirst({
-      where: { email, remove: true },
-      select: { id: true, email: true },
+
+  // Aynı müşteriye zaten bağlıysa — yeni kayıt açma, istenirse şifre maili at
+  if (
+    existing &&
+    existing.musteriId === musteriId &&
+    (existing.remove === null || existing.remove === false)
+  ) {
+    const plain = (input.password || '').trim() || randomBytes(4).toString('hex');
+    const password = await bcrypt.hash(plain, 10);
+    const row = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        adsoyad: name,
+        telefon: phone,
+        password,
+        isVerified: true,
+        isPassword: true,
+        remove: false,
+      },
     });
-    if (ghost) await releaseUserEmail(ghost.id, ghost.email);
+    let emailSent = false;
+    if (input.sendEmail) {
+      try {
+        await sendCustomerCredentialsMail(email, name, email, plain);
+        emailSent = true;
+      } catch (err) {
+        console.error('Giriş bilgisi e-postası gönderilemedi', err);
+      }
+    }
+    return {
+      id: String(row.id),
+      customerId: String(musteriId),
+      name,
+      email,
+      phone,
+      active: true,
+      lastLogin: row.lastLogin ? row.lastLogin.toISOString() : null,
+      emailSent,
+    };
+  }
+
+  if (existing && (existing.remove === null || existing.remove === false)) {
+    if (existing.musteriId == null) {
+      throw new CustomerDetailError(
+        'Bu e-posta panel kullanıcı hesabına ait. Müşteri girişi için farklı bir e-posta kullanın.',
+      );
+    }
+    const m = await prisma.musteri.findFirst({
+      where: { id: existing.musteriId },
+      select: { remove: true },
+    });
+    if (m && m.remove !== true) {
+      throw new CustomerDetailError('Bu e-posta başka bir müşteriye ait');
+    }
+    // Soft-silinmiş müşterinin kullanıcısı — e-postayı serbest bırak
+    await releaseUserEmail(existing.id, email);
+  } else if (existing && existing.remove === true) {
+    await releaseUserEmail(existing.id, existing.email);
   }
 
   const plain = (input.password || '').trim() || randomBytes(4).toString('hex');
   const password = await bcrypt.hash(plain, 10);
 
-  const row = await prisma.user.create({
-    data: {
-      musteriId,
-      email,
-      adsoyad: name,
-      telefon: phone,
-      password,
-      isVerified: true,
-      isPassword: true,
-      roles: ['ROLE_SUPERMUSTERI'],
-      remove: false,
-    },
-  });
+  let row;
+  try {
+    row = await prisma.user.create({
+      data: {
+        musteriId,
+        email,
+        adsoyad: name,
+        telefon: phone,
+        password,
+        isVerified: true,
+        isPassword: true,
+        roles: ['ROLE_SUPERMUSTERI'],
+        remove: false,
+      },
+    });
+  } catch (err: unknown) {
+    const code =
+      err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: string }).code)
+        : '';
+    if (code === 'P2002') {
+      throw new CustomerDetailError(
+        'Bu e-posta zaten kayıtlı. Müşteri girişi için farklı bir e-posta deneyin.',
+      );
+    }
+    throw err;
+  }
 
   let emailSent = false;
   if (input.sendEmail) {

@@ -148,6 +148,7 @@ export default function CustomerFormPage() {
     if (!token) return;
     setSaving(true);
     setFormError(null);
+    let createdId: string | null = null;
     try {
       const created = await api.post<ApiCustomer>(
         '/api/customers',
@@ -165,6 +166,7 @@ export default function CustomerFormPage() {
         },
         token,
       );
+      createdId = String(created.id);
 
       let flash = 'Müşteri kaydedildi';
       let courierEmail: string | undefined;
@@ -199,6 +201,14 @@ export default function CustomerFormPage() {
         },
       });
     } catch (err) {
+      // Kullanıcı adımı patladıysa yarım müşteriyi geri al — listede hayalet kalmasın
+      if (createdId && createUser && token) {
+        try {
+          await api.delete(`/api/customers/${createdId}`, token);
+        } catch {
+          /* sessiz */
+        }
+      }
       setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
     } finally {
       setSaving(false);

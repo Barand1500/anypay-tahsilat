@@ -101,12 +101,14 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
     if (u.phone.replace(/\D/g, '').length < 10) {
       throw new Error('Şifre için önce telefon girin (çift tık → düzenle)');
     }
+    // Aynı e-posta bu müşteriye bağlıysa create idempotent döner; değilse net hata
     const created = await api.post<CustomerUser>(
       `/api/customers/${encodeURIComponent(customer.id)}/users`,
       {
         name: u.name.trim() || customer.title,
         email: u.email.trim().toLocaleLowerCase('tr'),
         phone: u.phone.replace(/\D/g, '').slice(0, 10),
+        sendEmail: false,
       },
       token,
     );
