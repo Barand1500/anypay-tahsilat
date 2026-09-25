@@ -10,11 +10,21 @@ type Props = {
   toEmail?: string;
   /** SMTP / gönderim başarısız — uçuş ortasında yere çakılır */
   failed?: boolean;
+  /** Balon metni (varsayılan: şifre) */
+  title?: string;
+  titleFailed?: string;
   onDone: () => void;
 };
 
-/** Şifre / giriş bilgisi gönderildiğinde uçan kurye + zarf animasyonu. */
-export function PasswordCourierOverlay({ open, toEmail, failed = false, onDone }: Props) {
+/** E-posta kurye animasyonu — şifre / ödeme linki vb. */
+export function PasswordCourierOverlay({
+  open,
+  toEmail,
+  failed = false,
+  title = 'Senin için şifreyi götürüyoruz',
+  titleFailed = 'Şifreyi götürmeye çalışıyoruz…',
+  onDone,
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const craftRef = useRef<HTMLDivElement>(null);
   const bobRef = useRef<HTMLDivElement>(null);
@@ -207,7 +217,7 @@ export function PasswordCourierOverlay({ open, toEmail, failed = false, onDone }
       ref={rootRef}
       className="pointer-events-none fixed inset-0 z-[10100] overflow-hidden"
       aria-live="polite"
-      aria-label={failed ? 'Şifre gönderilemedi' : 'Şifre gönderiliyor'}
+      aria-label={failed ? titleFailed : title}
     >
       <div
         className={[
@@ -231,7 +241,7 @@ export function PasswordCourierOverlay({ open, toEmail, failed = false, onDone }
               ref={bubbleTitleRef}
               className="text-center text-[13px] font-bold leading-snug text-[var(--panel-ink)]"
             >
-              {failed ? 'Şifreyi götürmeye çalışıyoruz…' : 'Senin için şifreyi götürüyoruz'}
+              {failed ? titleFailed : title}
             </p>
             {toEmail ? (
               <p className="mt-1 truncate text-center text-[11px] text-[var(--panel-muted)]">

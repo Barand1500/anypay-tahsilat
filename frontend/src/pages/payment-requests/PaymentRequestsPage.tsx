@@ -779,6 +779,8 @@ export default function PaymentRequestsPage() {
         open={Boolean(courier)}
         toEmail={courier?.email}
         failed={courier?.failed}
+        title="Senin için ödeme linkini götürüyoruz"
+        titleFailed="Ödeme linkini götürmeye çalışıyoruz…"
         onDone={() => {
           if (courier?.flash) setToast(courier.flash);
           setCourier(null);
