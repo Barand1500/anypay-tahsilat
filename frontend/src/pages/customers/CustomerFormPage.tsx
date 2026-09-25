@@ -55,7 +55,6 @@ export default function CustomerFormPage() {
   const [accountType, setAccountType] = useState(() => getDefaultAccountType());
   const [accountPrompt, setAccountPrompt] = useState(false);
   const [kind, setKind] = useState<CustomerKind>(() => getDefaultCustomerKind());
-  const [code, setCode] = useState('');
   const [identityNo, setIdentityNo] = useState('');
   const [taxNo, setTaxNo] = useState('');
   const [taxOfficeId, setTaxOfficeId] = useState<string | null>(null);
@@ -154,7 +153,6 @@ export default function CustomerFormPage() {
       const created = await api.post<ApiCustomer>(
         '/api/customers',
         {
-          code: code.trim() || undefined,
           title: title.trim().toLocaleUpperCase('tr'),
           kind,
           phone: phone.replace(/\D/g, '').slice(0, 10),
@@ -266,42 +264,33 @@ export default function CustomerFormPage() {
               kmJump
             />
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <CreatableFilterInput
-                label="Cari Tipi"
-                value={accountType}
-                onChange={setAccountType}
-                options={accountTypes}
-                placeholder="Cari tipi yazın veya seçin"
-                kmJump
-              />
-              <FloatingSearchSelect
-                label="Tip *"
-                options={kindOptions}
-                value={kind}
-                onChange={(v) => {
-                  if (!v) return;
-                  const next = v as CustomerKind;
-                  setKind(next);
-                  if (next === 'tuzel') setIdentityNo('');
-                  else {
-                    setTaxNo('');
-                    setTaxOfficeId(null);
-                  }
-                }}
-                required
-                kmJump
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextInput
-                data-km-jump
-                label="Müşteri Kodu"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-              {kind === 'tuzel' ? (
+            {kind === 'tuzel' ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <CreatableFilterInput
+                  label="Cari Tipi"
+                  value={accountType}
+                  onChange={setAccountType}
+                  options={accountTypes}
+                  placeholder="Belirtilmemiş"
+                  kmJump
+                />
+                <FloatingSearchSelect
+                  label="Müşteri Tipi *"
+                  options={kindOptions}
+                  value={kind}
+                  onChange={(v) => {
+                    if (!v) return;
+                    const next = v as CustomerKind;
+                    setKind(next);
+                    if (next === 'tuzel') setIdentityNo('');
+                    else {
+                      setTaxNo('');
+                      setTaxOfficeId(null);
+                    }
+                  }}
+                  required
+                  kmJump
+                />
                 <TextInput
                   data-km-jump
                   label="Vergi Numarası"
@@ -309,8 +298,43 @@ export default function CustomerFormPage() {
                   value={taxNo}
                   onChange={(e) => setTaxNo(e.target.value.replace(/\D/g, '').slice(0, taxMax))}
                   error={errors.taxNo}
+                  className="font-mono tabular-nums"
                 />
-              ) : (
+                <FloatingSearchSelect
+                  label="Vergi Dairesi"
+                  options={taxOffices}
+                  value={taxOfficeId}
+                  onChange={setTaxOfficeId}
+                  kmJump
+                />
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <CreatableFilterInput
+                  label="Cari Tipi"
+                  value={accountType}
+                  onChange={setAccountType}
+                  options={accountTypes}
+                  placeholder="Belirtilmemiş"
+                  kmJump
+                />
+                <FloatingSearchSelect
+                  label="Müşteri Tipi *"
+                  options={kindOptions}
+                  value={kind}
+                  onChange={(v) => {
+                    if (!v) return;
+                    const next = v as CustomerKind;
+                    setKind(next);
+                    if (next === 'tuzel') setIdentityNo('');
+                    else {
+                      setTaxNo('');
+                      setTaxOfficeId(null);
+                    }
+                  }}
+                  required
+                  kmJump
+                />
                 <TextInput
                   data-km-jump
                   label={kind === 'yabanci' ? 'Pasaport No' : 'TC Kimlik No'}
@@ -324,19 +348,10 @@ export default function CustomerFormPage() {
                   }
                   inputMode={kind === 'yabanci' ? 'text' : 'numeric'}
                   error={errors.identityNo}
+                  className="font-mono tabular-nums"
                 />
-              )}
-            </div>
-
-            {kind === 'tuzel' ? (
-              <FloatingSearchSelect
-                label="Vergi Dairesi"
-                options={taxOffices}
-                value={taxOfficeId}
-                onChange={setTaxOfficeId}
-                kmJump
-              />
-            ) : null}
+              </div>
+            )}
 
             <TextInput
               data-km-jump
