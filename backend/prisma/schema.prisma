@@ -145,11 +145,12 @@ model Musteri {
   @@map("musteriler")
 }
 
-/** Cari tipi (Müşteri, Bayi…) */
+/** Cari tipi (Müşteri, Bayi…) — izinli_taksitler CSV */
 model CariTipi {
-  id     Int      @id @default(autoincrement())
-  adi    String   @db.VarChar(255)
-  remove Boolean?
+  id              Int      @id @default(autoincrement())
+  adi             String   @db.VarChar(255)
+  remove          Boolean?
+  izinliTaksitler String?  @map("izinli_taksitler") @db.LongText
 
   @@map("cari_tipleri")
 }
@@ -274,6 +275,8 @@ model Ayarlar {
   binListLink            String?   @map("bin_list_link") @db.VarChar(255)
   ilkBankaCekim          Boolean?  @map("ilk_banka_cekim")
   uygulamaKayit          Boolean?  @map("uygulama_kayit")
+  /** Taksit öncelik sırası — CSV: user,cari veya cari,user */
+  taksitSiralama         String?   @map("taksit_siralama") @db.VarChar(64)
 
   @@map("ayarlar")
 }

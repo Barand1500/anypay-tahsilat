@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
+import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
@@ -50,9 +51,9 @@ const DEFAULT_MERCHANT: Customer = {
  * Hızlı Ödeme — firma adına; 3 kart (ödeme / kart / banka).
  */
 export default function QuickPayPage() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
-  const allowedInstallments = user?.installments?.length ? user.installments : null;
+  const { allowed: allowedInstallments } = useEffectiveInstallments(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);

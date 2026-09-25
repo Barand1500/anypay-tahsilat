@@ -74,8 +74,52 @@ export async function ensureUserBranchIdsColumn(): Promise<void> {
   }
 }
 
+/** cari_tipleri.izinli_taksitler */
+export async function ensureCariTipiInstallmentsColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'cari_tipleri'
+        AND COLUMN_NAME = 'izinli_taksitler'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `cari_tipleri` ADD COLUMN `izinli_taksitler` LONGTEXT NULL',
+    );
+    console.log('[schema] cari_tipleri.izinli_taksitler eklendi');
+  } catch (err) {
+    console.warn('[schema] cari_tipleri.izinli_taksitler atlandı:', err);
+  }
+}
+
+/** ayarlar.taksit_siralama */
+export async function ensureTaksitSiralamaColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'taksit_siralama'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `ayarlar` ADD COLUMN `taksit_siralama` VARCHAR(64) NULL DEFAULT 'user,cari'",
+    );
+    console.log('[schema] ayarlar.taksit_siralama eklendi');
+  } catch (err) {
+    console.warn('[schema] taksit_siralama atlandı:', err);
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
   await ensureUserBranchIdsColumn();
+  await ensureCariTipiInstallmentsColumn();
+  await ensureTaksitSiralamaColumn();
 }

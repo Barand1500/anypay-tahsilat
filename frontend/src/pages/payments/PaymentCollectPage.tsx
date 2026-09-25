@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
+import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
 import { useCustomer } from '../customers/useCustomer';
@@ -31,14 +32,15 @@ type PayType = '' | 'ch' | 'fatura';
  */
 export default function PaymentCollectPage() {
   const { id } = useParams();
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
-  const allowedInstallments = user?.installments?.length ? user.installments : null;
+  const { customer, loading: customerLoading, error: customerError } = useCustomer(id);
+  const { allowed: allowedInstallments } = useEffectiveInstallments(
+    customer?.accountTypeId ?? null,
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
-
-  const { customer, loading: customerLoading, error: customerError } = useCustomer(id);
   const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());

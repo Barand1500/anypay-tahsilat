@@ -15,6 +15,7 @@ type Props = {
 
 /**
  * Çoklu seçim — chip özeti + checklist (şube vb.).
+ * Boşken yalnızca label; seçim/açıkken label üste çıkar.
  */
 export function OptionMultiSelect({
   label,
@@ -80,7 +81,7 @@ export function OptionMultiSelect({
         : `${selectedLabels.slice(0, 2).join(', ')} +${selectedLabels.length - 2}`;
 
   return (
-    <div className={pulse ? 'field-focus-pulse rounded-xl' : ''}>
+    <div className={['relative', pulse ? 'field-focus-pulse rounded-xl' : ''].join(' ')}>
       <button
         ref={btnRef}
         type="button"
@@ -90,7 +91,8 @@ export function OptionMultiSelect({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={[
-          'relative flex w-full flex-col rounded-xl border bg-[var(--input-bg)] px-3.5 pb-2.5 pt-5 text-left transition',
+          'relative flex w-full items-center rounded-xl border bg-[var(--input-bg)] px-3.5 text-left text-sm outline-none transition-colors',
+          floating ? 'pb-2.5 pt-5' : 'py-3.5',
           open
             ? 'border-[var(--input-border-focus)]'
             : 'border-[var(--input-border)] hover:border-[var(--input-border-focus)]/60',
@@ -98,26 +100,27 @@ export function OptionMultiSelect({
       >
         <span
           className={[
-            'pointer-events-none absolute left-3 origin-left px-1.5 text-[var(--panel-muted)] transition-all duration-200',
-            floating
-              ? 'top-0 -translate-y-1/2 text-xs font-medium text-[var(--input-label)]'
-              : 'top-1/2 -translate-y-1/2 text-sm',
-          ].join(' ')}
-        >
-          {label}
-        </span>
-        <span
-          className={[
-            'truncate pr-6 text-sm font-semibold',
+            'min-w-0 flex-1 truncate pr-2 font-semibold',
             value.length ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
+            !floating ? 'invisible' : '',
           ].join(' ')}
         >
           {summary}
         </span>
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--panel-muted)]">
-          ▾
-        </span>
+        <span className="ml-2 shrink-0 text-[var(--panel-muted)]">▾</span>
       </button>
+      <label
+        htmlFor={id}
+        className={[
+          'input-label-gap pointer-events-none absolute left-3 z-10 origin-left px-1.5 transition-all duration-200',
+          floating
+            ? 'is-gapped top-0 -translate-y-1/2 text-xs font-medium text-[var(--panel-muted)]'
+            : 'top-1/2 -translate-y-1/2 text-sm text-[var(--panel-muted)]',
+          open ? '!text-[var(--input-label)]' : '',
+        ].join(' ')}
+      >
+        {label}
+      </label>
 
       {open
         ? createPortal(

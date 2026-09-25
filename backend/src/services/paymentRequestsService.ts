@@ -2,11 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
 import { createPayment, PaymentsError } from './paymentsService.js';
-import {
-  assertInstallmentsAllowed,
-  getUserAllowedInstallments,
-  UsersError,
-} from './usersService.js';
+import { resolveAllowedInstallments } from './installmentPriorityService.js';
+import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 import {
   parsePayRequestFiles,
   type PayRequestFile,
@@ -81,6 +78,7 @@ export type PublicPaymentRequest = {
   currencyId: string;
   currencySymbol: string;
   currencyShortName: string;
+  accountTypeId: number | null;
 };
 
 function tipFromPayType(payType: 'ch' | 'fatura'): number {
@@ -139,7 +137,7 @@ async function hydrate(rows: Row[]): Promise<PublicPaymentRequest[]> {
     musteriIds.length
       ? prisma.musteri.findMany({
           where: { id: { in: musteriIds } },
-          select: { id: true, unvan: true, telefon: true, eposta: true },
+          select: { id: true, unvan: true, telefon: true, eposta: true, cariTipiId: true },
         })
       : Promise.resolve([]),
     userIds.length
@@ -196,6 +194,7 @@ async function hydrate(rows: Row[]): Promise<PublicPaymentRequest[]> {
       currencyId: String(r.parabirimiId),
       currencySymbol: c?.sembol || '₺',
       currencyShortName: c?.kisaAdi || 'TL',
+      accountTypeId: m?.cariTipiId ?? null,
     };
   });
 }
@@ -249,7 +248,10 @@ export async function createPaymentRequest(
   }
 
   try {
-    const allowed = await getUserAllowedInstallments(input.kullaniciId);
+    const allowed = await resolveAllowedInstallments({
+      kullaniciId: input.kullaniciId,
+      musteriId: input.musteriId,
+    });
     assertInstallmentsAllowed(allowed, input.installments);
   } catch (err) {
     if (err instanceof UsersError) throw new PaymentRequestsError(err.message);
@@ -418,14 +420,17 @@ export async function updatePaymentRequest(
   }
   const existing = await prisma.odemeIstegi.findFirst({
     where: { id, ...notRemoved() },
-    select: { id: true, durum: true, kullaniciId: true },
+    select: { id: true, durum: true, kullaniciId: true, musteriId: true },
   });
   if (!existing) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
   if (existing.durum) throw new PaymentRequestsError('Ödenmiş istek düzenlenemez');
 
   if (existing.kullaniciId != null) {
     try {
-      const allowed = await getUserAllowedInstallments(existing.kullaniciId);
+      const allowed = await resolveAllowedInstallments({
+        kullaniciId: existing.kullaniciId,
+        musteriId: existing.musteriId,
+      });
       assertInstallmentsAllowed(allowed, input.installments);
     } catch (err) {
       if (err instanceof UsersError) throw new PaymentRequestsError(err.message);

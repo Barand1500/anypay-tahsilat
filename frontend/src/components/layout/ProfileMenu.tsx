@@ -13,11 +13,12 @@ const MENU = [
   { to: '/surum-gecmisi', label: 'Sürüm Geçmişi', icon: 'version' },
   { to: '/log-kayitlari', label: 'Log Kayıtları', icon: 'logs' },
   { to: '/sistem-sifirlama', label: 'Sistem Sıfırlama', icon: 'reset' },
+  { to: '/siralama', label: 'Sıralama', icon: 'order' },
 ] as const;
 
 const PANEL_W = 260;
 /** Menü yaklaşık yüksekliği — alt boşluk azsa yukarı aç */
-const PANEL_H_EST = 380;
+const PANEL_H_EST = 420;
 
 type PanelPos =
   | { placement: 'down'; top: number; left: number }
@@ -353,6 +354,13 @@ function MenuIcon({ name }: { name: string }) {
         <svg {...c}>
           <path d="M20 12a8 8 0 1 1-2.3-5.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           <path d="M20 4v5h-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'order':
+      return (
+        <svg {...c}>
+          <path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          <path d="M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
         </svg>
       );
     default:

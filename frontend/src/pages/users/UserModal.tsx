@@ -1,9 +1,10 @@
 import gsap from 'gsap';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { OptionMultiSelect } from '../../components/ui/OptionMultiSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { InstallmentPaintGrid } from '../payments/InstallmentPaintGrid';
 import {
   emailSuggestions,
   formatPhoneLive,
@@ -61,8 +62,6 @@ export function UserModal({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
-  const [taksitOpen, setTaksitOpen] = useState(false);
-  const [taksitPos, setTaksitPos] = useState({ top: 0, left: 0, width: 0, up: false });
   const [pulse, setPulse] = useState<UserFocusField | null>(focusField);
 
   const branchSelectOptions = useMemo(() => {
@@ -72,8 +71,7 @@ export function UserModal({
 
   const panelRef = useRef<HTMLDivElement>(null);
   const emailWrap = useRef<HTMLDivElement>(null);
-  const taksitBtnRef = useRef<HTMLButtonElement>(null);
-  const taksitPanelRef = useRef<HTMLDivElement>(null);
+  const installmentsBoxRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -106,8 +104,6 @@ export function UserModal({
     function onDoc(e: MouseEvent) {
       const t = e.target as Node;
       if (!emailWrap.current?.contains(t)) setEmailOpen(false);
-      if (taksitBtnRef.current?.contains(t) || taksitPanelRef.current?.contains(t)) return;
-      setTaksitOpen(false);
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -121,8 +117,7 @@ export function UserModal({
       else if (field === 'email') emailRef.current?.focus();
       else if (field === 'phone') phoneRef.current?.focus();
       else if (field === 'installments') {
-        setTaksitOpen(true);
-        placeTaksit();
+        installmentsBoxRef.current?.querySelector<HTMLElement>('[data-inst]')?.focus();
       }
     }, 280);
     const clear = window.setTimeout(() => setPulse(null), 1600);
@@ -131,45 +126,6 @@ export function UserModal({
       window.clearTimeout(clear);
     };
   }, [focusField]);
-
-  function placeTaksit() {
-    const btn = taksitBtnRef.current;
-    if (!btn) return;
-    const r = btn.getBoundingClientRect();
-    // Modal altında kaldığı için her zaman yukarı aç
-    setTaksitPos({
-      top: r.top - 6,
-      left: r.left,
-      width: r.width,
-      up: true,
-    });
-  }
-
-  useLayoutEffect(() => {
-    if (!taksitOpen) return;
-    placeTaksit();
-  }, [taksitOpen]);
-
-  useEffect(() => {
-    if (!taksitOpen) return;
-    function onMove() {
-      placeTaksit();
-    }
-    window.addEventListener('resize', onMove);
-    window.addEventListener('scroll', onMove, true);
-    return () => {
-      window.removeEventListener('resize', onMove);
-      window.removeEventListener('scroll', onMove, true);
-    };
-  }, [taksitOpen]);
-
-  function toggleInst(n: number) {
-    setInstallments((prev) => {
-      if (prev.includes(n)) return prev.filter((x) => x !== n);
-      if (prev.length >= 12) return prev;
-      return [...prev, n].sort((a, b) => a - b);
-    });
-  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -379,94 +335,46 @@ export function UserModal({
               </button>
             </div>
 
-            <div>
-              <button
-                ref={taksitBtnRef}
-                type="button"
-                data-km-jump
-                onClick={() => setTaksitOpen((v) => !v)}
-                className={[
-                  'relative flex w-full flex-col rounded-xl border bg-[var(--input-bg)] px-3.5 py-3 text-left transition',
-                  taksitOpen || pulse === 'installments'
-                    ? 'border-[var(--input-border-focus)]'
-                    : 'border-[var(--input-border)]',
-                  pulse === 'installments' ? 'field-focus-pulse' : '',
-                ].join(' ')}
-              >
-                <span className="input-label-gap is-gapped absolute left-3 top-0 -translate-y-1/2 px-1.5 text-xs font-medium text-[var(--input-label)]">
-                  İzin Verilen Taksitler
-                </span>
-                <span
-                  className={[
-                    'pt-1 text-sm',
-                    installments.length ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
-                  ].join(' ')}
-                >
-                  {installments.length ? installments.join(', ') : 'Taksitleri seçiniz.'}
-                </span>
-              </button>
-
-              {taksitOpen
-                ? createPortal(
-                    <div
-                      ref={taksitPanelRef}
-                      className="fixed z-[12000] overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_16px_48px_rgba(0,0,0,0.22)]"
-                      style={
-                        taksitPos.up
-                          ? {
-                              bottom: window.innerHeight - (taksitBtnRef.current?.getBoundingClientRect().top ?? 0) + 6,
-                              left: taksitPos.left,
-                              width: taksitPos.width,
-                            }
-                          : {
-                              top: taksitPos.top,
-                              left: taksitPos.left,
-                              width: taksitPos.width,
-                            }
-                      }
-                    >
-                      <ul className="max-h-52 overflow-y-auto p-1">
-                        {INSTALLMENT_OPTIONS.map((n) => {
-                          const on = installments.includes(n);
-                          return (
-                            <li key={n}>
-                              <button
-                                type="button"
-                                onClick={() => toggleInst(n)}
-                                className={[
-                                  'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition',
-                                  on
-                                    ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_14%,transparent)] font-semibold text-[var(--color-brand-700)]'
-                                    : 'text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]',
-                                ].join(' ')}
-                              >
-                                {n}
-                                {on ? <span className="text-xs">✓</span> : null}
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      <div className="flex gap-2 border-t border-[var(--panel-line)] p-2">
-                        <button
-                          type="button"
-                          onClick={() => setInstallments([...INSTALLMENT_OPTIONS])}
-                          className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
-                        >
-                          Tümünü Seç
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setInstallments([])}
-                          className="flex-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500"
-                        >
-                          Temizle
-                        </button>
-                      </div>
-                    </div>,
-                    document.body,
-                  )
-                : null}
+            <div
+              ref={installmentsBoxRef}
+              className={pulse === 'installments' ? 'field-focus-pulse rounded-xl' : ''}
+            >
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+                İzin verilen taksitler
+              </p>
+              <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-3">
+                {installments.length === 0 ? (
+                  <p className="mb-2 text-sm text-[var(--panel-muted)]">Taksitleri seçiniz.</p>
+                ) : (
+                  <p className="mb-2 text-sm font-medium text-[var(--panel-ink)]">
+                    Seçili: {installments.join(', ')}
+                  </p>
+                )}
+                <InstallmentPaintGrid
+                  options={INSTALLMENT_OPTIONS}
+                  value={installments}
+                  onChange={setInstallments}
+                  kmJump
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    data-km-jump
+                    onClick={() => setInstallments([...INSTALLMENT_OPTIONS])}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-500"
+                  >
+                    Tümünü Seç
+                  </button>
+                  <button
+                    type="button"
+                    data-km-jump
+                    onClick={() => setInstallments([])}
+                    className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-400"
+                  >
+                    Temizle
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

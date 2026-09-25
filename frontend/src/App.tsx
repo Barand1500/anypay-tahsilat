@@ -15,6 +15,7 @@ import LoginPage from './pages/login/LoginPage';
 import ModulesPage from './pages/modules/ModulesPage';
 import OverviewPage from './pages/overview/OverviewPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import InstallmentPriorityPage from './pages/profile/InstallmentPriorityPage';
 import StatisticsPage from './pages/reports/StatisticsPage';
 import CollectionReportPage from './pages/reports/CollectionReportPage';
 import CustomerCollectionReportPage from './pages/reports/CustomerCollectionReportPage';
@@ -159,6 +160,7 @@ export default function App() {
         <Route path="surum-gecmisi" element={<VersionsPage />} />
         <Route path="log-kayitlari" element={<LogsPage />} />
         <Route path="sistem-sifirlama" element={<SystemResetPage />} />
+        <Route path="siralama" element={<InstallmentPriorityPage />} />
       </Route>
 
       <Route path="/pay/:token" element={<PublicPayPage />} />

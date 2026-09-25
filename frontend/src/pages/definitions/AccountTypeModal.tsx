@@ -6,7 +6,7 @@ import { InstallmentPaintGrid } from '../payments/InstallmentPaintGrid';
 import {
   ACCOUNT_TYPE_INSTALLMENTS,
   type AccountTypeDef,
-} from './mockAccountTypes';
+} from './accountTypeTypes';
 
 export type AccountTypeFocusField = 'name' | 'installments';
 
@@ -16,7 +16,7 @@ type Props = {
   mode: Mode;
   existingNames: string[];
   onClose: () => void;
-  onSave: (row: Omit<AccountTypeDef, 'id'> & { id?: string }) => void;
+  onSave: (row: Omit<AccountTypeDef, 'id'> & { id?: string }) => void | Promise<void>;
   focusField?: AccountTypeFocusField | null;
 };
 
@@ -95,7 +95,7 @@ export function AccountTypeModal({
       nameRef.current?.focus();
       return;
     }
-    onSave({
+    void onSave({
       id: src?.id,
       name: trimmed,
       installments: [...installments].sort((a, b) => a - b),

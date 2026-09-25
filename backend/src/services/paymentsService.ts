@@ -1,11 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
-import {
-  assertInstallmentsAllowed,
-  getUserAllowedInstallments,
-  UsersError,
-} from './usersService.js';
+import { resolveAllowedInstallments } from './installmentPriorityService.js';
+import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 
 export class PaymentsError extends Error {
   constructor(message: string) {
@@ -336,7 +333,10 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   }
 
   try {
-    const allowed = await getUserAllowedInstallments(input.kullaniciId);
+    const allowed = await resolveAllowedInstallments({
+      kullaniciId: input.kullaniciId,
+      musteriId: input.musteriId,
+    });
     assertInstallmentsAllowed(allowed, [input.installment > 0 ? input.installment : 1]);
   } catch (err) {
     if (err instanceof UsersError) throw new PaymentsError(err.message);

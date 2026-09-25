@@ -9,6 +9,11 @@ import {
   updateContactSettings,
   updateGeneralSettings,
 } from '../services/settingsService.js';
+import {
+  getInstallmentPriority,
+  updateInstallmentPriority,
+  type InstallmentSource,
+} from '../services/installmentPriorityService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -133,5 +138,33 @@ settingsRouter.patch('/contact', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'İletişim bilgileri kaydedilemedi');
+  }
+});
+
+const prioritySchema = z.object({
+  order: z.array(z.enum(['user', 'cari'])).min(2).max(2),
+});
+
+settingsRouter.get('/installment-priority', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getInstallmentPriority());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Sıralama yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/installment-priority', async (req: AuthedRequest, res) => {
+  const parsed = prioritySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz sıralama');
+  }
+  try {
+    const data = await updateInstallmentPriority(parsed.data.order as InstallmentSource[]);
+    await writePanelLog(req.auth!.sub, `Taksit sıralaması güncellendi — ${data.order.join(' › ')}`);
+    return sendSuccess(res, data, 'Sıralama kaydedildi');
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Sıralama kaydedilemedi');
   }
 });

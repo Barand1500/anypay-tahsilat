@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -8,14 +9,14 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { AccountTypeModal, type AccountTypeFocusField } from './AccountTypeModal';
 import {
   formatInstallmentsLabel,
-  loadAccountTypes,
-  saveAccountTypes,
   type AccountTypeDef,
-} from './mockAccountTypes';
+} from './accountTypeTypes';
 
 const COL_FOCUS: Record<string, AccountTypeFocusField> = {
   name: 'name',
@@ -23,10 +24,14 @@ const COL_FOCUS: Record<string, AccountTypeFocusField> = {
 };
 
 /**
- * Tanımlamalar › Cari Tipleri — liste + ekle/düzenle (mock).
+ * Tanımlamalar › Cari Tipleri — cari_tipleri (API).
  */
 export default function AccountTypesPage() {
-  const [rows, setRows] = useState<AccountTypeDef[]>(() => loadAccountTypes());
+  const { token } = useAuth();
+  const [rows, setRows] = useState<AccountTypeDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -37,7 +42,27 @@ export default function AccountTypesPage() {
     | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<AccountTypeDef | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<AccountTypeDef[]>('/api/account-types', token);
+      setRows(list);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Cari tipleri yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -52,10 +77,6 @@ export default function AccountTypesPage() {
   useEffect(() => {
     setPage(1);
   }, [query, pageSize]);
-
-  useEffect(() => {
-    saveAccountTypes(rows);
-  }, [rows]);
 
   useEffect(() => {
     const els = tableRef.current?.querySelectorAll('[data-account-type-row]');
@@ -97,25 +118,41 @@ export default function AccountTypesPage() {
     void navigator.clipboard.writeText(text);
   }
 
-  function saveRow(next: Omit<AccountTypeDef, 'id'> & { id?: string }) {
-    if (next.id) {
-      setRows((prev) => prev.map((r) => (r.id === next.id ? { ...r, ...next, id: next.id } : r)));
-    } else {
-      setRows((prev) => [
-        ...prev,
-        {
-          ...next,
-          id: `at-${Date.now()}`,
-        },
-      ]);
+  async function saveRow(next: Omit<AccountTypeDef, 'id'> & { id?: string }) {
+    if (!token) return;
+    setActionError(null);
+    const payload = { name: next.name, installments: next.installments };
+    try {
+      if (next.id) {
+        const updated = await api.patch<AccountTypeDef>(
+          `/api/account-types/${encodeURIComponent(next.id)}`,
+          payload,
+          token,
+        );
+        setRows((prev) => prev.map((r) => (r.id === next.id ? updated : r)));
+      } else {
+        const created = await api.post<AccountTypeDef>('/api/account-types', payload, token);
+        setRows((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+      }
+      setModal(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Kayıt başarısız');
     }
-    setModal(null);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!deleteTarget || !token) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/account-types/${encodeURIComponent(deleteTarget.id)}`, token);
+      setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function openEdit(row: AccountTypeDef, focusField?: AccountTypeFocusField | null) {
@@ -129,8 +166,36 @@ export default function AccountTypesPage() {
     openEdit(row, col ? COL_FOCUS[col] ?? 'name' : 'name');
   }
 
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
+        Cari tipleri yükleniyor…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
+        <p className="text-sm text-rose-500">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="mt-3 text-sm font-semibold text-[var(--color-brand-600)]"
+        >
+          Yeniden dene
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full space-y-4">
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <label className="flex items-center gap-2 text-sm text-[var(--panel-muted)]">
@@ -271,8 +336,9 @@ export default function AccountTypesPage() {
       {deleteTarget ? (
         <DeleteModal
           name={deleteTarget.name}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          busy={deleting}
+          onCancel={() => !deleting && setDeleteTarget(null)}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -302,10 +368,12 @@ function PagerBtn({
 
 function DeleteModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -325,12 +393,12 @@ function DeleteModal({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCancel();
+        if (!busy) onCancel();
       }
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-4">
@@ -351,17 +419,19 @@ function DeleteModal({
         <div className="flex justify-end gap-2 border-t border-[var(--panel-line)] px-5 py-3">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
+import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import { useCustomer } from '../customers/useCustomer';
 import { useCustomersList } from '../customers/useCustomersList';
@@ -30,9 +31,8 @@ function isPdfFile(f: AttachedFile) {
  */
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id, reqId } = useParams();
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
-  const allowedInstallments = user?.installments?.length ? user.installments : null;
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
@@ -57,6 +57,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     id: string;
     title: string;
     code: string;
+    accountTypeId?: number | null;
   } | null>(null);
   const [editLoading, setEditLoading] = useState(isEdit);
   const [editError, setEditError] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           taxOffice: '',
           kind: 'tuzel' as const,
           accountType: '',
+          accountTypeId: editCustomer.accountTypeId ?? null,
           parentId: null,
           address: '',
           identityNo: '',
@@ -91,6 +93,9 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const backLabel = 'Ödeme İstekleri';
 
   const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
+  const { allowed: allowedInstallments } = useEffectiveInstallments(
+    customer?.accountTypeId ?? null,
+  );
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
@@ -159,6 +164,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           installments: number[];
           files?: AttachedFile[];
           currencyId?: string;
+          accountTypeId?: number | null;
         }>(`/api/payment-requests/${encodeURIComponent(reqId)}`, token);
         if (cancelled) return;
         if (data.status === 'paid') {
@@ -175,6 +181,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           id: data.customerId,
           title: data.customerTitle,
           code: '',
+          accountTypeId: data.accountTypeId ?? null,
         });
         setPayType(data.type === 'fatura' ? 'fatura' : 'ch');
         setAmountText(formatMoneyTr(data.amount));
