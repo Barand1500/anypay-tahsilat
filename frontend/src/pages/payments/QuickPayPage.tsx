@@ -8,6 +8,7 @@ import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
+import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
@@ -15,7 +16,12 @@ import {
   detectBank,
   digitsOnly,
   formatCardNumber,
+  formatExpiryInput,
   formatMoneyTr,
+  getCardExpiryError,
+  isValidLuhn,
+  maskMoneyInput,
+  parseTrMoney,
   type BankInfo,
 } from './mockBanks';
 
@@ -63,7 +69,7 @@ export default function QuickPayPage() {
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
-  const [amountText, setAmountText] = useState('');
+  const [amountText, setAmountText] = useState(() => formatMoneyTr(1000));
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
@@ -83,9 +89,20 @@ export default function QuickPayPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [cardChecked, setCardChecked] = useState(false);
+  const [expiryChecked, setExpiryChecked] = useState(false);
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
-  const bank = useMemo(() => detectBank(digitsOnly(card)), [card]);
+  const cardDigits = digitsOnly(card);
+  const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
+  const cardFaulty =
+    cardChecked &&
+    cardDigits.length > 0 &&
+    (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
+  const expiryFaulty =
+    expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
+  const expiryOk =
+    expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
   const payTypeLabel =
     payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
 
@@ -165,19 +182,43 @@ export default function QuickPayPage() {
     setBalance(null);
   }
 
+  function onCardChange(raw: string) {
+    setCard(formatCardNumber(raw));
+    setCardChecked(false);
+    setErrors((prev) => {
+      if (!prev.card) return prev;
+      const { card: _, ...rest } = prev;
+      return rest;
+    });
+  }
+
+  function onExpiryChange(raw: string) {
+    setExpiry(formatExpiryInput(raw));
+    setExpiryChecked(false);
+    setErrors((prev) => {
+      if (!prev.expiry) return prev;
+      const { expiry: _, ...rest } = prev;
+      return rest;
+    });
+  }
+
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!payType) next.payType = 'Ödeme tipi seçin';
     if (!currencyId) next.currency = 'Para birimi seçin';
     if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
-    if (digitsOnly(tc).length !== 11) next.tc = '11 haneli T.C. girin';
+    if (tc && digitsOnly(tc).length !== 11) next.tc = 'TC 11 hane olmalı';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
-    if (digitsOnly(card).length < 15) next.card = 'Kart numarası eksik';
-    if (!/^\d{2}\/\d{2}$/.test(expiry)) next.expiry = 'AA/YY';
-    if (digitsOnly(cvc).length < 3) next.cvc = 'CVC';
+    if (cardDigits.length < 15) next.card = 'Kart numarası eksik';
+    else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
+    const expiryErr = getCardExpiryError(expiry);
+    if (expiryErr) next.expiry = expiryErr;
+    if (digitsOnly(cvc).length < 3) next.cvc = 'CVC gerekli';
     if (!pickedInstall) next.install = 'Taksit seçin';
     if (!contractOk) next.contract = 'Sözleşmeyi kabul edin';
+    setCardChecked(true);
+    setExpiryChecked(true);
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -197,7 +238,7 @@ export default function QuickPayPage() {
           holder: holder.trim(),
           tc: digitsOnly(tc),
           phone: digitsOnly(phone).slice(0, 10),
-          cardDigits: digitsOnly(card),
+          cardDigits,
           installment: pickedInstall?.n ?? 1,
           note: note.trim(),
           parabirimiId: Number(currencyId),
@@ -301,29 +342,47 @@ export default function QuickPayPage() {
 
             <div
               className={[
-                'flex rounded-xl border bg-[var(--input-bg)]',
-                errors.amount ? 'border-rose-400' : 'border-[var(--input-border)] focus-within:border-[var(--input-border-focus)]',
+                'flex rounded-xl border bg-[var(--input-bg)] transition',
+                errors.amount || errors.currency
+                  ? 'border-rose-400'
+                  : currencyOpen
+                    ? 'border-[var(--input-border-focus)]'
+                    : 'border-[var(--input-border)] focus-within:border-[var(--input-border-focus)]',
               ].join(' ')}
             >
-              <div className="relative flex min-w-0 flex-1 items-center gap-2 pl-3">
-                <CoinsIcon />
+              <div className="relative min-w-0 flex-1">
                 <input
                   data-km-jump
+                  id="quick-pay-amount"
                   value={amountText}
-                  onChange={(e) => setAmountText(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="Tutar"
-                  className="w-full bg-transparent py-3 pr-2 text-sm font-semibold tabular-nums outline-none"
+                  onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                  inputMode="numeric"
+                  placeholder=" "
+                  className="peer w-full rounded-l-xl bg-transparent px-3.5 pb-2.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
                 />
+                <label
+                  htmlFor="quick-pay-amount"
+                  className={[
+                    'input-label-gap pointer-events-none absolute left-3 top-1/2 z-10 origin-left -translate-y-1/2',
+                    'px-1.5 text-sm text-[var(--panel-muted)] transition-all duration-200',
+                    'peer-focus:top-0 peer-focus:translate-y-[-50%] peer-focus:text-xs peer-focus:font-medium peer-focus:text-[var(--input-label)]',
+                    'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:translate-y-[-50%] peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:font-medium peer-[:not(:placeholder-shown)]:peer-focus:text-[var(--input-label)]',
+                  ].join(' ')}
+                >
+                  Tutar
+                </label>
               </div>
-              <div ref={currencyRef} className="relative shrink-0 border-l border-[var(--panel-line)]">
+              <div
+                ref={currencyRef}
+                className="relative shrink-0 self-stretch border-l border-[var(--panel-line)]"
+              >
                 <button
                   type="button"
                   data-km-jump
                   onClick={() => setCurrencyOpen((o) => !o)}
-                  className="flex h-full min-h-[46px] items-center gap-1 px-3 text-sm font-bold"
+                  className="flex h-full min-h-[46px] items-center gap-1.5 rounded-r-xl bg-[var(--panel-surface)] px-3 text-sm font-bold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
                 >
-                  {currencySymbol || '—'}
+                  <span className="min-w-[1.1rem] text-center">{currencySymbol || '—'}</span>
                   <ChevronIcon />
                 </button>
                 {currencyOpen ? (
@@ -356,7 +415,9 @@ export default function QuickPayPage() {
                 ) : null}
               </div>
             </div>
-            {errors.amount ? <p className="text-xs text-rose-500">{errors.amount}</p> : null}
+            {errors.amount || errors.currency ? (
+              <p className="text-xs text-rose-500">{errors.amount || errors.currency}</p>
+            ) : null}
 
             <label className="flex items-center gap-2.5 text-sm">
               <button
@@ -407,37 +468,58 @@ export default function QuickPayPage() {
               error={errors.tc}
               inputMode="numeric"
               onChange={(e) => setTc(digitsOnly(e.target.value).slice(0, 11))}
+              className="font-mono tabular-nums"
             />
             <TextInput
               data-km-jump
               label="Telefon No"
-              value={phone}
+              value={formatPhoneLive(phone)}
               error={errors.phone}
               inputMode="tel"
-              onChange={(e) => setPhone(digitsOnly(e.target.value).slice(0, 10))}
+              onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
+              className="font-mono tabular-nums"
             />
             <TextInput
               data-km-jump
               label="Kart No"
-              value={formatCardNumber(card)}
+              value={card}
               error={errors.card}
               inputMode="numeric"
-              onChange={(e) => setCard(digitsOnly(e.target.value).slice(0, 16))}
+              autoComplete="cc-number"
+              onChange={(e) => onCardChange(e.target.value)}
+              onBlur={() => setCardChecked(true)}
+              className="!pr-[7rem] font-mono tabular-nums"
+              endAdornment={
+                cardFaulty ? (
+                  <FaultBadge />
+                ) : bank ? (
+                  <img
+                    src={bank.logo}
+                    alt=""
+                    title={bank.name}
+                    className="h-7 w-auto max-w-[80px] object-contain"
+                  />
+                ) : (
+                  <span className="rounded-md bg-[var(--panel-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)]">
+                    BIN
+                  </span>
+                )
+              }
             />
-            {bank ? (
-              <div className="flex items-center gap-2 rounded-lg bg-[var(--panel-surface)] px-2.5 py-1.5">
-                <img src={bank.logo} alt="" className="h-6 w-auto object-contain" />
-                <span className="text-xs font-semibold text-[var(--panel-ink)]">{bank.name}</span>
-              </div>
-            ) : null}
             <div className="grid grid-cols-2 gap-3">
               <TextInput
                 data-km-jump
-                label="Son Kullanım"
+                label="Son kullanım"
                 value={expiry}
                 error={errors.expiry}
                 inputMode="numeric"
-                onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                autoComplete="cc-exp"
+                onChange={(e) => onExpiryChange(e.target.value)}
+                onBlur={() => setExpiryChecked(true)}
+                className="!pr-20 font-mono tabular-nums"
+                endAdornment={
+                  expiryFaulty ? <FaultBadge /> : expiryOk ? <OkBadge /> : null
+                }
               />
               <TextInput
                 data-km-jump
@@ -446,6 +528,7 @@ export default function QuickPayPage() {
                 error={errors.cvc}
                 inputMode="numeric"
                 onChange={(e) => setCvc(digitsOnly(e.target.value).slice(0, 4))}
+                className="font-mono tabular-nums"
               />
             </div>
           </section>
@@ -456,14 +539,9 @@ export default function QuickPayPage() {
             <button
               type="button"
               data-km-jump
-              onClick={() => {
-                if (!amount || amount <= 0) {
-                  setToast('Önce tutar girin');
-                  return;
-                }
-                setInstallOpen(true);
-              }}
-              className="w-full rounded-xl bg-orange-500 px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600"
+              disabled={!amount || amount <= 0}
+              onClick={() => setInstallOpen(true)}
+              className="w-full rounded-xl bg-orange-500 px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-45"
             >
               Taksit Seçenekleri
             </button>
@@ -551,15 +629,20 @@ function SectionHead({ children }: { children: ReactNode }) {
   );
 }
 
-function parseTrMoney(raw: string) {
-  const n = Number(raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, ''));
-  return Number.isFinite(n) ? n : 0;
+function FaultBadge() {
+  return (
+    <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-600">
+      Hatalı
+    </span>
+  );
 }
 
-function formatExpiry(raw: string) {
-  const d = digitsOnly(raw).slice(0, 4);
-  if (d.length <= 2) return d;
-  return `${d.slice(0, 2)}/${d.slice(2)}`;
+function OkBadge() {
+  return (
+    <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-emerald-600">
+      Doğru
+    </span>
+  );
 }
 
 function DocIcon() {
@@ -567,16 +650,6 @@ function DocIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-rose-500" aria-hidden>
       <path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" />
       <path d="M14 3v5h5M9 13h6M9 17h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CoinsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-rose-500" aria-hidden>
-      <ellipse cx="12" cy="7" rx="7" ry="3" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
 }
