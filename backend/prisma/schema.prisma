@@ -343,6 +343,27 @@ model SmsSablon {
   @@map("sms_sablonlari")
 }
 
+/** Vega ERP entegrasyon — tek satır */
+model ErpEntegrasyon {
+  id             Int      @id @default(autoincrement())
+  server         String   @db.VarChar(255)
+  veritabani     String   @db.VarChar(255)
+  kullaniciadi   String   @db.VarChar(255)
+  password       String   @db.VarChar(255)
+  apiUrl         String?  @map("api_url") @db.VarChar(255)
+  apiSecret      String?  @map("api_secret") @db.VarChar(255)
+  firma          String?  @db.VarChar(255)
+  donem          String?  @db.VarChar(255)
+  sube           String?  @db.VarChar(255)
+  depo           String?  @db.VarChar(255)
+  kasa           String?  @db.VarChar(255)
+  durum          Boolean?
+  envanter       Boolean?
+  parametreDurum String?  @map("parametre_durum") @db.LongText
+
+  @@map("erp_entegrasyon_bilgileri")
+}
+
 /** Firma iletişim bilgileri — tek satır */
 model IletisimBilgileri {
   id      Int     @id @default(autoincrement())

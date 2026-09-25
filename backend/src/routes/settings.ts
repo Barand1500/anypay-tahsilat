@@ -47,6 +47,11 @@ import {
   softDeleteTemplateVariable,
   updateTemplateVariable,
 } from '../services/templateVariablesService.js';
+import {
+  clearErpSettings,
+  getErpSettings,
+  updateErpSettings,
+} from '../services/erpSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
 import {
   getInstallmentPriority,
@@ -673,5 +678,61 @@ settingsRouter.delete('/template-variables/:id', async (req: AuthedRequest, res)
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Kayıt silinemedi');
+  }
+});
+
+/* ─── ERP (Vega) ─── */
+
+const erpSchema = z.object({
+  active: z.boolean(),
+  apiUrl: z.string().max(255),
+  apiSecret: z.string().max(255).optional().default(''),
+  server: z.string().max(255),
+  database: z.string().max(255),
+  username: z.string().max(255),
+  password: z.string().max(255).optional().default(''),
+  company: z.string().max(255),
+  period: z.string().max(255),
+  branch: z.string().max(255),
+  warehouse: z.string().max(255),
+  cashRegister: z.string().max(255),
+  inventory: z.boolean(),
+});
+
+settingsRouter.get('/erp', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getErpSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'ERP ayarları yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/erp', async (req: AuthedRequest, res) => {
+  const parsed = erpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateErpSettings(parsed.data);
+    await writePanelLog(req.auth!.sub, 'Ayarlar - ERP entegrasyon güncellendi.');
+    return sendSuccess(res, data, 'ERP ayarları kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'ERP ayarları kaydedilemedi');
+  }
+});
+
+settingsRouter.delete('/erp', async (req: AuthedRequest, res) => {
+  try {
+    const data = await clearErpSettings();
+    await writePanelLog(req.auth!.sub, 'Ayarlar - ERP entegrasyon sıfırlandı.');
+    return sendSuccess(res, data, 'ERP ayarları sıfırlandı');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'ERP sıfırlanamadı');
   }
 });
