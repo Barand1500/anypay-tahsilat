@@ -105,6 +105,8 @@ export type PublicCustomerAddress = {
   address: string;
   contactName: string;
   contactNames: string[];
+  /** Adres yetkilisi user id listesi */
+  yetkiliIds: number[];
   isDefault: boolean;
   ulkeId: number;
   ilId: number;
@@ -533,6 +535,7 @@ export async function listCustomerAddresses(musteriId: number): Promise<PublicCu
         address,
         contactName: contactNames[0] || '',
         contactNames,
+        yetkiliIds: contactIds,
         isDefault: Boolean(r.varsayilan),
         ulkeId: r.ulkeId,
         ilId: r.ilId,
@@ -559,6 +562,7 @@ export async function listCustomerAddresses(musteriId: number): Promise<PublicCu
         address: cariAdres,
         contactName: contact,
         contactNames: contact ? [contact] : [],
+        yetkiliIds: [],
         isDefault: list.every((a) => !a.isDefault),
         ulkeId: 0,
         ilId: 0,

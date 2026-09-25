@@ -3,13 +3,14 @@ import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
-import type { CustomerAddress } from './mockCustomerDetail';
+import type { CustomerAddress, CustomerUser } from './mockCustomerDetail';
 import type { Customer } from './mockCustomers';
 import { mapCustomer, type ApiCustomer } from './customersApi';
 
 type LocOpt = { value: string; label: string };
 type ApiAddress = CustomerAddress & {
   contactNames?: string[];
+  yetkiliIds?: number[];
   ulkeId?: number;
   ilId?: number;
   ilceId?: number;
@@ -41,6 +42,8 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
   const [street, setStreet] = useState<string | null>(null);
   const [directions, setDirections] = useState('');
+  const [yetkiliIds, setYetkiliIds] = useState<number[]>([]);
+  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -71,6 +74,21 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer.id, token, customer.address]);
+
+  useEffect(() => {
+    if (!token) return;
+    void (async () => {
+      try {
+        const rows = await api.get<CustomerUser[]>(
+          `/api/customers/${encodeURIComponent(customer.id)}/users`,
+          token,
+        );
+        setCustomerUsers(rows.filter((u) => !u.id.startsWith('primary-')));
+      } catch {
+        setCustomerUsers([]);
+      }
+    })();
+  }, [token, customer.id, formOpen]);
 
   useEffect(() => {
     if (!token) return;
@@ -203,6 +221,7 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
     setNeighborhood(null);
     setStreet(null);
     setDirections('');
+    setYetkiliIds([]);
     setFormError(null);
   }
 
@@ -222,8 +241,15 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
     setNeighborhood(a.mahalleId ? String(a.mahalleId) : null);
     setStreet(a.sokakId ? String(a.sokakId) : null);
     setDirections(a.isPrimary ? a.address : a.directions || '');
+    setYetkiliIds(a.yetkiliIds ?? []);
     setFormError(null);
     setFormOpen(true);
+  }
+
+  function toggleYetkili(id: number) {
+    setYetkiliIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   async function patchCustomerAddress(addressText: string) {
@@ -292,6 +318,7 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
       mahalleId: Number(neighborhood),
       sokakId: Number(street),
       directions: directions.trim(),
+      yetkiliIds,
     };
     try {
       if (editingId) {
@@ -473,6 +500,44 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
                 onChange={(e) => setDirections(e.target.value)}
                 data-km-jump
               />
+
+              <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+                  Yetkililer
+                </p>
+                {customerUsers.length === 0 ? (
+                  <p className="mt-2 text-sm text-[var(--panel-muted)]">
+                    Önce Kullanıcılar sekmesinden kullanıcı ekleyin.
+                  </p>
+                ) : (
+                  <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto">
+                    {customerUsers.map((u) => {
+                      const uid = Number(u.id);
+                      const checked = yetkiliIds.includes(uid);
+                      return (
+                        <li key={u.id}>
+                          <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition hover:bg-[var(--panel-hover)]">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleYetkili(uid)}
+                              className="h-4 w-4 accent-[var(--color-brand-600)]"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-[var(--panel-ink)]">
+                                {u.name}
+                              </span>
+                              <span className="block truncate text-[11px] text-[var(--panel-muted)]">
+                                {u.email}
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </>
           )}
 

@@ -10,7 +10,6 @@ import {
 import { createPortal } from 'react-dom';
 import type { Customer } from './mockCustomers';
 import {
-  draftsToCustomers,
   parseCustomerImportCsv,
   summarizeDrafts,
   type ImportDraft,
@@ -24,7 +23,7 @@ type Props = {
   onDownloadSample: () => void;
   existing: Customer[];
   parentId: string | null;
-  onConfirm: (customers: Customer[]) => void;
+  onConfirm: (drafts: ImportDraft[]) => void;
 };
 
 /** Excel/CSV müşteri yükleme — önizleme + onay; Esc / X ile kapanır */
@@ -114,7 +113,7 @@ export function CustomerExcelModal({
   }
 
   function confirmImport() {
-    const next = draftsToCustomers(drafts, parentId);
+    const next = drafts.filter((d) => d.status === 'new');
     if (next.length === 0) return;
     onConfirm(next);
   }

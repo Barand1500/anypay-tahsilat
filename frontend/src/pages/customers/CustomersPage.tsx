@@ -17,6 +17,7 @@ import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { CustomerExcelModal } from './CustomerExcelModal';
 import { mapCustomer, type ApiCustomer } from './customersApi';
+import type { ImportDraft } from './customerImport';
 import {
   formatPhoneLive,
   type Customer,
@@ -487,36 +488,68 @@ export default function CustomersPage() {
     );
   }
 
-  async function confirmExcelImport(list: Customer[]) {
+  async function confirmExcelImport(drafts: ImportDraft[]) {
     if (!token) return;
     let ok = 0;
-    for (const c of list) {
+    let usersOk = 0;
+    let mailOk = 0;
+    for (const d of drafts) {
       try {
-        await api.post(
+        const created = await api.post<{ id: number }>(
           '/api/customers',
           {
-            code: c.code,
-            title: c.title,
-            kind: c.kind,
-            phone: c.phone,
-            email: c.email,
-            taxNo: c.taxNo,
-            taxOfficeId: c.taxOfficeId ?? null,
-            identityNo: c.identityNo,
-            address: c.address,
-            accountTypeName: c.accountType,
-            parentId: c.parentId ? Number(c.parentId) : null,
+            code: d.code,
+            title: d.title,
+            kind: d.kind,
+            phone: d.phone.replace(/\D/g, '').slice(0, 10),
+            email: d.email.trim().toLocaleLowerCase('tr'),
+            taxNo: d.taxNo,
+            taxOfficeId: null,
+            identityNo: d.identityNo,
+            address: d.address,
+            accountTypeName: d.accountType || undefined,
+            parentId: ustId ? Number(ustId) : null,
           },
           token,
         );
         ok += 1;
+
+        const uEmail = (d.userEmail || d.email).trim().toLocaleLowerCase('tr');
+        const uName = (d.userName || d.title).trim();
+        const uPhone = (d.userPhone || d.phone).replace(/\D/g, '').slice(0, 10);
+        if (uEmail.includes('@') && uPhone.length >= 10 && uName) {
+          try {
+            const user = await api.post<{ emailSent?: boolean }>(
+              `/api/customers/${created.id}/users`,
+              {
+                name: uName.toLocaleUpperCase('tr'),
+                email: uEmail,
+                phone: uPhone,
+                sendEmail: true,
+              },
+              token,
+            );
+            usersOk += 1;
+            if (user.emailSent) mailOk += 1;
+          } catch {
+            /* kullanıcı satırı atlanır — müşteri kaldı */
+          }
+        }
       } catch {
         /* satır atlanır */
       }
     }
     setExcelOpen(false);
     await reload();
-    flash(ok > 0 ? `${ok} müşteri sisteme eklendi` : 'Hiçbir satır eklenemedi');
+    if (ok === 0) {
+      flash('Hiçbir satır eklenemedi');
+      return;
+    }
+    const parts = [`${ok} müşteri eklendi`];
+    if (usersOk > 0) parts.push(`${usersOk} kullanıcı`);
+    if (mailOk > 0) parts.push(`${mailOk} şifre maili`);
+    else if (usersOk > 0) parts.push('şifre maili iletilemedi');
+    flash(parts.join(' · '));
   }
 
   function renderCol(id: ColId, c: Customer, showEye: boolean) {

@@ -210,6 +210,14 @@ export function parseCustomerImportCsv(
     const errors: string[] = [];
     if (!code) errors.push('Müşteri kodu boş');
     if (!title) errors.push('Ünvan boş');
+    const hasUserHint = Boolean(userName || userEmail || (userPhone && userPhone.length > 1));
+    if (hasUserHint) {
+      if (!userEmail.includes('@') && !email.includes('@')) {
+        errors.push('Kullanıcı için e-posta gerekli');
+      }
+      const up = digits(userPhone || phone);
+      if (up.length < 10) errors.push('Kullanıcı için telefon gerekli');
+    }
     if (code) {
       const key = code.toLocaleLowerCase('tr');
       if (seenCodes.has(key)) errors.push('Dosyada tekrarlayan kod');

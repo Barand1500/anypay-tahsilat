@@ -19,6 +19,7 @@ export type CustomerAddress = {
   address: string;
   contactName: string;
   contactNames?: string[];
+  yetkiliIds?: number[];
   isDefault: boolean;
   country?: string;
   province?: string;
