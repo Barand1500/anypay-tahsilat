@@ -9,6 +9,7 @@ export type CustomerUser = {
   active: boolean;
   lastLogin: string | null;
   tempPassword?: string;
+  isPrimary?: boolean;
 };
 
 export type CustomerAddress = {
@@ -32,6 +33,7 @@ export type CustomerAddress = {
   semtId?: number;
   mahalleId?: number;
   sokakId?: number;
+  isPrimary?: boolean;
 };
 
 export function initialsOf(name: string) {

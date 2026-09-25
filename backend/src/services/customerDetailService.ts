@@ -49,7 +49,13 @@ function encodeYetkiliIds(ids: number[]): string {
 async function assertMusteri(musteriId: number) {
   const m = await prisma.musteri.findFirst({
     where: { id: musteriId, ...notRemoved() },
-    select: { id: true, unvan: true },
+    select: {
+      id: true,
+      unvan: true,
+      eposta: true,
+      telefon: true,
+      adres: true,
+    },
   });
   if (!m) throw new CustomerDetailError('Müşteri bulunamadı');
   return m;
@@ -64,6 +70,8 @@ export type PublicCustomerUser = {
   active: boolean;
   lastLogin: string | null;
   tempPassword?: string;
+  /** musteriler kaydından türetilen cari satırı */
+  isPrimary?: boolean;
 };
 
 export type PasswordResetResult = {
@@ -88,6 +96,8 @@ export type PublicCustomerAddress = {
   mahalleId: number;
   sokakId: number;
   directions: string;
+  /** musteriler.adres alanından türetilen kayıt adresi */
+  isPrimary?: boolean;
 };
 
 export type LocationOption = { value: string; label: string };
@@ -110,7 +120,7 @@ function buildAddressLine(parts: {
 }
 
 export async function listCustomerUsers(musteriId: number): Promise<PublicCustomerUser[]> {
-  await assertMusteri(musteriId);
+  const musteri = await assertMusteri(musteriId);
   const rows = await prisma.user.findMany({
     where: { musteriId, ...notRemoved() },
     orderBy: { id: 'asc' },
@@ -124,7 +134,8 @@ export async function listCustomerUsers(musteriId: number): Promise<PublicCustom
       lastLogin: true,
     },
   });
-  return rows.map((r) => ({
+
+  const list: PublicCustomerUser[] = rows.map((r) => ({
     id: String(r.id),
     customerId: String(r.musteriId ?? musteriId),
     name: (r.adsoyad || r.email).trim(),
@@ -133,6 +144,32 @@ export async function listCustomerUsers(musteriId: number): Promise<PublicCustom
     active: r.isVerified,
     lastLogin: r.lastLogin ? r.lastLogin.toISOString() : null,
   }));
+
+  const cariEmail = (musteri.eposta || '').trim().toLowerCase();
+  const cariName = (musteri.unvan || '').trim() || cariEmail || 'Müşteri';
+  const cariPhone = digitsPhone(musteri.telefon);
+
+  const matchIdx = cariEmail
+    ? list.findIndex((u) => u.email.toLowerCase() === cariEmail)
+    : -1;
+
+  if (matchIdx >= 0) {
+    const [hit] = list.splice(matchIdx, 1);
+    list.unshift({ ...hit, isPrimary: true, name: hit.name || cariName });
+  } else if (cariName || cariEmail || cariPhone) {
+    list.unshift({
+      id: `primary-${musteriId}`,
+      customerId: String(musteriId),
+      name: cariName,
+      email: cariEmail,
+      phone: cariPhone,
+      active: true,
+      lastLogin: null,
+      isPrimary: true,
+    });
+  }
+
+  return list;
 }
 
 export async function createCustomerUser(
@@ -243,75 +280,107 @@ export async function softDeleteCustomerUser(musteriId: number, userId: number):
 }
 
 export async function listCustomerAddresses(musteriId: number): Promise<PublicCustomerAddress[]> {
-  await assertMusteri(musteriId);
+  const musteri = await assertMusteri(musteriId);
   const rows = await prisma.adres.findMany({
     where: { musteriId, ...notRemoved() },
     orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
   });
-  if (rows.length === 0) return [];
 
-  const ulkeIds = [...new Set(rows.map((r) => r.ulkeId))];
-  const ilIds = [...new Set(rows.map((r) => r.ilId))];
-  const ilceIds = [...new Set(rows.map((r) => r.ilceId))];
-  const semtIds = [...new Set(rows.map((r) => r.semtId))];
-  const mahalleIds = [...new Set(rows.map((r) => r.mahalleId))];
-  const sokakIds = [...new Set(rows.map((r) => r.sokakId))];
-  const yetkiliIds = [...new Set(rows.flatMap((r) => parseYetkiliIds(r.yetkili)))];
+  const list: PublicCustomerAddress[] = [];
 
-  const [ulkeler, iller, ilceler, semtler, mahalleler, sokaklar, users] = await Promise.all([
-    prisma.ulke.findMany({ where: { id: { in: ulkeIds } }, select: { id: true, adi: true } }),
-    prisma.il.findMany({ where: { id: { in: ilIds } }, select: { id: true, adi: true } }),
-    prisma.ilce.findMany({ where: { id: { in: ilceIds } }, select: { id: true, adi: true } }),
-    prisma.semt.findMany({ where: { id: { in: semtIds } }, select: { id: true, adi: true } }),
-    prisma.mahalle.findMany({ where: { id: { in: mahalleIds } }, select: { id: true, adi: true } }),
-    prisma.sokak.findMany({ where: { id: { in: sokakIds } }, select: { id: true, adi: true } }),
-    yetkiliIds.length
-      ? prisma.user.findMany({
-          where: { id: { in: yetkiliIds } },
-          select: { id: true, adsoyad: true, email: true },
-        })
-      : Promise.resolve([] as { id: number; adsoyad: string | null; email: string }[]),
-  ]);
+  if (rows.length > 0) {
+    const ulkeIds = [...new Set(rows.map((r) => r.ulkeId))];
+    const ilIds = [...new Set(rows.map((r) => r.ilId))];
+    const ilceIds = [...new Set(rows.map((r) => r.ilceId))];
+    const semtIds = [...new Set(rows.map((r) => r.semtId))];
+    const mahalleIds = [...new Set(rows.map((r) => r.mahalleId))];
+    const sokakIds = [...new Set(rows.map((r) => r.sokakId))];
+    const yetkiliIds = [...new Set(rows.flatMap((r) => parseYetkiliIds(r.yetkili)))];
 
-  const uMap = new Map(ulkeler.map((x) => [x.id, x.adi]));
-  const ilMap = new Map(iller.map((x) => [x.id, x.adi]));
-  const ilceMap = new Map(ilceler.map((x) => [x.id, x.adi]));
-  const semtMap = new Map(semtler.map((x) => [x.id, x.adi]));
-  const mahMap = new Map(mahalleler.map((x) => [x.id, x.adi]));
-  const sokMap = new Map(sokaklar.map((x) => [x.id, x.adi]));
-  const userMap = new Map(
-    users.map((x) => [x.id, (x.adsoyad || x.email).trim()]),
-  );
+    const [ulkeler, iller, ilceler, semtler, mahalleler, sokaklar, users] = await Promise.all([
+      prisma.ulke.findMany({ where: { id: { in: ulkeIds } }, select: { id: true, adi: true } }),
+      prisma.il.findMany({ where: { id: { in: ilIds } }, select: { id: true, adi: true } }),
+      prisma.ilce.findMany({ where: { id: { in: ilceIds } }, select: { id: true, adi: true } }),
+      prisma.semt.findMany({ where: { id: { in: semtIds } }, select: { id: true, adi: true } }),
+      prisma.mahalle.findMany({ where: { id: { in: mahalleIds } }, select: { id: true, adi: true } }),
+      prisma.sokak.findMany({ where: { id: { in: sokakIds } }, select: { id: true, adi: true } }),
+      yetkiliIds.length
+        ? prisma.user.findMany({
+            where: { id: { in: yetkiliIds } },
+            select: { id: true, adsoyad: true, email: true },
+          })
+        : Promise.resolve([] as { id: number; adsoyad: string | null; email: string }[]),
+    ]);
 
-  return rows.map((r) => {
-    const contactIds = parseYetkiliIds(r.yetkili);
-    const contactNames = contactIds.map((id) => userMap.get(id) || `#${id}`).filter(Boolean);
-    const address = buildAddressLine({
-      tarif: (r.adresTarifi || '').trim(),
-      sokak: sokMap.get(r.sokakId) || '',
-      mahalle: mahMap.get(r.mahalleId) || '',
-      semt: semtMap.get(r.semtId) || '',
-      ilce: ilceMap.get(r.ilceId) || '',
-      il: ilMap.get(r.ilId) || '',
-      ulke: uMap.get(r.ulkeId) || '',
-    });
-    return {
-      id: String(r.id),
-      customerId: String(r.musteriId ?? musteriId),
-      label: r.adresAdi,
-      address,
-      contactName: contactNames[0] || '',
-      contactNames,
-      isDefault: Boolean(r.varsayilan),
-      ulkeId: r.ulkeId,
-      ilId: r.ilId,
-      ilceId: r.ilceId,
-      semtId: r.semtId,
-      mahalleId: r.mahalleId,
-      sokakId: r.sokakId,
-      directions: (r.adresTarifi || '').trim(),
-    };
-  });
+    const uMap = new Map(ulkeler.map((x) => [x.id, x.adi]));
+    const ilMap = new Map(iller.map((x) => [x.id, x.adi]));
+    const ilceMap = new Map(ilceler.map((x) => [x.id, x.adi]));
+    const semtMap = new Map(semtler.map((x) => [x.id, x.adi]));
+    const mahMap = new Map(mahalleler.map((x) => [x.id, x.adi]));
+    const sokMap = new Map(sokaklar.map((x) => [x.id, x.adi]));
+    const userMap = new Map(
+      users.map((x) => [x.id, (x.adsoyad || x.email).trim()]),
+    );
+
+    for (const r of rows) {
+      const contactIds = parseYetkiliIds(r.yetkili);
+      const contactNames = contactIds.map((id) => userMap.get(id) || `#${id}`).filter(Boolean);
+      const address = buildAddressLine({
+        tarif: (r.adresTarifi || '').trim(),
+        sokak: sokMap.get(r.sokakId) || '',
+        mahalle: mahMap.get(r.mahalleId) || '',
+        semt: semtMap.get(r.semtId) || '',
+        ilce: ilceMap.get(r.ilceId) || '',
+        il: ilMap.get(r.ilId) || '',
+        ulke: uMap.get(r.ulkeId) || '',
+      });
+      list.push({
+        id: String(r.id),
+        customerId: String(r.musteriId ?? musteriId),
+        label: r.adresAdi,
+        address,
+        contactName: contactNames[0] || '',
+        contactNames,
+        isDefault: Boolean(r.varsayilan),
+        ulkeId: r.ulkeId,
+        ilId: r.ilId,
+        ilceId: r.ilceId,
+        semtId: r.semtId,
+        mahalleId: r.mahalleId,
+        sokakId: r.sokakId,
+        directions: (r.adresTarifi || '').trim(),
+      });
+    }
+  }
+
+  const cariAdres = (musteri.adres || '').trim();
+  if (cariAdres) {
+    const already = list.some(
+      (a) => a.address.toLocaleLowerCase('tr') === cariAdres.toLocaleLowerCase('tr'),
+    );
+    if (!already) {
+      const contact = (musteri.unvan || '').trim();
+      list.unshift({
+        id: `primary-${musteriId}`,
+        customerId: String(musteriId),
+        label: 'Kayıt Adresi',
+        address: cariAdres,
+        contactName: contact,
+        contactNames: contact ? [contact] : [],
+        isDefault: list.every((a) => !a.isDefault),
+        ulkeId: 0,
+        ilId: 0,
+        ilceId: 0,
+        semtId: 0,
+        mahalleId: 0,
+        sokakId: 0,
+        directions: cariAdres,
+        isPrimary: true,
+      });
+    }
+  }
+
+  return list;
 }
 
 export async function createCustomerAddress(

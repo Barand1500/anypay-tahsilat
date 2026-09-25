@@ -683,58 +683,75 @@ function UsersTab({ customer, flash }: { customer: Customer; flash: (m: string) 
                       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-soft-bg)] text-xs font-bold text-[var(--color-brand-600)]">
                         {initialsOf(u.name)}
                       </span>
-                      <span className="font-semibold text-[var(--panel-ink)]">{u.name}</span>
+                      <span className="min-w-0">
+                        <span className="font-semibold text-[var(--panel-ink)]">{u.name}</span>
+                        {u.isPrimary ? (
+                          <span className="ml-2 rounded-md bg-[var(--brand-soft-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-brand-600)]">
+                            Cari
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-[var(--panel-ink)]/80">{u.email}</td>
-                  <td className="px-3 py-3 font-mono tabular-nums">{formatPhoneLive(u.phone)}</td>
+                  <td className="px-3 py-3 text-[var(--panel-ink)]/80">{u.email || '—'}</td>
+                  <td className="px-3 py-3 font-mono tabular-nums">
+                    {u.phone ? formatPhoneLive(u.phone) : '—'}
+                  </td>
                   <td className="px-3 py-3 text-[var(--panel-muted)]">
                     {u.lastLogin
                       ? new Date(u.lastLogin).toLocaleString('tr-TR')
                       : 'Henüz giriş yapmamış'}
                   </td>
                   <td className="px-5 py-3 sm:px-6">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={u.active}
-                        onClick={() => {
-                          void toggleActive(u.id);
-                        }}
-                        className={[
-                          'relative h-6 w-11 rounded-full transition',
-                          u.active ? 'bg-[var(--color-brand-600)]' : 'bg-[var(--panel-line)]',
-                        ].join(' ')}
-                      >
-                        <span
+                    {u.isPrimary && u.id.startsWith('primary-') ? (
+                      <span className="text-xs text-[var(--panel-muted)]">
+                        Bilgi sekmesinden düzenlenir
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={u.active}
+                          onClick={() => {
+                            void toggleActive(u.id);
+                          }}
                           className={[
-                            'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition',
-                            u.active ? 'translate-x-5' : '',
+                            'relative h-6 w-11 rounded-full transition',
+                            u.active ? 'bg-[var(--color-brand-600)]' : 'bg-[var(--panel-line)]',
                           ].join(' ')}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Şifre gönder"
-                        title="Şifre gönder"
-                        onClick={() => setPasswordUser(u)}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3e8dc] text-[#5c4a3a] transition hover:bg-[#ead9c8]"
-                      >
-                        <LockIcon />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Sil"
-                        title="Sil"
-                        onClick={() => {
-                          void removeUser(u.id);
-                        }}
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
+                        >
+                          <span
+                            className={[
+                              'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition',
+                              u.active ? 'translate-x-5' : '',
+                            ].join(' ')}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Şifre gönder"
+                          title="Şifre gönder"
+                          onClick={() => setPasswordUser(u)}
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3e8dc] text-[#5c4a3a] transition hover:bg-[#ead9c8]"
+                        >
+                          <LockIcon />
+                        </button>
+                        {!u.isPrimary ? (
+                          <button
+                            type="button"
+                            aria-label="Sil"
+                            title="Sil"
+                            onClick={() => {
+                              void removeUser(u.id);
+                            }}
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
+                          >
+                            <TrashIcon />
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))
@@ -1203,7 +1220,12 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
                 <tr key={a.id} className="border-b border-[var(--panel-line)]/80">
                   <td className="px-5 py-3 font-bold text-[var(--panel-ink)] sm:px-6">
                     {a.label}
-                    {a.isDefault ? (
+                    {a.isPrimary ? (
+                      <span className="ml-2 rounded-md bg-[var(--brand-soft-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-brand-600)]">
+                        Cari
+                      </span>
+                    ) : null}
+                    {a.isDefault && !a.isPrimary ? (
                       <span className="ml-2 rounded-md bg-[var(--brand-soft-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-brand-600)]">
                         Varsayılan
                       </span>
@@ -1216,24 +1238,30 @@ function AddressesTab({ customer, flash }: { customer: Customer; flash: (m: stri
                       : a.contactName) || '—'}
                   </td>
                   <td className="px-5 py-3 sm:px-6">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(a)}
-                        className="rounded-lg px-2 py-1 text-xs font-semibold text-[var(--color-brand-600)] hover:bg-[var(--brand-soft-bg)]"
-                      >
-                        Düzenle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void removeAddr(a.id);
-                        }}
-                        className="rounded-lg px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10"
-                      >
-                        Sil
-                      </button>
-                    </div>
+                    {a.isPrimary ? (
+                      <span className="text-xs text-[var(--panel-muted)]">
+                        Bilgi sekmesinden düzenlenir
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(a)}
+                          className="rounded-lg px-2 py-1 text-xs font-semibold text-[var(--color-brand-600)] hover:bg-[var(--brand-soft-bg)]"
+                        >
+                          Düzenle
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void removeAddr(a.id);
+                          }}
+                          className="rounded-lg px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10"
+                        >
+                          Sil
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))
