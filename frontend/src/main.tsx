@@ -6,7 +6,10 @@ import { AuthProvider } from './auth/AuthContext';
 import { BrandProvider } from './brand/BrandContext';
 import { PermissionProvider } from './permissions/PermissionContext';
 import { ThemeProvider } from './theme/ThemeProvider';
+import { hydratePersonalPrefs } from './pages/settings/personalPrefs';
 import './index.css';
+
+hydratePersonalPrefs();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -9,6 +9,7 @@ import {
   setCardAgreements,
   type CardAgreementDetail,
 } from './mockKart';
+import { formatPanelDate } from '../settings/personalPrefs';
 
 const DETAIL_BASE = '/tanimlamalar/pos-kart/anlasmalar';
 
@@ -154,7 +155,7 @@ export default function CardAgreementsPage() {
                 >
                   <span className="truncate font-semibold text-[var(--panel-ink)]">{r.name}</span>
                   <span className="text-sm tabular-nums text-[var(--panel-muted)]">
-                    {new Date(r.date).toLocaleDateString('tr-TR')}
+                    {formatPanelDate(r.date)}
                   </span>
                   <div className="flex justify-end">
                     <button

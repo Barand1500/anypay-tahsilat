@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   banksForCompare,
   buildInstallments,
-  formatMoneyTr,
+  formatMoneyTr, formatMoneyDisplay,
   type BankInfo,
   type CardSegment,
 } from './mockBanks';
@@ -68,7 +68,7 @@ export function InstallmentOptionsModal({
                 Taksit Seçenekleri
               </h2>
               <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
-                Tutar: <strong className="text-[var(--panel-ink)]">{formatMoneyTr(amount)} ₺</strong>
+                Tutar: <strong className="text-[var(--panel-ink)]">{formatMoneyDisplay(amount)}</strong>
               </p>
             </div>
 
@@ -184,10 +184,10 @@ export function InstallmentOptionsModal({
                             % {formatMoneyTr(r.commissionPct)}
                           </td>
                           <td className="px-2 py-2 text-right font-medium tabular-nums text-[var(--panel-ink)] sm:px-3">
-                            {formatMoneyTr(r.installmentAmount)} ₺
+                            {formatMoneyDisplay(r.installmentAmount)}
                           </td>
                           <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
-                            {formatMoneyTr(r.totalAmount)} ₺
+                            {formatMoneyDisplay(r.totalAmount)}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
                             {ok ? '—' : 'Size atanmadı'}

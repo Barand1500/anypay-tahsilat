@@ -20,15 +20,11 @@ export const REPORT_TYPE_OPTIONS = [
   { value: 'gunluk', label: 'Günlük' },
 ] as const;
 
-export function formatMoneyTr(n: number): string {
-  return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-export function formatDateTr(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  if (!y || !m || !d) return iso;
-  return `${d}.${m}.${y}`;
-}
+export {
+  formatMoneyAmount as formatMoneyTr,
+  formatMoneyDisplay,
+  formatPanelDate as formatDateTr,
+} from '../settings/personalPrefs';
 
 export function netOf(row: CollectionRow) {
   return row.amount - row.commission;

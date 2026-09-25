@@ -1,5 +1,12 @@
 /** Ödeme istekleri — tip + yardımcılar (liste API’den gelir) */
 
+import {
+  formatMoneyDisplay,
+  formatPanelDateTime,
+} from '../settings/personalPrefs';
+
+export { formatMoneyAmount as formatMoneyTr } from '../settings/personalPrefs';
+
 export type PayRequestStatus = 'pending' | 'paid' | 'cancelled' | 'expired';
 
 export type PayRequestType = 'ch' | 'fatura' | 'taksit' | 'diger';
@@ -79,7 +86,7 @@ export function payShareMessage(opts: {
   const lines = [
     opts.greeting ?? 'Merhaba, ödeme isteğiniz hazır:',
     link,
-    `Tutar: ${formatMoneyTr(opts.amount)} ${sym}`,
+    `Tutar: ${formatMoneyDisplay(opts.amount, sym)}`,
   ];
   const files = opts.files?.filter((f) => f?.name && f?.url) ?? [];
   if (files.length) {
@@ -92,15 +99,8 @@ export function payShareMessage(opts: {
   return lines.join('\n');
 }
 
-export function formatMoneyTr(n: number): string {
-  return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export function formatDt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(+d)) return iso;
-  const pad = (x: number) => String(x).padStart(2, '0');
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return formatPanelDateTime(iso);
 }
 
 export function formatElapsed(fromIso: string, toIso: string | null, nowMs: number): string {

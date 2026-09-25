@@ -9,7 +9,7 @@ import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
   defaultMonthRange,
   formatDateTr,
-  formatMoneyTr,
+  formatMoneyTr, formatMoneyDisplay,
   netOf,
   REPORT_TYPE_OPTIONS,
   type CollectionRow,
@@ -257,19 +257,19 @@ export default function CollectionReportPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           title="Toplam tutar"
-          value={`${formatMoneyTr(displayTotals.amount)} ₺`}
+          value={`${formatMoneyDisplay(displayTotals.amount)}`}
           meta="Filtrelenen kayıtlar"
           tone="blue"
         />
         <StatCard
           title="Toplam komisyon"
-          value={`${formatMoneyTr(displayTotals.commission)} ₺`}
+          value={`${formatMoneyDisplay(displayTotals.commission)}`}
           meta="Banka komisyonları"
           tone="orange"
         />
         <StatCard
           title="Toplam net tutar"
-          value={`${formatMoneyTr(displayTotals.net)} ₺`}
+          value={`${formatMoneyDisplay(displayTotals.net)}`}
           meta="Tutar − komisyon"
           tone="green"
         />
@@ -341,13 +341,13 @@ export default function CollectionReportPage() {
                     <span className="truncate font-medium">{r.bankName}</span>
                   </span>
                   <span className="text-right tabular-nums font-semibold text-[var(--panel-ink)]">
-                    {formatMoneyTr(r.amount)} ₺
+                    {formatMoneyDisplay(r.amount)}
                   </span>
                   <span className="text-right tabular-nums text-[var(--panel-muted)]">
-                    {formatMoneyTr(r.commission)} ₺
+                    {formatMoneyDisplay(r.commission)}
                   </span>
                   <span className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
-                    {formatMoneyTr(netOf(r))} ₺
+                    {formatMoneyDisplay(netOf(r))}
                   </span>
                 </div>
               ))

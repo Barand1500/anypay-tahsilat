@@ -41,6 +41,7 @@ import CardKindsPage from './pages/definitions/CardKindsPage';
 import CardBrandsPage from './pages/definitions/CardBrandsPage';
 import SettingsLayout from './pages/settings/SettingsLayout';
 import GeneralSettingsPage from './pages/settings/GeneralSettingsPage';
+import PersonalSettingsPage from './pages/settings/PersonalSettingsPage';
 import ContactSettingsPage from './pages/settings/ContactSettingsPage';
 import DefaultsSettingsPage from './pages/settings/DefaultsSettingsPage';
 import EmailSettingsPage from './pages/settings/EmailSettingsPage';
@@ -144,6 +145,7 @@ export default function App() {
         <Route path="ayarlar" element={<SettingsLayout />}>
           <Route index element={<Navigate to="genel" replace />} />
           <Route path="genel" element={<GeneralSettingsPage />} />
+          <Route path="kisisel" element={<PersonalSettingsPage />} />
           <Route path="iletisim" element={<ContactSettingsPage />} />
           <Route path="varsayilanlar" element={<DefaultsSettingsPage />} />
           <Route path="e-posta" element={<EmailSettingsPage />} />

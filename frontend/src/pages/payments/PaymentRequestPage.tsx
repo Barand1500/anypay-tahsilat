@@ -9,7 +9,7 @@ import { api } from '../../lib/api';
 import { useCustomer } from '../customers/useCustomer';
 import { useCustomersList } from '../customers/useCustomersList';
 import { getDefaultPayType } from '../settings/defaultsStore';
-import { formatMoneyTr, maskMoneyInput, parseTrMoney } from './mockBanks';
+import { formatMoneyTr, formatMoneyDisplay, maskMoneyInput, parseTrMoney } from './mockBanks';
 import { InstallmentPaintGrid } from './InstallmentPaintGrid';
 import { loadReadyDescriptions } from './mockReadyDescriptions';
 import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
@@ -495,7 +495,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                 : ''}
             {balance != null ? (
               <span className="ml-2 font-semibold text-[var(--color-brand-600)]">
-                Bakiye {formatMoneyTr(balance)} ₺
+                Bakiye {formatMoneyDisplay(balance)}
               </span>
             ) : null}
           </p>

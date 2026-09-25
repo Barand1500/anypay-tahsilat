@@ -23,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const EXTRA_QUICK_ITEMS: NavItem[] = [
   { to: '/ayarlar', label: 'Ayarlar', icon: 'gear' },
   { to: '/ayarlar/genel', label: 'Genel Ayarlar', icon: 'gear' },
+  { to: '/ayarlar/kisisel', label: 'Kişisel Ayarlar', icon: 'gear' },
   { to: '/ayarlar/iletisim', label: 'İletişim Bilgileri', icon: 'gear' },
   { to: '/ayarlar/varsayilanlar', label: 'Varsayılanlar', icon: 'gear' },
   { to: '/ayarlar/e-posta', label: 'E-Posta Ayarları', icon: 'gear' },

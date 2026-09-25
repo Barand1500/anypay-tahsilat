@@ -8,6 +8,7 @@ export type SettingsSubnavItem = {
 
 export const SETTINGS_SUBNAV: SettingsSubnavItem[] = [
   { to: '/ayarlar/genel', label: 'Genel Ayarlar', ready: true },
+  { to: '/ayarlar/kisisel', label: 'Kişisel Ayarlar', ready: true },
   { to: '/ayarlar/iletisim', label: 'İletişim Bilgileri', ready: true },
   { to: '/ayarlar/varsayilanlar', label: 'Varsayılanlar', ready: true },
   { to: '/ayarlar/e-posta', label: 'E-Posta Ayarları', ready: true },

@@ -14,7 +14,7 @@ import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import {
   formatDt,
   formatElapsed,
-  formatMoneyTr,
+  formatMoneyTr, formatMoneyDisplay,
   PAY_REQ_STATUS_FILTER,
   PAY_REQ_STATUS_LABEL,
   PAY_REQ_TYPE_LABEL,
@@ -712,7 +712,7 @@ export default function PaymentRequestsPage() {
 
                   <div className="min-w-0 self-center">
                     <p className="text-sm font-bold tabular-nums text-[var(--panel-ink)]">
-                      {formatMoneyTr(r.amount)} {r.currencySymbol || '₺'}
+                      {formatMoneyDisplay(r.amount, r.currencySymbol || '₺')}
                     </p>
                     <p className="text-[11px] text-[var(--panel-muted)]">
                       {r.commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}

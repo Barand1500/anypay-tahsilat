@@ -14,6 +14,7 @@ import {
   type Customer,
 } from './mockCustomers';
 import { openCredentialChannel, type CredentialChannel } from './sendCredentials';
+import { formatPanelDateTime } from '../settings/personalPrefs';
 
 type Props = {
   customer: Customer;
@@ -374,7 +375,7 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
                   </td>
                   <td className="px-3 py-3 text-[var(--panel-muted)]">
                     {u.lastLogin
-                      ? new Date(u.lastLogin).toLocaleString('tr-TR')
+                      ? formatPanelDateTime(u.lastLogin)
                       : 'Henüz giriş yapmamış'}
                   </td>
                   <td className="px-5 py-3 sm:px-6" onDoubleClick={(e) => e.stopPropagation()}>

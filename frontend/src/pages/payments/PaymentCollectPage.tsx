@@ -1,13 +1,14 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { TextArea } from '../../components/ui/TextArea';
 import { TextInput } from '../../components/ui/TextInput';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
-import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
+import { normalizePhoneInput } from '../customers/mockCustomers';
 import { useCustomer } from '../customers/useCustomer';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
@@ -19,6 +20,7 @@ import {
   formatCardNumber,
   formatExpiryInput,
   formatMoneyTr,
+  formatMoneyDisplay,
   maskMoneyInput,
   parseTrMoney,
   getCardExpiryError,
@@ -213,7 +215,7 @@ export default function PaymentCollectPage() {
         },
         token,
       );
-      flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ${currencySymbol}`);
+      flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyDisplay(data.amount, currencySymbol)}`);
       window.setTimeout(() => navigate('/musteriler'), 900);
     } catch (err) {
       flash(err instanceof Error ? err.message : 'Ödeme kaydedilemedi');
@@ -270,7 +272,7 @@ export default function PaymentCollectPage() {
             {customer.code} · Ödeme al
             {balance != null ? (
               <span className="ml-2 font-semibold text-[var(--color-brand-600)]">
-                Bakiye {formatMoneyTr(balance)} ₺
+                Bakiye {formatMoneyDisplay(balance)}
               </span>
             ) : null}
           </p>
@@ -478,86 +480,29 @@ export default function PaymentCollectPage() {
 
             {/* Kart */}
             <div className="flex flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
-              <SectionHead>Kredi kartı</SectionHead>
-              <TextInput
-                data-km-jump
-                label="Ad Soyad"
-                value={holder}
-                error={errors.holder}
-                onChange={(e) => setHolder(e.target.value)}
+              <PaymentCardFields
+                heading="Kredi kartı"
+                SectionHead={SectionHead}
+                holder={holder}
+                tc={tc}
+                phone={phone}
+                card={card}
+                expiry={expiry}
+                cvc={cvc}
+                errors={errors}
+                bank={bank}
+                cardFaulty={cardFaulty}
+                expiryOk={expiryOk}
+                expiryFaulty={expiryFaulty}
+                onHolder={setHolder}
+                onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
+                onPhone={(v) => setPhone(normalizePhoneInput(v))}
+                onCard={onCardChange}
+                onExpiry={onExpiryChange}
+                onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
+                onCardBlur={() => setCardChecked(true)}
+                onExpiryBlur={() => setExpiryChecked(true)}
               />
-              <TextInput
-                data-km-jump
-                label="T.C. Kimlik No"
-                value={tc}
-                error={errors.tc}
-                onChange={(e) => setTc(digitsOnly(e.target.value).slice(0, 11))}
-                inputMode="numeric"
-                className="font-mono tabular-nums"
-              />
-              <TextInput
-                data-km-jump
-                label="Telefon No"
-                value={formatPhoneLive(phone)}
-                error={errors.phone}
-                onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
-                inputMode="tel"
-                className="font-mono tabular-nums"
-              />
-              <div>
-                <TextInput
-                  data-km-jump
-                  label="Kart No"
-                  value={card}
-                  error={errors.card}
-                  onChange={(e) => onCardChange(e.target.value)}
-                  onBlur={() => setCardChecked(true)}
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  className="!pr-[7rem] font-mono tabular-nums"
-                  endAdornment={
-                    cardFaulty ? (
-                      <FaultBadge />
-                    ) : bank ? (
-                      <img
-                        src={bank.logo}
-                        alt=""
-                        title={bank.name}
-                        className="h-7 w-auto max-w-[80px] object-contain"
-                      />
-                    ) : (
-                      <span className="rounded-md bg-[var(--panel-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)]">
-                        BIN
-                      </span>
-                    )
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <TextInput
-                  data-km-jump
-                  label="Son kullanım"
-                  value={expiry}
-                  error={errors.expiry}
-                  onChange={(e) => onExpiryChange(e.target.value)}
-                  onBlur={() => setExpiryChecked(true)}
-                  inputMode="numeric"
-                  autoComplete="cc-exp"
-                  className="!pr-20 font-mono tabular-nums"
-                  endAdornment={
-                    expiryFaulty ? <FaultBadge /> : expiryOk ? <OkBadge /> : null
-                  }
-                />
-                <TextInput
-                  data-km-jump
-                  label="CVC"
-                  value={cvc}
-                  error={errors.cvc}
-                  onChange={(e) => setCvc(digitsOnly(e.target.value).slice(0, 4))}
-                  inputMode="numeric"
-                  className="font-mono tabular-nums"
-                />
-              </div>
             </div>
 
             {/* Banka */}
@@ -599,8 +544,8 @@ export default function PaymentCollectPage() {
                     </p>
                     <p className="text-sm tabular-nums text-[var(--panel-muted)]">
                       {selected.n > 1
-                        ? `${selected.n} × ${formatMoneyTr(selected.installmentAmount)} ₺`
-                        : `${formatMoneyTr(selected.totalAmount)} ₺`}
+                        ? `${selected.n} × ${formatMoneyDisplay(selected.installmentAmount)}`
+                        : `${formatMoneyDisplay(selected.totalAmount)}`}
                     </p>
                     {selected.commissionPct > 0 ? (
                       <p className="mt-1 text-[11px] font-semibold text-rose-500">
@@ -760,23 +705,7 @@ export default function PaymentCollectPage() {
   );
 }
 
-function FaultBadge() {
-  return (
-    <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-600">
-      Hatalı
-    </span>
-  );
-}
-
-function OkBadge() {
-  return (
-    <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-emerald-600">
-      Doğru
-    </span>
-  );
-}
-
-function SectionHead({ children }: { children: string }) {
+function SectionHead({ children }: { children: ReactNode }) {
   return (
     <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--panel-muted)]">
       {children}

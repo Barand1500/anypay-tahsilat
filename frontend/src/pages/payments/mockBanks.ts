@@ -119,9 +119,8 @@ export function getCardExpiryError(expiry: string): string | null {
   return null;
 }
 
-export function formatMoneyTr(n: number) {
-  return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+export { formatMoneyAmount as formatMoneyTr, formatMoneyDisplay } from '../settings/personalPrefs';
+import { formatMoneyAmount } from '../settings/personalPrefs';
 
 /** TR para metnini sayıya çevir (1.234,56 → 1234.56) */
 export function parseTrMoney(raw: string): number {
@@ -138,7 +137,7 @@ export function maskMoneyInput(raw: string): string {
   const digits = raw.replace(/\D/g, '').replace(/^0+/, '') || '';
   if (!digits) return '';
   const capped = digits.slice(0, 14);
-  return formatMoneyTr(Number(capped) / 100);
+  return formatMoneyAmount(Number(capped) / 100);
 }
 
 /** İsim veya id ile logo bul — özet kartları / API sonrası */

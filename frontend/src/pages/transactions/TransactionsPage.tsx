@@ -14,7 +14,7 @@ import { useCustomersList } from '../customers/useCustomersList';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { DekontModal } from './DekontModal';
 import {
-  formatMoneyTr,
+  formatMoneyTr, formatMoneyDisplay,
   formatTxDate,
   isVoidWindowOpen,
   TX_STATUS_LABEL,
@@ -370,7 +370,7 @@ export default function TransactionsPage() {
         mode: updated.archived ? 'in' : 'out',
         id: updated.id,
         title: updated.customerTitle,
-        amountLabel: `${formatMoneyTr(updated.amount + updated.commission)} ₺`,
+        amountLabel: `${formatMoneyDisplay(updated.amount + updated.commission)}`,
         from,
       });
     } catch (err) {
@@ -643,18 +643,18 @@ export default function TransactionsPage() {
 
                   <div className="min-w-0 text-[12px] tabular-nums text-[var(--panel-muted)]">
                     <CopyLine
-                      value={`${formatMoneyTr(tx.amount)} ₺`}
+                      value={`${formatMoneyDisplay(tx.amount)}`}
                       raw={formatMoneyTr(tx.amount)}
                       onCopied={flash}
                       className="text-[var(--panel-ink)]"
                     />
                     <CopyLine
-                      value={`Komisyon: ${formatMoneyTr(tx.commission)} ₺`}
+                      value={`Komisyon: ${formatMoneyDisplay(tx.commission)}`}
                       raw={formatMoneyTr(tx.commission)}
                       onCopied={flash}
                     />
                     <CopyLine
-                      value={`Toplam: ${formatMoneyTr(tx.amount + tx.commission)} ₺`}
+                      value={`Toplam: ${formatMoneyDisplay(tx.amount + tx.commission)}`}
                       raw={formatMoneyTr(tx.amount + tx.commission)}
                       onCopied={flash}
                       className="text-[13px] font-bold text-[var(--panel-ink)]"

@@ -5,7 +5,7 @@ import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { MonthMultiSelect } from '../../components/ui/MonthMultiSelect';
 import { api } from '../../lib/api';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
-import { formatMoneyTr } from './collectionReportTypes';
+import { formatMoneyTr, formatMoneyDisplay } from './collectionReportTypes';
 import { defaultStatYears } from './statisticsTypes';
 
 const PAGE_MIN = 5;
@@ -344,10 +344,10 @@ export default function BankCollectionReportPage() {
                   </div>
                   <span className="text-right tabular-nums text-[var(--panel-ink)]">{r.count}</span>
                   <span className="text-right font-semibold tabular-nums text-[var(--panel-ink)]">
-                    {formatMoneyTr(r.total)} ₺
+                    {formatMoneyDisplay(r.total)}
                   </span>
                   <span className="text-right tabular-nums text-[var(--panel-muted)]">
-                    {formatMoneyTr(avgOf(r))} ₺
+                    {formatMoneyDisplay(avgOf(r))}
                   </span>
                 </div>
               ))

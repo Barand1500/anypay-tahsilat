@@ -51,9 +51,7 @@ export function defaultStatYears(now = new Date()): { value: string; label: stri
   return [y, y - 1, y - 2].map((n) => ({ value: String(n), label: String(n) }));
 }
 
-export function formatMoneyTr(n: number): string {
-  return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+export { formatMoneyAmount as formatMoneyTr, formatMoneyDisplay } from '../settings/personalPrefs';
 
 export const REPORT_SUBNAV = [
   { to: '/raporlar/istatistikler', label: 'İstatistikler', ready: true },

@@ -3,21 +3,21 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
-import { TextInput } from '../../components/ui/TextInput';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
-import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
+import { normalizePhoneInput } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import {
   detectBank,
   digitsOnly,
   formatCardNumber,
   formatExpiryInput,
-  formatMoneyTr,
+  formatMoneyTr, formatMoneyDisplay,
   getCardExpiryError,
   isValidLuhn,
   maskMoneyInput,
@@ -248,7 +248,7 @@ export default function QuickPayPage() {
       navigate('/hareketler', {
         replace: true,
         state: {
-          flash: `Hızlı ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyTr(data.amount)} ${currencySymbol}`,
+          flash: `Hızlı ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyDisplay(data.amount, currencySymbol)}`,
         },
       });
     } catch (err) {
@@ -336,7 +336,7 @@ export default function QuickPayPage() {
             </div>
             {balance != null ? (
               <p className="text-xs font-semibold text-[var(--color-brand-600)]">
-                Bakiye: {formatMoneyTr(balance)} ₺
+                Bakiye: {formatMoneyDisplay(balance)}
               </p>
             ) : null}
 
@@ -453,84 +453,29 @@ export default function QuickPayPage() {
 
           {/* Kart */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
-            <SectionHead>Kredi Kartı Bilgileri</SectionHead>
-            <TextInput
-              data-km-jump
-              label="Ad Soyad"
-              value={holder}
-              error={errors.holder}
-              onChange={(e) => setHolder(e.target.value)}
+            <PaymentCardFields
+              heading="Kredi Kartı Bilgileri"
+              SectionHead={SectionHead}
+              holder={holder}
+              tc={tc}
+              phone={phone}
+              card={card}
+              expiry={expiry}
+              cvc={cvc}
+              errors={errors}
+              bank={bank}
+              cardFaulty={cardFaulty}
+              expiryOk={expiryOk}
+              expiryFaulty={expiryFaulty}
+              onHolder={setHolder}
+              onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
+              onPhone={(v) => setPhone(normalizePhoneInput(v))}
+              onCard={onCardChange}
+              onExpiry={onExpiryChange}
+              onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
+              onCardBlur={() => setCardChecked(true)}
+              onExpiryBlur={() => setExpiryChecked(true)}
             />
-            <TextInput
-              data-km-jump
-              label="T.C. Kimlik No"
-              value={tc}
-              error={errors.tc}
-              inputMode="numeric"
-              onChange={(e) => setTc(digitsOnly(e.target.value).slice(0, 11))}
-              className="font-mono tabular-nums"
-            />
-            <TextInput
-              data-km-jump
-              label="Telefon No"
-              value={formatPhoneLive(phone)}
-              error={errors.phone}
-              inputMode="tel"
-              onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
-              className="font-mono tabular-nums"
-            />
-            <TextInput
-              data-km-jump
-              label="Kart No"
-              value={card}
-              error={errors.card}
-              inputMode="numeric"
-              autoComplete="cc-number"
-              onChange={(e) => onCardChange(e.target.value)}
-              onBlur={() => setCardChecked(true)}
-              className="!pr-[7rem] font-mono tabular-nums"
-              endAdornment={
-                cardFaulty ? (
-                  <FaultBadge />
-                ) : bank ? (
-                  <img
-                    src={bank.logo}
-                    alt=""
-                    title={bank.name}
-                    className="h-7 w-auto max-w-[80px] object-contain"
-                  />
-                ) : (
-                  <span className="rounded-md bg-[var(--panel-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)]">
-                    BIN
-                  </span>
-                )
-              }
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <TextInput
-                data-km-jump
-                label="Son kullanım"
-                value={expiry}
-                error={errors.expiry}
-                inputMode="numeric"
-                autoComplete="cc-exp"
-                onChange={(e) => onExpiryChange(e.target.value)}
-                onBlur={() => setExpiryChecked(true)}
-                className="!pr-20 font-mono tabular-nums"
-                endAdornment={
-                  expiryFaulty ? <FaultBadge /> : expiryOk ? <OkBadge /> : null
-                }
-              />
-              <TextInput
-                data-km-jump
-                label="CVC"
-                value={cvc}
-                error={errors.cvc}
-                inputMode="numeric"
-                onChange={(e) => setCvc(digitsOnly(e.target.value).slice(0, 4))}
-                className="font-mono tabular-nums"
-              />
-            </div>
           </section>
 
           {/* Banka */}
@@ -626,22 +571,6 @@ function SectionHead({ children }: { children: ReactNode }) {
     <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--panel-ink)]">
       {children}
     </h2>
-  );
-}
-
-function FaultBadge() {
-  return (
-    <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-600">
-      Hatalı
-    </span>
-  );
-}
-
-function OkBadge() {
-  return (
-    <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-emerald-600">
-      Doğru
-    </span>
   );
 }
 

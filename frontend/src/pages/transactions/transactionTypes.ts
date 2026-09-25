@@ -69,15 +69,16 @@ export function dekontBankName(tx: Transaction): string {
   return tx.bankName;
 }
 
-export function formatMoneyTr(n: number): string {
-  return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import {
+  formatMoneyAmount,
+  formatMoneyDisplay,
+  formatPanelDateTime,
+} from '../settings/personalPrefs';
+
+export { formatMoneyAmount as formatMoneyTr, formatMoneyDisplay };
 
 export function formatTxDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(+d)) return iso;
-  const pad = (x: number) => String(x).padStart(2, '0');
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return formatPanelDateTime(iso);
 }
 
 const ONES = ['', 'BİR', 'İKİ', 'ÜÇ', 'DÖRT', 'BEŞ', 'ALTI', 'YEDİ', 'SEKİZ', 'DOKUZ'];

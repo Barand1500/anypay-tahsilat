@@ -1,17 +1,18 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
-import { TextInput } from '../../components/ui/TextInput';
+import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { api } from '../../lib/api';
-import { formatPhoneLive, normalizePhoneInput } from '../customers/mockCustomers';
+import { normalizePhoneInput } from '../customers/mockCustomers';
 import {
+  detectBank,
   digitsOnly,
   formatCardNumber,
   formatExpiryInput,
-  formatMoneyTr,
+  formatMoneyDisplay,
   getCardExpiryError,
   isValidLuhn,
-} from '../payments/mockBanks';
+} from './mockBanks';
 
 type PublicPayView = {
   token: string;
@@ -110,6 +111,15 @@ export default function PublicPayPage() {
     return view.installments;
   }, [view]);
 
+  const cardDigits = digitsOnly(card);
+  const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
+  const cardFaulty =
+    cardDigits.length > 0 &&
+    (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
+  const expiryErr = getCardExpiryError(expiry);
+  const expiryOk = !expiryErr && digitsOnly(expiry).length === 4;
+  const expiryFaulty = digitsOnly(expiry).length === 4 && Boolean(expiryErr);
+
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
@@ -193,7 +203,7 @@ export default function PublicPayPage() {
           <div className="mb-5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3.5">
             <p className="text-sm font-semibold text-[var(--panel-ink)]">{view.customerTitle}</p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-brand-600)]">
-              {formatMoneyTr(view.amount)} {view.currencySymbol || '₺'}
+              {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
             </p>
             <p className="mt-1 text-xs text-[var(--panel-muted)]">
               {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
@@ -234,57 +244,31 @@ export default function PublicPayPage() {
               <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">Ödeme alındı</p>
               <p className="mt-1 text-sm text-[var(--panel-muted)]">
                 {done
-                  ? `${done.odemeNo} · ${formatMoneyTr(done.amount)} ${view.currencySymbol || '₺'}`
+                  ? `${done.odemeNo} · ${formatMoneyDisplay(done.amount, view.currencySymbol || '₺')}`
                   : 'Bu link daha önce kullanıldı.'}
               </p>
             </div>
           ) : (
             <form onSubmit={(e) => void onSubmit(e)} className="space-y-3.5">
-              <TextInput
-                label="Kart üzerindeki ad soyad"
-                value={holder}
-                onChange={(e) => setHolder(e.target.value)}
-                error={errors.holder}
+              <PaymentCardFields
+                holder={holder}
+                tc={tc}
+                phone={phone}
+                card={formatCardNumber(card)}
+                expiry={expiry}
+                cvc={cvc}
+                errors={errors}
+                bank={bank}
+                cardFaulty={cardFaulty}
+                expiryOk={expiryOk}
+                expiryFaulty={expiryFaulty}
+                onHolder={setHolder}
+                onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
+                onPhone={(v) => setPhone(normalizePhoneInput(v))}
+                onCard={(v) => setCard(digitsOnly(v).slice(0, 16))}
+                onExpiry={(v) => setExpiry(formatExpiryInput(v))}
+                onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
               />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextInput
-                  label="T.C. kimlik no"
-                  value={tc}
-                  onChange={(e) => setTc(digitsOnly(e.target.value).slice(0, 11))}
-                  inputMode="numeric"
-                  error={errors.tc}
-                />
-                <TextInput
-                  label="Telefon"
-                  value={formatPhoneLive(phone)}
-                  onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
-                  inputMode="tel"
-                  error={errors.phone}
-                />
-              </div>
-              <TextInput
-                label="Kart numarası"
-                value={formatCardNumber(card)}
-                onChange={(e) => setCard(digitsOnly(e.target.value).slice(0, 16))}
-                inputMode="numeric"
-                error={errors.card}
-              />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextInput
-                  label="Son kullanma (AA/YY)"
-                  value={expiry}
-                  onChange={(e) => setExpiry(formatExpiryInput(e.target.value))}
-                  inputMode="numeric"
-                  error={errors.expiry}
-                />
-                <TextInput
-                  label="CVC"
-                  value={cvc}
-                  onChange={(e) => setCvc(digitsOnly(e.target.value).slice(0, 4))}
-                  inputMode="numeric"
-                  error={errors.cvc}
-                />
-              </div>
 
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
@@ -317,7 +301,9 @@ export default function PublicPayPage() {
                 disabled={saving}
                 className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-[var(--color-brand-600)] text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:opacity-60"
               >
-                {saving ? 'İşleniyor…' : `Öde — ${formatMoneyTr(view.amount)} ${view.currencySymbol || '₺'}`}
+                {saving
+                  ? 'İşleniyor…'
+                  : `Öde — ${formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}`}
               </button>
               <p className="text-center text-[11px] text-[var(--panel-muted)]">
                 Kart bilgileri bankaya iletilmeden önce panel kaydı oluşturulur; 3D Secure sonraki adım.

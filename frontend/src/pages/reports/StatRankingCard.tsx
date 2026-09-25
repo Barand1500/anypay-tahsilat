@@ -2,7 +2,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SearchableCombobox } from '../../components/ui/SearchableCombobox';
-import { formatMoneyTr, type StatRankItem } from './statisticsTypes';
+import { formatMoneyTr, formatMoneyDisplay, type StatRankItem } from './statisticsTypes';
 
 gsap.registerPlugin(useGSAP);
 
@@ -154,7 +154,7 @@ export function StatRankingCard({
         <p className="shrink-0 text-right text-xs text-[var(--panel-muted)]">
           Toplam{' '}
           <span className="font-bold tabular-nums text-[var(--panel-ink)]">
-            {formatMoneyTr(total)} ₺
+            {formatMoneyDisplay(total)}
           </span>
         </p>
       </header>
@@ -225,7 +225,7 @@ export function StatRankingCard({
                         </div>
                       </div>
                       <span className="shrink-0 pl-2 text-right text-[13px] font-bold tabular-nums text-[var(--panel-ink)]">
-                        {formatMoneyTr(item.amount)} ₺
+                        {formatMoneyDisplay(item.amount)}
                       </span>
                     </button>
                   </li>
@@ -357,7 +357,7 @@ function DonutView({
                 onMouseLeave={() => setHoverId(null)}
               >
                 <title>
-                  {a.label}: {formatMoneyTr(a.amount)} ₺ ({a.pct}%)
+                  {a.label}: {formatMoneyDisplay(a.amount)} ({a.pct}%)
                 </title>
               </path>
               {a.showLabel ? (
@@ -515,7 +515,7 @@ function ColumnChartView({
                 fill={item.color}
               >
                 <title>
-                  {item.label}: {formatMoneyTr(item.amount)} ₺
+                  {item.label}: {formatMoneyDisplay(item.amount)}
                 </title>
               </rect>
               <text
@@ -535,7 +535,7 @@ function ColumnChartView({
         <p className="mt-1 truncate text-center text-[11px] text-[var(--panel-muted)]">
           {items.find((x) => x.id === hoverId)?.label} —{' '}
           <span className="font-semibold tabular-nums text-[var(--panel-ink)]">
-            {formatMoneyTr(items.find((x) => x.id === hoverId)?.amount ?? 0)} ₺
+            {formatMoneyDisplay(items.find((x) => x.id === hoverId)?.amount ?? 0)}
           </span>
         </p>
       ) : (

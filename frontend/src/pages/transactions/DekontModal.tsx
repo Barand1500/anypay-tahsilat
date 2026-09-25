@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   amountInWordsTr,
   dekontBankName,
-  formatMoneyTr,
+  formatMoneyTr, formatMoneyDisplay,
   formatTxDate,
   type Transaction,
 } from './transactionTypes';
@@ -148,8 +148,8 @@ export function DekontModal({ tx, onClose }: Props) {
                   <Kv label="BANKA" value={bankName} />
                   <Kv label="KART" value={d.cardMasked} />
                   <Kv label="TAKSİT" value={String(tx.installments)} />
-                  <Kv label="TUTAR" value={`${formatMoneyTr(tx.amount)} ₺`} />
-                  <Kv label="KOMİSYON" value={`${formatMoneyTr(tx.commission)} ₺`} />
+                  <Kv label="TUTAR" value={`${formatMoneyDisplay(tx.amount)}`} />
+                  <Kv label="KOMİSYON" value={`${formatMoneyDisplay(tx.commission)}`} />
                   <Kv label="TOPLAM" value={`${money} ₺`} last strong />
                 </div>
               </div>
