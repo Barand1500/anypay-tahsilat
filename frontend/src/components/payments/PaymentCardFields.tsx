@@ -104,7 +104,7 @@ export function PaymentCardFields(props: Props) {
             error={props.errors.tc}
             onChange={(e) => props.onTc(e.target.value)}
             inputMode="numeric"
-            className="!h-11 !pb-1.5 !pt-4 font-mono text-xs tabular-nums"
+            className="!h-10 !pb-1 !pt-3.5 font-mono text-xs tabular-nums"
           />
           <TextInput
             data-km-jump
@@ -113,7 +113,7 @@ export function PaymentCardFields(props: Props) {
             error={props.errors.phone}
             onChange={(e) => props.onPhone(e.target.value)}
             inputMode="tel"
-            className="!h-11 !pb-1.5 !pt-4 font-mono text-xs tabular-nums"
+            className="!h-10 !pb-1 !pt-3.5 font-mono text-xs tabular-nums"
           />
         </div>
 

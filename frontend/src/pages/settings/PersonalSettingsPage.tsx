@@ -1,7 +1,9 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../../components/ui/Button';
+import { AnalogTimePicker } from '../../components/ui/AnalogTimePicker';
 import { notifyCardDesignChange } from '../../components/payments/PaymentCardFields';
 import { useTheme } from '../../theme/ThemeProvider';
 import {
@@ -45,6 +47,8 @@ type Draft = {
   animations: boolean;
 };
 
+type ClockTarget = 'from' | 'to' | null;
+
 function loadDraft(): Draft {
   return {
     fontId: getStoredPanelFont(),
@@ -66,9 +70,12 @@ function nightEqual(a: NightAutoPrefs, b: NightAutoPrefs) {
 export default function PersonalSettingsPage() {
   const { refreshNightAuto } = useTheme();
   const rootRef = useRef<HTMLDivElement>(null);
+  const saveBarRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Draft>(loadDraft);
   const [baseline, setBaseline] = useState<Draft>(loadDraft);
   const [saveOk, setSaveOk] = useState(false);
+  const [saveInView, setSaveInView] = useState(true);
+  const [clockTarget, setClockTarget] = useState<ClockTarget>(null);
 
   const dirty =
     draft.fontId !== baseline.fontId ||
@@ -91,8 +98,19 @@ export default function PersonalSettingsPage() {
     { scope: rootRef },
   );
 
-  function save(e: FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    const el = saveBarRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setSaveInView(Boolean(entry?.isIntersecting)),
+      { root: null, threshold: 0.35 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  function save(e?: FormEvent) {
+    e?.preventDefault();
     if (!dirty) return;
     if (draft.night.enabled) {
       if (!parseHm(draft.night.from) || !parseHm(draft.night.to)) return;
@@ -139,8 +157,14 @@ export default function PersonalSettingsPage() {
     setDraft({ ...baseline, night: { ...baseline.night } });
   }
 
+  function scrollToSave() {
+    saveBarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  const showFloat = dirty && !saveInView;
+
   return (
-    <div ref={rootRef} className="w-full">
+    <div ref={rootRef} className="w-full pb-8">
       <div data-anim className="mb-5">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">
           Kişisel Ayarlar
@@ -165,24 +189,21 @@ export default function PersonalSettingsPage() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {PANEL_FONTS.map((f) => {
-              const selected = draft.fontId === f.id;
-              return (
-                <ChoiceCard
-                  key={f.id}
-                  selected={selected}
-                  title={f.label}
-                  onClick={() => pickFont(f.id)}
+            {PANEL_FONTS.map((f) => (
+              <ChoiceCard
+                key={f.id}
+                selected={draft.fontId === f.id}
+                title={f.label}
+                onClick={() => pickFont(f.id)}
+              >
+                <p
+                  className="mt-3 text-[15px] leading-snug text-[var(--panel-ink)]"
+                  style={{ fontFamily: f.family }}
                 >
-                  <p
-                    className="mt-3 text-[15px] leading-snug text-[var(--panel-ink)]"
-                    style={{ fontFamily: f.family }}
-                  >
-                    {f.sample}
-                  </p>
-                </ChoiceCard>
-              );
-            })}
+                  {f.sample}
+                </p>
+              </ChoiceCard>
+            ))}
           </div>
         </section>
 
@@ -283,7 +304,6 @@ export default function PersonalSettingsPage() {
               Kapalıyken mail / şifre gönderiminde drone görünmez; yalnızca toast mesajı çıkar.
             </p>
           </div>
-
           <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-3.5">
             <button
               type="button"
@@ -367,40 +387,23 @@ export default function PersonalSettingsPage() {
               draft.night.enabled ? '' : 'pointer-events-none opacity-45',
             ].join(' ')}
           >
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-[var(--panel-muted)]">Başlangıç</span>
-              <input
-                type="time"
-                data-km-jump
-                value={draft.night.from}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    night: { ...d.night, from: e.target.value || '20:00' },
-                  }))
-                }
-                className="h-11 rounded-xl border border-[var(--panel-line)] bg-[var(--input-bg)] px-3 text-sm text-[var(--panel-ink)] outline-none focus:border-[var(--input-border-focus)]"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-[var(--panel-muted)]">Bitiş</span>
-              <input
-                type="time"
-                data-km-jump
-                value={draft.night.to}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    night: { ...d.night, to: e.target.value || '07:00' },
-                  }))
-                }
-                className="h-11 rounded-xl border border-[var(--panel-line)] bg-[var(--input-bg)] px-3 text-sm text-[var(--panel-ink)] outline-none focus:border-[var(--input-border-focus)]"
-              />
-            </label>
+            <TimeTrigger
+              label="Başlangıç"
+              value={draft.night.from}
+              onOpen={() => setClockTarget('from')}
+            />
+            <TimeTrigger
+              label="Bitiş"
+              value={draft.night.to}
+              onOpen={() => setClockTarget('to')}
+            />
           </div>
         </section>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--panel-line)] pt-4">
+        <div
+          ref={saveBarRef}
+          className="flex flex-wrap items-center gap-2 border-t border-[var(--panel-line)] pt-4"
+        >
           <div className="min-w-[11rem] flex-1 sm:flex-none sm:min-w-[12rem]">
             <Button type="submit" disabled={!dirty && !saveOk} success={saveOk}>
               <span className="inline-flex items-center gap-2">
@@ -421,7 +424,81 @@ export default function PersonalSettingsPage() {
           ) : null}
         </div>
       </form>
+
+      {showFloat
+        ? createPortal(
+            <button
+              type="button"
+              data-km-jump
+              onClick={() => {
+                save();
+                scrollToSave();
+              }}
+              className="fixed right-4 bottom-24 z-[10020] flex items-center gap-2 rounded-2xl bg-[var(--color-brand-600)] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_32px_rgba(0,0,0,0.28)] transition hover:bg-[var(--color-brand-500)] hover:scale-[1.02] active:scale-[0.98] sm:right-6 sm:bottom-28"
+              style={{ animation: 'anypay-float-in 0.28s ease-out' }}
+            >
+              <SaveIcon />
+              Kaydet
+            </button>,
+            document.body,
+          )
+        : null}
+
+      <AnalogTimePicker
+        open={clockTarget === 'from'}
+        title="Başlangıç"
+        value={draft.night.from}
+        onClose={() => setClockTarget(null)}
+        onConfirm={(hm) => {
+          setDraft((d) => ({ ...d, night: { ...d.night, from: hm } }));
+          setClockTarget(null);
+        }}
+      />
+      <AnalogTimePicker
+        open={clockTarget === 'to'}
+        title="Bitiş"
+        value={draft.night.to}
+        onClose={() => setClockTarget(null)}
+        onConfirm={(hm) => {
+          setDraft((d) => ({ ...d, night: { ...d.night, to: hm } }));
+          setClockTarget(null);
+        }}
+      />
+
+      <style>{`
+        @keyframes anypay-float-in {
+          from { opacity: 0; transform: translateX(12px) scale(0.92); }
+          to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+      `}</style>
     </div>
+  );
+}
+
+function TimeTrigger({
+  label,
+  value,
+  onOpen,
+}: {
+  label: string;
+  value: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-km-jump
+      onClick={onOpen}
+      className="flex flex-col gap-1.5 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-3 text-left transition hover:border-[var(--color-brand-500)]/40 hover:bg-[var(--panel-hover)]"
+    >
+      <span className="text-xs font-semibold text-[var(--panel-muted)]">{label}</span>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-xl font-bold tabular-nums text-[var(--panel-ink)]">{value}</span>
+        <span className="rounded-lg bg-[var(--color-brand-600)]/10 px-2 py-1 text-[10px] font-bold text-[var(--color-brand-600)]">
+          Saat seç
+        </span>
+      </span>
+    </button>
   );
 }
 
