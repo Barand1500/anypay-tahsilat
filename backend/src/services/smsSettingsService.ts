@@ -423,11 +423,16 @@ export async function softDeleteSmsTemplate(id: number): Promise<void> {
   );
 }
 
-/* ─── Sınama ─── */
+/* ─── Gönderim ─── */
 
-export async function sendSmsTest(phoneRaw: string): Promise<{ sent: true; to: string }> {
+/** NetGSM / MutluCell — ortak SMS gönderimi */
+export async function dispatchSms(
+  phoneRaw: string,
+  message: string,
+): Promise<{ sent: true; to: string }> {
   const phone = digitsPhone(phoneRaw);
   if (phone.length < 10) throw new SettingsError('Geçerli bir telefon numarası girin');
+  if (!message.trim()) throw new SettingsError('Mesaj boş olamaz');
 
   const row = await readSmsAyarRow();
   if (!row) throw new SettingsError('Önce SMS ayarlarını kaydedin');
@@ -447,39 +452,53 @@ export async function sendSmsTest(phoneRaw: string): Promise<{ sent: true; to: s
   `;
   if (!prov[0]) throw new SettingsError('Sağlayıcı bulunamadı');
 
-  const message = `AnyPay Tahsilat SMS sinama. ${new Date().toLocaleString('tr-TR')}`;
   const name = prov[0].adi.toLocaleLowerCase('tr');
+  const text = message.trim().slice(0, 900);
 
   if (name.includes('netgsm')) {
     const url = new URL('https://api.netgsm.com.tr/sms/send/get');
     url.searchParams.set('usercode', vars.kullaniciadi);
     url.searchParams.set('password', vars.sifre);
     url.searchParams.set('gsmno', phone.startsWith('90') ? phone : `90${phone}`);
-    url.searchParams.set('message', message);
+    url.searchParams.set('message', text);
     url.searchParams.set('msgheader', vars.baslik);
     const res = await fetch(url.toString());
-    const text = (await res.text()).trim();
-    const code = text.split(/\s+/)[0] || '';
-    if (code !== '00') throw new SettingsError(`NetGSM yanıtı: ${text.slice(0, 120)}`);
+    const body = (await res.text()).trim();
+    const code = body.split(/\s+/)[0] || '';
+    if (code !== '00') throw new SettingsError(`NetGSM yanıtı: ${body.slice(0, 120)}`);
   } else if (name.includes('mutlucell') || name.includes('mutlu')) {
-    const xml = `<?xml version="1.0" encoding="UTF-8"?><smspack ka="${vars.kullaniciadi}" pwd="${vars.sifre}" org="${vars.baslik}" charset="turkish"><mesaj><metin>${message}</metin><nums>0${phone}</nums></mesaj></smspack>`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><smspack ka="${vars.kullaniciadi}" pwd="${vars.sifre}" org="${vars.baslik}" charset="turkish"><mesaj><metin>${escapeXml(text)}</metin><nums>0${phone.slice(-10)}</nums></mesaj></smspack>`;
     const res = await fetch('https://smsgw.mutlucell.com/smsgw-ws/sndblkex', {
       method: 'POST',
       headers: { 'Content-Type': 'text/xml' },
       body: xml,
     });
-    const text = (await res.text()).trim();
-    if (!res.ok) throw new SettingsError(`MutluCell hata: ${text.slice(0, 120)}`);
+    const body = (await res.text()).trim();
+    if (!res.ok) throw new SettingsError(`MutluCell hata: ${body.slice(0, 120)}`);
   } else {
-    throw new SettingsError(`“${prov[0].adi}” için otomatik sınama yok — NetGsm / MutluCell seçin`);
+    throw new SettingsError(`“${prov[0].adi}” için otomatik gönderim yok — NetGsm / MutluCell seçin`);
   }
 
+  return { sent: true, to: phone };
+}
+
+function escapeXml(s: string) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export async function sendSmsTest(phoneRaw: string): Promise<{ sent: true; to: string }> {
+  const message = `AnyPay Tahsilat SMS sinama. ${new Date().toLocaleString('tr-TR')}`;
+  const result = await dispatchSms(phoneRaw, message);
   try {
     await prisma.gonderimGecmisi.create({
       data: {
         musteriId: null,
         tip: 'sms',
-        alici: phone,
+        alici: result.to,
         icerik: message,
         tarih: new Date(),
         kaynak: 'sms-test',
@@ -490,8 +509,7 @@ export async function sendSmsTest(phoneRaw: string): Promise<{ sent: true; to: s
   } catch {
     /* opsiyonel */
   }
-
-  return { sent: true, to: phone };
+  return result;
 }
 
 export async function bootstrapSms(): Promise<void> {

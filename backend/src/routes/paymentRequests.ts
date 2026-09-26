@@ -8,6 +8,7 @@ import {
   getPaymentRequest,
   listPaymentRequests,
   PaymentRequestsError,
+  smsPaymentRequest,
   softDeletePaymentRequest,
   updatePaymentRequest,
 } from '../services/paymentRequestsService.js';
@@ -208,6 +209,29 @@ paymentRequestsRouter.post('/:id/email', async (req: AuthedRequest, res) => {
     if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'E-posta gönderilemedi');
+  }
+});
+
+paymentRequestsRouter.post('/:id/sms', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz istek');
+  try {
+    const data = await smsPaymentRequest(id);
+    await writePanelLog(
+      req.auth!.sub,
+      data.smsSent
+        ? `Ödeme isteği SMS gönderildi — #${id} → ${data.to}`
+        : `Ödeme isteği SMS başarısız — #${id} → ${data.to}${data.error ? ` (${data.error})` : ''}`,
+    );
+    return sendSuccess(
+      res,
+      data,
+      data.smsSent ? 'SMS gönderildi' : data.error || 'SMS gönderilemedi',
+    );
+  } catch (err) {
+    if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'SMS gönderilemedi');
   }
 });
 

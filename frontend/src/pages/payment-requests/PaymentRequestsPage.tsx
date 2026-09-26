@@ -11,6 +11,7 @@ import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import { mapCustomer, type ApiCustomer } from '../customers/customersApi';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
+import { getStoredAnimationsEnabled } from '../settings/personalPrefs';
 import {
   formatDt,
   formatElapsed,
@@ -104,10 +105,15 @@ export default function PaymentRequestsPage() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [courier, setCourier] = useState<{
-    email: string;
+    to: string;
     flash: string;
     failed: boolean;
+    channel: 'email' | 'sms';
   } | null>(null);
+  /** Spam engeli — aynı anda tek gönderim */
+  const sendingLock = useRef(false);
+  const [sendingBusy, setSendingBusy] = useState(false);
+  const courierResultRef = useRef<{ flash: string; failed: boolean } | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const [branch, setBranch] = useState<string | null>(null);
@@ -369,40 +375,98 @@ export default function PaymentRequestsPage() {
 
   async function sendEmail(r: PaymentRequest) {
     if (!r.email || !token) return;
+    if (sendingLock.current) return;
+    sendingLock.current = true;
+    setSendingBusy(true);
+    courierResultRef.current = null;
+
+    const anim = getStoredAnimationsEnabled();
+    if (anim) {
+      setCourier({
+        to: r.email,
+        flash: '',
+        failed: false,
+        channel: 'email',
+      });
+    }
+
     try {
       const data = await api.post<{ to: string; emailSent: boolean }>(
         `/api/payment-requests/${encodeURIComponent(r.id)}/email`,
         {},
         token,
       );
-      setCourier({
-        email: data.to || r.email,
-        flash: data.emailSent
-          ? `Ödeme isteği gönderildi → ${data.to}`
-          : `E-posta gönderilemedi → ${data.to}`,
-        failed: !data.emailSent,
-      });
+      const flash = data.emailSent
+        ? `Ödeme isteği e-posta ile gönderildi → ${data.to}`
+        : `E-posta gönderilemedi → ${data.to}`;
+      const failed = !data.emailSent;
+      courierResultRef.current = { flash, failed };
+      if (anim) {
+        setCourier({ to: data.to || r.email, flash, failed, channel: 'email' });
+      } else {
+        setToast(flash);
+        sendingLock.current = false;
+        setSendingBusy(false);
+      }
     } catch (err) {
-      setCourier({
-        email: r.email,
-        flash: err instanceof Error ? err.message : 'E-posta gönderilemedi',
-        failed: true,
-      });
+      const flash = err instanceof Error ? err.message : 'E-posta gönderilemedi';
+      courierResultRef.current = { flash, failed: true };
+      if (anim) {
+        setCourier({ to: r.email, flash, failed: true, channel: 'email' });
+      } else {
+        setToast(flash);
+        sendingLock.current = false;
+        setSendingBusy(false);
+      }
     }
   }
 
-  function sendSms(r: PaymentRequest) {
-    if (!r.phone) return;
-    const body = encodeURIComponent(
-      payShareMessage({
-        amount: r.amount,
-        token: r.token,
-        files: r.files,
-        greeting: 'Ödeme linkiniz:',
-        currencySymbol: r.currencySymbol,
-      }),
-    );
-    window.open(`sms:+90${r.phone.replace(/\D/g, '')}?body=${body}`, '_self');
+  async function sendSms(r: PaymentRequest) {
+    if (!r.phone || !token) return;
+    if (sendingLock.current) return;
+    sendingLock.current = true;
+    setSendingBusy(true);
+    courierResultRef.current = null;
+
+    const anim = getStoredAnimationsEnabled();
+    if (anim) {
+      setCourier({
+        to: r.phone,
+        flash: '',
+        failed: false,
+        channel: 'sms',
+      });
+    }
+
+    try {
+      const data = await api.post<{ to: string; smsSent: boolean; error?: string }>(
+        `/api/payment-requests/${encodeURIComponent(r.id)}/sms`,
+        {},
+        token,
+      );
+      const flash = data.smsSent
+        ? `Ödeme isteği SMS ile gönderildi → ${data.to}`
+        : data.error || `SMS gönderilemedi → ${data.to}`;
+      const failed = !data.smsSent;
+      courierResultRef.current = { flash, failed };
+      if (anim) {
+        setCourier({ to: data.to || r.phone, flash, failed, channel: 'sms' });
+      } else {
+        setToast(flash);
+        sendingLock.current = false;
+        setSendingBusy(false);
+      }
+    } catch (err) {
+      const flash = err instanceof Error ? err.message : 'SMS gönderilemedi';
+      courierResultRef.current = { flash, failed: true };
+      if (anim) {
+        setCourier({ to: r.phone, flash, failed: true, channel: 'sms' });
+      } else {
+        setToast(flash);
+        sendingLock.current = false;
+        setSendingBusy(false);
+      }
+    }
   }
 
   function onEdit(r: PaymentRequest) {
@@ -656,7 +720,7 @@ export default function PaymentRequestsPage() {
                       </ActionRound>
                       <ActionRound
                         title="Ödeme Bilgilerini Whatsapp ile Gönder"
-                        active={!!r.whatsapp}
+                        active={!!r.whatsapp && !sendingBusy}
                         bg="bg-emerald-100 dark:bg-emerald-500/20"
                         fg="text-emerald-700 dark:text-emerald-400"
                         onClick={() => sendWhatsApp(r)}
@@ -665,7 +729,7 @@ export default function PaymentRequestsPage() {
                       </ActionRound>
                       <ActionRound
                         title="Ödeme Bilgilerini E-Posta Olarak Gönder"
-                        active={!!r.email}
+                        active={!!r.email && !sendingBusy}
                         bg="bg-teal-100 dark:bg-teal-500/20"
                         fg="text-teal-700 dark:text-teal-400"
                         onClick={() => {
@@ -676,10 +740,12 @@ export default function PaymentRequestsPage() {
                       </ActionRound>
                       <ActionRound
                         title="Ödeme Bilgilerini SMS Olarak Gönder"
-                        active={!!r.phone}
+                        active={!!r.phone && !sendingBusy}
                         bg="bg-amber-100 dark:bg-amber-500/20"
                         fg="text-amber-700 dark:text-amber-400"
-                        onClick={() => sendSms(r)}
+                        onClick={() => {
+                          void sendSms(r);
+                        }}
                       >
                         <PhoneIcon />
                       </ActionRound>
@@ -802,13 +868,41 @@ export default function PaymentRequestsPage() {
 
       <PasswordCourierOverlay
         open={Boolean(courier)}
-        toEmail={courier?.email}
+        toEmail={courier?.to}
         failed={courier?.failed}
-        title="Senin için ödeme linkini götürüyoruz"
-        titleFailed="Ödeme linkini götürmeye çalışıyoruz…"
+        title={
+          courier?.channel === 'sms'
+            ? 'Senin için SMS götürüyoruz'
+            : 'Senin için ödeme linkini götürüyoruz'
+        }
+        titleFailed={
+          courier?.channel === 'sms'
+            ? 'SMS götürmeye çalışıyoruz…'
+            : 'Ödeme linkini götürmeye çalışıyoruz…'
+        }
         onDone={() => {
-          if (courier?.flash) setToast(courier.flash);
-          setCourier(null);
+          const finish = () => {
+            const result = courierResultRef.current;
+            const flash = result?.flash || courier?.flash;
+            if (flash) setToast(flash);
+            courierResultRef.current = null;
+            setCourier(null);
+            sendingLock.current = false;
+            setSendingBusy(false);
+          };
+          if (courierResultRef.current) {
+            finish();
+            return;
+          }
+          // Drone bitti, API henüz dönmediyse bekle (spam kilidi açık kalsın)
+          let ticks = 0;
+          const id = window.setInterval(() => {
+            ticks += 1;
+            if (courierResultRef.current || ticks > 300) {
+              window.clearInterval(id);
+              finish();
+            }
+          }, 100);
         }}
       />
     </div>

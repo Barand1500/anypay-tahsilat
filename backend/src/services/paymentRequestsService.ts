@@ -535,3 +535,57 @@ export async function emailPaymentRequest(
     return { to, emailSent: false };
   }
 }
+
+/** Ödeme isteği SMS (NetGSM / MutluCell) */
+export async function smsPaymentRequest(
+  id: number,
+): Promise<{ to: string; smsSent: boolean; error?: string }> {
+  const pub = await getPaymentRequest(id);
+  const to = pub.phone.trim();
+  if (!to) throw new PaymentRequestsError('Müşteri telefonu yok');
+  if (pub.status === 'paid') throw new PaymentRequestsError('Bu istek zaten ödenmiş');
+
+  const base =
+    process.env.PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://tahsilat.anypay.com.tr';
+  const payUrl = `${base}/pay/${encodeURIComponent(pub.token)}`;
+  const amountStr = pub.amount.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const lines = [
+    'Güzel Teknoloji',
+    'Ödeme isteğiniz hazır.',
+    `Tutar: ${amountStr} ${pub.currencySymbol || '₺'}`,
+    pub.commissionIncluded ? 'Komisyon dahil' : null,
+    pub.description ? pub.description.slice(0, 80) : null,
+    `Odeme: ${payUrl}`,
+  ].filter(Boolean) as string[];
+  const message = lines.join('\n');
+
+  try {
+    const { dispatchSms } = await import('./smsSettingsService.js');
+    const { SettingsError } = await import('./settingsService.js');
+    const result = await dispatchSms(to, message);
+    const { recordSendHistory } = await import('./sendHistoryService.js');
+    await recordSendHistory({
+      musteriId: pub.customerId ? Number(pub.customerId) : null,
+      type: 'sms',
+      recipient: result.to,
+      content: message,
+      kaynak: 'odeme_istegi',
+      refId: id,
+      basarili: true,
+    });
+    return { to: result.to, smsSent: true };
+  } catch (err) {
+    const { SettingsError } = await import('./settingsService.js');
+    const msg =
+      err instanceof SettingsError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'SMS gönderilemedi';
+    console.error('[payment-request-sms]', err);
+    return { to, smsSent: false, error: msg };
+  }
+}
