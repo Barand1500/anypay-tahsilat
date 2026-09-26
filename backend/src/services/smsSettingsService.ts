@@ -462,6 +462,8 @@ export async function dispatchSms(
     url.searchParams.set('gsmno', phone.startsWith('90') ? phone : `90${phone}`);
     url.searchParams.set('message', text);
     url.searchParams.set('msgheader', vars.baslik);
+    // Türkçe karakter desteği (₺ yine de kapıda sorun çıkarır — mesajda TL kullan)
+    url.searchParams.set('dil', 'TR');
     const res = await fetch(url.toString());
     const body = (await res.text()).trim();
     const code = body.split(/\s+/)[0] || '';

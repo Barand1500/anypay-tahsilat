@@ -552,12 +552,15 @@ export async function smsPaymentRequest(
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+  // SMS kapıları ₺ / € / $ gibi sembolleri ? yapar — kısa kod kullan
+  const currencyCode = smsCurrencyLabel(pub.currencySymbol, pub.currencyShortName);
+  const desc = smsPlainText(pub.description).slice(0, 80);
   const lines = [
-    'Güzel Teknoloji',
-    'Ödeme isteğiniz hazır.',
-    `Tutar: ${amountStr} ${pub.currencySymbol || '₺'}`,
+    'Guzel Teknoloji',
+    'Odeme isteginiz hazir.',
+    `Tutar: ${amountStr} ${currencyCode}`,
     pub.commissionIncluded ? 'Komisyon dahil' : null,
-    pub.description ? pub.description.slice(0, 80) : null,
+    desc || null,
     `Odeme: ${payUrl}`,
   ].filter(Boolean) as string[];
   const message = lines.join('\n');
@@ -588,4 +591,44 @@ export async function smsPaymentRequest(
     console.error('[payment-request-sms]', err);
     return { to, smsSent: false, error: msg };
   }
+}
+
+/** SMS için para birimi — sembol yerine TL/USD… */
+function smsCurrencyLabel(symbol?: string, shortName?: string): string {
+  const s = (shortName || '').trim().toUpperCase();
+  if (s === 'TRY' || s === 'TL' || !s) {
+    const sym = (symbol || '').trim();
+    if (!sym || sym === '₺' || sym === 'TL' || sym === 'TRY') return 'TL';
+  }
+  if (s) return s;
+  const sym = (symbol || '').trim();
+  if (sym === '₺') return 'TL';
+  if (sym === '$') return 'USD';
+  if (sym === '€') return 'EUR';
+  if (sym === '£') return 'GBP';
+  // Bilinmeyen sembolü at — ? olmasın
+  if (/^[A-Za-z]{2,4}$/.test(sym)) return sym.toUpperCase();
+  return 'TL';
+}
+
+/** HTML entity / etiket temizle — &nbsp; vb. SMS’e sızmasın */
+function smsPlainText(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_, n) => {
+      const code = Number(n);
+      return Number.isFinite(code) ? String.fromCharCode(code) : '';
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+      const code = Number.parseInt(h, 16);
+      return Number.isFinite(code) ? String.fromCharCode(code) : '';
+    })
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
