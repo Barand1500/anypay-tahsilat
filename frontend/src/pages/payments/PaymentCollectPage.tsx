@@ -4,7 +4,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { TextArea } from '../../components/ui/TextArea';
-import { TextInput } from '../../components/ui/TextInput';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';

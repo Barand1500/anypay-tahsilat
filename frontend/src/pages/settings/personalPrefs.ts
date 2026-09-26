@@ -299,6 +299,9 @@ export function hydratePersonalPrefs() {
   document.documentElement.dataset.moneyStyle = getStoredMoneyStyle();
   document.documentElement.dataset.dateStyle = getStoredDateStyle();
   document.documentElement.dataset.cardDesign = getStoredCardDesign();
+  document.documentElement.dataset.animations = getStoredAnimationsEnabled()
+    ? 'on'
+    : 'off';
 }
 
 /* ── Gece otomatik tema ───────────────────────────────── */
@@ -417,5 +420,31 @@ export function saveCardDesign(id: CardDesignId) {
 
 export function applyCardDesign(id: CardDesignId) {
   document.documentElement.dataset.cardDesign = id;
+}
+
+/* ── Animasyon (kurye / drone vb.) ────────────────────── */
+
+const ANIM_KEY = 'anypay_tahsilat_animations';
+/** Varsayılan: açık */
+const DEFAULT_ANIMATIONS = true;
+
+export function getStoredAnimationsEnabled(): boolean {
+  try {
+    const v = localStorage.getItem(ANIM_KEY);
+    if (v === '0' || v === 'false') return false;
+    if (v === '1' || v === 'true') return true;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_ANIMATIONS;
+}
+
+export function saveAnimationsEnabled(on: boolean) {
+  localStorage.setItem(ANIM_KEY, on ? '1' : '0');
+  document.documentElement.dataset.animations = on ? 'on' : 'off';
+}
+
+export function applyAnimationsEnabled(on: boolean) {
+  document.documentElement.dataset.animations = on ? 'on' : 'off';
 }
 

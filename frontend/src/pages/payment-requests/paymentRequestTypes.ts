@@ -5,7 +5,10 @@ import {
   formatPanelDateTime,
 } from '../settings/personalPrefs';
 
-export { formatMoneyAmount as formatMoneyTr } from '../settings/personalPrefs';
+export {
+  formatMoneyAmount as formatMoneyTr,
+  formatMoneyDisplay,
+} from '../settings/personalPrefs';
 
 export type PayRequestStatus = 'pending' | 'paid' | 'cancelled' | 'expired';
 

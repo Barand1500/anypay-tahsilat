@@ -1,7 +1,8 @@
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { getStoredAnimationsEnabled } from '../../pages/settings/personalPrefs';
 
 gsap.registerPlugin(useGSAP);
 
@@ -16,7 +17,7 @@ type Props = {
   onDone: () => void;
 };
 
-/** E-posta kurye animasyonu — şifre / ödeme linki vb. */
+/** E-posta kurye animasyonu — şifre / ödeme linki vb. Animasyon kapalıysa hemen onDone. */
 export function PasswordCourierOverlay({
   open,
   toEmail,
@@ -34,9 +35,18 @@ export function PasswordCourierOverlay({
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
 
+  // Kişisel ayar: animasyon kapalı → drone yok, sadece toast (onDone)
+  useEffect(() => {
+    if (!open) return;
+    if (getStoredAnimationsEnabled()) return;
+    const t = window.setTimeout(() => doneRef.current(), 0);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
   useGSAP(
     () => {
       if (!open || !craftRef.current) return;
+      if (!getStoredAnimationsEnabled()) return;
 
       const craft = craftRef.current;
       const bobEl = bobRef.current;
@@ -211,6 +221,7 @@ export function PasswordCourierOverlay({
   );
 
   if (!open) return null;
+  if (!getStoredAnimationsEnabled()) return null;
 
   return createPortal(
     <div

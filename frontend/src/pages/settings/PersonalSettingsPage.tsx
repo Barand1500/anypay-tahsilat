@@ -24,6 +24,9 @@ import {
   saveMoneyStyle,
   saveNightAuto,
   savePanelFont,
+  getStoredAnimationsEnabled,
+  saveAnimationsEnabled,
+  applyAnimationsEnabled,
   type CardDesignId,
   type DateStyleId,
   type MoneyStyleId,
@@ -39,6 +42,7 @@ type Draft = {
   dateStyle: DateStyleId;
   cardDesign: CardDesignId;
   night: NightAutoPrefs;
+  animations: boolean;
 };
 
 function loadDraft(): Draft {
@@ -48,6 +52,7 @@ function loadDraft(): Draft {
     dateStyle: getStoredDateStyle(),
     cardDesign: getStoredCardDesign(),
     night: getStoredNightAuto(),
+    animations: getStoredAnimationsEnabled(),
   };
 }
 
@@ -70,6 +75,7 @@ export default function PersonalSettingsPage() {
     draft.moneyStyle !== baseline.moneyStyle ||
     draft.dateStyle !== baseline.dateStyle ||
     draft.cardDesign !== baseline.cardDesign ||
+    draft.animations !== baseline.animations ||
     !nightEqual(draft.night, baseline.night);
 
   useGSAP(
@@ -96,6 +102,7 @@ export default function PersonalSettingsPage() {
     saveDateStyle(draft.dateStyle);
     saveCardDesign(draft.cardDesign);
     notifyCardDesignChange();
+    saveAnimationsEnabled(draft.animations);
     saveNightAuto(draft.night);
     refreshNightAuto();
     setBaseline({ ...draft, night: { ...draft.night } });
@@ -128,6 +135,7 @@ export default function PersonalSettingsPage() {
     applyMoneyStyle(baseline.moneyStyle);
     applyDateStyle(baseline.dateStyle);
     applyCardDesign(baseline.cardDesign);
+    applyAnimationsEnabled(baseline.animations);
     setDraft({ ...baseline, night: { ...baseline.night } });
   }
 
@@ -265,6 +273,53 @@ export default function PersonalSettingsPage() {
               </ChoiceCard>
             ))}
           </div>
+        </section>
+
+        {/* Animasyon */}
+        <section className="space-y-3 border-t border-[var(--panel-line)] pt-6">
+          <div>
+            <h2 className="text-base font-bold text-[var(--panel-ink)]">Animasyon ayarı</h2>
+            <p className="mt-0.5 text-xs text-[var(--panel-muted)]">
+              Kapalıyken mail / şifre gönderiminde drone görünmez; yalnızca toast mesajı çıkar.
+            </p>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-bg)] px-4 py-3.5">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draft.animations}
+              data-km-jump
+              onClick={() => {
+                setDraft((d) => {
+                  const next = !d.animations;
+                  applyAnimationsEnabled(next);
+                  return { ...d, animations: next };
+                });
+              }}
+              className={[
+                'relative h-6 w-11 shrink-0 rounded-full transition',
+                draft.animations ? 'bg-[var(--color-brand-600)]' : 'bg-[var(--panel-line)]',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition',
+                  draft.animations ? 'translate-x-5' : '',
+                ].join(' ')}
+              />
+            </button>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-[var(--panel-ink)]">
+                {draft.animations ? 'Animasyonlar açık' : 'Animasyonlar kapalı'}
+              </span>
+              <span className="mt-0.5 block text-xs text-[var(--panel-muted)]">
+                {draft.animations
+                  ? 'Kurye / drone uçuşu gösterilir'
+                  : 'Sadece toast — hızlı ve sade'}
+              </span>
+            </span>
+          </label>
         </section>
 
         {/* Gece otomatik */}
