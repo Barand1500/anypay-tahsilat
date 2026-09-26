@@ -117,24 +117,9 @@ export function AnalogTimePicker({ open, title, value, onClose, onConfirm }: Pro
     >
       <div className="w-full max-w-[340px] rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[0_24px_64px_rgba(0,0,0,0.28)]">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-              aria-hidden
-              style={{
-                background:
-                  'linear-gradient(180deg, #7dd3fc 0%, #38bdf8 35%, #f59e0b 70%, #ea580c 100%)',
-              }}
-            >
-              <div className="h-3 w-3 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(253,224,71,0.9)]" />
-            </div>
-            <div>
-              <h2 id={titleId} className="text-lg font-bold text-[var(--panel-ink)]">
-                {title}
-              </h2>
-              <p className="text-xs text-[var(--panel-muted)]">Saat seçimi</p>
-            </div>
-          </div>
+          <h2 id={titleId} className="text-lg font-bold text-[var(--panel-ink)]">
+            {title}
+          </h2>
           <button
             type="button"
             data-km-jump
