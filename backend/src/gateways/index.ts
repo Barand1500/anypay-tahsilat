@@ -1,10 +1,11 @@
 import type { Initiate3dInput, Initiate3dResult, PaymentGateway, PosCredentials } from './types.js';
 import { akbankV2Gateway, looksLikeAkbankV2 } from './adapters/akbankV2.js';
+import { garantiGateway, looksLikeGaranti } from './adapters/garanti.js';
 import { nestpayGateway, looksLikeNestPay } from './adapters/nestpay.js';
 
-const gateways: PaymentGateway[] = [akbankV2Gateway, nestpayGateway];
+const gateways: PaymentGateway[] = [akbankV2Gateway, garantiGateway, nestpayGateway];
 
-/** Bilinen ama henüz adapter’ı olmayan altyapılar — NestPay’e zorlanmaz */
+/** Bilinen ama henüz adapter’ı olmayan altyapılar */
 function unsupportedPlatform(pos: PosCredentials): string | null {
   const blob = `${pos.gateway3dUrl} ${pos.infrastructureId} ${pos.bankName}`.toLowerCase();
   if (blob.includes('tosla')) return 'Tosla';
@@ -16,29 +17,27 @@ function unsupportedPlatform(pos: PosCredentials): string | null {
 }
 
 /**
- * Akbank V2 SecurePay + NestPay/Payten (çoğu TR banka).
- * NestPay: Garanti, QNB, İş, Ziraat, Yapı Kredi, Halk vb. — 3D URL dolu olmalı.
+ * Akbank V2 SecurePay + Garanti BBVA (gt3dengine) + NestPay/Payten.
  */
 export function pickGateway(pos: PosCredentials): PaymentGateway | null {
   if (looksLikeAkbankV2(pos)) return akbankV2Gateway;
+  if (looksLikeGaranti(pos)) return garantiGateway;
   if (looksLikeNestPay(pos)) return nestpayGateway;
 
   const blocked = unsupportedPlatform(pos);
   if (blocked) return null;
 
-  // SecurePay formu → Akbank V2
   if (/securepay|payhosting/i.test(pos.gateway3dUrl)) return akbankV2Gateway;
+  if (/gt3dengine|garanti\.com\.tr/i.test(pos.gateway3dUrl)) return garantiGateway;
 
-  // Klasik NestPay / Payten geçit URL’leri
   if (
     pos.gateway3dUrl &&
     (/\/fim\/est3dgate/i.test(pos.gateway3dUrl) ||
-      /3dgate|3dpay|nestpay|asseco|sanalpos/i.test(pos.gateway3dUrl))
+      /3dgate|3dpay|nestpay|asseco/i.test(pos.gateway3dUrl))
   ) {
     return nestpayGateway;
   }
 
-  // URL var ama bilinen NestPay imzası yok → yine NestPay dene (çoğu TR bankası)
   if (pos.gateway3dUrl?.trim()) return nestpayGateway;
 
   return null;
@@ -54,10 +53,15 @@ export function initiateThreeD(input: Initiate3dInput): Initiate3dResult {
   }
 
   const blocked = unsupportedPlatform(input.pos);
-  if (blocked && !looksLikeAkbankV2(input.pos) && !looksLikeNestPay(input.pos)) {
+  if (
+    blocked &&
+    !looksLikeAkbankV2(input.pos) &&
+    !looksLikeGaranti(input.pos) &&
+    !looksLikeNestPay(input.pos)
+  ) {
     return {
       kind: 'error',
-      message: `${input.pos.bankName}: ${blocked} altyapısı henüz desteklenmiyor. NestPay/Payten veya Akbank SecurePay kullanın.`,
+      message: `${input.pos.bankName}: ${blocked} altyapısı henüz desteklenmiyor. NestPay/Payten, Garanti veya Akbank SecurePay kullanın.`,
     };
   }
 

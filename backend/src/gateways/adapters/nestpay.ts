@@ -7,7 +7,8 @@ import type {
 } from '../types.js';
 
 /**
- * NestPay / Payten klasik 3D_PAY form (Garanti, QNB, İş, Ziraat vb. birçok banka).
+ * NestPay / Payten klasik 3D_PAY form (QNB, İş, Ziraat, Yapı Kredi vb.).
+ * Garanti BBVA bu adapter’a GİRMEZ — ayrı gt3dengine protokolü.
  * storekey = securityKey, clientid = merchantId
  */
 
@@ -180,12 +181,14 @@ export function looksLikeNestPay(pos: {
 }): boolean {
   const blob = `${pos.gateway3dUrl} ${pos.infrastructureId} ${pos.bankName}`.toLowerCase();
   if (blob.includes('akbank') || blob.includes('virtualpospaymentgateway')) return false;
+  // Garanti kendi gt3dengine protokolünü kullanır
+  if (blob.includes('garanti') || blob.includes('gt3dengine') || blob.includes('vpservlet')) {
+    return false;
+  }
   return (
-    blob.includes('garanti') ||
     blob.includes('nestpay') ||
     blob.includes('asseco') ||
     blob.includes('est3d') ||
-    blob.includes('sanalpos') ||
     blob.includes('yapikredi') ||
     blob.includes('qnb') ||
     blob.includes('isbank') ||

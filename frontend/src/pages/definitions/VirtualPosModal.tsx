@@ -159,7 +159,11 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
         terminalSafeId: terminalSafeId.trim(),
         securityKey: securityKey.trim(),
         terminalPassword: profile.showTerminalPassword ? terminalPassword.trim() : '',
-        securityType: securityType || '3D_PAY',
+        securityType:
+          securityType ||
+          (profile.id === 'garanti'
+            ? securityOptions[0]?.value || '3D_OOS_PAY'
+            : '3D_PAY'),
       });
       onClose();
     } catch (err) {

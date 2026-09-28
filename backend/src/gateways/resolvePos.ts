@@ -1,4 +1,6 @@
 import { prisma } from '../lib/prisma.js';
+import { looksLikeAkbankV2 } from './adapters/akbankV2.js';
+import { looksLikeGaranti } from './adapters/garanti.js';
 import { looksLikeNestPay } from './adapters/nestpay.js';
 import { hintsForKey, matchBinKey, normalizeBankText } from './binCatalog.js';
 import { lookupBinByCard } from '../services/binsService.js';
@@ -21,6 +23,7 @@ function mapPos(
     id: number;
     adi: string;
     kisaAdi: string;
+    guvenlikTipleri: string | null;
     sanalPos3dUrl: string | null;
     sanalPosApiUrl: string | null;
     sanalPosXmlUrl: string | null;
@@ -36,6 +39,11 @@ function mapPos(
     guvenlikTipi: string | null;
   },
 ): PosCredentials {
+  const fromPos = (pos.guvenlikTipi || '').trim();
+  const fromBank = (bank.guvenlikTipleri || '')
+    .split(/[,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)[0] || '';
   return {
     bankId: bank.id,
     bankName: (bank.adi || bank.kisaAdi || `Banka #${bank.id}`).trim(),
@@ -46,7 +54,7 @@ function mapPos(
     terminalSafeId: (pos.terminalSafeId || '').trim(),
     securityKey: (pos.guvenlikAnahtari || '').trim(),
     terminalPassword: (pos.terminalSifresi || '').trim(),
-    securityType: (pos.guvenlikTipi || '').trim(),
+    securityType: fromPos || fromBank || '',
     gateway3dUrl: (bank.sanalPos3dUrl || '').trim(),
     apiUrl: (bank.sanalPosApiUrl || '').trim(),
     xmlUrl: (bank.sanalPosXmlUrl || '').trim(),
@@ -54,18 +62,37 @@ function mapPos(
 }
 
 function assertReady(c: PosCredentials): void {
-  if (!c.merchantId) throw new PosResolveError('Sanal POS: güvenli işyeri numarası eksik');
-  if (!c.securityKey) throw new PosResolveError('Sanal POS: güvenlik anahtarı eksik');
-  // NestPay çoğu bankada Terminal Safe ID zorunlu değil; Akbank V2 ve diğerleri ister
-  if (!looksLikeNestPay(c) && !c.terminalSafeId) {
-    throw new PosResolveError('Sanal POS: Terminal Safe ID eksik');
-  }
-  if (!c.securityType) throw new PosResolveError('Sanal POS: güvenlik tipi eksik');
+  if (!c.merchantId) throw new PosResolveError('Sanal POS: işyeri numarası eksik');
+  if (!c.securityKey) throw new PosResolveError('Sanal POS: mağaza / güvenlik anahtarı eksik');
   if (!c.gateway3dUrl) {
     throw new PosResolveError(
       `${c.bankName}: Sanal Pos 3D Geçit Url eksik (Banka Düzenle)`,
     );
   }
+
+  if (looksLikeGaranti(c)) {
+    if (!c.terminalSafeId) {
+      throw new PosResolveError('Garanti: Terminal No eksik');
+    }
+    if (!c.terminalPassword) {
+      throw new PosResolveError('Garanti: Terminal Şifresi eksik (Sanal POS Tanımı)');
+    }
+    // güvenlik tipi boşsa 3D_OOS_PAY varsayılanı adapter’da uygulanır
+    return;
+  }
+
+  if (looksLikeNestPay(c)) {
+    // NestPay: terminal no çoğu kurulumda opsiyonel
+    return;
+  }
+
+  if (looksLikeAkbankV2(c)) {
+    if (!c.terminalSafeId) throw new PosResolveError('Sanal POS: Terminal Safe ID eksik');
+    if (!c.securityType) throw new PosResolveError('Sanal POS: güvenlik tipi eksik');
+    return;
+  }
+
+  if (!c.terminalSafeId) throw new PosResolveError('Sanal POS: Terminal No eksik');
 }
 
 /**

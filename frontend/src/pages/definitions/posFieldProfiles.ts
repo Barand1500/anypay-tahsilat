@@ -1,7 +1,7 @@
 /** Bankaya / altyapıya göre Sanal POS form etiketleri */
 
 export type PosFieldProfile = {
-  id: 'akbank-v2' | 'nestpay' | 'generic';
+  id: 'akbank-v2' | 'garanti' | 'nestpay' | 'generic';
   merchantLabel: string;
   terminalLabel: string;
   keyLabel: string;
@@ -21,6 +21,18 @@ const AKBANK: PosFieldProfile = {
   terminalPasswordLabel: 'Terminal Şifresi',
   showSecurityType: true,
   securityTypeRequired: true,
+};
+
+/** Garanti BBVA — referans panelde güvenlik tipi POS formunda yok; banka kaydından gelir */
+const GARANTI: PosFieldProfile = {
+  id: 'garanti',
+  merchantLabel: 'İşyeri Numarası',
+  terminalLabel: 'Terminal No',
+  keyLabel: 'Mağaza Anahtarı',
+  showTerminalPassword: true,
+  terminalPasswordLabel: 'Terminal Şifresi',
+  showSecurityType: false,
+  securityTypeRequired: false,
 };
 
 const NESTPAY: PosFieldProfile = {
@@ -56,8 +68,8 @@ export function resolvePosFieldProfile(
 ): PosFieldProfile {
   const blob = blobOf(infrastructureId || '', bankName || '');
   if (blob.includes('akbank') || infrastructureId === 'infra-akbank') return AKBANK;
+  if (blob.includes('garanti') || infrastructureId === 'infra-garanti') return GARANTI;
   if (
-    blob.includes('garanti') ||
     blob.includes('yapikredi') ||
     blob.includes('yapı') ||
     blob.includes('qnb') ||
@@ -65,7 +77,6 @@ export function resolvePosFieldProfile(
     blob.includes('is bank') ||
     blob.includes('ziraat') ||
     blob.includes('halk') ||
-    infrastructureId === 'infra-garanti' ||
     infrastructureId === 'infra-yapikredi' ||
     infrastructureId === 'infra-qnb' ||
     infrastructureId === 'infra-isbank' ||
