@@ -20,7 +20,12 @@ export async function handleThreeDCallback(
   outcome: 'ok' | 'fail',
 ): Promise<{ odemeNo: string; success: boolean; message: string; redirectPath: string }> {
   const orderId = String(
-    body.orderId ?? body.OrderId ?? body.oid ?? body.OID ?? '',
+    body.orderid ??
+      body.orderId ??
+      body.OrderId ??
+      body.oid ??
+      body.OID ??
+      '',
   ).trim();
   if (!orderId) throw new GatewayCallbackError('Sipariş numarası yok');
 

@@ -45,6 +45,14 @@ function currencyNumeric(code: string): string {
 
 function mapPaymentModel(securityType: string): string {
   const t = securityType.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (t.includes(',')) {
+    const parts = t.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const p of ['3D_PAY', '3DPAY', '3D_PAY_HOSTING', '3D_HOST', '3DHOST', '3D']) {
+      if (parts.some((x) => x === p || x.replace(/_/g, '') === p.replace(/_/g, ''))) {
+        return mapPaymentModel(p);
+      }
+    }
+  }
   if (t === '3D_PAY_HOSTING' || t === '3D_HOST' || t === '3DHOST') return '3D_PAY_HOSTING';
   if (t === '3D_PAY' || t === '3DPAY') return '3D_PAY';
   if (t === '3D' || t === '3DMODEL' || t === '3D_MODEL') return '3D';

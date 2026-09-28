@@ -18,6 +18,39 @@ function notRemoved() {
   return { OR: [{ remove: null }, { remove: false }] };
 }
 
+/**
+ * Banka › Güvenlik Tipleri virgüllü liste — ödeme tamamlayan modeli seç.
+ * İlk değer çoğu bankada "3d" (sadece auth); bizde ayrıca provizyon yok → 3d_pay öncelikli.
+ */
+function pickPreferredSecurityType(rawParts: string[]): string {
+  const parts = rawParts.map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  const norm = (s: string) => s.toUpperCase().replace(/[\s-]+/g, '_');
+  const prefer = [
+    '3D_PAY',
+    '3DPAY',
+    '3D_PAY_HOSTING',
+    '3D_HOST',
+    '3DHOST',
+    '3D_OOS_PAY',
+    '3D_OOSPAY',
+    '3D_OOS',
+    '3D_FULL',
+    '3D_HALF',
+    '3D',
+    '3DMODEL',
+    '3D_MODEL',
+  ];
+  for (const p of prefer) {
+    const hit = parts.find((x) => {
+      const n = norm(x);
+      return n === p || n.replace(/_/g, '') === p.replace(/_/g, '');
+    });
+    if (hit) return hit;
+  }
+  return parts[0]!;
+}
+
 function mapPos(
   bank: {
     id: number;
@@ -40,12 +73,11 @@ function mapPos(
   },
 ): PosCredentials {
   const fromPos = (pos.guvenlikTipi || '').trim();
-  // Banka › Güvenlik Tipleri — virgülle ayrık; ilk dolu değer
-  const fromBank =
-    (bank.guvenlikTipleri || '')
-      .split(/[,;]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)[0] || '';
+  const bankParts = (bank.guvenlikTipleri || '')
+    .split(/[,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const fromBank = pickPreferredSecurityType(bankParts);
   // Garanti: güvenlik tipi POS formunda yok → banka kaydı öncelikli (referans)
   const garantiLike =
     /garanti|gt3dengine|vpservlet/i.test(
@@ -53,7 +85,9 @@ function mapPos(
     ) || pos.altyapiKodu === 'infra-garanti';
   const securityType = garantiLike
     ? fromBank || fromPos || ''
-    : fromPos || fromBank || '';
+    : pickPreferredSecurityType(
+        [fromPos, ...bankParts].filter(Boolean),
+      ) || fromPos || fromBank || '';
   return {
     bankId: bank.id,
     bankName: (bank.adi || bank.kisaAdi || `Banka #${bank.id}`).trim(),

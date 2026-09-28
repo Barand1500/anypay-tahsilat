@@ -18,9 +18,19 @@ function sha1Base64(plain: string): string {
 
 function mapStoreType(securityType: string): string {
   const t = securityType.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  // Virgüllü liste gelirse tercih sırası
+  if (t.includes(',')) {
+    const parts = t.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const p of ['3D_PAY', '3DPAY', '3D_PAY_HOSTING', '3D_HOST', '3DHOST', '3D']) {
+      if (parts.some((x) => x === p || x.replace(/_/g, '') === p.replace(/_/g, ''))) {
+        return mapStoreType(p);
+      }
+    }
+  }
   if (t === '3D_PAY' || t === '3DPAY') return '3d_pay';
   if (t === '3D_HOST' || t === '3DHOST' || t === '3D_PAY_HOSTING') return '3d_pay_hosting';
   if (t === '3D' || t === '3DMODEL' || t === '3D_MODEL') return '3d';
+  // Varsayılan: kartlı formumuz için 3d_pay (ayrı provizyon yok)
   return '3d_pay';
 }
 
