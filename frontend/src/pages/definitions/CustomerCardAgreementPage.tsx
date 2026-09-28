@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
@@ -18,86 +18,82 @@ const LIST_PATH = '/tanimlamalar/pos-kart/sanal-pos';
 type CustomerCardBlock = {
   id: string;
   name: string;
-  /** Seçilen dosya adı (mock) */
   logoFileName?: string;
   rows: CustomerAgreementRow[];
 };
 
-const SAMPLE_ALL = [
-  '2,69',
-  '5,75',
-  '8,06',
-  '10,36',
-  '12,67',
-  '14,97',
-  '17,28',
-  '19,58',
-  '21,89',
-  '24,44',
-  '24,44',
-  '24,44',
-];
-
-function seededRows(): CustomerAgreementRow[] {
-  return defaultCustomerRows().map((r, i) => ({
-    ...r,
-    allRate: SAMPLE_ALL[i] ?? '',
-    bireyselRate: '',
-    ticariRate: '',
-  }));
-}
+type CustomerAgreementApi = {
+  posId: string;
+  bankId: string;
+  bankName: string;
+  agreementCode: string;
+  blocks: CustomerCardBlock[];
+};
 
 function newBlock(name: string): CustomerCardBlock {
   return {
     id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name,
-    rows: seededRows(),
+    rows: defaultCustomerRows(),
   };
 }
 
-/** Müşteri kart anlaşması — birden fazla kompakt kart bloğu */
+/** Müşteri kart anlaşması — API kalıcı; müşteriye atanabilir paket */
 export default function CustomerCardAgreementPage() {
   const { token } = useAuth();
   const { id = '' } = useParams();
   const [row, setRow] = useState<VirtualPosRow | null>(() => findVirtualPos(id));
-  const [booting, setBooting] = useState(!findVirtualPos(id));
-  const [blocks, setBlocks] = useState<CustomerCardBlock[]>(() => [
-    newBlock('Axess Kart'),
-    newBlock('Bonus Kart'),
-  ]);
+  const [booting, setBooting] = useState(true);
+  const [blocks, setBlocks] = useState<CustomerCardBlock[]>([]);
+  const [agreementCode, setAgreementCode] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<
     null | { kind: 'row'; blockId: string; rowIdx: number } | { kind: 'block'; blockId: string }
   >(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    const cached = findVirtualPos(id);
-    if (cached) {
-      setRow(cached);
-      setBooting(false);
-      return;
-    }
+  const load = useCallback(async () => {
     if (!token || !id) {
       setBooting(false);
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      try {
+    setBooting(true);
+    setError('');
+    try {
+      let pos = findVirtualPos(id);
+      if (!pos) {
         const list = await api.get<VirtualPosRow[]>('/api/virtual-pos', token);
-        if (cancelled) return;
         setVirtualPosList(list);
-        setRow(list.find((r) => r.id === id) ?? null);
-      } catch {
-        if (!cancelled) setRow(null);
-      } finally {
-        if (!cancelled) setBooting(false);
+        pos = list.find((r) => r.id === id) ?? null;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, token]);
+      setRow(pos);
+      if (!pos) return;
+
+      const data = await api.get<CustomerAgreementApi>(
+        `/api/virtual-pos/${encodeURIComponent(id)}/customer-agreement`,
+        token,
+      );
+      setAgreementCode(data.agreementCode);
+      setBlocks(
+        data.blocks?.length
+          ? data.blocks.map((b) => ({
+              ...b,
+              rows: b.rows?.length ? b.rows : defaultCustomerRows(),
+            }))
+          : [newBlock('Axess Kart'), newBlock('Bonus Kart')],
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Yüklenemedi');
+      setRow(null);
+    } finally {
+      setBooting(false);
+    }
+  }, [token, id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (booting) {
     return (
@@ -161,9 +157,39 @@ export default function CustomerCardAgreementPage() {
     setDeleteTarget(null);
   }
 
-  function save() {
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 1600);
+  async function save() {
+    if (!token) return;
+    if (!blocks.length) {
+      setError('En az bir kart bloğu gerekli');
+      return;
+    }
+    if (blocks.some((b) => !b.name.trim())) {
+      setError('Kart bloğu adı zorunlu');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const data = await api.put<CustomerAgreementApi>(
+        `/api/virtual-pos/${encodeURIComponent(id)}/customer-agreement`,
+        {
+          blocks: blocks.map((b) => ({
+            id: b.id,
+            name: b.name.trim(),
+            logoFileName: b.logoFileName,
+            rows: b.rows,
+          })),
+        },
+        token,
+      );
+      setAgreementCode(data.agreementCode);
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 1600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
   const deleteLabel =
@@ -188,6 +214,9 @@ export default function CustomerCardAgreementPage() {
           </h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">
             {blocks.length} kart bloğu · her biri bağımsız taksit oranları
+            {agreementCode ? (
+              <span className="ml-2">· kod: {agreementCode}</span>
+            ) : null}
           </p>
         </div>
         <button
@@ -200,6 +229,8 @@ export default function CustomerCardAgreementPage() {
           Kart bloğu ekle
         </button>
       </div>
+
+      {error ? <p className="text-sm text-rose-500">{error}</p> : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
         {blocks.map((block) => (
@@ -219,8 +250,14 @@ export default function CustomerCardAgreementPage() {
       <div className="sticky bottom-3 z-20">
         <div className="flex justify-end rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]/95 px-3 py-2.5 shadow-[0_10px_32px_rgba(0,0,0,0.1)] backdrop-blur-md">
           <div className="w-full max-w-[200px] sm:w-[200px]">
-            <Button type="button" success={savedFlash} successLabel="Kaydedildi" onClick={save}>
-              Değişiklikleri kaydet
+            <Button
+              type="button"
+              success={savedFlash}
+              successLabel="Kaydedildi"
+              disabled={saving}
+              onClick={() => void save()}
+            >
+              {saving ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}
             </Button>
           </div>
         </div>

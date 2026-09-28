@@ -379,6 +379,7 @@ export async function ensureKartAnlasmalariTable(): Promise<void> {
         \`grup\` VARCHAR(255) NULL,
         \`blok_adi\` VARCHAR(255) NULL,
         \`blok_logo\` VARCHAR(255) NULL,
+        \`detay\` LONGTEXT NULL,
         \`anlasma_kodu\` VARCHAR(64) NOT NULL,
         \`remove\` TINYINT(1) NULL,
         PRIMARY KEY (\`id\`),
@@ -386,6 +387,9 @@ export async function ensureKartAnlasmalariTable(): Promise<void> {
         INDEX \`kart_anlasmalari_banka_id_idx\` (\`banka_id\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
+    await ensureColumns('kart_anlasmalari', [
+      { name: 'detay', ddl: 'LONGTEXT NULL' },
+    ]);
   } catch (err) {
     console.warn('[schema] kart_anlasmalari oluşturma atlandı:', err);
   }

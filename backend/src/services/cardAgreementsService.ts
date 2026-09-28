@@ -313,6 +313,10 @@ export async function resolveAgreementRates(opts: {
 
   let code = (opts.agreementCode || '').trim() || null;
   if (!code) {
+    const { resolvePosFallbackAgreementCode } = await import('./posAgreementsService.js');
+    code = await resolvePosFallbackAgreementCode(opts.bankId ?? null);
+  }
+  if (!code) {
     const first = await prisma.kartAnlasma.findFirst({
       where: notRemoved(),
       orderBy: [{ id: 'desc' }],
@@ -341,10 +345,22 @@ export async function resolveAgreementRates(opts: {
     if (byName.length) matched = byName;
   }
 
-  // Aynı banka paneli yoksa ilk bankanın oranları
+  // Aynı banka paneli yoksa ilk blok / bankanın oranları
   if (matched === all) {
     const firstBank = all[0]!.bankaId;
-    matched = all.filter((r) => r.bankaId === firstBank);
+    const firstBlok = all[0]!.blokAdi;
+    matched = all.filter(
+      (r) =>
+        (firstBank != null && r.bankaId === firstBank) ||
+        (firstBank == null && r.blokAdi === firstBlok),
+    );
+  }
+
+  // Aynı taksit + birden fazla blok (müşteri anlaşması) → ilk blok
+  const firstBlokName = matched[0]?.blokAdi;
+  if (firstBlokName) {
+    const onlyFirst = matched.filter((r) => r.blokAdi === firstBlokName);
+    if (onlyFirst.length) matched = onlyFirst;
   }
 
   const byN = new Map<number, FlatRow>();

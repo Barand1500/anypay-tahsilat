@@ -12,6 +12,13 @@ import {
   softDeleteVirtualPos,
   updateVirtualPos,
 } from '../services/virtualPosService.js';
+import {
+  PosAgreementError,
+  getPosBankAgreement,
+  getPosCustomerAgreement,
+  savePosBankAgreement,
+  savePosCustomerAgreement,
+} from '../services/posAgreementsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const virtualPosRouter = Router();
@@ -55,6 +62,93 @@ virtualPosRouter.get('/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'Sanal POS yüklenemedi');
+  }
+});
+
+const bankAgreementSchema = z.object({
+  items: z.array(z.record(z.unknown())).min(1),
+});
+
+const customerAgreementSchema = z.object({
+  blocks: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(255),
+        logoFileName: z.string().optional(),
+        rows: z
+          .array(
+            z.object({
+              n: z.number().int().min(1).max(36),
+              minLimit: z.string().optional().default(''),
+              allRate: z.string().optional().default(''),
+              bireyselRate: z.string().optional().default(''),
+              ticariRate: z.string().optional().default(''),
+            }),
+          )
+          .min(1),
+      }),
+    )
+    .min(1),
+});
+
+virtualPosRouter.get('/:id/bank-agreement', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  try {
+    return sendSuccess(res, await getPosBankAgreement(id));
+  } catch (err) {
+    if (err instanceof PosAgreementError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Banka kart anlaşması yüklenemedi');
+  }
+});
+
+virtualPosRouter.put('/:id/bank-agreement', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  const parsed = bankAgreementSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await savePosBankAgreement(id, parsed.data.items as never);
+    await writePanelLog(req.auth!.sub, `Banka kart anlaşması kaydedildi — POS #${id}`);
+    return sendSuccess(res, data, 'Banka kart anlaşması kaydedildi');
+  } catch (err) {
+    if (err instanceof PosAgreementError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Banka kart anlaşması kaydedilemedi');
+  }
+});
+
+virtualPosRouter.get('/:id/customer-agreement', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  try {
+    return sendSuccess(res, await getPosCustomerAgreement(id));
+  } catch (err) {
+    if (err instanceof PosAgreementError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Müşteri kart anlaşması yüklenemedi');
+  }
+});
+
+virtualPosRouter.put('/:id/customer-agreement', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
+  const parsed = customerAgreementSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await savePosCustomerAgreement(id, parsed.data.blocks);
+    await writePanelLog(req.auth!.sub, `Müşteri kart anlaşması kaydedildi — POS #${id}`);
+    return sendSuccess(res, data, 'Müşteri kart anlaşması kaydedildi');
+  } catch (err) {
+    if (err instanceof PosAgreementError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Müşteri kart anlaşması kaydedilemedi');
   }
 });
 

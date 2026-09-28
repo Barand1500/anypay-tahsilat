@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -20,48 +20,74 @@ import {
 
 const LIST_PATH = '/tanimlamalar/pos-kart/sanal-pos';
 
-/** Banka kart anlaşması — tablo görünümü (B) */
+type BankAgreementApi = {
+  posId: string;
+  bankId: string;
+  bankName: string;
+  agreementCode: string;
+  items: BankAgreementInstallment[];
+};
+
+/** Banka kart anlaşması — API kalıcı + ödeme oranlarına bağlı */
 export default function BankCardAgreementPage() {
   const { token } = useAuth();
   const { id = '' } = useParams();
   const [row, setRow] = useState<VirtualPosRow | null>(() => findVirtualPos(id));
-  const [booting, setBooting] = useState(!findVirtualPos(id));
+  const [booting, setBooting] = useState(true);
   const [items, setItems] = useState<BankAgreementInstallment[]>(() =>
     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(defaultBankInstallment),
   );
+  const [agreementCode, setAgreementCode] = useState('');
   const [segment, setSegment] = useState<SegmentKey>('bireysel');
   const [addN, setAddN] = useState('11');
   const [deleteN, setDeleteN] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    const cached = findVirtualPos(id);
-    if (cached) {
-      setRow(cached);
-      setBooting(false);
-      return;
-    }
+  const load = useCallback(async () => {
     if (!token || !id) {
       setBooting(false);
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      try {
+    setBooting(true);
+    setError('');
+    try {
+      let pos = findVirtualPos(id);
+      if (!pos) {
         const list = await api.get<VirtualPosRow[]>('/api/virtual-pos', token);
-        if (cancelled) return;
         setVirtualPosList(list);
-        setRow(list.find((r) => r.id === id) ?? null);
-      } catch {
-        if (!cancelled) setRow(null);
-      } finally {
-        if (!cancelled) setBooting(false);
+        pos = list.find((r) => r.id === id) ?? null;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, token]);
+      setRow(pos);
+      if (!pos) return;
+
+      const data = await api.get<BankAgreementApi>(
+        `/api/virtual-pos/${encodeURIComponent(id)}/bank-agreement`,
+        token,
+      );
+      setAgreementCode(data.agreementCode);
+      setItems(
+        data.items?.length
+          ? data.items.map((it) => ({
+              n: it.n,
+              all: { ...defaultBankInstallment(it.n).all, ...it.all },
+              bireysel: { ...defaultBankInstallment(it.n).bireysel, ...it.bireysel },
+              ticari: { ...defaultBankInstallment(it.n).ticari, ...it.ticari },
+            }))
+          : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(defaultBankInstallment),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Yüklenemedi');
+      setRow(null);
+    } finally {
+      setBooting(false);
+    }
+  }, [token, id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const activeSegmentCount = useMemo(
     () =>
@@ -123,9 +149,24 @@ export default function BankCardAgreementPage() {
     );
   }
 
-  function save() {
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 1600);
+  async function save() {
+    if (!token) return;
+    setSaving(true);
+    setError('');
+    try {
+      const data = await api.put<BankAgreementApi>(
+        `/api/virtual-pos/${encodeURIComponent(id)}/bank-agreement`,
+        { items },
+        token,
+      );
+      setAgreementCode(data.agreementCode);
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 1600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -143,6 +184,9 @@ export default function BankCardAgreementPage() {
           </h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">
             {items.length} taksit · {activeSegmentCount} aktif segment
+            {agreementCode ? (
+              <span className="ml-2 text-[var(--panel-muted)]">· kod: {agreementCode}</span>
+            ) : null}
           </p>
         </div>
         {bankLogo ? (
@@ -151,6 +195,8 @@ export default function BankCardAgreementPage() {
           </div>
         ) : null}
       </div>
+
+      {error ? <p className="text-sm text-rose-500">{error}</p> : null}
 
       <BankCardAgreementViewB
         items={items}
@@ -161,7 +207,6 @@ export default function BankCardAgreementPage() {
         onRequestDelete={setDeleteN}
       />
 
-      {/* Sabit alt çubuk — kompakt ekle + Giriş Yap tarzı kaydet */}
       <div className="sticky bottom-3 z-20">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]/95 px-3 py-2.5 shadow-[0_10px_32px_rgba(0,0,0,0.1)] backdrop-blur-md">
           <div className="inline-flex items-center gap-0.5 rounded-full border border-[var(--panel-line)] bg-[var(--panel-surface)] p-0.5 shadow-sm">
@@ -195,9 +240,10 @@ export default function BankCardAgreementPage() {
               type="button"
               success={savedFlash}
               successLabel="Kaydedildi"
-              onClick={save}
+              disabled={saving}
+              onClick={() => void save()}
             >
-              Değişiklikleri kaydet
+              {saving ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}
             </Button>
           </div>
         </div>

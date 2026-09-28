@@ -271,6 +271,8 @@ model KartAnlasma {
   grup              String?  @db.VarChar(255)
   blokAdi           String?  @map("blok_adi") @db.VarChar(255)
   blokLogo          String?  @map("blok_logo") @db.VarChar(255)
+  /** Banka anlaşması ekstra alanlar (JSON) */
+  detay             String?  @db.LongText
   anlasmaKodu       String   @map("anlasma_kodu") @db.VarChar(64)
   remove            Boolean?
 
