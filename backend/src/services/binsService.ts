@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
-import { normalizeBankText } from '../gateways/binCatalog.js';
+import { ensureBinKayitlariTable } from '../lib/ensureSchema.js';
+import { hintsForKey, matchBinKey, normalizeBankText } from '../gateways/binCatalog.js';
 
 export class BinsError extends Error {
   constructor(message: string) {
@@ -20,6 +21,105 @@ export type PublicBin = {
 
 function notRemoved() {
   return { OR: [{ remove: null }, { remove: false }] };
+}
+
+function str(v: unknown): string {
+  if (v == null) return '';
+  return String(v).trim();
+}
+
+function num(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function tableColumns(table: string): Promise<Set<string>> {
+  const rows = await prisma.$queryRawUnsafe<{ COLUMN_NAME: string }[]>(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}'`,
+  );
+  return new Set(rows.map((r) => r.COLUMN_NAME));
+}
+
+async function bankNameMap(): Promise<Map<number, string>> {
+  const banks = await prisma.banka.findMany({
+    where: notRemoved(),
+    select: { id: true, adi: true, kisaAdi: true },
+  });
+  const map = new Map<number, string>();
+  for (const b of banks) {
+    map.set(b.id, (b.adi || b.kisaAdi || '').trim());
+  }
+  return map;
+}
+
+async function namedMap(table: string): Promise<Map<number, string>> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<{ id: number; adi: string }[]>(
+      `SELECT id, adi FROM \`${table}\` WHERE \`remove\` IS NULL OR \`remove\` = 0`,
+    );
+    return new Map(rows.map((r) => [r.id, str(r.adi)]));
+  } catch {
+    return new Map();
+  }
+}
+
+/** Satırı API şekline çevir — eski kolon / FK destekli */
+function mapFlexibleRow(
+  r: Record<string, unknown>,
+  banks: Map<number, string>,
+  tipMap: Map<number, string>,
+  markaMap: Map<number, string>,
+  turMap: Map<number, string>,
+): PublicBin {
+  const bankId =
+    num(r.banka_id) ?? num(r.bankaId) ?? num(r.bank_id) ?? null;
+
+  const bankFromText =
+    str(r.banka_adi) ||
+    str(r.bankaAdi) ||
+    str(r.banka) ||
+    str(r.banka_adi_tr) ||
+    str(r.bank);
+
+  const tipId = num(r.tip_id) ?? num(r.kart_tipi_id) ?? num(r.tipId);
+  const markaId = num(r.marka_id) ?? num(r.kart_marka_id) ?? num(r.markaId);
+  const turId = num(r.tur_id) ?? num(r.kart_turu_id) ?? num(r.turId);
+
+  const tip =
+    str(r.tip) ||
+    str(r.kart_tipi) ||
+    str(r.type) ||
+    (tipId != null ? tipMap.get(tipId) || '' : '');
+
+  const marka =
+    str(r.marka) ||
+    str(r.kart_marka) ||
+    str(r.brand) ||
+    (markaId != null ? markaMap.get(markaId) || '' : '');
+
+  const tur =
+    str(r.tur) ||
+    str(r.kart_turu) ||
+    str(r.kind) ||
+    (turId != null ? turMap.get(turId) || '' : '');
+
+  const bin =
+    str(r.bin) ||
+    str(r.bin_kodu) ||
+    str(r.bin_no) ||
+    str(r.kod);
+
+  return {
+    id: String(r.id ?? ''),
+    bankId: bankId != null ? String(bankId) : '',
+    bank: bankFromText || (bankId != null ? banks.get(bankId) || '' : ''),
+    bin,
+    type: tip,
+    brand: marka,
+    kind: tur,
+  };
 }
 
 function mapRow(r: {
@@ -73,44 +173,78 @@ async function resolveBank(opts: {
   return { id: null, name };
 }
 
-export async function listBins(): Promise<PublicBin[]> {
+/** Boş banka_adi satırlarını bankalar tablosundan doldur (bir kez / istek) */
+async function backfillBankNames(): Promise<void> {
   try {
-    const rows = await prisma.binKayit.findMany({
-      where: notRemoved(),
-      orderBy: [{ bankaAdi: 'asc' }, { bin: 'asc' }],
-    });
-    return rows.map(mapRow);
-  } catch (err) {
-    console.error('[bins] prisma listBins:', err);
-    // Ham SQL yedek — kolon uyumsuzluğunda paneli ayakta tut
-    const rows = await prisma.$queryRawUnsafe<
-      {
-        id: number;
-        banka_id: number | null;
-        banka_adi: string | null;
-        bin: string;
-        tip: string | null;
-        marka: string | null;
-        tur: string | null;
-      }[]
-    >(`
-      SELECT id, banka_id, banka_adi, bin, tip, marka, tur
-      FROM \`bin_kayitlari\`
-      WHERE \`remove\` IS NULL OR \`remove\` = 0
-      ORDER BY banka_adi ASC, bin ASC
+    await prisma.$executeRawUnsafe(`
+      UPDATE \`bin_kayitlari\` b
+      INNER JOIN \`bankalar\` ba ON ba.id = b.banka_id
+      SET b.banka_adi = COALESCE(NULLIF(TRIM(ba.adi), ''), ba.kisa_adi)
+      WHERE (b.banka_adi IS NULL OR TRIM(b.banka_adi) = '')
+        AND b.banka_id IS NOT NULL
     `);
-    return rows.map((r) =>
-      mapRow({
-        id: r.id,
-        bankaId: r.banka_id,
-        bankaAdi: r.banka_adi || '',
-        bin: String(r.bin || ''),
-        tip: r.tip,
-        marka: r.marka,
-        tur: r.tur,
-      }),
-    );
+  } catch {
+    /* kolon yoksa atla */
   }
+}
+
+export async function listBins(): Promise<PublicBin[]> {
+  await ensureBinKayitlariTable();
+  await backfillBankNames();
+
+  const cols = await tableColumns('bin_kayitlari');
+  const banks = await bankNameMap();
+  const tipMap = await namedMap('kart_tipleri');
+  const markaMap = await namedMap('kart_markalari');
+  const turMap = await namedMap('kart_turleri');
+
+  const removeClause = cols.has('remove')
+    ? 'WHERE (`remove` IS NULL OR `remove` = 0)'
+    : '';
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `SELECT * FROM \`bin_kayitlari\` ${removeClause} ORDER BY id ASC`,
+  );
+
+  return rows
+    .map((r) => mapFlexibleRow(r, banks, tipMap, markaMap, turMap))
+    .map((r) => enrichBankFromCatalog(r, banks))
+    .filter((r) => r.bin.length >= 4)
+    .sort((a, b) => {
+      const byBank = a.bank.localeCompare(b.bank, 'tr');
+      if (byBank) return byBank;
+      return a.bin.localeCompare(b.bin, 'tr');
+    });
+}
+
+/** banka_adi boşsa sabit BIN katalogundan / banka listesinden tahmin et */
+function enrichBankFromCatalog(row: PublicBin, banks: Map<number, string>): PublicBin {
+  if (row.bank) return row;
+  if (row.bankId) {
+    const n = banks.get(Number(row.bankId));
+    if (n) return { ...row, bank: n };
+  }
+  const key = matchBinKey(row.bin);
+  if (!key) return row;
+  const hints = hintsForKey(key);
+  for (const [id, name] of banks) {
+    const blob = normalizeBankText(name);
+    if (hints.some((h) => blob.includes(normalizeBankText(h)))) {
+      return { ...row, bank: name, bankId: row.bankId || String(id) };
+    }
+  }
+  // Banka listesinde yoksa en azından katalog anahtarını göster
+  const label =
+    key === 'garanti'
+      ? 'Garanti BBVA'
+      : key === 'yapikredi'
+        ? 'Yapı Kredi'
+        : key === 'isbank'
+          ? 'İş Bankası'
+          : key === 'kuveytturk'
+            ? 'Kuveyt Türk'
+            : key.charAt(0).toUpperCase() + key.slice(1);
+  return { ...row, bank: label };
 }
 
 export type BinUpsert = {
@@ -123,64 +257,117 @@ export type BinUpsert = {
 };
 
 export async function createBin(input: BinUpsert): Promise<PublicBin> {
+  await ensureBinKayitlariTable();
   const code = input.bin.replace(/\D/g, '').slice(0, 8);
   if (code.length < 4 || code.length > 8) throw new BinsError('BIN 4–8 rakam olmalı');
 
-  const clash = await prisma.binKayit.findFirst({
-    where: { bin: code, ...notRemoved() },
-  });
-  if (clash) throw new BinsError(`Bu BIN zaten kayıtlı: ${code}`);
+  const existing = await listBins();
+  if (existing.some((b) => b.bin === code)) {
+    throw new BinsError(`Bu BIN zaten kayıtlı: ${code}`);
+  }
 
   const bank = await resolveBank({ bankId: input.bankId, bankName: input.bank });
-  const row = await prisma.binKayit.create({
-    data: {
-      bankaId: bank.id,
-      bankaAdi: bank.name.slice(0, 255),
-      bin: code,
-      tip: (input.type || '').trim().slice(0, 64) || null,
-      marka: (input.brand || '').trim().slice(0, 64) || null,
-      tur: (input.kind || '').trim().slice(0, 64) || null,
-      remove: false,
-    },
-  });
-  return mapRow(row);
+  const tip = (input.type || '').trim().slice(0, 64) || null;
+  const marka = (input.brand || '').trim().slice(0, 64) || null;
+  const tur = (input.kind || '').trim().slice(0, 64) || null;
+
+  try {
+    const row = await prisma.binKayit.create({
+      data: {
+        bankaId: bank.id,
+        bankaAdi: bank.name.slice(0, 255),
+        bin: code,
+        tip,
+        marka,
+        tur,
+        remove: false,
+      },
+    });
+    // banka adı boş kaldıysa map ile doldur
+    const mapped = mapRow(row);
+    if (!mapped.bank && bank.name) mapped.bank = bank.name;
+    return mapped;
+  } catch (err) {
+    console.error('[bins] prisma create failed, raw insert:', err);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO \`bin_kayitlari\` (\`banka_id\`, \`banka_adi\`, \`bin\`, \`tip\`, \`marka\`, \`tur\`, \`remove\`)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+      bank.id,
+      bank.name.slice(0, 255),
+      code,
+      tip,
+      marka,
+      tur,
+    );
+    const list = await listBins();
+    const hit = list.find((b) => b.bin === code);
+    if (!hit) throw new BinsError('BIN kaydedildi ama okunamadı');
+    return hit;
+  }
 }
 
 export async function updateBin(id: number, input: BinUpsert): Promise<PublicBin> {
-  const existing = await prisma.binKayit.findFirst({
-    where: { id, ...notRemoved() },
-  });
-  if (!existing) throw new BinsError('BIN bulunamadı');
-
+  await ensureBinKayitlariTable();
   const code = input.bin.replace(/\D/g, '').slice(0, 8);
   if (code.length < 4 || code.length > 8) throw new BinsError('BIN 4–8 rakam olmalı');
 
-  const clash = await prisma.binKayit.findFirst({
-    where: { bin: code, ...notRemoved(), NOT: { id } },
-  });
-  if (clash) throw new BinsError(`Bu BIN zaten kayıtlı: ${code}`);
+  const all = await listBins();
+  const existing = all.find((b) => b.id === String(id));
+  if (!existing) throw new BinsError('BIN bulunamadı');
+  if (all.some((b) => b.bin === code && b.id !== String(id))) {
+    throw new BinsError(`Bu BIN zaten kayıtlı: ${code}`);
+  }
 
   const bank = await resolveBank({ bankId: input.bankId, bankName: input.bank });
-  const row = await prisma.binKayit.update({
-    where: { id },
-    data: {
-      bankaId: bank.id,
-      bankaAdi: bank.name.slice(0, 255),
-      bin: code,
-      tip: (input.type || '').trim().slice(0, 64) || null,
-      marka: (input.brand || '').trim().slice(0, 64) || null,
-      tur: (input.kind || '').trim().slice(0, 64) || null,
-    },
-  });
-  return mapRow(row);
+  const tip = (input.type || '').trim().slice(0, 64) || null;
+  const marka = (input.brand || '').trim().slice(0, 64) || null;
+  const tur = (input.kind || '').trim().slice(0, 64) || null;
+
+  try {
+    const row = await prisma.binKayit.update({
+      where: { id },
+      data: {
+        bankaId: bank.id,
+        bankaAdi: bank.name.slice(0, 255),
+        bin: code,
+        tip,
+        marka,
+        tur,
+      },
+    });
+    return mapRow(row);
+  } catch (err) {
+    console.error('[bins] prisma update failed, raw:', err);
+    await prisma.$executeRawUnsafe(
+      `UPDATE \`bin_kayitlari\`
+       SET \`banka_id\` = ?, \`banka_adi\` = ?, \`bin\` = ?, \`tip\` = ?, \`marka\` = ?, \`tur\` = ?
+       WHERE \`id\` = ?`,
+      bank.id,
+      bank.name.slice(0, 255),
+      code,
+      tip,
+      marka,
+      tur,
+      id,
+    );
+    const list = await listBins();
+    const hit = list.find((b) => b.id === String(id));
+    if (!hit) throw new BinsError('BIN güncellenemedi');
+    return hit;
+  }
 }
 
 export async function softDeleteBin(id: number): Promise<void> {
-  const existing = await prisma.binKayit.findFirst({
-    where: { id, ...notRemoved() },
-  });
-  if (!existing) throw new BinsError('BIN bulunamadı');
-  await prisma.binKayit.update({ where: { id }, data: { remove: true } });
+  await ensureBinKayitlariTable();
+  const cols = await tableColumns('bin_kayitlari');
+  if (cols.has('remove')) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE \`bin_kayitlari\` SET \`remove\` = 1 WHERE \`id\` = ?`,
+      id,
+    );
+    return;
+  }
+  await prisma.$executeRawUnsafe(`DELETE FROM \`bin_kayitlari\` WHERE \`id\` = ?`, id);
 }
 
 /** Kart numarası → en uzun eşleşen BIN + banka */
@@ -192,12 +379,8 @@ export async function lookupBinByCard(cardDigits: string): Promise<{
   const d = cardDigits.replace(/\D/g, '');
   if (d.length < 4) return null;
 
-  const rows = await prisma.binKayit.findMany({
-    where: notRemoved(),
-    select: { bin: true, bankaId: true, bankaAdi: true },
-  });
-
-  let best: { bin: string; bankaId: number | null; bankaAdi: string } | null = null;
+  const rows = await listBins();
+  let best: PublicBin | null = null;
   for (const r of rows) {
     if (d.startsWith(r.bin) && (!best || r.bin.length > best.bin.length)) {
       best = r;
@@ -206,26 +389,27 @@ export async function lookupBinByCard(cardDigits: string): Promise<{
   if (!best) return null;
   return {
     bin: best.bin,
-    bankId: best.bankaId,
-    bankName: best.bankaAdi,
+    bankId: best.bankId ? Number(best.bankId) : null,
+    bankName: best.bank,
   };
 }
 
 /** İlk kurulumda örnek BIN’ler (tablo boşsa) */
 export async function seedBinsIfEmpty(): Promise<number> {
-  const count = await prisma.binKayit.count({ where: notRemoved() });
-  if (count > 0) return 0;
+  await ensureBinKayitlariTable();
+  const existing = await listBins();
+  if (existing.length > 0) return 0;
 
   const samples: BinUpsert[] = [
-    { bank: 'Ziraat', bin: '979241', type: 'Debit', brand: 'Troy', kind: 'Bireysel' },
-    { bank: 'İş Bankası', bin: '450803', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
-    { bank: 'Garanti', bin: '526955', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },
-    { bank: 'Garanti', bin: '540063', type: 'Credit', brand: 'MasterCard', kind: 'Ticari' },
-    { bank: 'Yapı Kredi', bin: '454360', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
-    { bank: 'Akbank', bin: '557113', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },
-    { bank: 'Akbank', bin: '5168', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },
-    { bank: 'Garanti', bin: '5406', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },
-    { bank: 'QNB', bin: '4159', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
+    { bank: 'Ziraat', bin: '979241', type: 'Banka Kartı', brand: 'TROY', kind: 'Bireysel Kart' },
+    { bank: 'İş Bankası', bin: '450803', type: 'Kredi Kartı', brand: 'Visa', kind: 'Bireysel Kart' },
+    { bank: 'Garanti', bin: '526955', type: 'Kredi Kartı', brand: 'MasterCard', kind: 'Bireysel Kart' },
+    { bank: 'Garanti', bin: '540063', type: 'Kredi Kartı', brand: 'MasterCard', kind: 'Ticari Kart' },
+    { bank: 'Yapı Kredi', bin: '454360', type: 'Kredi Kartı', brand: 'Visa', kind: 'Bireysel Kart' },
+    { bank: 'Akbank', bin: '557113', type: 'Kredi Kartı', brand: 'MasterCard', kind: 'Bireysel Kart' },
+    { bank: 'Akbank', bin: '5168', type: 'Kredi Kartı', brand: 'MasterCard', kind: 'Bireysel Kart' },
+    { bank: 'Garanti', bin: '5406', type: 'Kredi Kartı', brand: 'MasterCard', kind: 'Bireysel Kart' },
+    { bank: 'QNB', bin: '4159', type: 'Kredi Kartı', brand: 'Visa', kind: 'Bireysel Kart' },
   ];
 
   let n = 0;
