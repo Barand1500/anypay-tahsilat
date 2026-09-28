@@ -4,7 +4,11 @@ import { createPortal } from 'react-dom';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import { VIRTUAL_POS_INFRASTRUCTURES, type VirtualPosRow } from './mockPos';
-import { resolvePosFieldProfile } from './posFieldProfiles';
+import {
+  emptyPosFieldValues,
+  resolvePosFieldProfile,
+  type PosFieldSlot,
+} from './posFieldProfiles';
 
 export type VirtualPosModalMode =
   | { type: 'create' }
@@ -31,23 +35,26 @@ type Props = {
   }) => Promise<void>;
 };
 
-const FALLBACK_SECURITY = ['3D', '3D_PAY', '3D_HOST', '3DModel', '3DPay'];
+const FALLBACK_SECURITY = ['3D', '3D_PAY', '3D_HOST', '3DModel', '3DPay', '3d_pay'];
 
-/** Sanal POS ekle / düzenle — Esc / X / Kapat; bankaya göre alan etiketleri */
+/** Sanal POS ekle / düzenle — Esc / X / Kapat; altyapıya göre dinamik alanlar */
 export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: Props) {
   const isEdit = mode.type === 'edit';
   const row = isEdit ? mode.row : null;
 
   const [bankId, setBankId] = useState<string | null>(row?.bankId ?? null);
   const [infraId, setInfraId] = useState<string | null>(row?.infrastructureId ?? null);
-  const [merchantId, setMerchantId] = useState(row?.merchantId ?? '');
-  const [terminalSafeId, setTerminalSafeId] = useState(row?.terminalSafeId ?? '');
-  const [securityKey, setSecurityKey] = useState(row?.securityKey ?? '');
-  const [terminalPassword, setTerminalPassword] = useState(row?.terminalPassword ?? '');
+  const [values, setValues] = useState<Record<PosFieldSlot, string>>(() => ({
+    merchantId: row?.merchantId ?? '',
+    terminalSafeId: row?.terminalSafeId ?? '',
+    securityKey: row?.securityKey ?? '',
+    terminalPassword: row?.terminalPassword ?? '',
+  }));
   const [securityType, setSecurityType] = useState<string | null>(row?.securityType || null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const prevInfraRef = useRef<string | null>(infraId);
 
   const bankOptions = useMemo(
     () => banks.map((b) => ({ value: b.id, label: b.name })),
@@ -73,6 +80,19 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
     const list = fromBank.length ? fromBank : FALLBACK_SECURITY;
     return [...new Set(list)].map((v) => ({ value: v, label: v }));
   }, [banks, bankId]);
+
+  // Altyapı değişince (yeni seçim) alanları temizle; düzenlemede ilk açılışta değil
+  useEffect(() => {
+    if (prevInfraRef.current === infraId) return;
+    const prev = prevInfraRef.current;
+    prevInfraRef.current = infraId;
+    if (prev == null && isEdit) return;
+    if (!isEdit || prev !== null) {
+      setValues(emptyPosFieldValues());
+      setSecurityType(null);
+      setError('');
+    }
+  }, [infraId, isEdit]);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -102,6 +122,11 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
     }
   }, [securityOptions, securityType]);
 
+  function setSlot(slot: PosFieldSlot, value: string) {
+    setValues((prev) => ({ ...prev, [slot]: value }));
+    setError('');
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!bankId) {
@@ -112,22 +137,14 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
       setError('Sanal POS alt yapısı seçiniz');
       return;
     }
-    if (!merchantId.trim()) {
-      setError(`${profile.merchantLabel} gerekli`);
-      return;
+
+    for (const field of profile.fields) {
+      if (field.required && !values[field.slot].trim()) {
+        setError(`${field.label} gerekli`);
+        return;
+      }
     }
-    if (!terminalSafeId.trim()) {
-      setError(`${profile.terminalLabel} gerekli`);
-      return;
-    }
-    if (!securityKey.trim()) {
-      setError(`${profile.keyLabel} gerekli`);
-      return;
-    }
-    if (profile.showTerminalPassword && !terminalPassword.trim()) {
-      setError(`${profile.terminalPasswordLabel} gerekli`);
-      return;
-    }
+
     if (profile.securityTypeRequired && !securityType) {
       setError('Güvenlik tipi seçiniz');
       return;
@@ -155,15 +172,15 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
         bankName: bank.name,
         infrastructureId: infra.id,
         posName: infra.label,
-        merchantId: merchantId.trim(),
-        terminalSafeId: terminalSafeId.trim(),
-        securityKey: securityKey.trim(),
-        terminalPassword: profile.showTerminalPassword ? terminalPassword.trim() : '',
+        merchantId: values.merchantId.trim(),
+        terminalSafeId: values.terminalSafeId.trim(),
+        securityKey: values.securityKey.trim(),
+        terminalPassword: values.terminalPassword.trim(),
         securityType:
           securityType ||
-          (profile.id === 'garanti'
-            ? securityOptions[0]?.value || '3D_OOS_PAY'
-            : '3D_PAY'),
+          profile.defaultSecurityType ||
+          securityOptions[0]?.value ||
+          '3D_PAY',
       });
       onClose();
     } catch (err) {
@@ -223,52 +240,19 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
               }}
               placeholder="Alt yapı seçiniz."
             />
-            <TextInput
-              data-km-jump
-              label={`${profile.merchantLabel} *`}
-              value={merchantId}
-              onChange={(e) => {
-                setMerchantId(e.target.value);
-                setError('');
-              }}
-              required
-              autoComplete="off"
-            />
-            <TextInput
-              data-km-jump
-              label={`${profile.terminalLabel} *`}
-              value={terminalSafeId}
-              onChange={(e) => {
-                setTerminalSafeId(e.target.value);
-                setError('');
-              }}
-              required
-              autoComplete="off"
-            />
-            <TextInput
-              data-km-jump
-              label={`${profile.keyLabel} *`}
-              value={securityKey}
-              onChange={(e) => {
-                setSecurityKey(e.target.value);
-                setError('');
-              }}
-              required
-              autoComplete="off"
-            />
-            {profile.showTerminalPassword ? (
+
+            {profile.fields.map((field) => (
               <TextInput
+                key={`${profile.id}-${field.slot}`}
                 data-km-jump
-                label={`${profile.terminalPasswordLabel} *`}
-                value={terminalPassword}
-                onChange={(e) => {
-                  setTerminalPassword(e.target.value);
-                  setError('');
-                }}
-                required
+                label={field.required ? `${field.label} *` : field.label}
+                value={values[field.slot]}
+                onChange={(e) => setSlot(field.slot, e.target.value)}
+                required={field.required}
                 autoComplete="off"
               />
-            ) : null}
+            ))}
+
             {profile.showSecurityType ? (
               <FloatingSearchSelect
                 label="Güvenlik Tipi"

@@ -38,6 +38,12 @@ export const VIRTUAL_POS_INFRASTRUCTURES = [
   { id: 'infra-halkbank', label: 'HALK BANKASI SANAL POS' },
   { id: 'infra-garanti', label: 'GARANTİ SANAL POS' },
   { id: 'infra-qnb', label: 'QNB SANAL POS' },
+  { id: 'infra-vakifbank', label: 'VAKIFBANK SANAL POS' },
+  { id: 'infra-denizbank', label: 'DENİZBANK SANAL POS' },
+  { id: 'infra-kuveytturk', label: 'KUVEYTTÜRK SANAL POS' },
+  { id: 'infra-halkode', label: 'HALK ÖDE' },
+  { id: 'infra-iyzico', label: 'İYZİCO' },
+  { id: 'infra-paytr', label: 'PAYTR' },
   { id: 'infra-tosla', label: 'TOSLA POS' },
 ] as const;
 

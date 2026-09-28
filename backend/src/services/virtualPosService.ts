@@ -101,6 +101,82 @@ async function assertBank(bankId: number) {
   if (!bank) throw new VirtualPosError('Banka bulunamadı');
 }
 
+/** Altyapıya göre zorunlu alanlar (frontend profili ile uyumlu) */
+function assertCredentials(input: {
+  infrastructureId: string;
+  merchantId: string;
+  terminalSafeId: string;
+  securityKey: string;
+  terminalPassword: string;
+}): string {
+  const infra = input.infrastructureId.toLowerCase();
+  const merchantId = input.merchantId.trim();
+  const terminalSafeId = input.terminalSafeId.trim();
+  const securityKey = input.securityKey.trim();
+  const terminalPassword = input.terminalPassword.trim();
+
+  if (!merchantId) throw new VirtualPosError('İşyeri / Client ID gerekli');
+
+  if (infra.includes('tosla')) {
+    if (!terminalSafeId) throw new VirtualPosError('Api User gerekli');
+    if (!securityKey) throw new VirtualPosError('Api Pass gerekli');
+    return '3D_PAY';
+  }
+
+  if (infra.includes('yapikredi')) {
+    if (!terminalSafeId) throw new VirtualPosError('Terminal No gerekli');
+    if (!securityKey) throw new VirtualPosError('Posnet ID gerekli');
+    if (!terminalPassword) throw new VirtualPosError('ENC Anahtarı gerekli');
+    return '3D_PAY';
+  }
+
+  if (infra.includes('qnb')) {
+    if (!securityKey) throw new VirtualPosError('Üye İşyeri 3D Şifresi gerekli');
+    if (!terminalSafeId) throw new VirtualPosError('API Kullanıcı Adı gerekli');
+    if (!terminalPassword) throw new VirtualPosError('API Kullanıcı Şifresi gerekli');
+    return '';
+  }
+
+  if (
+    infra.includes('isbank') ||
+    infra.includes('ziraat') ||
+    infra.includes('halkbank') ||
+    infra.includes('nestpay')
+  ) {
+    if (!securityKey) throw new VirtualPosError('Mağaza Anahtarı gerekli');
+    return '';
+  }
+
+  if (infra.includes('vakif')) {
+    if (!terminalSafeId) throw new VirtualPosError('Terminal No gerekli');
+    if (!securityKey) throw new VirtualPosError('Merchant Password gerekli');
+    return '3D';
+  }
+
+  if (infra.includes('iyzico')) {
+    if (!terminalSafeId) throw new VirtualPosError('Api Anahtarı gerekli');
+    if (!securityKey) throw new VirtualPosError('Güvenlik Anahtarı gerekli');
+    return '3D';
+  }
+
+  if (infra.includes('paytr')) {
+    if (!securityKey) throw new VirtualPosError('Merchant Key gerekli');
+    if (!terminalSafeId) throw new VirtualPosError('Merchant Salt gerekli');
+    return 'iframe';
+  }
+
+  if (infra.includes('garanti')) {
+    if (!terminalSafeId) throw new VirtualPosError('Terminal No gerekli');
+    if (!securityKey) throw new VirtualPosError('Mağaza Anahtarı gerekli');
+    if (!terminalPassword) throw new VirtualPosError('Terminal Şifresi gerekli');
+    return '3D_PAY';
+  }
+
+  if (!terminalSafeId) throw new VirtualPosError('Terminal No gerekli');
+  if (!securityKey) throw new VirtualPosError('Mağaza / güvenlik anahtarı gerekli');
+  return '';
+}
+
 export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicVirtualPos> {
   const bankId = Number(input.bankId);
   if (!Number.isFinite(bankId)) throw new VirtualPosError('Banka seçiniz');
@@ -115,11 +191,14 @@ export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicV
   const terminalSafeId = (input.terminalSafeId || '').trim();
   const securityKey = (input.securityKey || '').trim();
   const terminalPassword = (input.terminalPassword || '').trim();
-  const securityType = (input.securityType || '').trim();
-  if (!merchantId) throw new VirtualPosError('İşyeri numarası gerekli');
-  if (!terminalSafeId) throw new VirtualPosError('Terminal no gerekli');
-  if (!securityKey) throw new VirtualPosError('Mağaza / güvenlik anahtarı gerekli');
-  if (!securityType) throw new VirtualPosError('Güvenlik tipi seçiniz');
+  const fallbackType = assertCredentials({
+    infrastructureId: infra,
+    merchantId,
+    terminalSafeId,
+    securityKey,
+    terminalPassword,
+  });
+  const securityType = (input.securityType || '').trim() || fallbackType || '3D_PAY';
 
   const clash = await prisma.sanalPosTanim.findFirst({
     where: {
@@ -144,8 +223,8 @@ export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicV
       altyapiKodu: infra.slice(0, 64),
       posAdi: posName.slice(0, 255),
       isyeriNo: merchantId.slice(0, 255),
-      terminalSafeId: terminalSafeId.slice(0, 255),
-      guvenlikAnahtari: securityKey.slice(0, 512),
+      terminalSafeId: terminalSafeId.slice(0, 255) || null,
+      guvenlikAnahtari: securityKey.slice(0, 512) || null,
       terminalSifresi: terminalPassword.slice(0, 255) || null,
       guvenlikTipi: securityType.slice(0, 64),
       varsayilan: wantDefault,
@@ -178,11 +257,14 @@ export async function updateVirtualPos(
   const terminalSafeId = (input.terminalSafeId || '').trim();
   const securityKey = (input.securityKey || '').trim();
   const terminalPassword = (input.terminalPassword || '').trim();
-  const securityType = (input.securityType || '').trim();
-  if (!merchantId) throw new VirtualPosError('İşyeri numarası gerekli');
-  if (!terminalSafeId) throw new VirtualPosError('Terminal no gerekli');
-  if (!securityKey) throw new VirtualPosError('Mağaza / güvenlik anahtarı gerekli');
-  if (!securityType) throw new VirtualPosError('Güvenlik tipi seçiniz');
+  const fallbackType = assertCredentials({
+    infrastructureId: infra,
+    merchantId,
+    terminalSafeId,
+    securityKey,
+    terminalPassword,
+  });
+  const securityType = (input.securityType || '').trim() || fallbackType || '3D_PAY';
 
   const clash = await prisma.sanalPosTanim.findFirst({
     where: {
@@ -209,8 +291,8 @@ export async function updateVirtualPos(
       altyapiKodu: infra.slice(0, 64),
       posAdi: posName.slice(0, 255),
       isyeriNo: merchantId.slice(0, 255),
-      terminalSafeId: terminalSafeId.slice(0, 255),
-      guvenlikAnahtari: securityKey.slice(0, 512),
+      terminalSafeId: terminalSafeId.slice(0, 255) || null,
+      guvenlikAnahtari: securityKey.slice(0, 512) || null,
       terminalSifresi: terminalPassword.slice(0, 255) || null,
       guvenlikTipi: securityType.slice(0, 64),
       varsayilan: wantDefault,
