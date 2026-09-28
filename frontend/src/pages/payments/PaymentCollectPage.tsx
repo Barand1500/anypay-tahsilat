@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
+import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
@@ -14,7 +15,6 @@ import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import {
-  buildInstallments,
   detectBank,
   digitsOnly,
   formatCardNumber,
@@ -123,6 +123,15 @@ export default function PaymentCollectPage() {
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
 
+  const { rows: agreementRows } = useAgreementRates({
+    amount: amount || 0,
+    bankName: bank?.fullName || bank?.name || null,
+    bankId: bank?.id || null,
+    musteriId: customer?.id ? Number(customer.id) : null,
+    agreementCode: customer?.cardAgreementCode ?? null,
+    segment: 'bireysel',
+  });
+
   const cardFaulty =
     cardChecked &&
     cardDigits.length > 0 &&
@@ -133,9 +142,8 @@ export default function PaymentCollectPage() {
     expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
   const selected = useMemo(() => {
     if (!amount || amount <= 0) return null;
-    const rows = buildInstallments(amount, 'bireysel', bank?.id);
-    return rows.find((r) => r.n === installment) ?? rows[0] ?? null;
-  }, [amount, bank?.id, installment]);
+    return agreementRows.find((r) => r.n === installment) ?? agreementRows[0] ?? null;
+  }, [amount, agreementRows, installment]);
 
   function flash(msg: string) {
     setToast(msg);
@@ -574,7 +582,7 @@ export default function PaymentCollectPage() {
               <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {buildInstallments(amount, 'bireysel', bank.id).map((r) => {
+              {agreementRows.map((r) => {
                 const active = installment === r.n;
                 const ok =
                   !allowedInstallments || allowedInstallments.includes(r.n);
@@ -691,6 +699,8 @@ export default function PaymentCollectPage() {
           amount={amount}
           preferredBankId={bank?.id}
           allowedInstallments={allowedInstallments}
+          musteriId={customer?.id ? Number(customer.id) : null}
+          agreementCode={customer?.cardAgreementCode ?? null}
           onClose={() => setCompareOpen(false)}
         />
       ) : null}

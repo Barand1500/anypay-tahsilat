@@ -5,22 +5,42 @@ import { TextInput } from '../../components/ui/TextInput';
 
 export type CardBrandModalMode =
   | { type: 'create' }
-  | { type: 'edit'; id: string; name: string; logo?: string; initials?: string };
+  | { type: 'edit'; id: string; name: string; logoUrl?: string; initials?: string };
 
 type Props = {
   mode: CardBrandModalMode;
   existingNames: string[];
   onClose: () => void;
-  onSave: (data: { name: string; logo?: string; initials: string; id?: string }) => void;
+  onSave: (data: {
+    name: string;
+    logoDataUrl?: string | null;
+    initials: string;
+    id?: string;
+  }) => Promise<void>;
 };
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Dosya okunamadı'));
+    reader.readAsDataURL(file);
+  });
+}
 
 /** Kart markası ekle / düzenle — Esc / X */
 export function CardBrandModal({ mode, existingNames, onClose, onSave }: Props) {
   const isEdit = mode.type === 'edit';
   const [name, setName] = useState(isEdit ? mode.name : '');
-  const [logo, setLogo] = useState<string | undefined>(isEdit ? mode.logo : undefined);
-  const [fileLabel, setFileLabel] = useState(isEdit && mode.logo ? 'Logo seçildi' : 'Dosya seçilmedi.');
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(
+    isEdit ? mode.logoUrl : undefined,
+  );
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [fileLabel, setFileLabel] = useState(
+    isEdit && mode.logoUrl ? 'Logo seçildi' : 'Dosya seçilmedi.',
+  );
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -50,23 +70,29 @@ export function CardBrandModal({ mode, existingNames, onClose, onSave }: Props) 
     window.setTimeout(() => nameRef.current?.focus(), 200);
   }, []);
 
-  function onFile(file: File | null) {
+  async function onFile(file: File | null) {
     if (!file) {
-      setLogo(undefined);
-      setFileLabel('Dosya seçilmedi.');
+      setLogoDataUrl(null);
+      setPreviewUrl(isEdit ? mode.logoUrl : undefined);
+      setFileLabel(isEdit && mode.logoUrl ? 'Logo seçildi' : 'Dosya seçilmedi.');
       return;
     }
     if (!file.type.startsWith('image/')) {
       setError('Sadece görsel dosya seçin');
       return;
     }
-    const url = URL.createObjectURL(file);
-    setLogo(url);
-    setFileLabel(file.name);
-    setError('');
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setLogoDataUrl(dataUrl);
+      setPreviewUrl(dataUrl);
+      setFileLabel(file.name);
+      setError('');
+    } catch {
+      setError('Dosya okunamadı');
+    }
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -89,12 +115,21 @@ export function CardBrandModal({ mode, existingNames, onClose, onSave }: Props) 
       .join('')
       .slice(0, 2)
       .toLocaleUpperCase('tr');
-    onSave({
-      name: trimmed,
-      logo,
-      initials: isEdit && mode.initials && !logo ? mode.initials : initials,
-      id: isEdit ? mode.id : undefined,
-    });
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({
+        name: trimmed,
+        logoDataUrl: logoDataUrl || undefined,
+        initials: isEdit && mode.initials && !logoDataUrl ? mode.initials : initials,
+        id: isEdit ? mode.id : undefined,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return createPortal(
@@ -121,7 +156,7 @@ export function CardBrandModal({ mode, existingNames, onClose, onSave }: Props) 
           </button>
         </header>
 
-        <form onSubmit={submit} className="space-y-4 px-5 py-4">
+        <form onSubmit={(e) => void submit(e)} className="space-y-4 px-5 py-4">
           <TextInput
             ref={nameRef}
             label="Adı"
@@ -149,15 +184,15 @@ export function CardBrandModal({ mode, existingNames, onClose, onSave }: Props) 
               <span className="min-w-0 flex-1 truncate text-sm text-[var(--panel-muted)]">
                 {fileLabel}
               </span>
-              {logo ? (
-                <img src={logo} alt="" className="h-8 w-auto max-w-[56px] object-contain" />
+              {previewUrl ? (
+                <img src={previewUrl} alt="" className="h-8 w-auto max-w-[56px] object-contain" />
               ) : null}
               <input
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
               />
             </div>
           </div>
@@ -166,16 +201,18 @@ export function CardBrandModal({ mode, existingNames, onClose, onSave }: Props) 
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+              disabled={saving}
+              className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               Kapat
             </button>
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-brand-500)]"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-brand-500)] disabled:opacity-50"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

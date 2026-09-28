@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   TaxOfficesError,
   createTaxOffice,
@@ -13,6 +14,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const taxOfficesRouter = Router();
 taxOfficesRouter.use(requireAuth);
+taxOfficesRouter.use(requireModuleWrite('/tanimlamalar'));
 
 const upsertSchema = z.object({
   city: z.string().min(1).max(255),

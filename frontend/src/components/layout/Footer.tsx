@@ -15,6 +15,7 @@ import { QuickAccessSlots } from './QuickAccessSlots';
 import { RatesFooterStage } from './RatesFooterStage';
 import { SearchTrigger } from './SearchTrigger';
 import { ThemeBurstToggle } from './ThemeBurstToggle';
+import { VaultDockChip } from './VaultWidget';
 
 type Props = {
   autoHide?: boolean;
@@ -105,7 +106,10 @@ export function Footer({ autoHide = false, onFooterDoubleClick, onOpenSearch }: 
           </div>
 
           <div className="shrink-0" onDoubleClick={(e) => e.stopPropagation()}>
-            <LegalDocsMenu />
+            <div className="flex items-center gap-2">
+              <VaultDockChip place="footer" />
+              <LegalDocsMenu />
+            </div>
           </div>
         </div>
       </RatesFooterStage>

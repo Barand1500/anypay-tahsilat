@@ -40,7 +40,12 @@ export async function sendMail(opts: {
   subject: string;
   html: string;
   text?: string;
-  attachments?: { filename: string; path: string }[];
+  attachments?: {
+    filename: string;
+    path?: string;
+    content?: Buffer | string;
+    contentType?: string;
+  }[];
 }) {
   const cfg = await resolveSmtpConfig();
   const transport = await getTransporter();
@@ -155,6 +160,109 @@ export async function sendLoginOtpMail(to: string, adsoyad: string | null, code:
 </html>`;
 
   const text = `GÜZEL Teknoloji — Giriş doğrulama\n\nMerhaba ${name},\n\nKodunuz: ${code}\nGeçerlilik: ${mins} dakika\n\nBu isteği siz yapmadıysanız yok sayın.\nhttps://tahsilat.anypay.com.tr`;
+  return sendMail({ to, subject, html, text });
+}
+
+/** Şifremi unuttum — OTP */
+export async function sendPasswordResetOtpMail(
+  to: string,
+  adsoyad: string | null,
+  code: string,
+) {
+  const name = adsoyad?.trim() || 'Kullanıcı';
+  const mins = Number(process.env.OTP_EXPIRES_MINUTES || 10);
+  const subject = `${code} — Şifre sıfırlama kodu`;
+  const safeName = escapeHtml(name);
+  const safeCode = escapeHtml(code);
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="utf-8"/><title>Şifre sıfırlama</title></head>
+<body style="margin:0;padding:0;background:#0b1220;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-radius:20px;overflow:hidden;background:#111827;border:1px solid #1f2937;">
+        <tr>
+          <td style="padding:28px 28px 18px;background:linear-gradient(135deg,#10b981 0%,#047857 55%,#0f172a 100%);">
+            <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.75);font-weight:700;">GÜZEL Teknoloji</p>
+            <h1 style="margin:0;font-size:22px;line-height:1.3;color:#ffffff;font-weight:800;">Şifre sıfırlama kodu</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <p style="margin:0 0 10px;font-size:16px;color:#e5e7eb;">Merhaba <strong style="color:#fff;">${safeName}</strong>,</p>
+            <p style="margin:0 0 22px;font-size:14px;line-height:1.55;color:#9ca3af;">
+              Tahsilat paneli şifrenizi yenilemek için tek kullanımlık kodunuz aşağıda.
+            </p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+              <tr>
+                <td align="center" style="padding:22px 16px;border-radius:16px;background:#020617;border:1px dashed #34d399;">
+                  <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#6ee7b7;font-weight:700;">Doğrulama kodu</p>
+                  <p style="margin:0;font-size:40px;line-height:1.1;letter-spacing:0.28em;font-weight:800;color:#f8fafc;font-family:Consolas,Monaco,monospace;">${safeCode}</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 6px;font-size:13px;color:#94a3b8;">
+              ⏱ Bu kod <strong style="color:#e2e8f0;">${escapeHtml(String(mins))} dakika</strong> geçerlidir.
+            </p>
+            <p style="margin:0;font-size:12px;line-height:1.5;color:#64748b;">
+              Bu isteği siz yapmadıysanız bu e-postayı yok sayın.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 28px 22px;border-top:1px solid #1f2937;background:#0b1220;">
+            <p style="margin:0;font-size:11px;color:#64748b;text-align:center;">
+              Powered by <span style="color:#94a3b8;font-weight:700;">GÜZEL Teknoloji®</span>
+              · tahsilat.anypay.com.tr
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `GÜZEL Teknoloji — Şifre sıfırlama\n\nMerhaba ${name},\n\nKodunuz: ${code}\nGeçerlilik: ${mins} dakika\n\nBu isteği siz yapmadıysanız yok sayın.\nhttps://tahsilat.anypay.com.tr`;
+  return sendMail({ to, subject, html, text });
+}
+
+/** Kasa şifresi unuttum — OTP */
+export async function sendVaultOtpMail(to: string, adsoyad: string | null, code: string) {
+  const name = adsoyad?.trim() || 'Kullanıcı';
+  const subject = `${code} — Kasa şifreniz`;
+  const safeName = escapeHtml(name);
+  const safeCode = escapeHtml(code);
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="utf-8"/><title>Kasa şifresi</title></head>
+<body style="margin:0;padding:0;background:#0b1220;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;border-radius:20px;overflow:hidden;background:#111827;border:1px solid #1f2937;">
+        <tr>
+          <td style="padding:24px 28px;background:linear-gradient(135deg,#f59e0b 0%,#b45309 60%,#0f172a 100%);">
+            <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.8);font-weight:700;">GÜZEL Teknoloji</p>
+            <h1 style="margin:0;font-size:22px;color:#fff;font-weight:800;">Kasa doğrulama kodu</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <p style="margin:0 0 12px;font-size:15px;color:#e5e7eb;">Merhaba <strong style="color:#fff;">${safeName}</strong>,</p>
+            <p style="margin:0 0 20px;font-size:14px;color:#9ca3af;line-height:1.5;">Kasanızı açmak için tek kullanımlık kodunuz:</p>
+            <p style="margin:0 0 20px;text-align:center;font-size:36px;letter-spacing:0.28em;font-weight:800;color:#f8fafc;font-family:Consolas,Monaco,monospace;">${safeCode}</p>
+            <p style="margin:0;font-size:12px;color:#64748b;">Kod 2 dakika geçerlidir. Bu isteği siz yapmadıysanız yok sayın.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `Kasa doğrulama kodu: ${code}\nMerhaba ${name},\nKod 2 dakika geçerlidir.`;
   return sendMail({ to, subject, html, text });
 }
 

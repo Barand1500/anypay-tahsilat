@@ -91,6 +91,16 @@ export const api = {
       token,
     ),
 
+  put: <T,>(path: string, body?: unknown, token?: string | null) =>
+    request<T>(
+      path,
+      {
+        method: 'PUT',
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      token,
+    ),
+
   delete: <T,>(path: string, token?: string | null, body?: unknown) =>
     request<T>(
       path,

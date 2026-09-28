@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import { getCollectionReport } from '../services/collectionReportService.js';
 import { getCustomerCollectionReport } from '../services/customerCollectionReportService.js';
 import { getCardCollectionReport } from '../services/cardCollectionReportService.js';
@@ -10,6 +11,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth);
+reportsRouter.use(requireModulePerm('/raporlar'));
 
 const idOpt = z
   .string()

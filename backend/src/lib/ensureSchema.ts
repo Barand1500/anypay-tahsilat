@@ -233,6 +233,205 @@ export async function ensureSchema(): Promise<void> {
   await ensureSanalPosTanimlariTable();
   await ensureBinKayitlariTable();
   await ensureVergiDairesiLocationColumns();
+  await ensureOrtakSanalPosTable();
+  await ensureKartDefsTables();
+  await ensureKartAnlasmalariTable();
+  await ensureKasaTables();
+  await ensureOtpChallengeTable();
+  await ensureSozlesmelerTable();
+}
+
+/** Tanımlamalar › Sözleşmeler */
+export async function ensureSozlesmelerTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`sozlesmeler\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`adi\` VARCHAR(255) NOT NULL,
+        \`icerik\` LONGTEXT NOT NULL,
+        \`baglanti\` VARCHAR(64) NOT NULL DEFAULT 'none',
+        \`sira\` INT NOT NULL DEFAULT 0,
+        \`remove\` TINYINT(1) NULL,
+        \`olusturma\` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (\`id\`),
+        INDEX \`sozlesmeler_baglanti_idx\` (\`baglanti\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] sozlesmeler atlandı:', err);
+  }
+}
+
+/** OTP — login / reset / vault */
+export async function ensureOtpChallengeTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`otp_challenge\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`scope\` VARCHAR(64) NOT NULL,
+        \`email\` VARCHAR(180) NOT NULL,
+        \`code_hash\` VARCHAR(255) NOT NULL,
+        \`expires_at\` DATETIME(3) NOT NULL,
+        \`attempts\` INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`otp_challenge_scope_email_key\` (\`scope\`, \`email\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] otp_challenge atlandı:', err);
+  }
+}
+
+/** Kullanıcı kasası */
+export async function ensureKasaTables(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`kasa_ayar\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`kullanici_id\` INT NOT NULL,
+        \`sifre_hash\` VARCHAR(255) NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`kasa_ayar_kullanici_id_key\` (\`kullanici_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`kasa_kayitlari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`kullanici_id\` INT NOT NULL,
+        \`tip\` VARCHAR(32) NOT NULL,
+        \`etiket\` VARCHAR(64) NOT NULL,
+        \`baslik\` VARCHAR(255) NOT NULL,
+        \`deger\` LONGTEXT NOT NULL,
+        \`sira\` INT NOT NULL DEFAULT 0,
+        \`remove\` TINYINT(1) NULL,
+        \`olusturma\` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (\`id\`),
+        INDEX \`kasa_kayitlari_kullanici_id_idx\` (\`kullanici_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] kasa tabloları oluşturma atlandı:', err);
+  }
+}
+
+/** Kart anlaşmaları (oran paketleri) */
+export async function ensureKartAnlasmalariTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`kart_anlasmalari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`adi\` VARCHAR(255) NOT NULL,
+        \`banka_id\` INT NULL,
+        \`taksit\` INT NOT NULL,
+        \`alt_limit\` DOUBLE NULL,
+        \`komisyon_tum\` DOUBLE NULL,
+        \`komisyon_bireysel\` DOUBLE NULL,
+        \`komisyon_ticari\` DOUBLE NULL,
+        \`grup\` VARCHAR(255) NULL,
+        \`blok_adi\` VARCHAR(255) NULL,
+        \`blok_logo\` VARCHAR(255) NULL,
+        \`anlasma_kodu\` VARCHAR(64) NOT NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        INDEX \`kart_anlasmalari_anlasma_kodu_idx\` (\`anlasma_kodu\`),
+        INDEX \`kart_anlasmalari_banka_id_idx\` (\`banka_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] kart_anlasmalari oluşturma atlandı:', err);
+  }
+}
+
+/** Kart tip / tür / marka tanımları */
+export async function ensureKartDefsTables(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`kart_tipleri\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`adi\` VARCHAR(255) NOT NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`kart_turleri\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`adi\` VARCHAR(255) NOT NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`kart_markalari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`adi\` VARCHAR(255) NOT NULL,
+        \`logo\` VARCHAR(255) NULL,
+        \`kisa_kod\` VARCHAR(8) NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+
+    const tipCount = await prisma.kartTipi.count();
+    if (tipCount === 0) {
+      await prisma.kartTipi.createMany({
+        data: [
+          { adi: 'Banka Kartı', remove: false },
+          { adi: 'Kredi Kartı', remove: false },
+          { adi: 'Ön Ödemeli Kart', remove: false },
+        ],
+      });
+    }
+
+    const turCount = await prisma.kartTuru.count();
+    if (turCount === 0) {
+      await prisma.kartTuru.createMany({
+        data: [
+          { adi: 'Bireysel Kart', remove: false },
+          { adi: 'Ticari Kart', remove: false },
+        ],
+      });
+    }
+
+    const markaCount = await prisma.kartMarka.count();
+    if (markaCount === 0) {
+      await prisma.kartMarka.createMany({
+        data: [
+          { adi: 'Amex', kisaKod: 'AX', remove: false },
+          { adi: 'Diners', kisaKod: 'DC', remove: false },
+          { adi: 'JCB', kisaKod: 'JC', remove: false },
+          { adi: 'MasterCard', kisaKod: 'MC', remove: false },
+          { adi: 'Özel Logolu', kisaKod: 'ÖL', remove: false },
+          { adi: 'TROY', kisaKod: 'TR', remove: false },
+          { adi: 'TROY/Discover co-badge', kisaKod: 'TC', remove: false },
+          { adi: 'UnionPay', kisaKod: 'UP', remove: false },
+          { adi: 'Visa', kisaKod: 'VI', remove: false },
+        ],
+      });
+    }
+  } catch (err) {
+    console.warn('[schema] kart tanımları oluşturma atlandı:', err);
+  }
+}
+
+/** Ortak Sanal POS eşlemeleri */
+export async function ensureOrtakSanalPosTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`ortak_sanal_pos\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`banka_id\` INT NOT NULL,
+        \`yonlenen_banka_id\` INT NOT NULL,
+        \`aktif\` TINYINT(1) NULL DEFAULT 1,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        INDEX \`ortak_sanal_pos_banka_id_idx\` (\`banka_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] ortak_sanal_pos oluşturma atlandı:', err);
+  }
 }
 
 /** Vergi dairesi il / ilçe adı kolonları */

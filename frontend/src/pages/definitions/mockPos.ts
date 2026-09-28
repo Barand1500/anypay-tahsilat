@@ -22,8 +22,10 @@ export type CommonVirtualPosRow = {
   id: string;
   bankId: string;
   bankName: string;
+  bankLogoUrl?: string;
   targetBankId: string;
   targetBankName: string;
+  targetBankLogoUrl?: string;
   active: boolean;
 };
 
@@ -113,22 +115,3 @@ export function setVirtualPosList(rows: VirtualPosRow[]) {
 export function findVirtualPos(id: string) {
   return virtualPosStore.find((r) => r.id === id) ?? null;
 }
-
-export const INITIAL_COMMON_VIRTUAL_POS: CommonVirtualPosRow[] = [
-  {
-    id: 'cvpos-1',
-    bankId: 'denizbank',
-    bankName: 'Denizbank A.Ş.',
-    targetBankId: 'garanti',
-    targetBankName: 'Türkiye Garanti Bankası A.Ş.',
-    active: true,
-  },
-  {
-    id: 'cvpos-2',
-    bankId: 'teb',
-    bankName: 'Türk Ekonomi Bankası A.Ş.',
-    targetBankId: 'isbank',
-    targetBankName: 'Türkiye İş Bankası A.Ş.',
-    active: true,
-  },
-];

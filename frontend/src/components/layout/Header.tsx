@@ -5,6 +5,7 @@ import { ProfileMenu } from './ProfileMenu';
 import { QuickAccessSlots } from './QuickAccessSlots';
 import { SearchTrigger } from './SearchTrigger';
 import { ThemeBurstToggle } from './ThemeBurstToggle';
+import { VaultDockChip } from './VaultWidget';
 
 type Props = {
   autoHide?: boolean;
@@ -43,6 +44,7 @@ export function Header({ autoHide = false, onHeaderDoubleClick, onOpenSearch }: 
         <div data-dock-source="theme">
           <ThemeBurstToggle />
         </div>
+        <VaultDockChip place="header" />
         <div data-dock-source="profile">
           <ProfileMenu />
         </div>

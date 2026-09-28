@@ -12,8 +12,7 @@ Küçük adımlarla ilerliyoruz. Bir adım bitmeden sonrakine geçilmez (kullan�
 - [x] `docs/YOL_HARITASI.md`
 - [x] `docs/KARARLAR.md`
 - [x] `.cursor/rules/` yapay zeka kuralları
-- [x] Kullanıcı sorularına cevap
-- [x] DB dump (`docs/db/anypay-tahsilat-db.sql`)
+- [x] DB dump (`docs/db/`)
 
 ---
 
@@ -21,49 +20,58 @@ Küçük adımlarla ilerliyoruz. Bir adım bitmeden sonrakine geçilmez (kullan�
 
 - [x] Monorepo: `frontend/` + `backend/`
 - [x] TypeScript + Tailwind (FE), Express (BE)
-- [x] `.env.example`, `.gitignore`
-- [x] Prisma bağlantı iskeleti (`user` odaklı)
-- [x] Deploy script taslağı (yollar: anypay-tahsilat)
-- [ ] İlk commit: `v0.1: proje iskeleti` (kullanıcı isterse)
+- [x] Prisma + Express + Vite
+- [x] Deploy script (`scripts/server-deploy.sh`)
 
 ---
 
 ## Faz 2 — Login
 
-- [x] Login UI (modern split kart + soft blur, Güzel Teknoloji)
-- [x] Rive Login Teddy — soft mouse bakış + şifrede göz kapatma
-- [x] Auth API (login, me, logout) — JWT + bcrypt `$2y$`
-- [x] Korumalı route iskeleti
-- [ ] Commit: `v0.2: login ekranı` (kullanıcı isterse)
+- [x] Login UI (classic + globe)
+- [x] Auth API (şifre + OTP + JWT)
+- [x] Şifremi unuttum (e-posta kodu + reset)
+- [x] Korumalı route
 
 ---
 
 ## Faz 3 — Shell (layout)
 
-- [x] Sidebar (varsayılan açık, collapse)
-- [x] Header (arama görünümü, profil görünümü, GSAP tema)
-- [x] Ortak widget’lar (StatCard, PeriodCompare, ChartPanel)
-- [ ] Commit (kullanıcı isterse)
+- [x] Sidebar / Header / Footer
+- [x] Tema, kur şeridi, jest rüzgarı, kasa (vault)
+- [x] Yetki (FE PermissionContext + BE `requireModulePerm`)
 
 ---
 
-## Faz 4 — Özet (Dashboard)
+## Faz 4–11 — Panel modülleri
 
-- [x] KPI + dönem + grafik (mock)
-- [ ] API bağlama (sonra)
-- [ ] Commit (kullanıcı isterse)
+- [x] Özet (API)
+- [x] Müşteriler
+- [x] Hareketler + dekont PDF/e-posta
+- [x] Ödeme istekleri + hızlı ödeme + public `/pay`
+- [x] Raporlar
+- [x] Tanımlamalar (POS, kart, anlaşmalar, sözleşmeler API, lokasyon…)
+- [x] Ayarlar (genel, e-posta, SMS, ERP kaydı, vs.)
+- [x] Kullanıcılar / roller / modüller / log / sürüm / sistem sıfırlama
 
 ---
 
-## Sonraki fazlar (sırayla)
+## Faz 12 — POS / gateway
 
-5. Müşteriler  
-6. Hareketler  
-7. Ödeme İstekleri  
-8. Hızlı Ödeme  
-9. Raporlar  
-10. Tanımlamalar  
-11. Ayarlar  
-12. POS entegrasyonları (QNB, Akbank, Tosla…)  
+- [x] Akbank V2 SecurePay
+- [x] NestPay / Payten (çoğu TR banka)
+- [ ] Tosla / iyzico / Param vb. özel adapter’lar (isteğe bağlı)
 
-Her faz kendi commit’iyle kapanır.
+---
+
+## Kalan / iyileştirme
+
+- ERP canlı bakiye (entegrasyon bekliyor)
+- OTP DB’de (`otp_challenge`) — tamam
+- Vault değer şifreleme (AES-GCM, `VAULT_ENC_KEY`) — tamam
+- Profil foto (uploads + menü avatar) — tamam
+- Favori müşteri yuvaları (gerçek müşteri listesi) — tamam
+- Dekont PDF indirme + e-posta eki — tamam
+
+---
+
+*Son güncelleme: 2026-09-28*

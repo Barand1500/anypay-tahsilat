@@ -1,10 +1,12 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
 import {
   getCompanyContractVars,
-  getContractByLink,
   resolveContractVars,
+  type ContractDef,
 } from '../../pages/definitions/mockContracts';
 import type { LegalDoc } from './legalDocs';
 
@@ -15,20 +17,49 @@ type Props = {
 
 /**
  * Footer sözleşme modalı — Esc / X; overlay tıklanınca kapanmaz.
- * Metin Tanımlamalar › Sözleşmeler şablonundan + #degisken# çözümü.
+ * Metin API’den + #degisken# çözümü.
  */
 export function LegalDocModal({ doc, onClose }: Props) {
+  const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [title, setTitle] = useState(doc.title);
+  const [body, setBody] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const resolved = useMemo(() => {
-    const contract = getContractByLink(doc.id);
-    const raw = contract?.body?.trim() ?? '';
-    if (!raw) return { title: contract?.name || doc.title, body: '' };
-    return {
-      title: contract?.name || doc.title,
-      body: resolveContractVars(raw, getCompanyContractVars()),
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      if (!token) {
+        if (!cancelled) {
+          setTitle(doc.title);
+          setBody('');
+          setLoading(false);
+        }
+        return;
+      }
+      try {
+        const contract = await api.get<ContractDef>(
+          `/api/contracts/by-link/${encodeURIComponent(doc.id)}`,
+          token,
+        );
+        if (cancelled) return;
+        const raw = contract.body?.trim() ?? '';
+        setTitle(contract.name || doc.title);
+        setBody(raw ? resolveContractVars(raw, getCompanyContractVars()) : '');
+      } catch {
+        if (!cancelled) {
+          setTitle(doc.title);
+          setBody('');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
-  }, [doc.id, doc.title]);
+  }, [doc.id, doc.title, token]);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -78,15 +109,17 @@ export function LegalDocModal({ doc, onClose }: Props) {
             id="legal-doc-title"
             className="mt-1 pr-16 text-xl font-bold tracking-tight text-[var(--panel-ink)]"
           >
-            {resolved.title}
+            {title}
           </h2>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">{doc.subtitle}</p>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          {resolved.body ? (
+          {loading ? (
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+          ) : body ? (
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--panel-ink)]/90">
-              {resolved.body}
+              {body}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 px-4 py-10 text-center">

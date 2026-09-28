@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import { getStatistics, parseMonthsParam } from '../services/statisticsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const statisticsRouter = Router();
 statisticsRouter.use(requireAuth);
+statisticsRouter.use(requireModulePerm('/raporlar'));
 
 const querySchema = z.object({
   year: z

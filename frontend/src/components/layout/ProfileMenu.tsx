@@ -212,8 +212,12 @@ export function ProfileMenu() {
               className="flex w-full items-center gap-3 px-4 pb-3 pt-4 text-left transition hover:bg-[var(--panel-hover)]"
               data-menu-item
             >
-              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft-bg)] text-base font-bold text-[var(--brand-on-soft)]">
-                {initials}
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--brand-soft-bg)] text-base font-bold text-[var(--brand-on-soft)]">
+                {user?.resimUrl ? (
+                  <img src={user.resimUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials
+                )}
                 <span className="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--panel-elevated)] bg-emerald-500" />
               </div>
               <div className="min-w-0">
@@ -288,8 +292,12 @@ export function ProfileMenu() {
         ].join(' ')}
         title={name}
       >
-        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft-bg)] text-xs font-bold text-[var(--brand-on-soft)]">
-          {initials}
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--brand-soft-bg)] text-xs font-bold text-[var(--brand-on-soft)]">
+          {user?.resimUrl ? (
+            <img src={user.resimUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            initials
+          )}
           <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-[var(--panel-surface)] bg-emerald-500" />
         </span>
         <span className="hidden min-w-0 sm:block">

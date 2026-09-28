@@ -18,6 +18,8 @@ export type PublicCustomer = {
   address: string;
   identityNo: string;
   childCount: number;
+  /** Kart anlaşması paketi kodu */
+  cardAgreementCode: string | null;
 };
 
 export type UpsertCustomerInput = {
@@ -33,6 +35,7 @@ export type UpsertCustomerInput = {
   accountTypeId?: number | null;
   accountTypeName?: string;
   parentId?: number | null;
+  cardAgreementCode?: string | null;
 };
 
 export class CustomersError extends Error {
@@ -169,6 +172,7 @@ type MusteriRow = {
   cariTipiId: number | null;
   ustid: number | null;
   adres: string | null;
+  kartAnlasmaKodu: string | null;
 };
 
 async function toPublic(
@@ -199,6 +203,7 @@ async function toPublic(
     address: row.adres || '',
     identityNo,
     childCount,
+    cardAgreementCode: (row.kartAnlasmaKodu || '').trim() || null,
   };
 }
 
@@ -361,6 +366,7 @@ export async function createCustomer(input: UpsertCustomerInput): Promise<Public
       vd,
       durum: 2,
       remove: null,
+      kartAnlasmaKodu: (input.cardAgreementCode || '').trim().slice(0, 255) || null,
     },
   });
 
@@ -441,6 +447,10 @@ export async function updateCustomer(
       tc,
       pasaportNo,
       vd,
+      kartAnlasmaKodu:
+        input.cardAgreementCode !== undefined
+          ? (input.cardAgreementCode || '').trim().slice(0, 255) || null
+          : undefined,
     },
   });
 

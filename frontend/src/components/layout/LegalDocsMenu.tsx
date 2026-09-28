@@ -1,7 +1,9 @@
 import gsap from 'gsap';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { loadContracts } from '../../pages/definitions/mockContracts';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
+import type { ContractDef } from '../../pages/definitions/mockContracts';
 import { LEGAL_DOCS, type LegalDoc } from './legalDocs';
 import { LegalDocModal } from './LegalDocModal';
 
@@ -9,21 +11,38 @@ const PANEL_W = 280;
 
 /**
  * Footer “Sözleşmeler” — profil menüsü gibi yukarı açılır; madde → modal.
- * Sıra Tanımlamalar › Sözleşmeler listesinden gelir.
+ * Sıra Tanımlamalar › Sözleşmeler listesinden (API) gelir.
  */
 export function LegalDocsMenu() {
+  const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ bottom: 72, left: 8 });
   const [active, setActive] = useState<LegalDoc | null>(null);
-  const [tick, setTick] = useState(0);
+  const [contracts, setContracts] = useState<ContractDef[]>([]);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!token || !open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await api.get<ContractDef[]>('/api/contracts', token);
+        if (!cancelled) setContracts(list);
+      } catch {
+        if (!cancelled) setContracts([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, open]);
+
   const docs = useMemo(() => {
-    const contracts = loadContracts().filter((c) => c.link !== 'none');
+    const linked = contracts.filter((c) => c.link !== 'none');
     const byLink = new Map(LEGAL_DOCS.map((d) => [d.id, d]));
     const ordered: LegalDoc[] = [];
-    for (const c of contracts) {
+    for (const c of linked) {
       const base = byLink.get(c.link as LegalDoc['id']);
       if (!base) continue;
       ordered.push({ ...base, title: c.name || base.title });
@@ -31,7 +50,7 @@ export function LegalDocsMenu() {
     }
     for (const rest of byLink.values()) ordered.push(rest);
     return ordered;
-  }, [tick, open]);
+  }, [contracts]);
 
   function updatePos() {
     const btn = btnRef.current;
@@ -172,10 +191,7 @@ export function LegalDocsMenu() {
         data-km-jump
         aria-expanded={open}
         aria-haspopup="menu"
-        onClick={() => {
-          setTick((t) => t + 1);
-          setOpen((v) => !v);
-        }}
+        onClick={() => setOpen((v) => !v)}
         onDoubleClick={(e) => e.stopPropagation()}
         className={[
           'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition',

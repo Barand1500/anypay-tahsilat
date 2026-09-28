@@ -77,19 +77,14 @@ bash /home/anypay-tahsilat/apps/anypay-tahsilat/scripts/server-deploy.sh
 
 ---
 
-## 5. Login / JSON.parse (canlıda görülen hata)
+## 5. Auth / API
 
-**Belirti:** `JSON.parse: unexpected character at line 1 column 1`
-
-**Sebep:** Production build’de `import.meta.env.DEV === false`. `/api/auth/login` gerçek API yokken SPA HTML (`index.html`) döner → `res.json()` patlar. Eski kod demo girişi yalnızca DEV’de açıyordu.
-
-**Çözüm (v0.9.1):**
-
-- `frontend/src/lib/api.ts` → JSON değilse `ApiUnavailableError`
-- `AuthContext` → API yokken demo: `admin@guzelteknoloji.com` / `123456`
-- Gerçek API JSON + 401 döndüğünde demo **devreye girmez**
-
-Backend canlıya alınca bu demo bypass kaldırılacak / daraltılacak.
+- Demo login bypass **kaldırıldı** — yalnızca gerçek JWT (`/api/auth/login`, OTP, şifremi unuttum).
+- API yokken veya HTML dönerse `ApiUnavailableError` (`frontend/src/lib/api.ts`).
+- Backend port: CloudPanel genelde **3012**; lokal default **3010** — vhost ile eşleştir.
+- Sağlık: `GET /api/health`
+- Kasa değer şifreleme: `VAULT_ENC_KEY` (yoksa `JWT_SECRET`) — production’da ayrı uzun bir secret koy; değiştirince eski kayıtlar çözülemez.
+- Profil foto: `uploads/` altında; site kökünde `uploads` yazılabilir olmalı.
 
 ---
 
@@ -107,9 +102,9 @@ Backend canlıya alınca bu demo bypass kaldırılacak / daraltılacak.
 2. `git -C … log -1 --oneline` — son commit push’taki ile aynı mı?
 3. `ss -tlnp | grep 301` — hangi port dinliyor?
 4. `curl -sI http://127.0.0.1:PORT/` — process ayakta mı?
-5. `curl -s http://127.0.0.1:PORT/api/auth/login` — HTML mi JSON mu?
+5. `curl -s http://127.0.0.1:PORT/api/health` — JSON `ok` mi?
 6. Hard refresh (eski JS cache)
 
 ---
 
-*Güncelleme: 2026-09-23 — ilk canlı frontend + login JSON.parse deneyimi*
+*Güncelleme: 2026-09-28 — demo bypass yok; health + deploy akışı*

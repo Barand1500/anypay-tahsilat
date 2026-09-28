@@ -16,6 +16,7 @@ export type ApiCustomer = {
   address: string;
   identityNo: string;
   childCount: number;
+  cardAgreementCode?: string | null;
 };
 
 export type CustomerMeta = {
@@ -40,5 +41,6 @@ export function mapCustomer(c: ApiCustomer): Customer {
     address: c.address,
     identityNo: c.identityNo,
     childCount: c.childCount,
+    cardAgreementCode: c.cardAgreementCode ?? null,
   };
 }

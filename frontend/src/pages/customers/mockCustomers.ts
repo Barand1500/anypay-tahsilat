@@ -18,6 +18,7 @@ export type Customer = {
   address: string;
   identityNo: string; // TC veya pasaport
   childCount?: number;
+  cardAgreementCode?: string | null;
 };
 
 export const CUSTOMER_KIND_OPTIONS: { value: CustomerKind; label: string; hint: string }[] = [

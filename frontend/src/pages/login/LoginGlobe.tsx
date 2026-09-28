@@ -14,7 +14,8 @@ function sleep(ms: number) {
 
 /** Dünya temalı giriş — Variant 2 (solid yeşil kara / cyan okyanus) */
 export function LoginGlobe() {
-  const { login, requestOtp, loginWithOtp } = useAuth();
+  const { login, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
+    useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [dotCount, setDotCount] = useState(1);
@@ -31,6 +32,13 @@ export function LoginGlobe() {
     onOtpLogin: async (email, code) => {
       await sleep(1200);
       await loginWithOtp(email, code);
+    },
+    onRequestPasswordReset: async (email) => {
+      await requestPasswordReset(email);
+    },
+    onVerifyPasswordReset: async (email, code) => verifyPasswordReset(email, code),
+    onResetPassword: async (resetToken, password) => {
+      await resetPassword(resetToken, password);
     },
   });
 
@@ -167,7 +175,7 @@ export function LoginGlobe() {
                 autoComplete="one-time-code"
                 value={flow.resetCode}
                 onChange={(e) => flow.setResetCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                placeholder="E-postanıza gönderdiğimiz şifreyi giriniz"
+                placeholder="E-postanıza gönderdiğimiz kodu giriniz"
                 disabled={busy || flow.codeVerified}
                 className={inputClass}
               />
@@ -175,10 +183,10 @@ export function LoginGlobe() {
               <button
                 type="button"
                 disabled={busy || flow.codeVerified}
-                onClick={flow.verifyResetCode}
+                onClick={() => void flow.verifyResetCode()}
                 className="w-full rounded-xl border border-white/30 bg-white/12 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/18 disabled:opacity-45"
               >
-                {flow.codeVerified ? 'Doğrulandı' : 'Doğrula'}
+                {flow.codeVerified ? 'Doğrulandı' : flow.loading ? 'Doğrulanıyor…' : 'Doğrula'}
               </button>
 
               <div className="relative">
@@ -218,7 +226,7 @@ export function LoginGlobe() {
                   disabled={busy || !flow.codeVerified}
                   loading={flow.loading}
                   loadingLabel="Kaydediliyor…"
-                  onClick={flow.saveNewPassword}
+                  onClick={() => void flow.saveNewPassword()}
                 >
                   Kaydet
                 </Button>
@@ -269,7 +277,7 @@ export function LoginGlobe() {
                     <div className="flex justify-end">
                       <button
                         type="button"
-                        onClick={flow.goForgot}
+                        onClick={() => void flow.goForgot()}
                         className="text-xs font-medium text-[#9fd4ff] hover:text-white"
                       >
                         Şifremi unuttum?

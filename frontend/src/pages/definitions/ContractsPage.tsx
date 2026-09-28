@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -7,20 +8,25 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { ContractModal } from './ContractModal';
 import {
+  clearLocalContractsCache,
   CONTRACT_LINK_OPTIONS,
-  loadContracts,
-  saveContracts,
+  defaultSeedContracts,
+  readLocalContractsForMigrate,
   type ContractDef,
 } from './mockContracts';
 
 /**
- * Tanımlamalar › Sözleşmeler — liste + ekle/düzenle; sıra sürükle; footer bağlantıları.
+ * Tanımlamalar › Sözleşmeler — API CRUD; sıra sürükle; footer bağlantıları.
  */
 export default function ContractsPage() {
-  const [rows, setRows] = useState<ContractDef[]>(() => loadContracts());
+  const { token } = useAuth();
+  const [rows, setRows] = useState<ContractDef[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -32,6 +38,44 @@ export default function ContractsPage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const reload = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      let list = await api.get<ContractDef[]>('/api/contracts', token);
+      const hasBody = list.some((c) => (c.body || '').trim());
+      if (!hasBody) {
+        const local = readLocalContractsForMigrate() || defaultSeedContracts();
+        if (local.some((c) => c.body.trim())) {
+          list = await api.post<ContractDef[]>(
+            '/api/contracts/import',
+            {
+              items: local.map((c) => ({
+                name: c.name,
+                body: c.body,
+                link: c.link,
+                order: c.order,
+              })),
+            },
+            token,
+          );
+          clearLocalContractsCache();
+        }
+      } else {
+        clearLocalContractsCache();
+      }
+      setRows(list);
+    } catch {
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -49,10 +93,6 @@ export default function ContractsPage() {
   useEffect(() => {
     setPage(1);
   }, [query, pageSize]);
-
-  useEffect(() => {
-    saveContracts(rows);
-  }, [rows]);
 
   useEffect(() => {
     const els = tableRef.current?.querySelectorAll('[data-contract-row]');
@@ -98,46 +138,60 @@ export default function ContractsPage() {
     void navigator.clipboard.writeText(text);
   }
 
-  function saveRow(next: Omit<ContractDef, 'id' | 'order'> & { id?: string }) {
-    setRows((prev) => {
+  async function saveRow(next: Omit<ContractDef, 'id' | 'order'> & { id?: string }) {
+    if (!token) return;
+    try {
       if (next.id) {
-        return prev.map((r) =>
-          r.id === next.id ? { ...r, name: next.name, body: next.body, link: next.link } : r,
+        await api.patch(
+          `/api/contracts/${encodeURIComponent(next.id)}`,
+          { name: next.name, body: next.body, link: next.link },
+          token,
+        );
+      } else {
+        await api.post(
+          '/api/contracts',
+          { name: next.name, body: next.body, link: next.link },
+          token,
         );
       }
-      return [
-        ...prev,
-        {
-          id: `c-${Date.now()}`,
-          name: next.name,
-          body: next.body,
-          link: next.link,
-          order: prev.length,
-        },
-      ];
-    });
-    setModal(null);
+      setModal(null);
+      await reload();
+    } catch {
+      /* */
+    }
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((prev) =>
-      prev.filter((r) => r.id !== deleteTarget.id).map((r, i) => ({ ...r, order: i })),
-    );
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!deleteTarget || !token) return;
+    try {
+      await api.delete(`/api/contracts/${encodeURIComponent(deleteTarget.id)}`, token);
+      setDeleteTarget(null);
+      await reload();
+    } catch {
+      /* */
+    }
   }
 
-  function moveRow(fromId: string, toId: string) {
-    if (fromId === toId) return;
-    setRows((prev) => {
-      const from = prev.findIndex((r) => r.id === fromId);
-      const to = prev.findIndex((r) => r.id === toId);
-      if (from < 0 || to < 0) return prev;
-      const next = [...prev];
-      const [item] = next.splice(from, 1);
-      next.splice(to, 0, item);
-      return next.map((r, i) => ({ ...r, order: i }));
-    });
+  async function moveRow(fromId: string, toId: string) {
+    if (fromId === toId || !token) return;
+    const from = rows.findIndex((r) => r.id === fromId);
+    const to = rows.findIndex((r) => r.id === toId);
+    if (from < 0 || to < 0) return;
+    const next = [...rows];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    const ordered = next.map((r, i) => ({ ...r, order: i }));
+    setRows(ordered);
+    try {
+      const list = await api.post<ContractDef[]>(
+        '/api/contracts/reorder',
+        { ids: ordered.map((r) => r.id) },
+        token,
+      );
+      setRows(list);
+    } catch {
+      await reload();
+    }
   }
 
   function onDragStart(e: ReactDragEvent, id: string) {
@@ -155,7 +209,7 @@ export default function ContractsPage() {
   function onDrop(e: ReactDragEvent, id: string) {
     e.preventDefault();
     const from = e.dataTransfer.getData('text/plain') || dragId;
-    if (from) moveRow(from, id);
+    if (from) void moveRow(from, id);
     setDragId(null);
     setOverId(null);
   }
@@ -226,7 +280,11 @@ export default function ContractsPage() {
               <span />
             </div>
 
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
+                Yükleniyor…
+              </p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
                 Kayıt bulunamadı.
               </p>
@@ -324,14 +382,18 @@ export default function ContractsPage() {
       </section>
 
       {modal ? (
-        <ContractModal mode={modal} onClose={() => setModal(null)} onSave={saveRow} />
+        <ContractModal
+          mode={modal}
+          onClose={() => setModal(null)}
+          onSave={(next) => void saveRow(next)}
+        />
       ) : null}
 
       {deleteTarget ? (
         <DeleteConfirm
           name={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>

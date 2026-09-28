@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import {
   UsersError,
   createPanelUser,
@@ -15,6 +16,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 export const usersRouter = Router();
 
 usersRouter.use(requireAuth);
+usersRouter.use(requireModulePerm('/kullanicilar'));
 
 const statusSchema = z.enum(['Aktif', 'Pasif']);
 

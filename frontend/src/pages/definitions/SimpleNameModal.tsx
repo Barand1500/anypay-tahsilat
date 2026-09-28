@@ -11,10 +11,10 @@ type Props = {
   mode: Mode;
   existingNames: string[];
   onClose: () => void;
-  onSave: (name: string, id?: string) => void;
+  onSave: (name: string, id?: string) => Promise<void>;
 };
 
-/** Ad-only ekle/düzenle — tip / tür / marka / anlaşma iskeleti */
+/** Ad-only ekle/düzenle — tip / tür */
 export function SimpleNameModal({
   titleCreate,
   titleEdit,
@@ -26,6 +26,7 @@ export function SimpleNameModal({
   const isEdit = mode.type === 'edit';
   const [name, setName] = useState(isEdit ? mode.name : '');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -41,17 +42,20 @@ export function SimpleNameModal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
     }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
   useEffect(() => {
     window.setTimeout(() => nameRef.current?.focus(), 200);
   }, []);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -68,7 +72,16 @@ export function SimpleNameModal({
       setError('Bu ad zaten var');
       return;
     }
-    onSave(trimmed, isEdit ? mode.id : undefined);
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(trimmed, isEdit ? mode.id : undefined);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return createPortal(
@@ -93,7 +106,7 @@ export function SimpleNameModal({
             ✕
           </button>
         </div>
-        <form onSubmit={submit} className="space-y-4 px-5 py-4">
+        <form onSubmit={(e) => void submit(e)} className="space-y-4 px-5 py-4">
           <TextInput
             ref={nameRef}
             data-km-jump
@@ -110,16 +123,18 @@ export function SimpleNameModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+              disabled={saving}
+              className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               Kapat
             </button>
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-brand-500)]"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-brand-500)] disabled:opacity-50"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

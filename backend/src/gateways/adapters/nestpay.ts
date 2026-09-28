@@ -191,6 +191,7 @@ export function looksLikeNestPay(pos: {
     blob.includes('isbank') ||
     blob.includes('ziraat') ||
     blob.includes('halk') ||
+    blob.includes('payten') ||
     /\/fim\/est3dgate/i.test(pos.gateway3dUrl) ||
     /3dgate|3dpay/i.test(pos.gateway3dUrl)
   );

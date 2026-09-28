@@ -11,10 +11,20 @@ type UseLoginModeOpts = {
   onPasswordLogin: (email: string, password: string) => Promise<void>;
   onRequestOtp: (email: string) => Promise<void>;
   onOtpLogin: (email: string, code: string) => Promise<void>;
+  onRequestPasswordReset: (email: string) => Promise<void>;
+  onVerifyPasswordReset: (email: string, code: string) => Promise<string>;
+  onResetPassword: (resetToken: string, password: string) => Promise<void>;
 };
 
 /** Ortak giriş adımları — e-posta → hızlı/şifre + şifremi unuttum */
-export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: UseLoginModeOpts) {
+export function useLoginModeFlow({
+  onPasswordLogin,
+  onRequestOtp,
+  onOtpLogin,
+  onRequestPasswordReset,
+  onVerifyPasswordReset,
+  onResetPassword,
+}: UseLoginModeOpts) {
   const [mode, setMode] = useState<LoginMode>('choose');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +35,7 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [codeVerified, setCodeVerified] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
 
@@ -82,6 +93,14 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
     return e;
   }
 
+  function clearForgotState() {
+    setResetCode('');
+    setNewPassword('');
+    setCodeVerified(false);
+    setResetToken(null);
+    setShowNewPassword(false);
+  }
+
   async function goQuick() {
     if (loading || transitioning) return;
     const e = requireEmail();
@@ -116,20 +135,29 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
     setMode('choose');
   }
 
-  function goForgot() {
+  async function goForgot() {
     if (loading || transitioning) return;
     const e = requireEmail();
     if (!e) return;
     setError(null);
+    setLoading(true);
+    try {
+      await onRequestPasswordReset(e);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kod gönderilemedi');
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
     setTransitioning(true);
     const el = loginStageRef.current;
-    if (!el) {
-      setResetCode('');
-      setNewPassword('');
-      setCodeVerified(false);
-      setShowNewPassword(false);
+    const enterForgot = () => {
+      clearForgotState();
       setMode('forgot');
       setTransitioning(false);
+    };
+    if (!el) {
+      enterForgot();
       return;
     }
     gsap.to(el, {
@@ -139,12 +167,7 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
       ease: 'power2.in',
       onComplete: () => {
         gsap.set(el, { clearProps: 'transform' });
-        setResetCode('');
-        setNewPassword('');
-        setCodeVerified(false);
-        setShowNewPassword(false);
-        setMode('forgot');
-        setTransitioning(false);
+        enterForgot();
       },
     });
   }
@@ -154,10 +177,7 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
     setTransitioning(true);
     const el = forgotStageRef.current;
     const finish = () => {
-      setResetCode('');
-      setNewPassword('');
-      setCodeVerified(false);
-      setShowNewPassword(false);
+      clearForgotState();
       setError(null);
       setPassword('');
       setOtp('');
@@ -177,20 +197,31 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
     });
   }
 
-  function verifyResetCode() {
+  async function verifyResetCode() {
     if (loading || transitioning) return;
+    const mail = requireEmail();
+    if (!mail) return;
     if (!resetCode.trim()) {
-      setError('Gönderilen şifreyi giriniz');
+      setError('Gönderilen kodu giriniz');
       return;
     }
     setError(null);
-    setCodeVerified(true);
+    setLoading(true);
+    try {
+      const token = await onVerifyPasswordReset(mail, resetCode.trim());
+      setResetToken(token);
+      setCodeVerified(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kod doğrulanamadı');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function saveNewPassword() {
+  async function saveNewPassword() {
     if (loading || transitioning) return;
-    if (!codeVerified) {
-      setError('Önce gönderilen şifreyi doğrulayın');
+    if (!codeVerified || !resetToken) {
+      setError('Önce gönderilen kodu doğrulayın');
       return;
     }
     if (newPassword.trim().length < 6) {
@@ -199,10 +230,14 @@ export function useLoginModeFlow({ onPasswordLogin, onRequestOtp, onOtpLogin }: 
     }
     setError(null);
     setLoading(true);
-    window.setTimeout(() => {
+    try {
+      await onResetPassword(resetToken, newPassword.trim());
       setLoading(false);
-      leaveForgot('choose');
-    }, 700);
+      leaveForgot('password');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Şifre kaydedilemedi');
+      setLoading(false);
+    }
   }
 
   async function submit(e: FormEvent) {

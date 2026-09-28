@@ -1,6 +1,8 @@
 import gsap from 'gsap';
+import html2canvas from 'html2canvas';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import {
   amountInWordsTr,
   dekontBankName,
@@ -19,9 +21,11 @@ type Props = {
  * Esc / X; overlay tık kapatmaz.
  */
 export function DekontModal({ tx, onClose }: Props) {
+  const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const [email, setEmail] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const d = tx.dekont;
   const bankName = dekontBankName(tx);
   const total = tx.amount + tx.commission;
@@ -63,6 +67,87 @@ export function DekontModal({ tx, onClose }: Props) {
 
   function flash(msg: string) {
     setToast(msg);
+  }
+
+  async function downloadPdf() {
+    if (!token || busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/payments/${tx.dbId}/dekont.pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(j?.message || 'PDF indirilemedi');
+      }
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `dekont-${tx.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      flash('PDF indirildi');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'PDF indirilemedi');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadPng() {
+    if (busy) return;
+    const el = document.getElementById('dekont-print-root');
+    if (!el) {
+      flash('Dekont alanı bulunamadı');
+      return;
+    }
+    setBusy(true);
+    try {
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+      });
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = `dekont-${tx.id}.png`;
+      a.click();
+      flash('PNG indirildi');
+    } catch {
+      flash('PNG oluşturulamadı');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendEmail() {
+    if (!token || busy) return;
+    const v = email.trim();
+    if (!v || !v.includes('@')) {
+      flash('Geçerli bir e-posta girin');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/payments/${tx.dbId}/dekont/email`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: v }),
+      });
+      const json = (await res.json()) as { success?: boolean; message?: string };
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || 'Gönderilemedi');
+      }
+      flash(`Dekont gönderildi → ${v}`);
+      setEmail('');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'E-posta gönderilemedi');
+    } finally {
+      setBusy(false);
+    }
   }
 
   const legal1 = `Kredi kartımdan / banka kartımdan ${money} ₺ tutarın ${d.merchantTitle} adına çekilmesini ve ilgili tutarın üye işyerine aktarılmasını kabul ederim. İşbu belge, tarafıma ait kart ile yapılan işlemin geçerli bir ödeme talimatı olduğunu gösterir.`;
@@ -178,9 +263,9 @@ export function DekontModal({ tx, onClose }: Props) {
 
         <footer className="space-y-3 border-t border-[var(--panel-line)] bg-[var(--panel-surface)]/50 px-4 py-4 sm:px-6">
           <div className="grid grid-cols-3 gap-2">
-            <ActionBtn icon={<PdfIcon />} label="PDF" onClick={() => flash('PDF indirme — sonraki adımda')} />
-            <ActionBtn icon={<PngIcon />} label="PNG" onClick={() => flash('PNG indirme — sonraki adımda')} />
-            <ActionBtn icon={<PrintIcon />} label="Yazdır" onClick={() => window.print()} />
+            <ActionBtn icon={<PdfIcon />} label="PDF" onClick={() => void downloadPdf()} disabled={busy} />
+            <ActionBtn icon={<PngIcon />} label="PNG" onClick={() => void downloadPng()} disabled={busy} />
+            <ActionBtn icon={<PrintIcon />} label="Yazdır" onClick={() => window.print()} disabled={busy} />
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
@@ -188,20 +273,14 @@ export function DekontModal({ tx, onClose }: Props) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="E-Posta Adresi"
-              className="min-w-0 flex-1 rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--panel-ink)] outline-none placeholder:text-[var(--panel-muted)] focus:border-[var(--input-border-focus)]"
+              disabled={busy}
+              className="min-w-0 flex-1 rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--panel-ink)] outline-none placeholder:text-[var(--panel-muted)] focus:border-[var(--input-border-focus)] disabled:opacity-50"
             />
             <button
               type="button"
-              onClick={() => {
-                const v = email.trim();
-                if (!v || !v.includes('@')) {
-                  flash('Geçerli bir e-posta girin');
-                  return;
-                }
-                flash(`Dekont gönderildi (mock) → ${v}`);
-                setEmail('');
-              }}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-[var(--color-brand-600)] transition hover:bg-[var(--color-brand-600)] hover:text-white"
+              disabled={busy}
+              onClick={() => void sendEmail()}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-[var(--color-brand-600)] px-4 py-2.5 text-sm font-bold text-[var(--color-brand-600)] transition hover:bg-[var(--color-brand-600)] hover:text-white disabled:opacity-50"
             >
               <SendIcon />
               E-Posta Gönder
@@ -270,16 +349,19 @@ function ActionBtn({
   icon,
   label,
   onClick,
+  disabled,
 }: {
   icon: ReactNode;
   label: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)]"
+      disabled={disabled}
+      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:opacity-50"
     >
       {icon}
       {label}

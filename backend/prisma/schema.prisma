@@ -211,6 +211,75 @@ model SanalPosTanim {
 }
 
 /**
+ * Ortak Sanal POS — kart bankası → yönlenen bankanın POS’u
+ * (eski panel: Ortak Sanal POS Tanımları)
+ */
+model OrtakSanalPos {
+  id               Int      @id @default(autoincrement())
+  bankaId          Int      @map("banka_id")
+  yonlenenBankaId  Int      @map("yonlenen_banka_id")
+  aktif            Boolean? @default(true)
+  remove           Boolean?
+
+  @@index([bankaId])
+  @@map("ortak_sanal_pos")
+}
+
+/** Kart tipi — Banka Kartı / Kredi Kartı … */
+model KartTipi {
+  id     Int      @id @default(autoincrement())
+  adi    String   @db.VarChar(255)
+  remove Boolean?
+
+  @@map("kart_tipleri")
+}
+
+/** Kart türü — Bireysel / Ticari … */
+model KartTuru {
+  id     Int      @id @default(autoincrement())
+  adi    String   @db.VarChar(255)
+  remove Boolean?
+
+  @@map("kart_turleri")
+}
+
+/** Kart markası — Visa / MasterCard / TROY … */
+model KartMarka {
+  id      Int      @id @default(autoincrement())
+  adi     String   @db.VarChar(255)
+  logo    String?  @db.VarChar(255)
+  kisaKod String?  @map("kisa_kod") @db.VarChar(8)
+  remove  Boolean?
+
+  @@map("kart_markalari")
+}
+
+/**
+ * Kart anlaşmaları — düz satırlar (anlasma_kodu ile paket)
+ * UI: paket adı + banka panelleri + taksit oranları
+ */
+model KartAnlasma {
+  id                Int      @id @default(autoincrement())
+  adi               String   @db.VarChar(255)
+  bankaId           Int?     @map("banka_id")
+  taksit            Int
+  altLimit          Float?   @map("alt_limit")
+  komisyonTum       Float?   @map("komisyon_tum")
+  komisyonBireysel  Float?   @map("komisyon_bireysel")
+  komisyonTicari    Float?   @map("komisyon_ticari")
+  /** Paket tarihi YYYY-MM-DD */
+  grup              String?  @db.VarChar(255)
+  blokAdi           String?  @map("blok_adi") @db.VarChar(255)
+  blokLogo          String?  @map("blok_logo") @db.VarChar(255)
+  anlasmaKodu       String   @map("anlasma_kodu") @db.VarChar(64)
+  remove            Boolean?
+
+  @@index([anlasmaKodu])
+  @@index([bankaId])
+  @@map("kart_anlasmalari")
+}
+
+/**
  * Para birimleri — dump: para_birimleri
  * kur_tipi: 1=Döviz Alış, 2=Döviz Satış, 3=Efektif Alış, 4=Efektif Satış
  */
@@ -277,6 +346,59 @@ model Odeme {
   smsGonderildi    Int?      @map("sms_gonderildi")
 
   @@map("odemeler")
+}
+
+/** Kullanıcı kasası — şifre ayarı */
+model KasaAyar {
+  id          Int     @id @default(autoincrement())
+  kullaniciId Int     @unique @map("kullanici_id")
+  sifreHash   String? @map("sifre_hash") @db.VarChar(255)
+  remove      Boolean?
+
+  @@map("kasa_ayar")
+}
+
+/** Kasa kayıtları — IBAN / kart vb. */
+model KasaKayit {
+  id          Int       @id @default(autoincrement())
+  kullaniciId Int       @map("kullanici_id")
+  tip         String    @db.VarChar(32)
+  etiket      String    @db.VarChar(64)
+  baslik      String    @db.VarChar(255)
+  deger       String    @db.LongText
+  sira        Int       @default(0)
+  remove      Boolean?
+  olusturma   DateTime? @default(now()) @map("olusturma")
+
+  @@index([kullaniciId])
+  @@map("kasa_kayitlari")
+}
+
+/** OTP — login / şifre sıfırlama / kasa (çok process güvenli) */
+model OtpChallenge {
+  id        Int      @id @default(autoincrement())
+  scope     String   @db.VarChar(64)
+  email     String   @db.VarChar(180)
+  codeHash  String   @map("code_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+
+  @@unique([scope, email])
+  @@map("otp_challenge")
+}
+
+/** Tanımlamalar › Sözleşmeler */
+model Sozlesme {
+  id        Int       @id @default(autoincrement())
+  adi       String    @db.VarChar(255)
+  icerik    String    @db.LongText
+  baglanti  String    @default("none") @db.VarChar(64)
+  sira      Int       @default(0)
+  remove    Boolean?
+  olusturma DateTime? @default(now()) @map("olusturma")
+
+  @@index([baglanti])
+  @@map("sozlesmeler")
 }
 
 /** Ödeme istekleri — durum: 0=bekleyen, 1=ödendi */

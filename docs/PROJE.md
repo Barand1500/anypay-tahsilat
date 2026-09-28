@@ -113,12 +113,18 @@ Akış (özet): `git pull` (apps) → npm install → frontend/backend build →
 
 | Adım | Durum |
 |------|--------|
-| Proje bilgi / kural dosyaları | Yapılıyor |
-| Repo iskeleti (frontend + backend) | Bekliyor |
-| Login ekranı | Bekliyor |
-| Deploy script | Login sonrası / iskelet ile |
-| Diğer sayfalar | Sırayla |
+| Proje bilgi / kural dosyaları | Tamam |
+| Repo iskeleti (frontend + backend) | Tamam |
+| Login (şifre + OTP + unuttum) | Tamam |
+| Panel kabuğu + yetki + kasa | Tamam |
+| Özet / müşteri / hareket / ödeme / rapor / tanımlama / ayar | Tamam |
+| Sözleşmeler API, dekont PDF/mail, profil foto | Tamam |
+| Kasa (vault) AES-GCM + panel kilidi | Tamam |
+| Favori müşteri yuvaları (müşteri API + LS tercihler) | Tamam |
+| Gateway (Akbank V2 + NestPay) | Tamam (diğer altyapılar ayrı adapter) |
+| ERP canlı bakiye | Bekliyor (entegrasyon) |
+| Deploy | `docs/DEPLOY.md` + `server-deploy.sh` |
 
 ---
 
-*Son güncelleme: 2026-09-17*
+*Son güncelleme: 2026-09-28*

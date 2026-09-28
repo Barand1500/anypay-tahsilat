@@ -1,9 +1,47 @@
 import bcrypt from 'bcryptjs';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
-import { sendLoginOtpMail } from '../lib/mail.js';
+import { sendLoginOtpMail, sendPasswordResetOtpMail } from '../lib/mail.js';
 import { generateOtpCode, saveOtp, verifyOtp } from '../lib/otpStore.js';
 import { signToken } from '../middleware/auth.js';
+import { UPLOADS_ROOT } from './settingsService.js';
 import { writePanelLog } from './logsService.js';
+
+const RESET_OTP_SCOPE = 'password-reset';
+const RESET_TOKEN_TTL = '15m';
+
+function jwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET tanımlı değil');
+  return secret;
+}
+
+function signPasswordResetToken(userId: number, email: string): string {
+  return jwt.sign(
+    { sub: userId, email, purpose: 'password-reset' },
+    jwtSecret(),
+    { expiresIn: RESET_TOKEN_TTL },
+  );
+}
+
+function verifyPasswordResetToken(
+  token: string | undefined,
+): { userId: number; email: string } | null {
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, jwtSecret());
+    if (typeof decoded === 'string' || decoded.sub == null) return null;
+    if ((decoded as { purpose?: string }).purpose !== 'password-reset') return null;
+    if (typeof (decoded as { email?: string }).email !== 'string') return null;
+    const userId = Number(decoded.sub);
+    if (!Number.isFinite(userId)) return null;
+    return { userId, email: (decoded as { email: string }).email };
+  } catch {
+    return null;
+  }
+}
 
 function parseRoles(roles: unknown): string[] {
   if (Array.isArray(roles)) return roles.map(String);
@@ -54,6 +92,7 @@ function toPublicUser(
     telefon: string;
     roles: unknown;
     twoFactor: boolean | null;
+    resim?: string | null;
     izinliTaksitler?: string | null;
     subeDepartmanId?: number | null;
     subeDepartmanIds?: string | null;
@@ -66,6 +105,12 @@ function toPublicUser(
     roleCode && roleCode.trim()
       ? [roleCode.trim()]
       : fromJson;
+  const resim = (user.resim || '').replace(/^\/+/, '');
+  const resimUrl = resim
+    ? resim.startsWith('uploads/')
+      ? `/${resim}`
+      : `/uploads/${resim}`
+    : null;
   return {
     id: user.id,
     email: user.email,
@@ -73,6 +118,7 @@ function toPublicUser(
     telefon: normalizeStoredPhone(user.telefon),
     roles,
     twoFactor: Boolean(user.twoFactor),
+    resimUrl,
     /** Boş = kısıt yok (tümü); dolu = yalnızca bunlar */
     installments: parseInstallments(user.izinliTaksitler),
     branchIds: parseBranchIds(user),
@@ -96,6 +142,8 @@ export type ProfileUpdateInput = {
   telefon?: string;
   password?: string;
   twoFactor?: boolean;
+  /** data:image/...;base64,... */
+  resimDataUrl?: string | null;
 };
 
 async function findActiveUserByEmail(email: string) {
@@ -184,6 +232,75 @@ export async function loginWithOtp(email: string, code: string) {
   return { token, user: publicUser };
 }
 
+/** Şifremi unuttum — e-postaya kod gönder (enumeration’a karşı her zaman ok) */
+export async function requestPasswordReset(email: string) {
+  const user = await findActiveUserByEmail(email);
+  if (!user || !user.isVerified) {
+    return { sent: true as const };
+  }
+
+  const code = generateOtpCode();
+  await saveOtp(user.email, code, RESET_OTP_SCOPE);
+
+  try {
+    await sendPasswordResetOtpMail(user.email, user.adsoyad, code);
+  } catch (err) {
+    console.error('Şifre sıfırlama maili gönderilemedi', err);
+    throw new AuthError('Doğrulama kodu gönderilemedi. SMTP ayarlarını kontrol edin.');
+  }
+
+  return { sent: true as const };
+}
+
+/** Kod doğrula → kısa ömürlü resetToken */
+export async function verifyPasswordResetCode(email: string, code: string) {
+  const user = await findActiveUserByEmail(email);
+  if (!user || !user.isVerified) {
+    throw new AuthError('Geçersiz veya süresi dolmuş kod');
+  }
+
+  const ok = await verifyOtp(user.email, code, RESET_OTP_SCOPE);
+  if (!ok) throw new AuthError('Geçersiz veya süresi dolmuş kod');
+
+  return {
+    resetToken: signPasswordResetToken(user.id, user.email),
+  };
+}
+
+/** resetToken ile yeni şifre kaydet */
+export async function resetPasswordWithToken(resetToken: string, password: string) {
+  const trimmed = password.trim();
+  if (trimmed.length < 6) throw new AuthError('Şifre en az 6 karakter olmalı');
+  if (trimmed.length > 128) throw new AuthError('Şifre çok uzun');
+
+  const payload = verifyPasswordResetToken(resetToken);
+  if (!payload) throw new AuthError('Oturum süresi doldu — kodu yeniden isteyin');
+
+  const user = await prisma.user.findFirst({
+    where: {
+      id: payload.userId,
+      email: payload.email,
+      OR: [{ remove: null }, { remove: false }],
+    },
+  });
+  if (!user || !user.isVerified) {
+    throw new AuthError('Kullanıcı bulunamadı');
+  }
+
+  const hash = await bcrypt.hash(trimmed, 13);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hash, isPassword: true },
+  });
+
+  await writePanelLog(
+    user.id,
+    `Şifre - ${user.email} e-posta adresine sahip kullanıcı şifresini sıfırladı.`,
+  );
+
+  return { ok: true as const };
+}
+
 export async function getUserById(id: number) {
   const user = await prisma.user.findFirst({
     where: {
@@ -216,6 +333,7 @@ export async function updateOwnProfile(userId: number, input: ProfileUpdateInput
     password?: string;
     isPassword?: boolean;
     twoFactor?: boolean;
+    resim?: string | null;
   } = {};
 
   if (input.adsoyad !== undefined) {
@@ -260,12 +378,35 @@ export async function updateOwnProfile(userId: number, input: ProfileUpdateInput
     data.twoFactor = input.twoFactor;
   }
 
+  if (input.resimDataUrl !== undefined) {
+    if (input.resimDataUrl === null || input.resimDataUrl === '') {
+      data.resim = null;
+    } else {
+      data.resim = await saveUserAvatar(userId, input.resimDataUrl);
+    }
+  }
+
   const updated = await prisma.user.update({
     where: { id: userId },
     data,
   });
 
   return toPublicUser(updated, await roleCodeForUser(updated.rolId));
+}
+
+async function saveUserAvatar(userId: number, dataUrl: string): Promise<string> {
+  const m = /^data:(image\/(png|jpeg|jpg|webp|gif));base64,(.+)$/i.exec(dataUrl.trim());
+  if (!m) throw new AuthError('Geçersiz görsel formatı (PNG, JPEG, WebP, GIF)');
+  const mime = m[2].toLowerCase();
+  const ext = mime === 'jpeg' || mime === 'jpg' ? 'jpg' : mime;
+  const buffer = Buffer.from(m[3], 'base64');
+  if (buffer.length > 3 * 1024 * 1024) throw new AuthError('Fotoğraf en fazla 3 MB olabilir');
+  if (buffer.length < 32) throw new AuthError('Görsel dosyası boş veya bozuk');
+  const dir = path.join(UPLOADS_ROOT, 'kullanicilar');
+  await fs.mkdir(dir, { recursive: true });
+  const filename = `${userId}.${ext}`;
+  await fs.writeFile(path.join(dir, filename), buffer);
+  return `kullanicilar/${filename}`;
 }
 
 export class AuthError extends Error {

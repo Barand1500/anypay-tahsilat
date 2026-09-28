@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import {
   createPayment,
+  getPayment,
   listPaymentBanks,
   listPayments,
   PaymentsError,
@@ -10,11 +12,14 @@ import {
   setPaymentArchived,
   type TxStatus,
 } from '../services/paymentsService.js';
+import { buildDekontPdf } from '../services/dekontPdfService.js';
+import { sendMail } from '../lib/mail.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const paymentsRouter = Router();
 paymentsRouter.use(requireAuth);
+paymentsRouter.use(requireModulePerm('/hareketler'));
 
 const createSchema = z.object({
   musteriId: z.number().int().positive().nullable().optional(),
@@ -150,5 +155,65 @@ paymentsRouter.post('/:id/reverse', async (req: AuthedRequest, res) => {
     if (err instanceof PaymentsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'İptal/iade yapılamadı');
+  }
+});
+
+paymentsRouter.get('/:id/dekont.pdf', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz hareket');
+  try {
+    const tx = await getPayment(id);
+    const pdf = await buildDekontPdf(tx);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="dekont-${tx.id}.pdf"`,
+    );
+    return res.status(200).send(pdf);
+  } catch (err) {
+    if (err instanceof PaymentsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'PDF oluşturulamadı');
+  }
+});
+
+paymentsRouter.post('/:id/dekont/email', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz hareket');
+  const parsed = z
+    .object({ email: z.string().email('Geçerli e-posta girin') })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'E-posta gerekli');
+  }
+  try {
+    const tx = await getPayment(id);
+    const pdf = await buildDekontPdf(tx);
+    const total = (tx.amount + tx.commission).toLocaleString('tr-TR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    await sendMail({
+      to: parsed.data.email,
+      subject: `Dekont ${tx.id} — ${total} TL`,
+      html: `<p>Sayın ilgili,</p><p><strong>${tx.id}</strong> numaralı sanal POS dekontunuz ekte PDF olarak gönderilmiştir.</p><p>Tutar: <strong>${total} TL</strong></p><p style="color:#64748b;font-size:12px;">GÜZEL Teknoloji — AnyPay Tahsilat</p>`,
+      text: `Dekont ${tx.id} — ${total} TL — PDF ekte.`,
+      attachments: [
+        {
+          filename: `dekont-${tx.id}.pdf`,
+          content: pdf,
+          contentType: 'application/pdf',
+        },
+      ],
+    });
+    await writePanelLog(
+      req.auth!.sub,
+      `Dekont e-posta — #${tx.id} → ${parsed.data.email}`,
+    );
+    return sendSuccess(res, { ok: true }, 'Dekont e-posta ile gönderildi');
+  } catch (err) {
+    if (err instanceof PaymentsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'E-posta gönderilemedi — SMTP ayarlarını kontrol edin');
   }
 });

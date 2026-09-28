@@ -2,7 +2,6 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
-import { BANKS } from '../payments/mockBanks';
 
 export type CommonVirtualPosModalMode =
   | { type: 'create' }
@@ -14,21 +13,29 @@ export type CommonVirtualPosModalMode =
       active: boolean;
     };
 
+type BankOption = { id: string; name: string };
+
 type Props = {
   mode: CommonVirtualPosModalMode;
-  existingKeys: string[];
+  banks: BankOption[];
+  /** Kaynak banka id’leri — banka başına tek yönlendirme */
+  existingSourceBankIds: string[];
   onClose: () => void;
   onSave: (data: {
     bankId: string;
-    bankName: string;
     targetBankId: string;
-    targetBankName: string;
     active: boolean;
-  }) => void;
+  }) => Promise<void>;
 };
 
 /** Ortak Sanal POS ekle / düzenle — Esc / X */
-export function CommonVirtualPosModal({ mode, existingKeys, onClose, onSave }: Props) {
+export function CommonVirtualPosModal({
+  mode,
+  banks,
+  existingSourceBankIds,
+  onClose,
+  onSave,
+}: Props) {
   const isEdit = mode.type === 'edit';
   const [bankId, setBankId] = useState<string | null>(isEdit ? mode.bankId : null);
   const [targetBankId, setTargetBankId] = useState<string | null>(
@@ -36,11 +43,12 @@ export function CommonVirtualPosModal({ mode, existingKeys, onClose, onSave }: P
   );
   const [active, setActive] = useState(isEdit ? mode.active : true);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const bankOptions = useMemo(
-    () => BANKS.map((b) => ({ value: b.id, label: b.fullName })),
-    [],
+    () => banks.map((b) => ({ value: b.id, label: b.name })),
+    [banks],
   );
 
   useEffect(() => {
@@ -64,7 +72,7 @@ export function CommonVirtualPosModal({ mode, existingKeys, onClose, onSave }: P
     return () => document.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (!bankId) {
       setError('Banka seçiniz');
@@ -78,25 +86,21 @@ export function CommonVirtualPosModal({ mode, existingKeys, onClose, onSave }: P
       setError('Banka ile yönlenen banka aynı olamaz');
       return;
     }
-    const key = `${bankId}|${targetBankId}`;
-    const selfKey = isEdit ? `${mode.bankId}|${mode.targetBankId}` : '';
-    if (key !== selfKey && existingKeys.includes(key)) {
-      setError('Bu eşleme zaten tanımlı');
+    const selfSource = isEdit ? mode.bankId : '';
+    if (bankId !== selfSource && existingSourceBankIds.includes(bankId)) {
+      setError('Bu banka için zaten bir yönlendirme tanımlı');
       return;
     }
-    const bank = BANKS.find((b) => b.id === bankId);
-    const target = BANKS.find((b) => b.id === targetBankId);
-    if (!bank || !target) {
-      setError('Geçersiz seçim');
-      return;
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ bankId, targetBankId, active });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
     }
-    onSave({
-      bankId: bank.id,
-      bankName: bank.fullName,
-      targetBankId: target.id,
-      targetBankName: target.fullName,
-      active,
-    });
   }
 
   return createPortal(
@@ -123,7 +127,7 @@ export function CommonVirtualPosModal({ mode, existingKeys, onClose, onSave }: P
           </button>
         </header>
 
-        <form onSubmit={submit} className="space-y-4 px-5 py-4">
+        <form onSubmit={(e) => void submit(e)} className="space-y-4 px-5 py-4">
           <FloatingSearchSelect
             label="Banka"
             required
@@ -179,16 +183,18 @@ export function CommonVirtualPosModal({ mode, existingKeys, onClose, onSave }: P
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+              disabled={saving}
+              className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               Kapat
             </button>
             <button
               type="submit"
               data-km-jump
-              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500"
+              disabled={saving}
+              className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
             >
-              Kaydet
+              {saving ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
           </div>
         </form>

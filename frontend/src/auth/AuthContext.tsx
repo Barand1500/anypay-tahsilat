@@ -16,6 +16,8 @@ export type AuthUser = {
   telefon: string;
   roles: string[];
   twoFactor: boolean;
+  /** Profil fotoğrafı URL (/uploads/...) */
+  resimUrl: string | null;
   /** Boş = kısıt yok; dolu = yalnızca bu taksitler */
   installments: number[];
   /** Atanan şube / departman id’leri */
@@ -28,6 +30,7 @@ export type ProfileUpdatePayload = {
   telefon?: string;
   password?: string;
   twoFactor?: boolean;
+  resimDataUrl?: string | null;
 };
 
 type AuthContextValue = {
@@ -38,6 +41,12 @@ type AuthContextValue = {
   /** Hızlı giriş — önce mail ile kod iste */
   requestOtp: (email: string) => Promise<void>;
   loginWithOtp: (email: string, code: string) => Promise<void>;
+  /** Şifremi unuttum — kod maili */
+  requestPasswordReset: (email: string) => Promise<void>;
+  /** Kod doğrula → resetToken */
+  verifyPasswordReset: (email: string, code: string) => Promise<string>;
+  /** Yeni şifre kaydet */
+  resetPassword: (resetToken: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (payload: ProfileUpdatePayload) => Promise<AuthUser>;
 };
@@ -53,6 +62,7 @@ function normalizeUser(raw: AuthUser): AuthUser {
     telefon: raw.telefon || '',
     roles: Array.isArray(raw.roles) ? raw.roles : [],
     twoFactor: Boolean(raw.twoFactor),
+    resimUrl: raw.resimUrl || null,
     installments: Array.isArray(raw.installments)
       ? raw.installments.filter((n) => n >= 1 && n <= 12)
       : [],
@@ -132,6 +142,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(normalizeUser(result.user));
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    await api.post('/api/auth/forgot/request', { email });
+  }, []);
+
+  const verifyPasswordReset = useCallback(async (email: string, code: string) => {
+    const data = await api.post<{ resetToken: string }>('/api/auth/forgot/verify', {
+      email,
+      code,
+    });
+    return data.resetToken;
+  }, []);
+
+  const resetPassword = useCallback(async (resetToken: string, password: string) => {
+    await api.post('/api/auth/forgot/reset', { resetToken, password });
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       if (token) await api.post('/api/auth/logout', {}, token);
@@ -162,10 +188,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       requestOtp,
       loginWithOtp,
+      requestPasswordReset,
+      verifyPasswordReset,
+      resetPassword,
       logout,
       updateProfile,
     }),
-    [user, token, booting, login, requestOtp, loginWithOtp, logout, updateProfile],
+    [
+      user,
+      token,
+      booting,
+      login,
+      requestOtp,
+      loginWithOtp,
+      requestPasswordReset,
+      verifyPasswordReset,
+      resetPassword,
+      logout,
+      updateProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import {
   createPaymentRequest,
   emailPaymentRequest,
@@ -22,6 +23,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const paymentRequestsRouter = Router();
 paymentRequestsRouter.use(requireAuth);
+paymentRequestsRouter.use(requireModulePerm('/odeme-istekleri'));
 
 const upload = multer({
   storage: multer.memoryStorage(),

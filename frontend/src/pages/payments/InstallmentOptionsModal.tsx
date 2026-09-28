@@ -1,34 +1,42 @@
 import gsap from 'gsap';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
 import {
   banksForCompare,
   buildInstallments,
-  formatMoneyTr, formatMoneyDisplay,
+  formatMoneyTr,
+  formatMoneyDisplay,
   type BankInfo,
   type CardSegment,
+  type InstallmentRow,
 } from './mockBanks';
 
 type Props = {
   amount: number;
   preferredBankId?: string | null;
   onClose: () => void;
-  /** null = hepsi; dizi = yalnızca izinli */
   allowedInstallments?: number[] | null;
-  /** İleride satır seçimi / alt limit sayfası; şimdilik opsiyonel */
+  musteriId?: number | null;
+  agreementCode?: string | null;
   onPick?: (bank: BankInfo, installment: number) => void;
 };
 
-/** Taksit karşılaştırma — Esc / X */
+/** Taksit karşılaştırma — Esc / X; oranlar kart anlaşmasından */
 export function InstallmentOptionsModal({
   amount,
   preferredBankId,
   onClose,
   allowedInstallments,
+  musteriId,
+  agreementCode,
 }: Props) {
+  const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const [segment, setSegment] = useState<CardSegment>('tumu');
   const banks = banksForCompare(preferredBankId);
+  const [rowsByBank, setRowsByBank] = useState<Record<string, InstallmentRow[]>>({});
 
   useEffect(() => {
     const el = panelRef.current;
@@ -51,52 +59,92 @@ export function InstallmentOptionsModal({
     return () => document.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!amount || amount <= 0) {
+        setRowsByBank({});
+        return;
+      }
+      const next: Record<string, InstallmentRow[]> = {};
+      await Promise.all(
+        banks.map(async (bank) => {
+          if (!token) {
+            next[bank.id] = buildInstallments(amount, segment, bank.id);
+            return;
+          }
+          try {
+            const q = new URLSearchParams();
+            q.set('amount', String(amount));
+            q.set('segment', segment);
+            q.set('bankName', bank.fullName || bank.name);
+            if (agreementCode) q.set('code', agreementCode);
+            if (musteriId != null) q.set('musteriId', String(musteriId));
+            const data = await api.get<{ rows: InstallmentRow[] }>(
+              `/api/card-agreements/rates?${q}`,
+              token,
+            );
+            next[bank.id] =
+              data.rows?.length > 0
+                ? data.rows
+                : buildInstallments(amount, segment, bank.id);
+          } catch {
+            next[bank.id] = buildInstallments(amount, segment, bank.id);
+          }
+        }),
+      );
+      if (!cancelled) setRowsByBank(next);
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [amount, segment, token, agreementCode, musteriId, banks.map((b) => b.id).join('|')]);
+
   return createPortal(
-    <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[3px]" aria-hidden />
+    <div className="fixed inset-0 z-[11000] flex items-center justify-center p-3 sm:p-6">
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal
         aria-labelledby="taksit-title"
-        className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
+        className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
       >
-        <header className="shrink-0 border-b border-[var(--panel-line)] px-5 py-3">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <div className="min-w-0">
+        <header className="shrink-0 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
               <h2 id="taksit-title" className="text-lg font-bold leading-tight text-[var(--panel-ink)]">
-                Taksit Seçenekleri
+                Taksit seçenekleri
               </h2>
-              <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
-                Tutar: <strong className="text-[var(--panel-ink)]">{formatMoneyDisplay(amount)}</strong>
+              <p className="text-xs text-[var(--panel-muted)]">
+                Kart anlaşması oranları · izinli taksitler ayrıca uygulanır
               </p>
             </div>
-
-            <div className="inline-flex rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1 shadow-sm">
-              {(
-                [
-                  ['tumu', 'Tümü'],
-                  ['bireysel', 'Bireysel Kartlar'],
-                  ['ticari', 'Ticari Kartlar'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSegment(id)}
-                  className={[
-                    'rounded-lg px-4 py-1.5 text-sm font-semibold transition',
-                    segment === id
-                      ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                      : 'text-[var(--brand-on-soft)] hover:bg-[var(--brand-soft-bg)]',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex justify-end">
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-xl border border-[var(--panel-line)] p-0.5">
+                {(
+                  [
+                    ['tumu', 'Tümü'],
+                    ['bireysel', 'Bireysel'],
+                    ['ticari', 'Ticari'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setSegment(k)}
+                    className={[
+                      'rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                      segment === k
+                        ? 'bg-[var(--color-brand-600)] text-white'
+                        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={onClose}
@@ -113,7 +161,8 @@ export function InstallmentOptionsModal({
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
           <div className="grid gap-4 xl:grid-cols-2">
             {banks.map((bank) => {
-              const rows = buildInstallments(amount, segment, bank.id);
+              const rows =
+                rowsByBank[bank.id] || buildInstallments(amount, segment, bank.id);
               return (
                 <article
                   key={bank.id}
@@ -151,10 +200,7 @@ export function InstallmentOptionsModal({
                           <br />
                           tutar
                         </th>
-                        <th
-                          className="px-2 py-2 text-right font-semibold sm:px-3"
-                          title="Yakında ayarlardan bağlanacak"
-                        >
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
                           Taksit Alt
                           <br />
                           Limiti
@@ -164,35 +210,38 @@ export function InstallmentOptionsModal({
                     <tbody>
                       {rows.map((r) => {
                         const ok =
-                          !allowedInstallments?.length ||
-                          allowedInstallments.includes(r.n);
+                          !allowedInstallments?.length || allowedInstallments.includes(r.n);
                         return (
-                        <tr
-                          key={r.n}
-                          title={ok ? undefined : 'Size atanmadı'}
-                          className={[
-                            'border-t border-[var(--panel-line)]/80',
-                            ok
-                              ? 'hover:bg-[var(--panel-hover)]/50'
-                              : 'cursor-not-allowed opacity-45',
-                          ].join(' ')}
-                        >
-                          <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
-                            {r.plusN > 0 ? `${r.n}+${r.plusN}` : r.n}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
-                            % {formatMoneyTr(r.commissionPct)}
-                          </td>
-                          <td className="px-2 py-2 text-right font-medium tabular-nums text-[var(--panel-ink)] sm:px-3">
-                            {formatMoneyDisplay(r.installmentAmount)}
-                          </td>
-                          <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
-                            {formatMoneyDisplay(r.totalAmount)}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
-                            {ok ? '—' : 'Size atanmadı'}
-                          </td>
-                        </tr>
+                          <tr
+                            key={r.n}
+                            title={ok ? undefined : 'Size atanmadı'}
+                            className={[
+                              'border-t border-[var(--panel-line)]/80',
+                              ok
+                                ? 'hover:bg-[var(--panel-hover)]/50'
+                                : 'cursor-not-allowed opacity-45',
+                            ].join(' ')}
+                          >
+                            <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
+                              {r.plusN > 0 ? `${r.n}+${r.plusN}` : r.n}
+                            </td>
+                            <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
+                              % {formatMoneyTr(r.commissionPct)}
+                            </td>
+                            <td className="px-2 py-2 text-right font-medium tabular-nums text-[var(--panel-ink)] sm:px-3">
+                              {formatMoneyDisplay(r.installmentAmount)}
+                            </td>
+                            <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
+                              {formatMoneyDisplay(r.totalAmount)}
+                            </td>
+                            <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
+                              {ok
+                                ? r.minLimit > 0
+                                  ? formatMoneyDisplay(r.minLimit)
+                                  : '—'
+                                : 'Size atanmadı'}
+                            </td>
+                          </tr>
                         );
                       })}
                     </tbody>

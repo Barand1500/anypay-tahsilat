@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import {
   SystemResetError,
   buildBackupSql,
@@ -13,6 +14,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 export const systemResetRouter = Router();
 
 systemResetRouter.use(requireAuth);
+systemResetRouter.use(requireModulePerm('/sistem-sifirlama'));
 
 systemResetRouter.get('/tables', async (_req, res) => {
   try {

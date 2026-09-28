@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import { getOverview, type ChartRange } from '../services/overviewService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const overviewRouter = Router();
 
 overviewRouter.use(requireAuth);
+overviewRouter.use(requireModulePerm('/'));
 
 const querySchema = z.object({
   branchId: z

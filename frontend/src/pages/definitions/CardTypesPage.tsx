@@ -1,5 +1,4 @@
 import { CardListPage } from './CardListPage';
-import { INITIAL_CARD_TYPES } from './mockKart';
 
 export default function CardTypesPage() {
   return (
@@ -8,7 +7,7 @@ export default function CardTypesPage() {
       titleCreate="Kart Tipi Ekle"
       titleEdit="Kart Tipi Düzenle"
       filename="kart-tipleri.csv"
-      initial={INITIAL_CARD_TYPES}
+      apiPath="/api/card-types"
       deleteTitle="Kart tipini sil"
     />
   );

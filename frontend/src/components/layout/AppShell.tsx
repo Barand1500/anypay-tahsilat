@@ -22,6 +22,8 @@ import { Header } from './Header';
 import { QuickAccessProvider } from './QuickAccessContext';
 import { RatesProvider, useRates } from './RatesContext';
 import { Sidebar } from './Sidebar';
+import { VaultProvider } from './VaultContext';
+import { VaultHost } from './VaultWidget';
 
 const HEADER_H = 64;
 const FOOTER_H = 64;
@@ -34,7 +36,9 @@ export function AppShell() {
         <DockModeProvider>
           <RatesProvider>
             <GestureWindProvider>
-              <AppShellInner />
+              <VaultProvider>
+                <AppShellInner />
+              </VaultProvider>
             </GestureWindProvider>
           </RatesProvider>
         </DockModeProvider>
@@ -230,6 +234,7 @@ function AppShellInner() {
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <GestureWindListener onOpenSearch={() => setSearchOpen(true)} />
       <GestureWindSettingsModal />
+      <VaultHost />
     </>
   );
 }

@@ -430,7 +430,6 @@ function seed(): ContractDef[] {
   });
 }
 
-/** Eski boş seed kayıtlarına bilinen şablonları doldur */
 function fillMissingSeedBodies(list: ContractDef[]): ContractDef[] {
   let changed = false;
   const next = list.map((c) => {
@@ -442,16 +441,13 @@ function fillMissingSeedBodies(list: ContractDef[]): ContractDef[] {
   return changed ? next : list;
 }
 
-export function loadContracts(): ContractDef[] {
+/** Eski localStorage — bir kerelik sunucu göçü için */
+export function readLocalContractsForMigrate(): ContractDef[] | null {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) {
-      const s = seed();
-      localStorage.setItem(LS_KEY, JSON.stringify(s));
-      return s.map((x) => ({ ...x }));
-    }
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as ContractDef[];
-    if (!Array.isArray(parsed) || !parsed.length) return seed();
+    if (!Array.isArray(parsed) || !parsed.length) return null;
     const normalized = parsed
       .filter((x) => x && typeof x.id === 'string' && typeof x.name === 'string')
       .map((x, i) => ({
@@ -463,19 +459,28 @@ export function loadContracts(): ContractDef[] {
       }))
       .sort((a, b) => a.order - b.order);
     const filled = fillMissingSeedBodies(normalized);
-    if (filled !== normalized) localStorage.setItem(LS_KEY, JSON.stringify(filled));
+    if (!filled.some((c) => c.body.trim())) return null;
     return filled;
   } catch {
-    return seed();
+    return null;
   }
 }
 
-export function saveContracts(list: ContractDef[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(list));
+export function clearLocalContractsCache() {
+  try {
+    localStorage.removeItem(LS_KEY);
+  } catch {
+    /* */
+  }
 }
 
-export function getContractByLink(link: Exclude<ContractLinkId, 'none'>): ContractDef | null {
-  return loadContracts().find((c) => c.link === link) ?? null;
+/** API’den gelen boş gövdelere bilinen şablon doldur (yalnızca UI önerisi) */
+export function withSeedBodies(list: ContractDef[]): ContractDef[] {
+  return fillMissingSeedBodies(list);
+}
+
+export function defaultSeedContracts(): ContractDef[] {
+  return seed();
 }
 
 export function resolveContractVars(text: string, vars: ContractVarMap): string {

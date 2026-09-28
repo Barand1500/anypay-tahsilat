@@ -8,6 +8,10 @@ import {
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
 import { resolveAllowedInstallments } from './installmentPriorityService.js';
+import {
+  getCustomerAgreementCode,
+  resolveAgreementRates,
+} from './cardAgreementsService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 
 export class PaymentsError extends Error {
@@ -402,10 +406,30 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   const installment = input.installment > 0 ? input.installment : 1;
   const apiBase = publicApiBase();
 
+  let commissionPct = 0;
+  try {
+    const code = await getCustomerAgreementCode(input.musteriId);
+    const rates = await resolveAgreementRates({
+      agreementCode: code,
+      bankId: pos.bankId,
+      bankName: pos.bankName,
+      segment: 'bireysel',
+      amount: input.amount,
+    });
+    const hit = rates.rows.find((r) => r.n === installment);
+    if (hit) commissionPct = hit.commissionPct;
+  } catch {
+    /* oran yoksa 0 */
+  }
+
+  const chargedAmount = input.commissionIncluded
+    ? input.amount * (1 + commissionPct / 100)
+    : input.amount;
+
   const threeDResult = initiateThreeD({
     pos,
     orderId: odemeNo,
-    amount: input.amount,
+    amount: chargedAmount,
     currencyCode: currency.shortName || 'TRY',
     installment,
     card: {
@@ -429,6 +453,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     posId: pos.posId,
     securityType: pos.securityType,
     startedAt: now.toISOString(),
+    commissionPct,
   });
 
   const row = await prisma.odeme.create({
@@ -437,7 +462,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       musteriId: input.musteriId,
       tutar: input.amount,
       kur: currency.kur,
-      gercekTutar: input.amount,
+      gercekTutar: chargedAmount,
       komisyonDahil: input.commissionIncluded,
       aciklama: (input.note || '').trim() || null,
       adsoyad: input.holder.trim().slice(0, 255),
@@ -445,6 +470,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       telefon: formatPhone(input.phone).slice(0, 255),
       kartNo: maskCard(digits).slice(0, 255),
       taksit: installment,
+      taksitOran: commissionPct || null,
+      bankaKomisyonu: commissionPct || null,
       odemeNo,
       durum: 3,
       bankaCevabi: meta,

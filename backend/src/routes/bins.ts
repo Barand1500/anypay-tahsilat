@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   BinsError,
   createBin,
@@ -38,6 +39,7 @@ binsRouter.get('/lookup', requireAuth, async (req, res) => {
 });
 
 binsRouter.use(requireAuth);
+binsRouter.use(requireModuleWrite('/tanimlamalar'));
 
 binsRouter.get('/', async (_req, res) => {
   try {

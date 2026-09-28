@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   RolesError,
   createRole,
@@ -14,6 +15,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 export const rolesRouter = Router();
 
 rolesRouter.use(requireAuth);
+rolesRouter.use(requireModuleWrite('/roller'));
 
 const pagePermSchema = z.object({
   view: z.boolean(),

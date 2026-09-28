@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import {
   CustomersError,
   createCustomer,
@@ -34,6 +35,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 export const customersRouter = Router();
 
 customersRouter.use(requireAuth);
+customersRouter.use(requireModulePerm('/musteriler'));
 
 const kindSchema = z.enum(['gercek', 'tuzel', 'yabanci']);
 
@@ -50,6 +52,7 @@ const upsertSchema = z.object({
   accountTypeId: z.number().int().nullable().optional(),
   accountTypeName: z.string().max(255).optional(),
   parentId: z.number().int().nullable().optional(),
+  cardAgreementCode: z.string().max(255).nullable().optional(),
 });
 
 customersRouter.get('/meta', async (_req, res) => {

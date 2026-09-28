@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   BanksError,
   createBank,
@@ -14,6 +15,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const banksRouter = Router();
 banksRouter.use(requireAuth);
+banksRouter.use(requireModuleWrite('/tanimlamalar'));
 
 const upsertSchema = z.object({
   name: z.string().min(1).max(255),

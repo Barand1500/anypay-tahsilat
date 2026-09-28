@@ -1,20 +1,55 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { CardBrandModal, type CardBrandModalMode } from './CardBrandModal';
-import { INITIAL_CARD_BRANDS, type CardBrandRow } from './mockKart';
+import type { CardBrandRow } from './mockKart';
 
-/** Tanımlamalar › Kart › Kart Markaları */
+/** Tanımlamalar › Kart › Kart Markaları — API */
 export default function CardBrandsPage() {
-  const [rows, setRows] = useState(() => INITIAL_CARD_BRANDS.map((r) => ({ ...r })));
+  const { token } = useAuth();
+  const [rows, setRows] = useState<CardBrandRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<CardBrandModalMode | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CardBrandRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<
+        { id: string; name: string; logoUrl?: string; logo?: string | null; initials?: string }[]
+      >('/api/card-brands', token);
+      setRows(
+        list.map((r) => ({
+          id: r.id,
+          name: r.name,
+          logo: r.logoUrl || undefined,
+          initials: r.initials,
+        })),
+      );
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Kart markaları yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -44,33 +79,72 @@ export default function CardBrandsPage() {
     setPageSizeText(String(n));
   }
 
-  function onSave(data: { name: string; logo?: string; initials: string; id?: string }) {
+  async function onSave(data: {
+    name: string;
+    logoDataUrl?: string | null;
+    initials: string;
+    id?: string;
+  }) {
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
+    const body = {
+      name: data.name,
+      logoDataUrl: data.logoDataUrl || undefined,
+      initials: data.initials,
+    };
     if (data.id) {
+      const updated = await api.patch<{
+        id: string;
+        name: string;
+        logoUrl?: string;
+        initials?: string;
+      }>(`/api/card-brands/${data.id}`, body, token);
       setRows((list) =>
         list.map((r) =>
-          r.id === data.id
-            ? { ...r, name: data.name, logo: data.logo ?? r.logo, initials: data.initials }
+          r.id === updated.id
+            ? {
+                id: updated.id,
+                name: updated.name,
+                logo: updated.logoUrl || undefined,
+                initials: updated.initials,
+              }
             : r,
         ),
       );
     } else {
-      setRows((list) => [
-        ...list,
-        {
-          id: `cb-${Date.now()}`,
-          name: data.name,
-          logo: data.logo,
-          initials: data.initials,
-        },
-      ]);
+      const created = await api.post<{
+        id: string;
+        name: string;
+        logoUrl?: string;
+        initials?: string;
+      }>('/api/card-brands', body, token);
+      setRows((list) =>
+        [
+          ...list,
+          {
+            id: created.id,
+            name: created.name,
+            logo: created.logoUrl || undefined,
+            initials: created.initials,
+          },
+        ].sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+      );
     }
-    setModal(null);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!token || !deleteTarget) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/card-brands/${deleteTarget.id}`, token);
+      setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
@@ -103,6 +177,17 @@ export default function CardBrandsPage() {
           </button>
         </div>
       </div>
+
+      {loadError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
@@ -141,7 +226,9 @@ export default function CardBrandsPage() {
               <span>Adı</span>
               <span />
             </div>
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
                 Hiç bir veri bulunamadı.
               </p>
@@ -158,7 +245,7 @@ export default function CardBrandsPage() {
                       type: 'edit',
                       id: r.id,
                       name: r.name,
-                      logo: r.logo,
+                      logoUrl: r.logo,
                       initials: r.initials,
                     })
                   }
@@ -240,8 +327,9 @@ export default function CardBrandsPage() {
       {deleteTarget ? (
         <DeleteModal
           name={deleteTarget.name}
+          deleting={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -250,10 +338,12 @@ export default function CardBrandsPage() {
 
 function DeleteModal({
   name,
+  deleting,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  deleting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -300,16 +390,18 @@ function DeleteModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            disabled={deleting}
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            disabled={deleting}
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            Sil
+            {deleting ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

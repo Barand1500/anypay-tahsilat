@@ -1,36 +1,52 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
-import {
-  getCardAgreements,
-  removeCardAgreement,
-  setCardAgreements,
-  type CardAgreementDetail,
-} from './mockKart';
+import { api } from '../../lib/api';
 import { formatPanelDate } from '../settings/personalPrefs';
+import type { CardAgreementDetail } from './mockKart';
 
 const DETAIL_BASE = '/tanimlamalar/pos-kart/anlasmalar';
 
-/** Tanımlamalar › Kart › Kart Anlaşmaları — liste */
+/** Tanımlamalar › Kart › Kart Anlaşmaları — liste (API) */
 export default function CardAgreementsPage() {
   const navigate = useNavigate();
-  const [rows, setRows] = useState(() => getCardAgreements());
+  const { token } = useAuth();
+  const [rows, setRows] = useState<CardAgreementDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<CardAgreementDetail | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setRows(getCardAgreements());
-  }, []);
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await api.get<{ id: string; name: string; date: string }[]>(
+        '/api/card-agreements',
+        token,
+      );
+      setRows(list.map((r) => ({ id: r.id, name: r.name, date: r.date, banks: [] })));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Kart anlaşmaları yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    setCardAgreements(rows);
-  }, [rows]);
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -60,11 +76,19 @@ export default function CardAgreementsPage() {
     setPageSizeText(String(n));
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    removeCardAgreement(deleteTarget.id);
-    setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!token || !deleteTarget) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/card-agreements/${encodeURIComponent(deleteTarget.id)}`, token);
+      setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
@@ -99,6 +123,17 @@ export default function CardAgreementsPage() {
           </button>
         </div>
       </div>
+
+      {loadError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
@@ -138,7 +173,9 @@ export default function CardAgreementsPage() {
               <span>Tarih</span>
               <span />
             </div>
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
                 Hiç bir veri bulunamadı.
               </p>
@@ -210,8 +247,9 @@ export default function CardAgreementsPage() {
       {deleteTarget ? (
         <DeleteModal
           name={deleteTarget.name}
+          deleting={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -220,10 +258,12 @@ export default function CardAgreementsPage() {
 
 function DeleteModal({
   name,
+  deleting,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  deleting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -270,16 +310,18 @@ function DeleteModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            disabled={deleting}
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            disabled={deleting}
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            Sil
+            {deleting ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

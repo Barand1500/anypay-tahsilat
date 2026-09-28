@@ -1,28 +1,55 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
-import { BANKS } from '../payments/mockBanks';
-import { INITIAL_COMMON_VIRTUAL_POS, type CommonVirtualPosRow } from './mockPos';
+import { api } from '../../lib/api';
+import type { BankDef } from './bankTypes';
+import { type CommonVirtualPosRow } from './mockPos';
 import {
   CommonVirtualPosModal,
   type CommonVirtualPosModalMode,
 } from './CommonVirtualPosModal';
 
-function bankLogo(bankId: string) {
-  return BANKS.find((b) => b.id === bankId)?.logo;
-}
-
-/** Tanımlamalar › POS › Ortak Sanal POS Tanımları */
+/** Tanımlamalar › POS › Ortak Sanal POS Tanımları — API */
 export default function CommonVirtualPosPage() {
-  const [rows, setRows] = useState(() => INITIAL_COMMON_VIRTUAL_POS.map((r) => ({ ...r })));
+  const { token } = useAuth();
+  const [rows, setRows] = useState<CommonVirtualPosRow[]>([]);
+  const [banks, setBanks] = useState<BankDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<CommonVirtualPosModalMode | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CommonVirtualPosRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [list, bankList] = await Promise.all([
+        api.get<CommonVirtualPosRow[]>('/api/common-virtual-pos', token),
+        api.get<BankDef[]>('/api/banks', token),
+      ]);
+      setRows(list);
+      setBanks(bankList);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Ortak Sanal POS yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -54,49 +81,48 @@ export default function CommonVirtualPosPage() {
     setPageSizeText(String(n));
   }
 
-  function saveRow(data: {
+  async function saveRow(data: {
     bankId: string;
-    bankName: string;
     targetBankId: string;
-    targetBankName: string;
     active: boolean;
   }) {
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
+    const body = {
+      bankId: data.bankId,
+      targetBankId: data.targetBankId,
+      active: data.active,
+    };
     if (modal?.type === 'edit') {
-      const id = modal.id;
-      setRows((list) =>
-        list.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                bankId: data.bankId,
-                bankName: data.bankName,
-                targetBankId: data.targetBankId,
-                targetBankName: data.targetBankName,
-                active: data.active,
-              }
-            : r,
-        ),
+      const updated = await api.patch<CommonVirtualPosRow>(
+        `/api/common-virtual-pos/${modal.id}`,
+        body,
+        token,
       );
+      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
     } else {
-      setRows((list) => [
-        ...list,
-        {
-          id: `cvpos-${Date.now()}`,
-          bankId: data.bankId,
-          bankName: data.bankName,
-          targetBankId: data.targetBankId,
-          targetBankName: data.targetBankName,
-          active: data.active,
-        },
-      ]);
+      const created = await api.post<CommonVirtualPosRow>(
+        '/api/common-virtual-pos',
+        body,
+        token,
+      );
+      setRows((list) => [...list, created]);
     }
-    setModal(null);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!token || !deleteTarget) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/common-virtual-pos/${deleteTarget.id}`, token);
+      setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
@@ -116,7 +142,9 @@ export default function CommonVirtualPosPage() {
     URL.revokeObjectURL(a.href);
   }
 
-  const existingKeys = rows.map((r) => `${r.bankId}|${r.targetBankId}`);
+  /** Kaynak banka başına tek yönlendirme */
+  const existingSourceBankIds = rows.map((r) => r.bankId);
+  const bankOptions = banks.map((b) => ({ id: b.id, name: b.name }));
 
   return (
     <div className="w-full space-y-4">
@@ -137,6 +165,17 @@ export default function CommonVirtualPosPage() {
           </button>
         </div>
       </div>
+
+      {loadError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
@@ -177,7 +216,11 @@ export default function CommonVirtualPosPage() {
               <span>Durum</span>
               <span />
             </div>
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
+                Yükleniyor…
+              </p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
                 Kayıt bulunamadı.
               </p>
@@ -200,8 +243,8 @@ export default function CommonVirtualPosPage() {
                   }
                   className="grid cursor-pointer grid-cols-[minmax(200px,1.2fr)_minmax(200px,1.2fr)_88px_44px] items-center gap-3 border-b border-[var(--panel-line)]/70 px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45"
                 >
-                  <BankCell bankId={r.bankId} name={r.bankName} />
-                  <BankCell bankId={r.targetBankId} name={r.targetBankName} />
+                  <BankCell logoUrl={r.bankLogoUrl} name={r.bankName} />
+                  <BankCell logoUrl={r.targetBankLogoUrl} name={r.targetBankName} />
                   <StatusBadge active={r.active} />
                   <button
                     type="button"
@@ -254,7 +297,8 @@ export default function CommonVirtualPosPage() {
       {modal ? (
         <CommonVirtualPosModal
           mode={modal}
-          existingKeys={existingKeys}
+          banks={bankOptions}
+          existingSourceBankIds={existingSourceBankIds}
           onClose={() => setModal(null)}
           onSave={saveRow}
         />
@@ -263,20 +307,20 @@ export default function CommonVirtualPosPage() {
       {deleteTarget ? (
         <DeleteModal
           name={`${deleteTarget.bankName} → ${deleteTarget.targetBankName}`}
+          deleting={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
   );
 }
 
-function BankCell({ bankId, name }: { bankId: string; name: string }) {
-  const logo = bankLogo(bankId);
+function BankCell({ logoUrl, name }: { logoUrl?: string; name: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      {logo ? (
-        <img src={logo} alt="" className="h-8 w-auto max-w-[72px] object-contain" />
+      {logoUrl ? (
+        <img src={logoUrl} alt="" className="h-8 w-auto max-w-[72px] object-contain" />
       ) : (
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--panel-surface)] text-[10px] font-bold text-[var(--panel-muted)]">
           —
@@ -309,10 +353,12 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function DeleteModal({
   name,
+  deleting,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  deleting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -359,16 +405,18 @@ function DeleteModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            disabled={deleting}
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            disabled={deleting}
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            Sil
+            {deleting ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

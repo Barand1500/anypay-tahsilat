@@ -9,7 +9,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
-import { createPortal } from 'react-dom';
 import { useBrand } from '../../brand/BrandContext';
 import { useKeyboardMode } from '../../keyboard/KeyboardModeContext';
 import { usePermission } from '../../permissions/PermissionContext';
@@ -20,6 +19,8 @@ import { NAV_ITEMS, type NavItem } from './navItems';
 import { NavIcon } from './NavIcon';
 import { useQuickAccess } from './QuickAccessContext';
 import { useRates } from './RatesContext';
+import { useVault } from './VaultContext';
+import { SafeIcon } from './VaultWidget';
 
 type Props = {
   collapsed: boolean;
@@ -95,20 +96,9 @@ function WindIcon() {
   );
 }
 
-/** Yer tutucu — henüz atanmamış araç */
-function SoonIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3.5 13.8 9.2 19.5 11 13.8 12.8 12 18.5 10.2 12.8 4.5 11 10.2 9.2 12 3.5Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="18.5" cy="5.5" r="1.2" fill="currentColor" />
-      <circle cx="5.5" cy="17.5" r="1" fill="currentColor" />
-    </svg>
-  );
+/** Kasa — kilitli dolap */
+function VaultSidebarIcon() {
+  return <SafeIcon />;
 }
 
 function BoltIcon() {
@@ -142,10 +132,10 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const resizing = useRef(false);
   const open = !collapsed;
   const settingsActive = location.pathname.startsWith('/ayarlar');
-  /** 0 klavye · 1 kurlar · 2 jest · 3 dock · 4 yakında · 5 ayarlar */
+  /** 0 klavye · 1 kurlar · 2 jest · 3 dock · 4 kasa · 5 ayarlar */
   const [footerSlot, setFooterSlot] = useState(0);
   const footerSlotRef = useRef<HTMLDivElement>(null);
-  const [soonToast, setSoonToast] = useState(false);
+  const { open: vaultOpen, openVault, closeVault, sidebarBtnRef } = useVault();
 
   const navItems =
     permPagesReady && !rolesLoading
@@ -155,12 +145,6 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   useEffect(() => {
     if (settingsActive) setFooterSlot(5);
   }, [settingsActive]);
-
-  useEffect(() => {
-    if (!soonToast) return;
-    const t = window.setTimeout(() => setSoonToast(false), 2200);
-    return () => window.clearTimeout(t);
-  }, [soonToast]);
 
   useEffect(() => {
     const el = footerSlotRef.current;
@@ -394,7 +378,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     footerBtnBase,
     settingsActive ? footerOn : footerIdle,
   ].join(' ');
-  const soonBtnClass = [footerBtnBase, footerIdle].join(' ');
+  const vaultBtnClass = [footerBtnBase, vaultOpen ? footerOn : footerIdle].join(' ');
 
   const kmButton = (
     <button
@@ -478,19 +462,25 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     </button>
   );
 
-  const soonButton = (
+  const vaultButton = (
     <button
+      ref={sidebarBtnRef}
       type="button"
-      data-soon-slot
-      aria-label="Yakında"
-      title="Yakında"
+      data-vault-slot
+      aria-pressed={vaultOpen}
+      aria-label="Kasa"
+      title={vaultOpen ? 'Kasayı kapat' : 'Kasa — gizli notlar / IBAN / kart'}
       onClick={(e) => {
         e.stopPropagation();
-        setSoonToast(true);
+        if (vaultOpen) closeVault();
+        else openVault();
       }}
-      className={soonBtnClass}
+      className={vaultBtnClass}
     >
-      <SoonIcon />
+      <VaultSidebarIcon />
+      {vaultOpen ? (
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
+      ) : null}
     </button>
   );
 
@@ -507,25 +497,13 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     </Link>
   );
 
-  const soonToastEl = soonToast
-    ? createPortal(
-        <div
-          role="status"
-          className="fixed bottom-6 left-1/2 z-[10050] -translate-x-1/2 rounded-xl bg-[var(--panel-ink)] px-4 py-2.5 text-sm font-medium text-[var(--panel-elevated)] shadow-lg"
-        >
-          Yakında
-        </div>,
-        document.body,
-      )
-    : null;
-
   const footerBar = open ? (
     <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--panel-line)] px-1.5">
       {kmButton}
       {ratesButton}
       {gwButton}
       {dockButton}
-      {soonButton}
+      {vaultButton}
       {settingsLink}
     </div>
   ) : (
@@ -550,7 +528,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
               : footerSlot === 3
                 ? dockButton
                 : footerSlot === 4
-                  ? soonButton
+                  ? vaultButton
                   : settingsLink}
       </div>
     </div>
@@ -581,7 +559,6 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         {navBlock}
         {footerBar}
       </aside>
-      {soonToastEl}
     </>
     );
   }
@@ -619,7 +596,6 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       {navBlock}
       {footerBar}
     </aside>
-    {soonToastEl}
     </>
   );
 }

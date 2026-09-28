@@ -1,7 +1,9 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { api } from '../../lib/api';
 import { SimpleNameModal } from './SimpleNameModal';
 import type { CardNamedRow } from './mockKart';
 
@@ -10,15 +12,20 @@ type Config = {
   titleCreate: string;
   titleEdit: string;
   filename: string;
-  initial: CardNamedRow[];
+  /** örn. /api/card-types */
+  apiPath: string;
   deleteTitle?: string;
 };
 
-/** Ortak kart listesi — tip / tür */
+/** Ortak kart listesi — tip / tür (API) */
 export function CardListPage(config: Config) {
   const deleteTitle = config.deleteTitle ?? 'Kaydı sil';
+  const { token } = useAuth();
 
-  const [rows, setRows] = useState(() => config.initial.map((r) => ({ ...r })));
+  const [rows, setRows] = useState<CardNamedRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -27,7 +34,26 @@ export function CardListPage(config: Config) {
     { type: 'create' } | { type: 'edit'; id: string; name: string } | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setRows(await api.get<CardNamedRow[]>(config.apiPath, token));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Liste yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, config.apiPath]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -70,19 +96,31 @@ export function CardListPage(config: Config) {
     URL.revokeObjectURL(a.href);
   }
 
-  function onSave(name: string, id?: string) {
+  async function onSave(name: string, id?: string) {
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
     if (id) {
-      setRows((list) => list.map((r) => (r.id === id ? { ...r, name } : r)));
+      const updated = await api.patch<CardNamedRow>(`${config.apiPath}/${id}`, { name }, token);
+      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
     } else {
-      setRows((list) => [...list, { id: `row-${Date.now()}`, name }]);
+      const created = await api.post<CardNamedRow>(config.apiPath, { name }, token);
+      setRows((list) => [...list, created].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
     }
-    setModal(null);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!token || !deleteTarget) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`${config.apiPath}/${deleteTarget.id}`, token);
+      setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -102,6 +140,17 @@ export function CardListPage(config: Config) {
           </button>
         </div>
       </div>
+
+      {loadError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
@@ -140,7 +189,9 @@ export function CardListPage(config: Config) {
               <span>Adı</span>
               <span />
             </div>
-            {slice.length === 0 ? (
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+            ) : slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
                 Hiç bir veri bulunamadı.
               </p>
@@ -221,8 +272,9 @@ export function CardListPage(config: Config) {
         <DeleteModal
           title={deleteTitle}
           name={deleteTarget.name}
+          deleting={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -232,11 +284,13 @@ export function CardListPage(config: Config) {
 function DeleteModal({
   title,
   name,
+  deleting,
   onCancel,
   onConfirm,
 }: {
   title: string;
   name: string;
+  deleting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -283,16 +337,18 @@ function DeleteModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            disabled={deleting}
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Vazgeç
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            disabled={deleting}
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            Sil
+            {deleting ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>

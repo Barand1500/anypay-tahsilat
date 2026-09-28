@@ -1,48 +1,99 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { TextInput } from '../../components/ui/TextInput';
-import { BANKS } from '../payments/mockBanks';
+import { api } from '../../lib/api';
+import type { BankDef } from './bankTypes';
 import {
-  defaultAgreementBanks,
-  findCardAgreement,
-  upsertCardAgreement,
+  defaultAgreementInstallments,
   type CardAgreementBankPanel,
+  type CardAgreementDetail,
   type CardAgreementInstallment,
 } from './mockKart';
 
 const LIST_PATH = '/tanimlamalar/pos-kart/anlasmalar';
 
-/** Kart Anlaşması ekle / düzenle — banka panelleri + taksit tablosu */
+function banksFromApi(list: BankDef[]): CardAgreementBankPanel[] {
+  const pick = list.slice(0, 2);
+  if (!pick.length) {
+    return [
+      {
+        bankId: '0',
+        name: 'Banka seçiniz',
+        logo: undefined,
+        installments: defaultAgreementInstallments(),
+      },
+    ];
+  }
+  return pick.map((b) => ({
+    bankId: b.id,
+    name: b.name,
+    logo: b.logoUrl || undefined,
+    installments: defaultAgreementInstallments(),
+  }));
+}
+
+/** Kart Anlaşması ekle / düzenle — API */
 export default function CardAgreementDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const isNew = id === 'yeni';
-  const existing = useMemo(() => (isNew ? null : findCardAgreement(id)), [id, isNew]);
 
-  const [name, setName] = useState(() => (isNew ? '' : (findCardAgreement(id)?.name ?? '')));
-  const [banks, setBanks] = useState<CardAgreementBankPanel[]>(() => {
-    if (isNew) return defaultAgreementBanks();
-    const found = findCardAgreement(id);
-    return (
-      found?.banks.map((b) => ({
-        ...b,
-        installments: b.installments.map((r) => ({ ...r })),
-      })) ?? defaultAgreementBanks()
-    );
-  });
+  const [name, setName] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [banks, setBanks] = useState<CardAgreementBankPanel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     bankId: string;
     index: number;
     label: string;
   } | null>(null);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
-  if (!isNew && !existing) {
-    return <Navigate to={LIST_PATH} replace />;
-  }
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setNotFound(false);
+    try {
+      const bankList = await api.get<BankDef[]>('/api/banks', token);
+      if (isNew) {
+        setName('');
+        setDate(new Date().toISOString().slice(0, 10));
+        setBanks(banksFromApi(bankList));
+      } else {
+        const detail = await api.get<CardAgreementDetail>(
+          `/api/card-agreements/${encodeURIComponent(id)}`,
+          token,
+        );
+        setName(detail.name);
+        setDate(detail.date);
+        setBanks(
+          detail.banks.map((b) => ({
+            ...b,
+            installments: b.installments.map((r) => ({ ...r })),
+          })),
+        );
+      }
+    } catch {
+      if (!isNew) setNotFound(true);
+      else setBanks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, id, isNew]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (notFound) return <Navigate to={LIST_PATH} replace />;
+
   function patchBank(bankId: string, patch: Partial<CardAgreementBankPanel>) {
     setBanks((list) => list.map((b) => (b.bankId === bankId ? { ...b, ...patch } : b)));
   }
@@ -97,25 +148,55 @@ export default function CardAgreementDetailPage() {
     setDeleteTarget(null);
   }
 
-  function save() {
+  async function save() {
+    if (!token) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setError('Kart anlaşması adı zorunlu');
       return;
     }
-    const detail = {
-      id: isNew ? `ca-${Date.now()}` : id,
-      name: trimmed,
-      date: existing?.date ?? new Date().toISOString().slice(0, 10),
-      banks,
-    };
-    upsertCardAgreement(detail);
+    if (!banks.length) {
+      setError('En az bir banka paneli gerekli');
+      return;
+    }
+    setSaving(true);
     setError('');
-    setSavedFlash(true);
-    window.setTimeout(() => {
-      setSavedFlash(false);
-      navigate(LIST_PATH);
-    }, 500);
+    try {
+      const body = {
+        name: trimmed,
+        date,
+        banks: banks.map((b) => ({
+          bankId: b.bankId,
+          name: b.name,
+          logo: b.logo || null,
+          installments: b.installments,
+        })),
+      };
+      if (isNew) {
+        await api.post<CardAgreementDetail>('/api/card-agreements', body, token);
+      } else {
+        await api.put<CardAgreementDetail>(
+          `/api/card-agreements/${encodeURIComponent(id)}`,
+          body,
+          token,
+        );
+      }
+      setSavedFlash(true);
+      window.setTimeout(() => {
+        setSavedFlash(false);
+        navigate(LIST_PATH);
+      }, 450);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <p className="px-1 py-10 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
+    );
   }
 
   return (
@@ -141,7 +222,7 @@ export default function CardAgreementDetailPage() {
           setError('');
         }}
         data-km-jump
-        error={error}
+        error={error || undefined}
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -166,11 +247,12 @@ export default function CardAgreementDetailPage() {
         <button
           type="button"
           data-km-jump
-          onClick={save}
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-emerald-500"
+          disabled={saving}
+          onClick={() => void save()}
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-emerald-500 disabled:opacity-50"
         >
           <SaveIcon />
-          {savedFlash ? 'Kaydedildi' : 'Değişiklikleri Kaydet'}
+          {savedFlash ? 'Kaydedildi' : saving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}
         </button>
       </div>
 
@@ -201,22 +283,24 @@ function BankPanel({
   onDeleteRow: (i: number, label: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const fallbackLogo = BANKS.find((b) => b.id === bank.bankId)?.logo;
-  const displayLogo = bank.logo || fallbackLogo;
+  const displayLogo = bank.logo;
   const fileLabel = bank.logoFileName
     ? bank.logoFileName
     : displayLogo
-      ? 'Varsayılan logo'
+      ? 'Logo seçildi'
       : 'Dosya seçilmedi.';
 
   function onFile(file: File | null) {
     if (!file) {
-      onLogoChange(fallbackLogo, undefined);
+      onLogoChange(undefined, undefined);
       return;
     }
     if (!file.type.startsWith('image/')) return;
-    const url = URL.createObjectURL(file);
-    onLogoChange(url, file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      onLogoChange(String(reader.result || ''), file.name);
+    };
+    reader.readAsDataURL(file);
   }
 
   return (

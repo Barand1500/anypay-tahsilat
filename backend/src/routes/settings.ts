@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   SettingsError,
   getBrandAssets,
@@ -100,6 +101,7 @@ settingsRouter.get('/brand', async (_req, res) => {
 });
 
 settingsRouter.use(requireAuth);
+settingsRouter.use(requireModuleWrite('/ayarlar'));
 
 settingsRouter.get('/general', async (_req, res) => {
   try {

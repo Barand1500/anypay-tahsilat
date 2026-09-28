@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { hintsForKey, matchBinKey, normalizeBankText } from './binCatalog.js';
 import { lookupBinByCard } from '../services/binsService.js';
+import { resolveRedirectBankId } from '../services/commonVirtualPosService.js';
 import type { PosCredentials } from './types.js';
 
 export class PosResolveError extends Error {
@@ -63,7 +64,14 @@ function assertReady(c: PosCredentials): void {
   }
 }
 
-async function loadPosForBank(bankId: number): Promise<PosCredentials> {
+/**
+ * Bankanın aktif POS’unu yükler.
+ * Yoksa Ortak Sanal POS yönlendirmesiyle hedef bankanın POS’una düşer.
+ */
+async function loadPosForBank(
+  bankId: number,
+  opts?: { skipRedirect?: boolean },
+): Promise<PosCredentials> {
   const bank = await prisma.banka.findFirst({
     where: { id: bankId, ...notRemoved() },
   });
@@ -85,6 +93,12 @@ async function loadPosForBank(bankId: number): Promise<PosCredentials> {
     }));
 
   if (!pos) {
+    if (!opts?.skipRedirect) {
+      const redirectId = await resolveRedirectBankId(bankId);
+      if (redirectId != null && redirectId !== bankId) {
+        return loadPosForBank(redirectId, { skipRedirect: true });
+      }
+    }
     throw new PosResolveError(
       `${(bank.adi || bank.kisaAdi).trim()}: aktif sanal POS tanımı yok`,
     );

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModuleWrite } from '../middleware/permissions.js';
 import { writePanelLog } from '../services/logsService.js';
 import {
   VirtualPosError,
@@ -15,6 +16,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const virtualPosRouter = Router();
 virtualPosRouter.use(requireAuth);
+virtualPosRouter.use(requireModuleWrite('/tanimlamalar'));
 
 const upsertSchema = z.object({
   bankId: z.string().min(1),

@@ -48,6 +48,7 @@ function draftFromUser(user: {
 export default function ProfilePage() {
   const { user, updateProfile } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFromUser(user));
   const [baseline, setBaseline] = useState(() => draftFromUser(user));
@@ -56,6 +57,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [loginTheme, setLoginThemeDraft] = useState<LoginTheme>(() => getLoginTheme());
   const [loginThemeBase, setLoginThemeBase] = useState<LoginTheme>(() => getLoginTheme());
   const [brandWords, setBrandWordsDraft] = useState<LoginBrandWords>(() => getLoginBrandWords());
@@ -161,14 +163,55 @@ export default function ProfilePage() {
       <div data-anim className="relative px-4 sm:px-6">
         {/* Avatar */}
         <div className="mb-5 flex flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              if (file.size > 3 * 1024 * 1024) {
+                setSaveError('Fotoğraf en fazla 3 MB olabilir');
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                const dataUrl = String(reader.result || '');
+                if (!dataUrl.startsWith('data:image/')) {
+                  setSaveError('Geçersiz görsel');
+                  return;
+                }
+                setPhotoBusy(true);
+                setSaveError(null);
+                void updateProfile({ resimDataUrl: dataUrl })
+                  .catch((err) => {
+                    setSaveError(err instanceof Error ? err.message : 'Fotoğraf yüklenemedi');
+                  })
+                  .finally(() => setPhotoBusy(false));
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
           <button
             type="button"
-            title="Fotoğraf yükle (yakında)"
-            className="group relative -mt-2 flex h-28 w-28 items-center justify-center rounded-full border-4 border-[var(--panel-bg)] bg-brand-100 text-3xl font-bold text-brand-700 shadow-[var(--panel-shadow)] transition hover:scale-[1.03] sm:h-32 sm:w-32"
+            title="Fotoğraf yükle"
+            disabled={photoBusy}
+            onClick={() => fileRef.current?.click()}
+            className="group relative -mt-2 flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--panel-bg)] bg-brand-100 text-3xl font-bold text-brand-700 shadow-[var(--panel-shadow)] transition hover:scale-[1.03] disabled:opacity-60 sm:h-32 sm:w-32"
           >
-            {initials}
+            {user?.resimUrl ? (
+              <img
+                src={user.resimUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials
+            )}
             <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100">
-              Fotoğraf
+              {photoBusy ? '…' : 'Fotoğraf'}
             </span>
             <span className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-brand-600)] text-white shadow-md">
               <CameraIcon />

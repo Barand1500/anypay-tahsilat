@@ -15,7 +15,8 @@ function sleep(ms: number) {
 
 /** Klasik maskotlu giriş ekranı */
 export function LoginClassic() {
-  const { login, requestOtp, loginWithOtp } = useAuth();
+  const { login, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
+    useAuth();
   const { logoUrl, systemName } = useBrand();
   const cardRef = useRef<HTMLElement | null>(null);
 
@@ -49,13 +50,20 @@ export function LoginClassic() {
         throw err;
       }
     },
+    onRequestPasswordReset: async (email) => {
+      await requestPasswordReset(email);
+    },
+    onVerifyPasswordReset: async (email, code) => verifyPasswordReset(email, code),
+    onResetPassword: async (resetToken, password) => {
+      await resetPassword(resetToken, password);
+    },
   });
 
   const busy = flow.loading || flow.transitioning;
 
   const subtitle =
     flow.mode === 'forgot'
-      ? 'E-postanıza gelen şifreyi doğrulayıp yeni şifrenizi belirleyin.'
+      ? 'E-postanıza gelen kodu doğrulayıp yeni şifrenizi belirleyin.'
       : flow.mode === 'otp'
         ? 'Geçici kodu girerek giriş yapın.'
         : flow.mode === 'password'
@@ -108,7 +116,7 @@ export function LoginClassic() {
                   <TextInput label="E-Posta" name="email-ro" type="email" value={flow.email} disabled />
 
                   <TextInput
-                    label="E-postanıza gönderdiğimiz şifreyi giriniz"
+                    label="E-postanıza gönderdiğimiz kodu giriniz"
                     name="reset-code"
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -120,10 +128,10 @@ export function LoginClassic() {
                   <button
                     type="button"
                     disabled={busy || flow.codeVerified}
-                    onClick={flow.verifyResetCode}
+                    onClick={() => void flow.verifyResetCode()}
                     className="w-full rounded-xl border border-[var(--panel-line)] bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:bg-[var(--panel-surface)] disabled:opacity-50"
                   >
-                    {flow.codeVerified ? 'Doğrulandı' : 'Doğrula'}
+                    {flow.codeVerified ? 'Doğrulandı' : flow.loading ? 'Doğrulanıyor…' : 'Doğrula'}
                   </button>
 
                   <TextInput
@@ -162,7 +170,7 @@ export function LoginClassic() {
                     disabled={busy || !flow.codeVerified}
                     loading={flow.loading}
                     loadingLabel="Kaydediliyor…"
-                    onClick={flow.saveNewPassword}
+                    onClick={() => void flow.saveNewPassword()}
                   >
                     Kaydet
                   </Button>
@@ -202,7 +210,7 @@ export function LoginClassic() {
                       <div className="flex justify-end">
                         <button
                           type="button"
-                          onClick={flow.goForgot}
+                          onClick={() => void flow.goForgot()}
                           className="text-xs font-medium text-brand-600 hover:text-brand-700"
                         >
                           Şifremi unuttum?

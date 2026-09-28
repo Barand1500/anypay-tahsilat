@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireModulePerm } from '../middleware/permissions.js';
 import {
   LogsError,
   deleteLogs,
@@ -12,6 +13,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 export const logsRouter = Router();
 
 logsRouter.use(requireAuth);
+logsRouter.use(requireModulePerm('/log-kayitlari'));
 
 const kindSchema = z.enum([
   'all',
