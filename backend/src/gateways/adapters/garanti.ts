@@ -7,19 +7,14 @@ import type {
 } from '../types.js';
 
 /**
- * Garanti BBVA Sanal POS — gt3dengine
- *
- * Ödeme ekranımız kartı kendisi toplar → her zaman 3D_PAY + card* + PROVAUT.
- * Bankadaki "3D_OOS_PAY" etiketi ortak-ödeme (kart bankada) içindir; bizim
- * işyerinde OOS tanımlı değilse "Isyeri Kullanim Tipi Desteklenmiyor" verir.
+ * Garanti BBVA — referans api.anypay.com.tr garanti.adapter.js ile aynı protokol.
+ * - secure3dsecuritylevel: 3D_PAY (bankadaki 3D_OOS_PAY etiketi kullanılmaz)
+ * - Hash: SHA1 (SHA512 / apiversion 512 değil)
+ * - Hash içinde currency yok; terminalId formda pad’siz, securityData’da 9 hane
  */
 
-function sha1HexUpper(plain: string): string {
-  return createHash('sha1').update(plain, 'utf8').digest('hex').toUpperCase();
-}
-
-function sha512HexUpper(plain: string): string {
-  return createHash('sha512').update(plain, 'utf8').digest('hex').toUpperCase();
+function sha1Upper(value: string): string {
+  return createHash('sha1').update(String(value), 'utf8').digest('hex').toUpperCase();
 }
 
 function amountCents(amount: number): string {
@@ -34,9 +29,8 @@ function currencyCode(code: string): string {
   return /^\d+$/.test(u) ? u : '949';
 }
 
-function padTerminalId(raw: string): string {
-  const d = raw.replace(/\D/g, '');
-  return d.padStart(9, '0').slice(-9);
+function padTerminalId9(raw: string): string {
+  return String(raw).replace(/\D/g, '').padStart(9, '0').slice(-9);
 }
 
 function resolveMode(gateway3dUrl: string): 'PROD' | 'TEST' {
@@ -45,19 +39,23 @@ function resolveMode(gateway3dUrl: string): 'PROD' | 'TEST' {
   return 'PROD';
 }
 
-/**
- * Kartlı merchant form → 3D_PAY.
- * OOS* banka etiketini 3D_PAY’e map’ler (işyeri OOS değilse OOS hata verir).
- */
-function resolveSecurityLevel(raw: string): string {
-  const t = (raw || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (!t) return '3D_PAY';
-  if (t.includes('OOS')) return '3D_PAY';
-  if (t === '3DPAY' || t === '3D_PAY') return '3D_PAY';
-  if (t === '3DFULL' || t === '3D_FULL') return '3D_FULL';
-  if (t === '3DHALF' || t === '3D_HALF') return '3D_HALF';
-  if (t === '3D' || t === '3DMODEL' || t === '3D_MODEL') return '3D';
-  return '3D_PAY';
+/** Referans: sha1(password + terminalId9) sonra sha1(terminalId + order + amount + ok + fail + type + taksit + storeKey + securityData) */
+function garantiHash(opts: {
+  terminalId: string;
+  orderNumber: string;
+  orderAmount: string;
+  successUrl: string;
+  failUrl: string;
+  type: string;
+  installmentStr: string;
+  storeKey: string;
+  password: string;
+}): string {
+  const terminalIdNew = padTerminalId9(opts.terminalId);
+  const securityData = sha1Upper(`${opts.password}${terminalIdNew}`);
+  return sha1Upper(
+    `${opts.terminalId}${opts.orderNumber}${opts.orderAmount}${opts.successUrl}${opts.failUrl}${opts.type}${opts.installmentStr}${opts.storeKey}${securityData}`,
+  );
 }
 
 export function looksLikeGaranti(pos: {
@@ -75,7 +73,6 @@ export function looksLikeGaranti(pos: {
     blob.includes('garanti') ||
     blob.includes('gt3dengine') ||
     blob.includes('vpservlet') ||
-    blob.includes('3d_oos') ||
     pos.infrastructureId === 'infra-garanti'
   );
 }
@@ -85,7 +82,7 @@ export const garantiGateway: PaymentGateway = {
 
   initiate3d(input: Initiate3dInput): Initiate3dResult {
     const merchantId = input.pos.merchantId.trim();
-    const terminalId = input.pos.terminalSafeId.trim();
+    const terminalId = input.pos.terminalSafeId.replace(/\D/g, '').trim() || input.pos.terminalSafeId.trim();
     const storeKey = input.pos.securityKey.trim();
     const password = input.pos.terminalPassword.trim();
 
@@ -114,63 +111,52 @@ export const garantiGateway: PaymentGateway = {
       return { kind: 'error', message: 'CVC geçersiz' };
     }
 
-    const terminalId9 = padTerminalId(terminalId);
-    const orderId = input.orderId;
-    const amount = amountCents(input.amount);
-    const currency = currencyCode(input.currencyCode);
+    const orderNumber = input.orderId;
+    const orderAmount = amountCents(input.amount);
+    const type = 'sales';
+    const installmentStr = input.installment > 1 ? String(input.installment) : '';
     const successUrl = input.okUrl;
-    const errorUrl = input.failUrl;
-    const txntype = 'sales';
-    const installment =
-      input.installment > 1 ? String(input.installment) : '';
-    const level = resolveSecurityLevel(input.pos.securityType);
-    const provUser = 'PROVAUT';
+    const failUrl = input.failUrl;
+    const currency = currencyCode(input.currencyCode);
 
-    // SecurityData = SHA1(password + terminalId9)
-    // HashData = SHA512(terminalId9 + orderId + amount + currency + successUrl + errorUrl + type + installment + storeKey + SecurityData)
-    const securityData = sha1HexUpper(password + terminalId9);
-    const hashData = sha512HexUpper(
-      terminalId9 +
-        orderId +
-        amount +
-        currency +
-        successUrl +
-        errorUrl +
-        txntype +
-        installment +
-        storeKey +
-        securityData,
-    );
-
-    const mm = input.card.expiry.slice(0, 2);
+    const mm = String(Number(input.card.expiry.slice(0, 2) || 0)).padStart(2, '0');
     const yy = input.card.expiry.slice(2, 4);
 
+    const secure3dhash = garantiHash({
+      terminalId,
+      orderNumber,
+      orderAmount,
+      successUrl,
+      failUrl,
+      type,
+      installmentStr,
+      storeKey,
+      password,
+    });
+
+    // Referans alanları birebir
     const fields: Record<string, string> = {
-      mode: resolveMode(input.pos.gateway3dUrl),
-      apiversion: '512',
-      terminalprovuserid: provUser,
-      terminaluserid: provUser,
-      terminalmerchantid: merchantId,
-      terminalid: terminalId9,
-      orderid: orderId,
-      customeremailaddress: input.email || 'musteri@anypay.com.tr',
-      customeripaddress: input.clientIp || '127.0.0.1',
-      txntype,
-      txnamount: amount,
-      txncurrencycode: currency,
-      txninstallmentcount: installment,
-      successurl: successUrl,
-      errorurl: errorUrl,
-      secure3dsecuritylevel: level,
-      secure3dhash: hashData,
+      secure3dsecuritylevel: '3D_PAY',
       cardnumber: input.card.number,
       cardexpiredatemonth: mm,
       cardexpiredateyear: yy,
       cardcvv2: input.card.cvc,
-      txntimestamp: String(Date.now()),
-      lang: 'tr',
-      refreshtime: '1',
-      companyname: 'AnyPay',
+      mode: resolveMode(input.pos.gateway3dUrl),
+      apiversion: 'v0.01',
+      terminalprovuserid: 'PROVAUT',
+      terminaluserid: 'PROVAUT',
+      terminalmerchantid: merchantId,
+      txntype: type,
+      txnamount: orderAmount,
+      txncurrencycode: currency,
+      txninstallmentcount: installmentStr,
+      orderid: orderNumber,
+      terminalid: terminalId,
+      successurl: successUrl,
+      errorurl: failUrl,
+      customeremailaddress: input.email || 'musteri@anypay.com.tr',
+      customeripaddress: input.clientIp || '127.0.0.1',
+      secure3dhash,
     };
 
     return {
@@ -192,30 +178,21 @@ export const garantiGateway: PaymentGateway = {
     }
 
     const orderId =
-      raw.orderid || raw.oid || raw.OrderId || raw.orderId || '';
-    const mdStatus = raw.mdstatus || raw.mdStatus || '';
-    const procReturnCode =
-      raw.procreturncode || raw.ProcReturnCode || '';
-    const response = (raw.response || raw.Response || '').toLowerCase();
-
-    const mdOk =
-      mdStatus === '1' ||
-      mdStatus === '2' ||
-      mdStatus === '3' ||
-      mdStatus === '4';
-
-    const success = mdOk && (procReturnCode === '00' || procReturnCode === '');
+      raw.orderid || raw.orderId || raw.oid || raw.Oid || '';
+    const response = (raw.response || raw.Response || '').trim();
+    const basarili = response === 'Approved';
 
     return {
       orderId,
-      success,
-      responseCode: procReturnCode || mdStatus || response,
-      message:
-        raw.errmsg ||
-        raw.ErrorMsg ||
-        raw.mderrormessage ||
-        raw.hostmsg ||
-        (success ? 'Garanti 3D başarılı' : 'Garanti 3D başarısız'),
+      success: basarili,
+      responseCode: raw.procreturncode || raw.ProcReturnCode || response,
+      message: basarili
+        ? 'Approved'
+        : raw.mderrormessage ||
+          raw.MdErrorMessage ||
+          raw.errmsg ||
+          raw.ErrMsg ||
+          'Ödeme başarısız',
       raw,
       needsProvision: false,
     };
