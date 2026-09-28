@@ -49,7 +49,8 @@ binsRouter.get('/', async (_req, res) => {
     return sendSuccess(res, await listBins());
   } catch (err) {
     console.error(err);
-    return sendError(res, 500, 'BIN listesi yüklenemedi');
+    const detail = err instanceof Error ? err.message : String(err);
+    return sendError(res, 500, `BIN listesi yüklenemedi (${detail.slice(0, 160)})`);
   }
 });
 
@@ -59,13 +60,16 @@ binsRouter.post('/', async (req: AuthedRequest, res) => {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   }
   try {
+    const { ensureBinKayitlariTable } = await import('../lib/ensureSchema.js');
+    await ensureBinKayitlariTable();
     const data = await createBin(parsed.data);
     await writePanelLog(req.auth!.sub, `BIN eklendi — ${data.bin} / ${data.bank}`);
     return sendSuccess(res, data, 'BIN kaydedildi', 201);
   } catch (err) {
     if (err instanceof BinsError) return sendError(res, 400, err.message);
     console.error(err);
-    return sendError(res, 500, 'BIN kaydedilemedi');
+    const detail = err instanceof Error ? err.message : String(err);
+    return sendError(res, 500, `BIN kaydedilemedi (${detail.slice(0, 160)})`);
   }
 });
 

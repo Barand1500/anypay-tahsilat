@@ -1,10 +1,12 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { CreatableFilterInput } from '../../components/ui/CreatableFilterInput';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { GrowingValueList } from '../../components/ui/GrowingValueList';
 import { TextInput } from '../../components/ui/TextInput';
+import { api } from '../../lib/api';
 import { districtsOf, PROVINCES } from '../customers/mockLocations';
 import { BankPicker } from './BankPicker';
 import type { BankRow, BinRow, LocationRow, TaxOfficeRow } from './mockApiSettings';
@@ -39,21 +41,21 @@ type Props =
       onSave: (rows: Array<Omit<BinRow, 'id'> & { id?: string }>) => void;
     };
 
-const BIN_TYPE_OPTS = [
-  { value: 'Credit', label: 'Credit' },
-  { value: 'Debit', label: 'Debit' },
+const FALLBACK_TYPE_OPTS = [
+  { value: 'Kredi Kartı', label: 'Kredi Kartı' },
+  { value: 'Banka Kartı', label: 'Banka Kartı' },
 ];
 
-const BIN_BRAND_OPTS = [
+const FALLBACK_BRAND_OPTS = [
   { value: 'Visa', label: 'Visa' },
   { value: 'MasterCard', label: 'MasterCard' },
-  { value: 'Troy', label: 'Troy' },
+  { value: 'TROY', label: 'TROY' },
   { value: 'Amex', label: 'Amex' },
 ];
 
-const BIN_KIND_OPTS = [
-  { value: 'Bireysel', label: 'Bireysel' },
-  { value: 'Ticari', label: 'Ticari' },
+const FALLBACK_KIND_OPTS = [
+  { value: 'Bireysel Kart', label: 'Bireysel Kart' },
+  { value: 'Ticari Kart', label: 'Ticari Kart' },
 ];
 
 function uniqSorted(items: string[]) {
@@ -69,6 +71,7 @@ function uniqSorted(items: string[]) {
 
 export function ApiCategoryModal(props: Props) {
   const { category, mode, onClose, focusField = null } = props;
+  const { token } = useAuth();
   const isEdit = mode.type === 'edit';
   const panelRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -91,10 +94,13 @@ export function ApiCategoryModal(props: Props) {
   const [binCode, setBinCode] = useState(bin?.bin ?? '');
   /** Create: bir bankaya birden fazla BIN */
   const [binCodes, setBinCodes] = useState<string[]>(() => (bin?.bin ? [bin.bin] : []));
-  const [binType, setBinType] = useState<string | null>(bin?.type ?? 'Credit');
-  const [binBrand, setBinBrand] = useState<string | null>(bin?.brand ?? 'Visa');
-  const [binKind, setBinKind] = useState<string | null>(bin?.kind ?? 'Bireysel');
+  const [binType, setBinType] = useState<string | null>(bin?.type ?? null);
+  const [binBrand, setBinBrand] = useState<string | null>(bin?.brand ?? null);
+  const [binKind, setBinKind] = useState<string | null>(bin?.kind ?? null);
   const [binPickerOpen, setBinPickerOpen] = useState(false);
+  const [typeOpts, setTypeOpts] = useState(FALLBACK_TYPE_OPTS);
+  const [brandOpts, setBrandOpts] = useState(FALLBACK_BRAND_OPTS);
+  const [kindOpts, setKindOpts] = useState(FALLBACK_KIND_OPTS);
 
   const cityOptions = useMemo(
     () =>
@@ -104,6 +110,38 @@ export function ApiCategoryModal(props: Props) {
       ]),
     [locations],
   );
+
+  useEffect(() => {
+    if (category !== 'bin' || !token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [types, brands, kinds] = await Promise.all([
+          api.get<{ id: string; name: string }[]>('/api/card-types', token),
+          api.get<{ id: string; name: string }[]>('/api/card-brands', token),
+          api.get<{ id: string; name: string }[]>('/api/card-kinds', token),
+        ]);
+        if (cancelled) return;
+        if (types.length) {
+          setTypeOpts(types.map((t) => ({ value: t.name, label: t.name })));
+          setBinType((cur) => cur || types[0]!.name);
+        }
+        if (brands.length) {
+          setBrandOpts(brands.map((t) => ({ value: t.name, label: t.name })));
+          setBinBrand((cur) => cur || brands[0]!.name);
+        }
+        if (kinds.length) {
+          setKindOpts(kinds.map((t) => ({ value: t.name, label: t.name })));
+          setBinKind((cur) => cur || kinds[0]!.name);
+        }
+      } catch {
+        /* fallback sabitler */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [category, token]);
 
   const districtOptions = useMemo(() => {
     const cityKey = taxCity.trim().toLocaleLowerCase('tr');
@@ -445,7 +483,7 @@ export function ApiCategoryModal(props: Props) {
                     <div className={pulse === 'type' ? 'field-focus-pulse rounded-xl' : ''}>
                       <FloatingSearchSelect
                         label="Tip *"
-                        options={BIN_TYPE_OPTS}
+                        options={typeOpts}
                         value={binType}
                         onChange={setBinType}
                         placeholder="Tip"
@@ -456,7 +494,7 @@ export function ApiCategoryModal(props: Props) {
                     <div className={pulse === 'brand' ? 'field-focus-pulse rounded-xl' : ''}>
                       <FloatingSearchSelect
                         label="Marka *"
-                        options={BIN_BRAND_OPTS}
+                        options={brandOpts}
                         value={binBrand}
                         onChange={setBinBrand}
                         placeholder="Marka"
@@ -467,7 +505,7 @@ export function ApiCategoryModal(props: Props) {
                     <div className={pulse === 'kind' ? 'field-focus-pulse rounded-xl' : ''}>
                       <FloatingSearchSelect
                         label="Tür *"
-                        options={BIN_KIND_OPTS}
+                        options={kindOpts}
                         value={binKind}
                         onChange={setBinKind}
                         placeholder="Tür"

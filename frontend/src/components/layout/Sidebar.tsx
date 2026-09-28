@@ -117,7 +117,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const { enabled: dockOn, toggle: toggleDock, animating: dockAnimating } = useDockMode();
   const { phase: ratesPhase, toggleFromSidebar } = useRates();
   const { enabled: gwOn, toggle: toggleGw } = useGestureWind();
-  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
+  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const ratesOn = ratesPhase !== 'idle';
   const location = useLocation();
   const collapsedLogo = faviconUrl || '/brand/logo-icon.png';
@@ -137,10 +137,11 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const footerSlotRef = useRef<HTMLDivElement>(null);
   const { open: vaultOpen, openVault, closeVault, sidebarBtnRef } = useVault();
 
+  // Yetki yüklenene kadar menüyü boş tut — yetkisiz öğe flaşını önle
   const navItems =
     permPagesReady && !rolesLoading
-      ? NAV_ITEMS.filter((item) => canViewPath(item.to).allowed)
-      : NAV_ITEMS;
+      ? NAV_ITEMS.filter((item) => canViewNavItem(item.to))
+      : [];
 
   useEffect(() => {
     if (settingsActive) setFooterSlot(5);
@@ -485,7 +486,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   );
 
   const settingsLink =
-    !permPagesReady || rolesLoading || canViewPath('/ayarlar').allowed ? (
+    permPagesReady && !rolesLoading && canViewNavItem('/ayarlar') ? (
     <Link
       to="/ayarlar"
       aria-label="Ayarlar"

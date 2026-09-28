@@ -53,7 +53,7 @@ function initialsOf(name: string) {
  */
 export function ProfileMenu() {
   const { user, logout } = useAuth();
-  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
+  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<PanelPos>({ placement: 'down', top: 0, left: 0 });
@@ -65,8 +65,8 @@ export function ProfileMenu() {
   const role = roleLabel(user?.roles ?? []);
   const menuItems =
     permPagesReady && !rolesLoading
-      ? MENU.filter((item) => canViewPath(item.to).allowed)
-      : MENU;
+      ? MENU.filter((item) => canViewNavItem(item.to))
+      : [];
 
   function updatePos() {
     const btn = btnRef.current;

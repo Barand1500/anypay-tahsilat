@@ -25,6 +25,7 @@ import {
 import {
   findModuleForPath,
   isAlwaysAllowedPath,
+  normalizePath,
   resolveModuleId,
 } from './permResolve';
 
@@ -51,6 +52,8 @@ type PermissionContextValue = {
   can: (moduleId: string, action: PermAction) => boolean;
   /** Rota görüntüleme — eşleşen modül yoksa açık */
   canViewPath: (pathname: string) => PathViewResult;
+  /** Sidebar / profil menü — yetkisiz öğeyi hiç gösterme */
+  canViewNavItem: (pathname: string) => boolean;
 };
 
 const PermissionContext = createContext<PermissionContextValue | null>(null);
@@ -67,6 +70,20 @@ function elevatedSession(role: AppRole | undefined, authRoles: string[] | undefi
         c.includes('SUPERAPP'),
     ),
   );
+}
+
+/** Menü yolu ile ilgili modüller (üst + alt path) */
+function relatedModules(pathname: string, pages: PermPage[]): PermPage[] {
+  const base = normalizePath(pathname);
+  return pages.filter((p) => {
+    const pref = normalizePath(p.urlPrefix || '');
+    if (!pref) return false;
+    // Özet: yalnızca tam `/` veya `/ozet` — her path’i çocuk sayma
+    if (base === '/') {
+      return pref === '/' || pref === '/ozet';
+    }
+    return pref === base || pref.startsWith(`${base}/`);
+  });
 }
 
 export function PermissionProvider({ children }: { children: ReactNode }) {
@@ -155,12 +172,39 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       if (elevatedSession(sessionRole, user?.roles)) return { allowed: true };
 
       const mod = findModuleForPath(pathname, permPages);
-      // Kataloğda yok → henüz bağlanmamış rota; kilitleme
-      if (!mod) return { allowed: true };
+      if (mod) {
+        const p = getPermForModule(sessionRole, mod.id);
+        if (p.view) return { allowed: true };
+        return { allowed: false, pageName: mod.name, moduleId: mod.id };
+      }
 
-      const p = getPermForModule(sessionRole, mod.id);
-      if (p.view) return { allowed: true };
-      return { allowed: false, pageName: mod.name, moduleId: mod.id };
+      // Üst menü yolu (örn. /raporlar) — alt modüllerden en az biri açık mı?
+      const related = relatedModules(pathname, permPages);
+      if (related.length > 0) {
+        const open = related.find((m) => getPermForModule(sessionRole, m.id).view);
+        if (open) return { allowed: true };
+        const first = related[0]!;
+        return { allowed: false, pageName: first.name, moduleId: first.id };
+      }
+
+      // Katalogda yok → bilinmeyen rota; kilitleme (eski davranış)
+      return { allowed: true };
+    },
+    [sessionRole, user?.roles, permPages],
+  );
+
+  /** Menü: bu path veya altındaki hiç bir modülde view yoksa gizle */
+  const canViewNavItem = useCallback(
+    (pathname: string): boolean => {
+      if (isAlwaysAllowedPath(pathname)) return true;
+      if (elevatedSession(sessionRole, user?.roles)) return true;
+
+      const related = relatedModules(pathname, permPages);
+      if (related.length === 0) {
+        // Katalogda karşılık yok → menüde gösterme (önceden yanlışlıkla açık kalıyordu)
+        return false;
+      }
+      return related.some((m) => getPermForModule(sessionRole, m.id).view);
     },
     [sessionRole, user?.roles, permPages],
   );
@@ -191,6 +235,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       guard,
       can,
       canViewPath,
+      canViewNavItem,
     }),
     [
       roles,
@@ -202,6 +247,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       guard,
       can,
       canViewPath,
+      canViewNavItem,
     ],
   );
 

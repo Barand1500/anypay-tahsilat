@@ -90,7 +90,7 @@ type Props = {
 export function GlobalSearch({ open, onClose }: Props) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { canViewPath } = usePermission();
+  const { canViewNavItem } = usePermission();
   const { customers } = useCustomersList({ enabled: open, parentId: 'all' });
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -109,7 +109,7 @@ export function GlobalSearch({ open, onClose }: Props) {
   );
 
   const allItems = useMemo((): SearchItem[] => {
-    const pages: SearchItem[] = NAV_ITEMS.filter((n) => canViewPath(n.to).allowed).map(
+    const pages: SearchItem[] = NAV_ITEMS.filter((n) => canViewNavItem(n.to)).map(
       (n) => ({
         id: `page-${n.to}`,
         category: 'pages' as const,
@@ -120,7 +120,7 @@ export function GlobalSearch({ open, onClose }: Props) {
       }),
     );
 
-    const admin: SearchItem[] = ADMIN_PAGES.filter((n) => canViewPath(n.to).allowed).map(
+    const admin: SearchItem[] = ADMIN_PAGES.filter((n) => canViewNavItem(n.to)).map(
       (n) => ({
         id: `admin-${n.to}`,
         category: 'admin' as const,
@@ -180,7 +180,7 @@ export function GlobalSearch({ open, onClose }: Props) {
     ];
 
     return [...pages, ...admin, ...actions, ...customerItems, ...users];
-  }, [canViewPath, customers, go, onClose, theme, toggleTheme]);
+  }, [canViewNavItem, customers, go, onClose, theme, toggleTheme]);
 
   const qNorm = norm(query.trim());
 

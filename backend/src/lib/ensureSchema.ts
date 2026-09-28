@@ -543,21 +543,20 @@ export async function ensureVergiDairesiLocationColumns(): Promise<void> {
   }
 }
 
-/** Kart BIN kayıtları */
+/** Kart BIN kayıtları — tablo + kolon onarımı + eski ad eşleme */
 export async function ensureBinKayitlariTable(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS \`bin_kayitlari\` (
         \`id\` INT NOT NULL AUTO_INCREMENT,
         \`banka_id\` INT NULL,
-        \`banka_adi\` VARCHAR(255) NOT NULL,
-        \`bin\` VARCHAR(8) NOT NULL,
+        \`banka_adi\` VARCHAR(255) NOT NULL DEFAULT '',
+        \`bin\` VARCHAR(8) NOT NULL DEFAULT '',
         \`tip\` VARCHAR(64) NULL,
         \`marka\` VARCHAR(64) NULL,
         \`tur\` VARCHAR(64) NULL,
         \`remove\` TINYINT(1) NULL,
         PRIMARY KEY (\`id\`),
-        UNIQUE KEY \`bin_kayitlari_bin_key\` (\`bin\`),
         INDEX \`bin_kayitlari_banka_id_idx\` (\`banka_id\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
@@ -570,6 +569,40 @@ export async function ensureBinKayitlariTable(): Promise<void> {
       { name: 'tur', ddl: 'VARCHAR(64) NULL' },
       { name: 'remove', ddl: 'TINYINT(1) NULL' },
     ]);
+
+    // Eski PHP kolon adları → yeni
+    const cols = await prisma.$queryRawUnsafe<{ COLUMN_NAME: string }[]>(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bin_kayitlari'`,
+    );
+    const names = new Set(cols.map((c) => c.COLUMN_NAME));
+    if (names.has('banka') && names.has('banka_adi')) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`bin_kayitlari\` SET \`banka_adi\` = \`banka\` WHERE (\`banka_adi\` IS NULL OR \`banka_adi\` = '') AND \`banka\` IS NOT NULL`,
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!names.has('bin') && names.has('bin_kodu')) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`bin_kayitlari\` SET \`bin\` = LEFT(CAST(\`bin_kodu\` AS CHAR), 8) WHERE (\`bin\` IS NULL OR \`bin\` = '')`,
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // Unique index (yoksa ekle)
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE \`bin_kayitlari\` ADD UNIQUE KEY \`bin_kayitlari_bin_key\` (\`bin\`)`,
+      );
+    } catch {
+      /* var veya boş bin’ler çakışıyor */
+    }
   } catch (err) {
     console.warn('[schema] bin_kayitlari oluşturma atlandı:', err);
   }

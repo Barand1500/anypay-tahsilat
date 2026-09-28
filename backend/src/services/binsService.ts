@@ -74,11 +74,43 @@ async function resolveBank(opts: {
 }
 
 export async function listBins(): Promise<PublicBin[]> {
-  const rows = await prisma.binKayit.findMany({
-    where: notRemoved(),
-    orderBy: [{ bankaAdi: 'asc' }, { bin: 'asc' }],
-  });
-  return rows.map(mapRow);
+  try {
+    const rows = await prisma.binKayit.findMany({
+      where: notRemoved(),
+      orderBy: [{ bankaAdi: 'asc' }, { bin: 'asc' }],
+    });
+    return rows.map(mapRow);
+  } catch (err) {
+    console.error('[bins] prisma listBins:', err);
+    // Ham SQL yedek — kolon uyumsuzluğunda paneli ayakta tut
+    const rows = await prisma.$queryRawUnsafe<
+      {
+        id: number;
+        banka_id: number | null;
+        banka_adi: string | null;
+        bin: string;
+        tip: string | null;
+        marka: string | null;
+        tur: string | null;
+      }[]
+    >(`
+      SELECT id, banka_id, banka_adi, bin, tip, marka, tur
+      FROM \`bin_kayitlari\`
+      WHERE \`remove\` IS NULL OR \`remove\` = 0
+      ORDER BY banka_adi ASC, bin ASC
+    `);
+    return rows.map((r) =>
+      mapRow({
+        id: r.id,
+        bankaId: r.banka_id,
+        bankaAdi: r.banka_adi || '',
+        bin: String(r.bin || ''),
+        tip: r.tip,
+        marka: r.marka,
+        tur: r.tur,
+      }),
+    );
+  }
 }
 
 export type BinUpsert = {

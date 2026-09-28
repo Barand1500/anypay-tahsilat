@@ -9,6 +9,7 @@ import {
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuickAccess } from '../../components/layout/QuickAccessContext';
 import { EXTRA_QUICK_ITEMS, findNavItem, type NavItem } from '../../components/layout/navItems';
+import { usePermission } from '../../permissions/PermissionContext';
 import { REPORT_SUBNAV } from './statisticsTypes';
 
 const HOLD_MS = 380;
@@ -17,12 +18,18 @@ const HOLD_MS = 380;
 export function ReportSubnav() {
   const location = useLocation();
   const { startDrag, drag } = useQuickAccess();
+  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const firstPill = useRef(true);
   const holdTimer = useRef<number | null>(null);
   const holdItem = useRef<NavItem | null>(null);
   const suppressNavClick = useRef(false);
+
+  const tabs =
+    permPagesReady && !rolesLoading
+      ? REPORT_SUBNAV.filter((item) => !item.ready || canViewNavItem(item.to))
+      : [];
 
   function placePill(instant: boolean) {
     const track = trackRef.current;
@@ -137,7 +144,7 @@ export function ReportSubnav() {
         style={{ opacity: 0, left: 0, top: 0, width: 0, height: 0 }}
       />
 
-      {REPORT_SUBNAV.map((item) =>
+      {tabs.map((item) =>
         item.ready ? (
           <NavLink
             key={item.to}

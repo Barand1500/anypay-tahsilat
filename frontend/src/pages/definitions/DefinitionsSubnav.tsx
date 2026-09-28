@@ -18,7 +18,7 @@ const HOLD_MS = 380;
 export function DefinitionsSubnav() {
   const location = useLocation();
   const { startDrag, drag } = useQuickAccess();
-  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
+  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const firstPill = useRef(true);
@@ -28,8 +28,8 @@ export function DefinitionsSubnav() {
 
   const tabs =
     permPagesReady && !rolesLoading
-      ? DEFINITIONS_SUBNAV.filter((item) => !item.ready || canViewPath(item.to).allowed)
-      : DEFINITIONS_SUBNAV;
+      ? DEFINITIONS_SUBNAV.filter((item) => !item.ready || canViewNavItem(item.to))
+      : [];
 
   function placePill(instant: boolean) {
     const track = trackRef.current;

@@ -27,7 +27,7 @@ type Props = {
 export function NestedDefSubnav({ items, activeClass = 'is-nested-def-tab-active' }: Props) {
   const location = useLocation();
   const { startDrag, drag } = useQuickAccess();
-  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
+  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const firstPill = useRef(true);
@@ -37,8 +37,8 @@ export function NestedDefSubnav({ items, activeClass = 'is-nested-def-tab-active
 
   const visibleItems =
     permPagesReady && !rolesLoading
-      ? items.filter((item) => canViewPath(item.to).allowed)
-      : [...items];
+      ? items.filter((item) => canViewNavItem(item.to))
+      : [];
 
   function placePill(instant: boolean) {
     const track = trackRef.current;
