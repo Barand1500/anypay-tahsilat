@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { api } from './api';
-import { setRuntimeBins } from './binStore';
+import { api } from '../lib/api';
+import { setRuntimeBins } from '../lib/binStore';
 
 type ApiBin = {
   id: string;

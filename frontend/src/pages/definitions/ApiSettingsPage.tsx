@@ -48,7 +48,7 @@ export default function ApiSettingsPage() {
   const [category, setCategory] = useState<ApiCategoryId | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [apiBusy, setApiBusy] = useState(false);
-  const [binsLoading, setBinsLoading] = useState(false);
+  const [, setBinsLoading] = useState(false);
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [taxOffices, setTaxOffices] = useState<TaxOfficeRow[]>([]);

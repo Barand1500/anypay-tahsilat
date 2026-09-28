@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';

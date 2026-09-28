@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { usePermission } from '../../permissions/PermissionContext';
+import { usePermission } from './PermissionContext';
 
 /**
  * Rota görüntüleme kapısı — Görüntüle izni yoksa içeriği basmaz.

@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
-import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import type { BankDef } from './bankTypes';
 import { setVirtualPosList, type VirtualPosRow } from './mockPos';
 import { VirtualPosModal, type VirtualPosModalMode } from './VirtualPosModal';
