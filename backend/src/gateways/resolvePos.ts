@@ -107,8 +107,32 @@ function assertReady(c: PosCredentials): void {
 
 /**
  * Bankanın aktif POS’unu yükler.
- * Yoksa Ortak Sanal POS yönlendirmesiyle hedef bankanın POS’una düşer.
+ * Yoksa: Ortak Sanal POS yönlendirmesi → global varsayılan POS (referans davranış).
+ * Örn. VakıfBank POS’suz; Garanti varsayılan → Garanti ile çekilir, 3DS ACS yine kart bankası.
  */
+async function loadDefaultPosBankId(excludeBankId?: number): Promise<number | null> {
+  const defaultPos = await prisma.sanalPosTanim.findFirst({
+    where: {
+      aktif: true,
+      varsayilan: true,
+      ...(excludeBankId != null ? { NOT: { bankaId: excludeBankId } } : {}),
+      ...notRemoved(),
+    },
+    orderBy: { id: 'asc' },
+  });
+  if (defaultPos) return defaultPos.bankaId;
+
+  const anyPos = await prisma.sanalPosTanim.findFirst({
+    where: {
+      aktif: true,
+      ...(excludeBankId != null ? { NOT: { bankaId: excludeBankId } } : {}),
+      ...notRemoved(),
+    },
+    orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
+  });
+  return anyPos?.bankaId ?? null;
+}
+
 async function loadPosForBank(
   bankId: number,
   opts?: { skipRedirect?: boolean },
@@ -138,6 +162,11 @@ async function loadPosForBank(
       const redirectId = await resolveRedirectBankId(bankId);
       if (redirectId != null && redirectId !== bankId) {
         return loadPosForBank(redirectId, { skipRedirect: true });
+      }
+      // Ortak tanım yok → varsayılan aktif POS (Garanti vb.)
+      const fallbackId = await loadDefaultPosBankId(bankId);
+      if (fallbackId != null) {
+        return loadPosForBank(fallbackId, { skipRedirect: true });
       }
     }
     throw new PosResolveError(
