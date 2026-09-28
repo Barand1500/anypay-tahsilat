@@ -1,4 +1,10 @@
 import { randomBytes } from 'node:crypto';
+import {
+  initiateThreeD,
+  PosResolveError,
+  resolvePosForPayment,
+  type ThreeDForm,
+} from '../gateways/index.js';
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
 import { resolveAllowedInstallments } from './installmentPriorityService.js';
@@ -20,11 +26,18 @@ export type CreatePaymentInput = {
   tc?: string;
   phone: string;
   cardDigits: string;
+  /** MMYY — 3DS için zorunlu */
+  expiry: string;
+  cvc: string;
   installment: number;
   note?: string;
   kullaniciId: number;
   /** Yoksa aktif varsayılan (TL) */
   parabirimiId?: number | null;
+  /** DB banka id (opsiyonel; yoksa BIN ile bulunur) */
+  bankId?: number | null;
+  clientIp?: string;
+  email?: string;
 };
 
 export type TxStatus = 'paid' | 'cancelled' | 'refunded' | 'pending' | 'failed';
@@ -109,7 +122,13 @@ function makeOdemeNo(): string {
 
 function bankLogoUrl(logo: string | null | undefined): string {
   if (!logo) return '';
-  const file = logo.replace(/^banka\//i, '').replace(/^\/+/, '');
+  const raw = logo.trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/banks/') || raw.startsWith('/uploads/')) return raw;
+  if (raw.startsWith('uploads/')) return `/${raw}`;
+  if (raw.startsWith('bankalar/')) return `/uploads/${raw}`;
+  const file = raw.replace(/^banka\//i, '').replace(/^\/+/, '');
   if (!file) return '';
   return `/banks/${file}`;
 }
@@ -302,7 +321,26 @@ export type PublicPayment = {
   amount: number;
   durum: number;
   tarih: string | null;
+  status: 'pending_3d' | 'paid' | 'failed';
+  bankName?: string;
+  /** Bankaya POST edilecek 3DS formu — kart alanları yalnızca burada (DB’de yok) */
+  threeD?: ThreeDForm;
 };
+
+function publicApiBase(): string {
+  return (
+    process.env.PUBLIC_API_URL?.replace(/\/$/, '') ||
+    process.env.PUBLIC_APP_URL?.replace(/\/$/, '') ||
+    'https://tahsilat.anypay.com.tr'
+  );
+}
+
+function expiryMmyy(raw: string): string {
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 4) return d;
+  if (d.length === 6) return d.slice(0, 2) + d.slice(-2);
+  return d;
+}
 
 export async function createPayment(input: CreatePaymentInput): Promise<PublicPayment> {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
@@ -324,6 +362,11 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     throw new PaymentsError('Kart numarası geçersiz');
   }
 
+  const expiry = expiryMmyy(input.expiry || '');
+  const cvc = (input.cvc || '').replace(/\D/g, '');
+  if (expiry.length !== 4) throw new PaymentsError('Son kullanma tarihi MMYY olmalı');
+  if (cvc.length < 3) throw new PaymentsError('CVC gerekli');
+
   let currency;
   try {
     currency = await resolveCurrencyId(input.parabirimiId ?? null);
@@ -343,8 +386,51 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     throw err;
   }
 
+  let pos;
+  try {
+    pos = await resolvePosForPayment({
+      cardDigits: digits,
+      bankId: input.bankId ?? null,
+    });
+  } catch (err) {
+    if (err instanceof PosResolveError) throw new PaymentsError(err.message);
+    throw err;
+  }
+
   const now = new Date();
   const odemeNo = makeOdemeNo();
+  const installment = input.installment > 0 ? input.installment : 1;
+  const apiBase = publicApiBase();
+
+  const threeDResult = initiateThreeD({
+    pos,
+    orderId: odemeNo,
+    amount: input.amount,
+    currencyCode: currency.shortName || 'TRY',
+    installment,
+    card: {
+      number: digits,
+      holder: input.holder.trim(),
+      expiry,
+      cvc,
+    },
+    okUrl: `${apiBase}/api/payments/3d/ok`,
+    failUrl: `${apiBase}/api/payments/3d/fail`,
+    clientIp: input.clientIp,
+    email: input.email,
+  });
+
+  if (threeDResult.kind === 'error') {
+    throw new PaymentsError(threeDResult.message);
+  }
+
+  const meta = JSON.stringify({
+    adapter: threeDResult.adapter,
+    posId: pos.posId,
+    securityType: pos.securityType,
+    startedAt: now.toISOString(),
+  });
+
   const row = await prisma.odeme.create({
     data: {
       parabirimiId: currency.id,
@@ -358,13 +444,16 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       tc: (input.tc || '').trim() || null,
       telefon: formatPhone(input.phone).slice(0, 255),
       kartNo: maskCard(digits).slice(0, 255),
-      taksit: input.installment > 0 ? input.installment : 1,
+      taksit: installment,
       odemeNo,
-      durum: 1,
-      bankaCevabi: 'Panel kaydı — sanal POS 3D Secure banka çağrısı sonraki adım',
+      durum: 3,
+      bankaCevabi: meta,
       odemeTipi: tipFromPayType(input.payType),
       tarih: now,
       kullaniciId: input.kullaniciId,
+      bankaId: pos.bankId,
+      sanalposBankaId: pos.bankId,
+      ip: (input.clientIp || '').slice(0, 255) || null,
       arsiv: false,
     },
   });
@@ -376,6 +465,9 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     amount: row.tutar,
     durum: row.durum,
     tarih: row.tarih ? row.tarih.toISOString() : null,
+    status: 'pending_3d',
+    bankName: pos.bankName,
+    threeD: threeDResult.form,
   };
 }
 

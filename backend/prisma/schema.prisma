@@ -155,15 +155,59 @@ model CariTipi {
   @@map("cari_tipleri")
 }
 
-/** Bankalar */
+/** Bankalar — sanal POS endpoint’leri dahil */
 model Banka {
-  id      Int      @id @default(autoincrement())
-  adi     String   @db.VarChar(255)
-  kisaAdi String   @map("kisa_adi") @db.VarChar(255)
-  logo    String?  @db.VarChar(255)
-  remove  Boolean?
+  id              Int      @id @default(autoincrement())
+  adi             String   @db.VarChar(255)
+  kisaAdi         String   @map("kisa_adi") @db.VarChar(255)
+  logo            String?  @db.VarChar(255)
+  /** Örn. 3D,3D_PAY,3D_HOST */
+  guvenlikTipleri String?  @map("guvenlik_tipleri") @db.VarChar(255)
+  sanalPos3dUrl   String?  @map("sanal_pos_3d_url") @db.VarChar(512)
+  sanalPosApiUrl  String?  @map("sanal_pos_api_url") @db.VarChar(512)
+  sanalPosXmlUrl  String?  @map("sanal_pos_xml_url") @db.VarChar(512)
+  remove          Boolean?
 
   @@map("bankalar")
+}
+
+/** Kart BIN kayıtları — Api Ayarları › BIN (kart → banka eşlemesi) */
+model BinKayit {
+  id       Int      @id @default(autoincrement())
+  bankaId  Int?     @map("banka_id")
+  bankaAdi String   @map("banka_adi") @db.VarChar(255)
+  bin      String   @db.VarChar(8)
+  tip      String?  @db.VarChar(64)
+  marka    String?  @db.VarChar(64)
+  tur      String?  @db.VarChar(64)
+  remove   Boolean?
+
+  @@unique([bin])
+  @@index([bankaId])
+  @@map("bin_kayitlari")
+}
+
+/**
+ * Sanal POS tanımları — üye işyeri / terminal / güvenlik anahtarı
+ * (eski panel: Sanal POS Tanımları)
+ */
+model SanalPosTanim {
+  id               Int      @id @default(autoincrement())
+  bankaId          Int      @map("banka_id")
+  altyapiKodu      String   @map("altyapi_kodu") @db.VarChar(64)
+  posAdi           String   @map("pos_adi") @db.VarChar(255)
+  isyeriNo         String?  @map("isyeri_no") @db.VarChar(255)
+  terminalSafeId   String?  @map("terminal_safe_id") @db.VarChar(255)
+  guvenlikAnahtari String?  @map("guvenlik_anahtari") @db.VarChar(512)
+  /** NestPay / Garanti — terminal / provizyon şifresi */
+  terminalSifresi  String?  @map("terminal_sifresi") @db.VarChar(255)
+  guvenlikTipi     String?  @map("guvenlik_tipi") @db.VarChar(64)
+  varsayilan       Boolean? @default(false)
+  aktif            Boolean? @default(true)
+  remove           Boolean?
+
+  @@index([bankaId])
+  @@map("sanal_pos_tanimlari")
 }
 
 /**
@@ -383,9 +427,11 @@ model IletisimBilgileri {
 
 /** Vergi daireleri — iletişim formu seçenekleri */
 model VergiDairesi {
-  id     Int      @id @default(autoincrement())
-  adi    String   @db.VarChar(255)
-  remove Boolean?
+  id      Int      @id @default(autoincrement())
+  adi     String   @db.VarChar(255)
+  ilAdi   String?  @map("il_adi") @db.VarChar(255)
+  ilceAdi String?  @map("ilce_adi") @db.VarChar(255)
+  remove  Boolean?
 
   @@map("vergi_daireleri")
 }

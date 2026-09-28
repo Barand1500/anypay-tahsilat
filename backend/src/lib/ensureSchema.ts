@@ -189,6 +189,35 @@ export async function ensureSmsSchema(): Promise<void> {
   /* no-op */
 }
 
+/** bankalar — sanal POS URL / güvenlik tipi sütunları */
+export async function ensureBankPosColumns(): Promise<void> {
+  const cols: { name: string; ddl: string }[] = [
+    { name: 'guvenlik_tipleri', ddl: 'VARCHAR(255) NULL' },
+    { name: 'sanal_pos_3d_url', ddl: 'VARCHAR(512) NULL' },
+    { name: 'sanal_pos_api_url', ddl: 'VARCHAR(512) NULL' },
+    { name: 'sanal_pos_xml_url', ddl: 'VARCHAR(512) NULL' },
+  ];
+  for (const col of cols) {
+    try {
+      const rows = await prisma.$queryRawUnsafe<{ COLUMN_NAME: string }[]>(
+        `SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'bankalar'
+           AND COLUMN_NAME = '${col.name}'
+         LIMIT 1`,
+      );
+      if (rows[0]) continue;
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE \`bankalar\` ADD COLUMN \`${col.name}\` ${col.ddl}`,
+      );
+      console.log(`[schema] bankalar.${col.name} eklendi`);
+    } catch (err) {
+      console.warn(`[schema] bankalar.${col.name} atlandı:`, err);
+    }
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
@@ -200,4 +229,81 @@ export async function ensureSchema(): Promise<void> {
   await ensureSmtpAyarlarColumn();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();
+  await ensureBankPosColumns();
+  await ensureSanalPosTanimlariTable();
+  await ensureBinKayitlariTable();
+  await ensureVergiDairesiLocationColumns();
+}
+
+/** Vergi dairesi il / ilçe adı kolonları */
+export async function ensureVergiDairesiLocationColumns(): Promise<void> {
+  for (const col of [
+    { name: 'il_adi', ddl: 'VARCHAR(255) NULL' },
+    { name: 'ilce_adi', ddl: 'VARCHAR(255) NULL' },
+  ]) {
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE \`vergi_daireleri\` ADD COLUMN \`${col.name}\` ${col.ddl}`,
+      );
+    } catch {
+      /* kolon var */
+    }
+  }
+}
+
+/** Kart BIN kayıtları */
+export async function ensureBinKayitlariTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`bin_kayitlari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`banka_id\` INT NULL,
+        \`banka_adi\` VARCHAR(255) NOT NULL,
+        \`bin\` VARCHAR(8) NOT NULL,
+        \`tip\` VARCHAR(64) NULL,
+        \`marka\` VARCHAR(64) NULL,
+        \`tur\` VARCHAR(64) NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`bin_kayitlari_bin_key\` (\`bin\`),
+        INDEX \`bin_kayitlari_banka_id_idx\` (\`banka_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] bin_kayitlari oluşturma atlandı:', err);
+  }
+}
+
+/** Sanal POS tanımları tablosu */
+export async function ensureSanalPosTanimlariTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`sanal_pos_tanimlari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`banka_id\` INT NOT NULL,
+        \`altyapi_kodu\` VARCHAR(64) NOT NULL,
+        \`pos_adi\` VARCHAR(255) NOT NULL,
+        \`isyeri_no\` VARCHAR(255) NULL,
+        \`terminal_safe_id\` VARCHAR(255) NULL,
+        \`guvenlik_anahtari\` VARCHAR(512) NULL,
+        \`terminal_sifresi\` VARCHAR(255) NULL,
+        \`guvenlik_tipi\` VARCHAR(64) NULL,
+        \`varsayilan\` TINYINT(1) NULL DEFAULT 0,
+        \`aktif\` TINYINT(1) NULL DEFAULT 1,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        INDEX \`sanal_pos_tanimlari_banka_id_idx\` (\`banka_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (err) {
+    console.warn('[schema] sanal_pos_tanimlari oluşturma atlandı:', err);
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `sanal_pos_tanimlari` ADD COLUMN `terminal_sifresi` VARCHAR(255) NULL',
+    );
+  } catch {
+    /* kolon zaten var */
+  }
 }

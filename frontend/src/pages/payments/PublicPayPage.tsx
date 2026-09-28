@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { api } from '../../lib/api';
+import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import {
   detectBank,
@@ -140,17 +141,20 @@ export default function PublicPayPage() {
     if (!payToken || !view || view.status === 'paid' || !validate()) return;
     setSaving(true);
     try {
-      const data = await api.post<{ odemeNo: string; amount: number }>(
+      const data = await api.post<PaymentCreateResult>(
         `/api/pay/${encodeURIComponent(payToken)}`,
         {
           holder: holder.trim(),
           tc: digitsOnly(tc) || undefined,
           phone: digitsOnly(phone).slice(0, 10),
           cardDigits: digitsOnly(card),
+          expiry: digitsOnly(expiry).slice(0, 4),
+          cvc: digitsOnly(cvc),
           installment,
           note: view.description,
         },
       );
+      if (maybeStartThreeD(data)) return;
       setDone(data);
     } catch (err) {
       setToast(err instanceof Error ? err.message : 'Ödeme alınamadı');
@@ -306,7 +310,7 @@ export default function PublicPayPage() {
                   : `Öde — ${formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}`}
               </button>
               <p className="text-center text-[11px] text-[var(--panel-muted)]">
-                Kart bilgileri bankaya iletilmeden önce panel kaydı oluşturulur; 3D Secure sonraki adım.
+                Banka 3D Secure doğrulamasına yönlendirileceksiniz.
               </p>
             </form>
           )}

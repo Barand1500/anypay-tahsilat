@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useBrand } from '../../brand/BrandContext';
 import { useKeyboardMode } from '../../keyboard/KeyboardModeContext';
+import { usePermission } from '../../permissions/PermissionContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useDockMode } from './DockModeContext';
 import { useGestureWind } from './GestureWindContext';
@@ -126,6 +127,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const { enabled: dockOn, toggle: toggleDock, animating: dockAnimating } = useDockMode();
   const { phase: ratesPhase, toggleFromSidebar } = useRates();
   const { enabled: gwOn, toggle: toggleGw } = useGestureWind();
+  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
   const ratesOn = ratesPhase !== 'idle';
   const location = useLocation();
   const collapsedLogo = faviconUrl || '/brand/logo-icon.png';
@@ -144,6 +146,11 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const [footerSlot, setFooterSlot] = useState(0);
   const footerSlotRef = useRef<HTMLDivElement>(null);
   const [soonToast, setSoonToast] = useState(false);
+
+  const navItems =
+    permPagesReady && !rolesLoading
+      ? NAV_ITEMS.filter((item) => canViewPath(item.to).allowed)
+      : NAV_ITEMS;
 
   useEffect(() => {
     if (settingsActive) setFooterSlot(5);
@@ -343,7 +350,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         className={['sidebar-active-pill', open ? '' : 'sidebar-active-pill--compact'].join(' ')}
         style={{ opacity: 0, top: 0, left: 0, width: 0, height: 0 }}
       />
-      {NAV_ITEMS.map((item) => (
+      {navItems.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}

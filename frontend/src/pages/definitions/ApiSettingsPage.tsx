@@ -1,21 +1,21 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
+import { setRuntimeBins } from '../../lib/binStore';
+import { api } from '../../lib/api';
 import { ApiCategoryModal } from './ApiCategoryModal';
 import { ApiExcelModal } from './ApiExcelModal';
 import { LocationModal, type LocationFocusField } from './LocationModal';
 import {
   API_CATEGORIES,
   INITIAL_BANKS,
-  INITIAL_BINS,
-  INITIAL_LOCATIONS,
-  INITIAL_TAX_OFFICES,
   categoryMeta,
-  ensureLocationPath,
   getApiBaseUrl,
   locationAncestors,
   locationDuplicate,
@@ -29,6 +29,7 @@ import {
   type LocationRow,
   type TaxOfficeRow,
 } from './mockApiSettings';
+import { persistLocationDiff } from './persistLocations';
 
 gsap.registerPlugin(useGSAP);
 
@@ -38,6 +39,8 @@ type Toast = { kind: 'ok' | 'err'; text: string } | null;
  * Tanımlamalar › Api Ayarları — hub (kategori kutuları) + detay çarşaf liste.
  */
 export default function ApiSettingsPage() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -45,13 +48,91 @@ export default function ApiSettingsPage() {
   const [category, setCategory] = useState<ApiCategoryId | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [apiBusy, setApiBusy] = useState(false);
+  const [binsLoading, setBinsLoading] = useState(false);
 
-  const [locations, setLocations] = useState(() =>
-    INITIAL_LOCATIONS.map((r) => ({ ...r })),
-  );
-  const [taxOffices, setTaxOffices] = useState(() => INITIAL_TAX_OFFICES.map((r) => ({ ...r })));
+  const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [taxOffices, setTaxOffices] = useState<TaxOfficeRow[]>([]);
   const [banks, setBanks] = useState(() => INITIAL_BANKS.map((r) => ({ ...r })));
-  const [bins, setBins] = useState(() => INITIAL_BINS.map((r) => ({ ...r })));
+  const [bins, setBins] = useState<BinRow[]>([]);
+
+  const syncRuntimeBins = useCallback((list: BinRow[]) => {
+    setRuntimeBins(
+      list.map((r) => ({
+        bin: r.bin,
+        bankId: (r as BinRow & { bankId?: string }).bankId || '',
+        bankName: r.bank,
+      })),
+    );
+  }, []);
+
+  const loadLocations = useCallback(async () => {
+    if (!token) return 0;
+    try {
+      const list = await api.get<LocationRow[]>('/api/locations', token);
+      setLocations(list);
+      return list.length;
+    } catch (err) {
+      setToast({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'Lokasyonlar yüklenemedi',
+      });
+      return 0;
+    }
+  }, [token]);
+
+  const loadTaxOffices = useCallback(async () => {
+    if (!token) return 0;
+    try {
+      const list = await api.get<TaxOfficeRow[]>('/api/tax-offices', token);
+      setTaxOffices(list);
+      return list.length;
+    } catch (err) {
+      setToast({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'Vergi daireleri yüklenemedi',
+      });
+      return 0;
+    }
+  }, [token]);
+
+  const loadBins = useCallback(async () => {
+    if (!token) return;
+    setBinsLoading(true);
+    try {
+      const list = await api.get<
+        { id: string; bankId: string; bank: string; bin: string; type: string; brand: string; kind: string }[]
+      >('/api/bins', token);
+      const mapped: BinRow[] = list.map((r) => ({
+        id: r.id,
+        bank: r.bank,
+        bin: r.bin,
+        type: r.type,
+        brand: r.brand,
+        kind: r.kind,
+        bankId: r.bankId,
+      })) as BinRow[];
+      setBins(mapped);
+      syncRuntimeBins(mapped);
+      return mapped.length;
+    } catch (err) {
+      setToast({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'BIN listesi yüklenemedi',
+      });
+      return 0;
+    } finally {
+      setBinsLoading(false);
+    }
+  }, [token, syncRuntimeBins]);
+
+  useEffect(() => {
+    if (category === 'bin') void loadBins();
+    if (category === 'locations') void loadLocations();
+    if (category === 'tax-offices') {
+      void loadTaxOffices();
+      void loadLocations();
+    }
+  }, [category, loadBins, loadLocations, loadTaxOffices]);
 
   const [endpointDraft, setEndpointDraft] = useState('');
   const [query, setQuery] = useState('');
@@ -120,20 +201,45 @@ export default function ApiSettingsPage() {
   }
 
   function openCategory(id: ApiCategoryId) {
+    // Bankalar — canlı sayfa (mock kategori değil)
+    if (id === 'banks') {
+      navigate('/tanimlamalar/bankalar');
+      return;
+    }
     setCategory(id);
   }
 
   async function retryApi() {
     if (!category) return;
+    if (category === 'bin') {
+      setApiBusy(true);
+      const n = await loadBins();
+      setApiBusy(false);
+      setToast({
+        kind: 'ok',
+        text: `BIN listesi yenilendi — ${n ?? 0} kayıt`,
+      });
+      return;
+    }
+    if (category === 'locations') {
+      setApiBusy(true);
+      const n = await loadLocations();
+      setApiBusy(false);
+      setToast({ kind: 'ok', text: `Lokasyonlar yenilendi — ${n} kayıt` });
+      return;
+    }
+    if (category === 'tax-offices') {
+      setApiBusy(true);
+      const n = await loadTaxOffices();
+      setApiBusy(false);
+      setToast({ kind: 'ok', text: `Vergi daireleri yenilendi — ${n} kayıt` });
+      return;
+    }
     setApiBusy(true);
     const res = await mockFetchCategory(category, endpointDraft);
     setApiBusy(false);
     if (res.ok) {
-      // Mock: veriyi başlangıç setine “yenile”
-      if (category === 'locations') setLocations(INITIAL_LOCATIONS.map((r) => ({ ...r })));
-      if (category === 'tax-offices') setTaxOffices(INITIAL_TAX_OFFICES.map((r) => ({ ...r })));
       if (category === 'banks') setBanks(INITIAL_BANKS.map((r) => ({ ...r })));
-      if (category === 'bin') setBins(INITIAL_BINS.map((r) => ({ ...r })));
       setToast({ kind: 'ok', text: `API başarılı — ${res.count} kayıt alındı` });
     } else {
       setToast({ kind: 'err', text: res.message });
@@ -370,32 +476,63 @@ export default function ApiSettingsPage() {
     return exists ? { status: 'exists', note: 'Zaten kayıtlı' } : { status: 'new', note: 'Eklenecek' };
   }
 
-  function confirmExcelRows(data: string[][]) {
+  async function confirmExcelRows(data: string[][]) {
     if (!category) return;
     let added = 0;
     if (category === 'locations') {
-      let working = [...locations];
-      for (const row of data) {
-        const [country, city, district, mahalle] = row;
-        const res = ensureLocationPath(working, {
-          country: country || undefined,
-          city: city || undefined,
-          district: district || undefined,
-          neighborhood: mahalle || undefined,
-        });
-        working = res.list;
-        added += 1;
+      if (!token) {
+        setToast({ kind: 'err', text: 'Oturum gerekli' });
+        return;
       }
-      setLocations(working);
+      try {
+        for (const row of data) {
+          const [country, city, district, mahalle] = row;
+          await api.post(
+            '/api/locations/ensure-path',
+            {
+              country: country || undefined,
+              city: city || undefined,
+              district: district || undefined,
+              neighborhood: mahalle || undefined,
+            },
+            token,
+          );
+          added += 1;
+        }
+        await loadLocations();
+      } catch (err) {
+        setToast({
+          kind: 'err',
+          text: err instanceof Error ? err.message : 'Lokasyon içe aktarılamadı',
+        });
+        return;
+      }
     } else if (category === 'tax-offices') {
-      const next = data.map((row, i) => ({
-        id: `to-imp-${Date.now()}-${i}`,
-        city: row[0] || '—',
-        district: row[1] || '—',
-        name: row[2] || `İçe aktarım ${i + 1}`,
-      }));
-      setTaxOffices((list) => [...list, ...next]);
-      added = next.length;
+      if (!token) {
+        setToast({ kind: 'err', text: 'Oturum gerekli' });
+        return;
+      }
+      try {
+        for (const row of data) {
+          await api.post(
+            '/api/tax-offices',
+            {
+              city: row[0] || '—',
+              district: row[1] || '—',
+              name: row[2] || 'Vergi dairesi',
+            },
+            token,
+          );
+          added += 1;
+        }
+        await loadTaxOffices();
+      } catch (err) {
+        setToast({
+          kind: 'err',
+          text: err instanceof Error ? err.message : 'Vergi dairesi içe aktarılamadı',
+        });
+        return;
+      }
     } else if (category === 'banks') {
       const next = data.map((row, i) => ({
         id: `bk-imp-${Date.now()}-${i}`,
@@ -405,16 +542,34 @@ export default function ApiSettingsPage() {
       setBanks((list) => [...list, ...next]);
       added = next.length;
     } else {
-      const next = data.map((row, i) => ({
-        id: `bin-imp-${Date.now()}-${i}`,
-        bank: row[0] || '—',
-        bin: (row[1] || '000000').replace(/\D/g, '').slice(0, 8),
-        type: row[2] || 'Credit',
-        brand: row[3] || 'Visa',
-        kind: row[4] || 'Bireysel',
-      }));
-      setBins((list) => [...list, ...next]);
-      added = next.length;
+      if (!token) {
+        setToast({ kind: 'err', text: 'Oturum gerekli' });
+        return;
+      }
+      try {
+        const payload = data.map((row) => ({
+          bank: row[0] || '—',
+          bin: (row[1] || '').replace(/\D/g, '').slice(0, 8),
+          type: row[2] || 'Credit',
+          brand: row[3] || 'Visa',
+          kind: row[4] || 'Bireysel',
+        })).filter((r) => r.bin.length >= 4);
+        if (!payload.length) {
+          setToast({ kind: 'err', text: 'Geçerli BIN satırı yok' });
+          return;
+        }
+        const created = await api.post<BinRow[]>('/api/bins/bulk', payload, token);
+        const next = [...bins, ...created];
+        setBins(next);
+        syncRuntimeBins(next);
+        added = created.length;
+      } catch (err) {
+        setToast({
+          kind: 'err',
+          text: err instanceof Error ? err.message : 'BIN içe aktarılamadı',
+        });
+        return;
+      }
     }
     setExcelOpen(false);
     setToast({
@@ -423,12 +578,56 @@ export default function ApiSettingsPage() {
     });
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!category || !deleteId) return;
-    if (category === 'locations') setLocations((l) => l.filter((r) => r.id !== deleteId));
-    if (category === 'tax-offices') setTaxOffices((l) => l.filter((r) => r.id !== deleteId));
+    if (category === 'bin') {
+      if (!token) return;
+      try {
+        await api.delete(`/api/bins/${deleteId}`, token);
+        const next = bins.filter((r) => r.id !== deleteId);
+        setBins(next);
+        syncRuntimeBins(next);
+        setToast({ kind: 'ok', text: 'BIN silindi' });
+      } catch (err) {
+        setToast({
+          kind: 'err',
+          text: err instanceof Error ? err.message : 'BIN silinemedi',
+        });
+      }
+      setDeleteId(null);
+      return;
+    }
+    if (category === 'locations') {
+      if (!token) return;
+      try {
+        await api.delete(`/api/locations/${encodeURIComponent(deleteId)}`, token);
+        setLocations((l) => l.filter((r) => r.id !== deleteId));
+        setToast({ kind: 'ok', text: 'Lokasyon silindi' });
+      } catch (err) {
+        setToast({
+          kind: 'err',
+          text: err instanceof Error ? err.message : 'Lokasyon silinemedi',
+        });
+      }
+      setDeleteId(null);
+      return;
+    }
+    if (category === 'tax-offices') {
+      if (!token) return;
+      try {
+        await api.delete(`/api/tax-offices/${deleteId}`, token);
+        setTaxOffices((l) => l.filter((r) => r.id !== deleteId));
+        setToast({ kind: 'ok', text: 'Vergi dairesi silindi' });
+      } catch (err) {
+        setToast({
+          kind: 'err',
+          text: err instanceof Error ? err.message : 'Vergi dairesi silinemedi',
+        });
+      }
+      setDeleteId(null);
+      return;
+    }
     if (category === 'banks') setBanks((l) => l.filter((r) => r.id !== deleteId));
-    if (category === 'bin') setBins((l) => l.filter((r) => r.id !== deleteId));
     setDeleteId(null);
   }
 
@@ -714,7 +913,7 @@ export default function ApiSettingsPage() {
           sampleCsv={excel.sample}
           classify={classifyExcelRow}
           onClose={() => setExcelOpen(false)}
-          onConfirm={confirmExcelRows}
+          onConfirm={(rows) => void confirmExcelRows(rows)}
         />
       ) : null}
 
@@ -734,10 +933,22 @@ export default function ApiSettingsPage() {
             setLocFocus(null);
           }}
           onSave={(nextList) => {
-            setLocations(nextList);
-            setModalOpen(false);
-            setEditId(null);
-            setLocFocus(null);
+            void (async () => {
+              if (!token) return;
+              try {
+                await persistLocationDiff(locations, nextList, token);
+                await loadLocations();
+                setToast({ kind: 'ok', text: 'Lokasyon kaydedildi' });
+                setModalOpen(false);
+                setEditId(null);
+                setLocFocus(null);
+              } catch (err) {
+                setToast({
+                  kind: 'err',
+                  text: err instanceof Error ? err.message : 'Lokasyon kaydedilemedi',
+                });
+              }
+            })();
           }}
         />
       ) : null}
@@ -754,28 +965,35 @@ export default function ApiSettingsPage() {
             setLocFocus(null);
           }}
           onSave={(row) => {
-            if (row.id) {
-              setTaxOffices((list) =>
-                list.map((r) =>
-                  r.id === row.id
-                    ? { ...r, city: row.city, district: row.district, name: row.name }
-                    : r,
-                ),
-              );
-            } else {
-              setTaxOffices((list) => [
-                ...list,
-                {
-                  id: `to-${Date.now()}`,
-                  city: row.city,
-                  district: row.district,
-                  name: row.name,
-                },
-              ]);
-            }
-            setModalOpen(false);
-            setEditId(null);
-            setLocFocus(null);
+            void (async () => {
+              if (!token) return;
+              try {
+                if (row.id) {
+                  await api.patch(
+                    `/api/tax-offices/${row.id}`,
+                    { city: row.city, district: row.district, name: row.name },
+                    token,
+                  );
+                  setToast({ kind: 'ok', text: 'Vergi dairesi güncellendi' });
+                } else {
+                  await api.post(
+                    '/api/tax-offices',
+                    { city: row.city, district: row.district, name: row.name },
+                    token,
+                  );
+                  setToast({ kind: 'ok', text: 'Vergi dairesi eklendi' });
+                }
+                await loadTaxOffices();
+                setModalOpen(false);
+                setEditId(null);
+                setLocFocus(null);
+              } catch (err) {
+                setToast({
+                  kind: 'err',
+                  text: err instanceof Error ? err.message : 'Vergi dairesi kaydedilemedi',
+                });
+              }
+            })();
           }}
         />
       ) : null}
@@ -822,46 +1040,67 @@ export default function ApiSettingsPage() {
             setLocFocus(null);
           }}
           onSave={(rows) => {
-            const edited = rows.find((r) => r.id);
-            if (edited?.id) {
-              setBins((list) =>
-                list.map((r) =>
-                  r.id === edited.id
-                    ? {
-                        ...r,
-                        bank: edited.bank,
-                        bin: edited.bin,
-                        type: edited.type,
-                        brand: edited.brand,
-                        kind: edited.kind,
-                      }
-                    : r,
-                ),
-              );
-            } else {
-              const stamp = Date.now();
-              setBins((list) => [
-                ...list,
-                ...rows.map((row, i) => ({
-                  id: `bin-${stamp}-${i}`,
-                  bank: row.bank,
-                  bin: row.bin,
-                  type: row.type,
-                  brand: row.brand,
-                  kind: row.kind,
-                })),
-              ]);
-              setToast({
-                kind: 'ok',
-                text:
-                  rows.length > 1
-                    ? `${rows.length} BIN eklendi`
-                    : 'BIN eklendi',
-              });
-            }
-            setModalOpen(false);
-            setEditId(null);
-            setLocFocus(null);
+            void (async () => {
+              if (!token) return;
+              try {
+                const edited = rows.find((r) => r.id);
+                if (edited?.id) {
+                  const updated = await api.patch<
+                    BinRow & { bankId?: string }
+                  >(
+                    `/api/bins/${edited.id}`,
+                    {
+                      bank: edited.bank,
+                      bin: edited.bin,
+                      type: edited.type,
+                      brand: edited.brand,
+                      kind: edited.kind,
+                    },
+                    token,
+                  );
+                  const next = bins.map((r) =>
+                    r.id === updated.id
+                      ? {
+                          id: updated.id,
+                          bank: updated.bank,
+                          bin: updated.bin,
+                          type: updated.type,
+                          brand: updated.brand,
+                          kind: updated.kind,
+                        }
+                      : r,
+                  );
+                  setBins(next);
+                  syncRuntimeBins(next);
+                  setToast({ kind: 'ok', text: 'BIN güncellendi' });
+                } else {
+                  const created =
+                    rows.length === 1
+                      ? [
+                          await api.post<BinRow>('/api/bins', rows[0], token),
+                        ]
+                      : await api.post<BinRow[]>('/api/bins/bulk', rows, token);
+                  const next = [...bins, ...created];
+                  setBins(next);
+                  syncRuntimeBins(next);
+                  setToast({
+                    kind: 'ok',
+                    text:
+                      created.length > 1
+                        ? `${created.length} BIN eklendi`
+                        : 'BIN eklendi',
+                  });
+                }
+                setModalOpen(false);
+                setEditId(null);
+                setLocFocus(null);
+              } catch (err) {
+                setToast({
+                  kind: 'err',
+                  text: err instanceof Error ? err.message : 'BIN kaydedilemedi',
+                });
+              }
+            })();
           }}
         />
       ) : null}

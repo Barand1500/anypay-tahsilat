@@ -25,9 +25,12 @@ const createSchema = z.object({
   tc: z.string().max(20).optional().default(''),
   phone: z.string().min(10).max(20),
   cardDigits: z.string().min(15).max(19),
+  expiry: z.string().min(4).max(7),
+  cvc: z.string().min(3).max(4),
   installment: z.number().int().min(1).max(12).optional().default(1),
   note: z.string().max(5000).optional().default(''),
   parabirimiId: z.number().int().positive().nullable().optional(),
+  bankId: z.number().int().positive().nullable().optional(),
 });
 
 const listSchema = z.object({
@@ -87,13 +90,22 @@ paymentsRouter.post('/', async (req: AuthedRequest, res) => {
       ...parsed.data,
       musteriId: parsed.data.musteriId ?? null,
       parabirimiId: parsed.data.parabirimiId ?? null,
+      bankId: parsed.data.bankId ?? null,
       kullaniciId: req.auth!.sub,
+      clientIp: req.ip || req.socket.remoteAddress || undefined,
     });
     await writePanelLog(
       req.auth!.sub,
-      `Ödeme alındı — #${data.odemeNo} / ${data.amount.toFixed(2)}`,
+      data.status === 'pending_3d'
+        ? `3D Secure başlatıldı — #${data.odemeNo} / ${data.amount.toFixed(2)}`
+        : `Ödeme alındı — #${data.odemeNo} / ${data.amount.toFixed(2)}`,
     );
-    return sendSuccess(res, data, 'Ödeme kaydedildi', 201);
+    return sendSuccess(
+      res,
+      data,
+      data.status === 'pending_3d' ? 'Banka 3D Secure’a yönlendiriliyor' : 'Ödeme kaydedildi',
+      201,
+    );
   } catch (err) {
     if (err instanceof PaymentsError) return sendError(res, 400, err.message);
     console.error(err);

@@ -16,6 +16,8 @@ const paySchema = z.object({
   tc: z.string().max(11).optional().default(''),
   phone: z.string().min(10).max(20),
   cardDigits: z.string().min(15).max(19),
+  expiry: z.string().min(4).max(7),
+  cvc: z.string().min(3).max(4),
   installment: z.number().int().min(1).max(12),
   note: z.string().max(2000).optional().default(''),
 });
@@ -46,10 +48,16 @@ payPublicRouter.post('/:token', async (req, res) => {
       tc: parsed.data.tc,
       phone: parsed.data.phone,
       cardDigits: parsed.data.cardDigits,
+      expiry: parsed.data.expiry,
+      cvc: parsed.data.cvc,
       installment: parsed.data.installment,
       note: parsed.data.note,
     });
-    return sendSuccess(res, data, 'Ödeme alındı');
+    return sendSuccess(
+      res,
+      data,
+      data.status === 'pending_3d' ? 'Banka 3D Secure’a yönlendiriliyor' : 'Ödeme alındı',
+    );
   } catch (err) {
     if (err instanceof PaymentRequestsError || err instanceof PaymentsError) {
       return sendError(res, 400, err.message);

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
-import { BANKS } from '../payments/mockBanks';
+import { api } from '../../lib/api';
 import { BankCardAgreementViewB } from './BankCardAgreementViewB';
 import {
   DeleteModal,
@@ -11,16 +12,20 @@ import {
 import {
   defaultBankInstallment,
   findVirtualPos,
+  setVirtualPosList,
   type BankAgreementInstallment,
   type CardSegmentRates,
+  type VirtualPosRow,
 } from './mockPos';
 
 const LIST_PATH = '/tanimlamalar/pos-kart/sanal-pos';
 
 /** Banka kart anlaşması — tablo görünümü (B) */
 export default function BankCardAgreementPage() {
+  const { token } = useAuth();
   const { id = '' } = useParams();
-  const row = useMemo(() => findVirtualPos(id), [id]);
+  const [row, setRow] = useState<VirtualPosRow | null>(() => findVirtualPos(id));
+  const [booting, setBooting] = useState(!findVirtualPos(id));
   const [items, setItems] = useState<BankAgreementInstallment[]>(() =>
     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(defaultBankInstallment),
   );
@@ -28,6 +33,35 @@ export default function BankCardAgreementPage() {
   const [addN, setAddN] = useState('11');
   const [deleteN, setDeleteN] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    const cached = findVirtualPos(id);
+    if (cached) {
+      setRow(cached);
+      setBooting(false);
+      return;
+    }
+    if (!token || !id) {
+      setBooting(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await api.get<VirtualPosRow[]>('/api/virtual-pos', token);
+        if (cancelled) return;
+        setVirtualPosList(list);
+        setRow(list.find((r) => r.id === id) ?? null);
+      } catch {
+        if (!cancelled) setRow(null);
+      } finally {
+        if (!cancelled) setBooting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, token]);
 
   const activeSegmentCount = useMemo(
     () =>
@@ -41,9 +75,17 @@ export default function BankCardAgreementPage() {
     [items],
   );
 
+  if (booting) {
+    return (
+      <div className="flex min-h-[30vh] items-center justify-center text-sm text-[var(--panel-muted)]">
+        Yükleniyor…
+      </div>
+    );
+  }
+
   if (!row) return <Navigate to={LIST_PATH} replace />;
 
-  const bank = BANKS.find((b) => b.id === row.bankId);
+  const bankLogo = row.bankLogoUrl;
 
   function patchSeg(n: number, key: SegmentKey, patch: Partial<CardSegmentRates>) {
     setItems((list) =>
@@ -103,9 +145,9 @@ export default function BankCardAgreementPage() {
             {items.length} taksit · {activeSegmentCount} aktif segment
           </p>
         </div>
-        {bank?.logo ? (
+        {bankLogo ? (
           <div className="flex h-14 items-center rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 shadow-[var(--panel-shadow)]">
-            <img src={bank.logo} alt="" className="h-9 w-auto max-w-[120px] object-contain" />
+            <img src={bankLogo} alt="" className="h-9 w-auto max-w-[120px] object-contain" />
           </div>
         ) : null}
       </div>

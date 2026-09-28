@@ -2,8 +2,16 @@ import gsap from 'gsap';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
-import { defaultCustomerRows, findVirtualPos, type CustomerAgreementRow } from './mockPos';
+import { api } from '../../lib/api';
+import {
+  defaultCustomerRows,
+  findVirtualPos,
+  setVirtualPosList,
+  type CustomerAgreementRow,
+  type VirtualPosRow,
+} from './mockPos';
 
 const LIST_PATH = '/tanimlamalar/pos-kart/sanal-pos';
 
@@ -49,8 +57,10 @@ function newBlock(name: string): CustomerCardBlock {
 
 /** Müşteri kart anlaşması — birden fazla kompakt kart bloğu */
 export default function CustomerCardAgreementPage() {
+  const { token } = useAuth();
   const { id = '' } = useParams();
-  const row = useMemo(() => findVirtualPos(id), [id]);
+  const [row, setRow] = useState<VirtualPosRow | null>(() => findVirtualPos(id));
+  const [booting, setBooting] = useState(!findVirtualPos(id));
   const [blocks, setBlocks] = useState<CustomerCardBlock[]>(() => [
     newBlock('Axess Kart'),
     newBlock('Bonus Kart'),
@@ -59,6 +69,43 @@ export default function CustomerCardAgreementPage() {
     null | { kind: 'row'; blockId: string; rowIdx: number } | { kind: 'block'; blockId: string }
   >(null);
   const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    const cached = findVirtualPos(id);
+    if (cached) {
+      setRow(cached);
+      setBooting(false);
+      return;
+    }
+    if (!token || !id) {
+      setBooting(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await api.get<VirtualPosRow[]>('/api/virtual-pos', token);
+        if (cancelled) return;
+        setVirtualPosList(list);
+        setRow(list.find((r) => r.id === id) ?? null);
+      } catch {
+        if (!cancelled) setRow(null);
+      } finally {
+        if (!cancelled) setBooting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, token]);
+
+  if (booting) {
+    return (
+      <div className="flex min-h-[30vh] items-center justify-center text-sm text-[var(--panel-muted)]">
+        Yükleniyor…
+      </div>
+    );
+  }
 
   if (!row) return <Navigate to={LIST_PATH} replace />;
 

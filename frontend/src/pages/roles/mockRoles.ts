@@ -75,29 +75,31 @@ export function getPermForModule(role: AppRole | undefined, moduleId: string): P
   return role.permissions[moduleId] ?? emptyPerm();
 }
 
-/** JWT role code → AppRole */
+/** JWT / user.roles code → AppRole — eşleşme yoksa undefined (tüm yetki kapalı) */
 export function findSessionRole(
   roles: AppRole[],
   authRoles: string[] | undefined,
 ): AppRole | undefined {
   if (!roles.length) return undefined;
-  if (authRoles?.length) {
-    for (const code of authRoles) {
-      const hit = roles.find((r) => r.code === code);
-      if (hit) return hit;
-    }
-    const elevated = authRoles.some(
-      (c) =>
-        c === 'ROLE_YONETICI' ||
-        c === 'ROLE_ADMIN' ||
-        c === 'ROLE_SUPERAPP' ||
-        c.includes('SUPERAPP'),
-    );
-    if (elevated) {
-      return roles.find((r) => r.isAdmin) || roles.find((r) => r.code === 'ROLE_YONETICI');
-    }
+  if (!authRoles?.length) return undefined;
+
+  for (const code of authRoles) {
+    const hit = roles.find((r) => r.code === code);
+    if (hit) return hit;
   }
-  return roles.find((r) => r.isAdmin) || roles[0];
+
+  const elevated = authRoles.some(
+    (c) =>
+      c === 'ROLE_YONETICI' ||
+      c === 'ROLE_ADMIN' ||
+      c === 'ROLE_SUPERAPP' ||
+      c.includes('SUPERAPP'),
+  );
+  if (elevated) {
+    return roles.find((r) => r.isAdmin) || roles.find((r) => r.code === 'ROLE_YONETICI');
+  }
+
+  return undefined;
 }
 
 export const ACTION_LABELS: Record<PermAction, string> = {

@@ -7,6 +7,7 @@ import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
+import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import { useCustomer } from '../customers/useCustomer';
 import { getDefaultPayType } from '../settings/defaultsStore';
@@ -197,7 +198,7 @@ export default function PaymentCollectPage() {
     if (!validate() || !customer || !token || !payType) return;
     setSaving(true);
     try {
-      const data = await api.post<{ odemeNo: string; amount: number }>(
+      const data = await api.post<PaymentCreateResult>(
         '/api/payments',
         {
           musteriId: Number(customer.id),
@@ -208,12 +209,15 @@ export default function PaymentCollectPage() {
           tc: tc.trim(),
           phone: digitsOnly(phone).slice(0, 10),
           cardDigits,
+          expiry: digitsOnly(expiry).slice(0, 4),
+          cvc: digitsOnly(cvc),
           installment,
           note: note.trim(),
           parabirimiId: Number(currencyId),
         },
         token,
       );
+      if (maybeStartThreeD(data)) return;
       flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyDisplay(data.amount, currencySymbol)}`);
       window.setTimeout(() => navigate('/musteriler'), 900);
     } catch (err) {

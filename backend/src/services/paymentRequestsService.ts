@@ -51,6 +51,8 @@ export type PayByTokenInput = {
   tc?: string;
   phone: string;
   cardDigits: string;
+  expiry: string;
+  cvc: string;
   installment: number;
   note?: string;
 };
@@ -325,7 +327,12 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
 export async function payPaymentRequestByToken(
   token: string,
   input: PayByTokenInput,
-): Promise<{ odemeNo: string; amount: number }> {
+): Promise<{
+  odemeNo: string;
+  amount: number;
+  status?: string;
+  threeD?: { actionUrl: string; method: 'POST'; fields: Record<string, string> };
+}> {
   const row = await prisma.odemeIstegi.findFirst({
     where: { istekNo: token, ...notRemoved() },
   });
@@ -357,6 +364,8 @@ export async function payPaymentRequestByToken(
       tc: input.tc,
       phone: input.phone,
       cardDigits: input.cardDigits,
+      expiry: input.expiry,
+      cvc: input.cvc,
       installment: input.installment,
       note: input.note || (row.aciklama || '').replace(/<[^>]+>/g, ' ').trim() || undefined,
       kullaniciId,
@@ -367,13 +376,21 @@ export async function payPaymentRequestByToken(
     throw err;
   }
 
-  const now = new Date();
-  await prisma.odemeIstegi.update({
-    where: { id: row.id },
-    data: { durum: true, odemeZamani: now },
-  });
+  // 3DS beklerken istek henüz “ödendi” değil — callback sonrası işaretlenebilir
+  if (payment.status !== 'pending_3d') {
+    const now = new Date();
+    await prisma.odemeIstegi.update({
+      where: { id: row.id },
+      data: { durum: true, odemeZamani: now },
+    });
+  }
 
-  return { odemeNo: payment.odemeNo, amount: payment.amount };
+  return {
+    odemeNo: payment.odemeNo,
+    amount: payment.amount,
+    status: payment.status,
+    threeD: payment.threeD,
+  };
 }
 
 export async function softDeletePaymentRequest(id: number): Promise<void> {

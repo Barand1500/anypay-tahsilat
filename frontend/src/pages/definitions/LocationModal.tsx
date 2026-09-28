@@ -27,7 +27,7 @@ type Props = {
   /** Liste filtrelerinden gelen üst bağlam */
   preset?: Preset;
   onClose: () => void;
-  onSave: (nextList: LocationRow[]) => void;
+  onSave: (nextList: LocationRow[]) => void | Promise<void>;
 };
 
 const LEVEL_OPTS = [

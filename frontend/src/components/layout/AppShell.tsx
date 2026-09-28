@@ -1,12 +1,14 @@
 import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { useLoadBins } from '../../hooks/useLoadBins';
 import { KeyboardModeProvider } from '../../keyboard/KeyboardModeContext';
 import {
   applyDisplayMode,
   getAppDefaults,
   hydrateAppDefaults,
 } from '../../pages/settings/defaultsStore';
+import { RouteViewGate } from '../../permissions/RouteViewGate';
 import { useTheme } from '../../theme/ThemeProvider';
 import { DockModeProvider, useDockMode } from './DockModeContext';
 import { Footer } from './Footer';
@@ -43,6 +45,7 @@ export function AppShell() {
 
 function AppShellInner() {
   const { token } = useAuth();
+  useLoadBins();
   const { applyTheme } = useTheme();
   const { enabled: dockOn, animating } = useDockMode();
   const { phase: ratesPhase } = useRates();
@@ -195,7 +198,9 @@ function AppShellInner() {
           </div>
 
           <main className="min-h-0 flex-1 overflow-y-auto p-4 transition-[padding] duration-300 sm:p-5 lg:p-6">
-            <Outlet />
+            <RouteViewGate>
+              <Outlet />
+            </RouteViewGate>
           </main>
 
           {!dockOn && footerAutoHide && !footerPeek ? (

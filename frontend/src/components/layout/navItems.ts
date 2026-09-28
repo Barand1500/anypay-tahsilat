@@ -39,6 +39,7 @@ export const EXTRA_QUICK_ITEMS: NavItem[] = [
   { to: '/tanimlamalar/para-birimleri', label: 'Para Birimleri', icon: 'sliders' },
   { to: '/tanimlamalar/cari-tipleri', label: 'Cari Tipleri', icon: 'sliders' },
   { to: '/tanimlamalar/subeler', label: 'Şubeler / Departmanlar', icon: 'sliders' },
+  { to: '/tanimlamalar/bankalar', label: 'Bankalar', icon: 'sliders' },
   { to: '/tanimlamalar/pos-kart', label: 'POS ve Kart', icon: 'sliders' },
   { to: '/tanimlamalar/pos-kart/sanal-pos', label: 'Sanal POS Tanımları', icon: 'sliders' },
   { to: '/tanimlamalar/pos-kart/ortak-sanal-pos', label: 'Ortak Sanal POS', icon: 'sliders' },

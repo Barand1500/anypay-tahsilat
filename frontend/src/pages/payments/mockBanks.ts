@@ -68,6 +68,15 @@ export function formatCardNumber(raw: string) {
   return d.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
 }
 
+/** Kart üstü ad soyad — harf/boşluk, büyük harf */
+export function formatCardHolderName(raw: string) {
+  return raw
+    .replace(/[^\p{L}\s'-]/gu, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 48)
+    .toLocaleUpperCase('tr-TR');
+}
+
 /** Luhn (mod 10) — kart numarası checksum */
 export function isValidLuhn(cardDigits: string): boolean {
   const d = digitsOnly(cardDigits);
@@ -155,9 +164,35 @@ export function findBankLogo(query: { id?: string; name?: string; logo?: string 
   return hit?.logo ?? null;
 }
 
+import { matchRuntimeBin } from '../../lib/binStore';
+
 export function detectBank(cardDigits: string): BankInfo | null {
   const d = digitsOnly(cardDigits);
   if (d.length < 4) return null;
+
+  // Api Ayarları › BIN (DB) — varsa öncelikli
+  const runtime = matchRuntimeBin(d);
+  if (runtime) {
+    const byId = BANKS.find((b) => b.id === runtime.bankId);
+    if (byId) return byId;
+    const q = runtime.bankName.toLocaleLowerCase('tr');
+    const byName = BANKS.find(
+      (b) =>
+        b.name.toLocaleLowerCase('tr').includes(q) ||
+        b.fullName.toLocaleLowerCase('tr').includes(q) ||
+        q.includes(b.name.toLocaleLowerCase('tr')),
+    );
+    if (byName) return byName;
+    // DB bankası logo kataloğunda yoksa yine göster
+    return {
+      id: runtime.bankId || `bin-${runtime.bin}`,
+      name: runtime.bankName,
+      fullName: runtime.bankName,
+      logo: '',
+      bins: [runtime.bin],
+    };
+  }
+
   let best: BankInfo | null = null;
   let bestLen = 0;
   for (const bank of BANKS) {

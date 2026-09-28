@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useCustomersList } from '../../pages/customers/useCustomersList';
 import { getLiveUsers } from '../../pages/users/mockUsers';
+import { usePermission } from '../../permissions/PermissionContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { NAV_ITEMS } from './navItems';
 
@@ -89,6 +90,7 @@ type Props = {
 export function GlobalSearch({ open, onClose }: Props) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { canViewPath } = usePermission();
   const { customers } = useCustomersList({ enabled: open, parentId: 'all' });
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -107,23 +109,27 @@ export function GlobalSearch({ open, onClose }: Props) {
   );
 
   const allItems = useMemo((): SearchItem[] => {
-    const pages: SearchItem[] = NAV_ITEMS.map((n) => ({
-      id: `page-${n.to}`,
-      category: 'pages',
-      title: n.label,
-      subtitle: n.soon ? 'Yakında' : n.to === '/' ? 'Ana özet' : n.to,
-      keywords: `sayfa menu ${n.label}`,
-      run: () => go(n.to),
-    }));
+    const pages: SearchItem[] = NAV_ITEMS.filter((n) => canViewPath(n.to).allowed).map(
+      (n) => ({
+        id: `page-${n.to}`,
+        category: 'pages' as const,
+        title: n.label,
+        subtitle: n.soon ? 'Yakında' : n.to === '/' ? 'Ana özet' : n.to,
+        keywords: `sayfa menu ${n.label}`,
+        run: () => go(n.to),
+      }),
+    );
 
-    const admin: SearchItem[] = ADMIN_PAGES.map((n) => ({
-      id: `admin-${n.to}`,
-      category: 'admin',
-      title: n.label,
-      subtitle: n.hint,
-      keywords: `yonetim admin ${n.label}`,
-      run: () => go(n.to),
-    }));
+    const admin: SearchItem[] = ADMIN_PAGES.filter((n) => canViewPath(n.to).allowed).map(
+      (n) => ({
+        id: `admin-${n.to}`,
+        category: 'admin' as const,
+        title: n.label,
+        subtitle: n.hint,
+        keywords: `yonetim admin ${n.label}`,
+        run: () => go(n.to),
+      }),
+    );
 
     const customerItems: SearchItem[] = customers.map((c) => ({
       id: `cust-${c.id}`,
@@ -174,7 +180,7 @@ export function GlobalSearch({ open, onClose }: Props) {
     ];
 
     return [...pages, ...admin, ...actions, ...customerItems, ...users];
-  }, [customers, go, onClose, theme, toggleTheme]);
+  }, [canViewPath, customers, go, onClose, theme, toggleTheme]);
 
   const qNorm = norm(query.trim());
 

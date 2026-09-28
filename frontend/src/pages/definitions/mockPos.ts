@@ -1,12 +1,19 @@
-/** Tanımlamalar › POS — mock veri */
+/** Tanımlamalar › POS — tipler + altyapı kataloğu + anlaşma yardımcıları */
 
 export type VirtualPosRow = {
   id: string;
   bankId: string;
   bankName: string;
+  bankLogoUrl?: string;
   posName: string;
   /** Altyapı katalog id */
   infrastructureId: string;
+  merchantId: string;
+  terminalSafeId: string;
+  securityKey: string;
+  /** NestPay / Garanti terminal şifresi */
+  terminalPassword: string;
+  securityType: string;
   isDefault: boolean;
   active: boolean;
 };
@@ -29,6 +36,7 @@ export const VIRTUAL_POS_INFRASTRUCTURES = [
   { id: 'infra-halkbank', label: 'HALK BANKASI SANAL POS' },
   { id: 'infra-garanti', label: 'GARANTİ SANAL POS' },
   { id: 'infra-qnb', label: 'QNB SANAL POS' },
+  { id: 'infra-tosla', label: 'TOSLA POS' },
 ] as const;
 
 export type CardSegmentRates = {
@@ -91,56 +99,8 @@ export function defaultCustomerRows(): CustomerAgreementRow[] {
   }));
 }
 
-export const INITIAL_VIRTUAL_POS: VirtualPosRow[] = [
-  {
-    id: 'vpos-1',
-    bankId: 'akbank',
-    bankName: 'Akbank T.A.Ş.',
-    posName: 'AKBANK SANAL POS',
-    infrastructureId: 'infra-akbank',
-    isDefault: false,
-    active: true,
-  },
-  {
-    id: 'vpos-2',
-    bankId: 'yapikredi',
-    bankName: 'Yapı ve Kredi Bankası A.Ş.',
-    posName: 'YAPIKREDİ SANAL POS',
-    infrastructureId: 'infra-yapikredi',
-    isDefault: false,
-    active: true,
-  },
-  {
-    id: 'vpos-3',
-    bankId: 'garanti',
-    bankName: 'Türkiye Garanti Bankası A.Ş.',
-    posName: 'GARANTİ SANAL POS',
-    infrastructureId: 'infra-garanti',
-    isDefault: false,
-    active: true,
-  },
-  {
-    id: 'vpos-4',
-    bankId: 'isbank',
-    bankName: 'Türkiye İş Bankası A.Ş.',
-    posName: 'İŞBANKASI SANAL POS',
-    infrastructureId: 'infra-isbank',
-    isDefault: false,
-    active: false,
-  },
-  {
-    id: 'vpos-5',
-    bankId: 'qnb',
-    bankName: 'QNB Bank A.Ş.',
-    posName: 'QNB SANAL POS',
-    infrastructureId: 'infra-qnb',
-    isDefault: true,
-    active: true,
-  },
-];
-
-/** Liste sayfası ile anlaşma sayfaları arası mock senkron */
-let virtualPosStore: VirtualPosRow[] = INITIAL_VIRTUAL_POS.map((r) => ({ ...r }));
+/** Liste / anlaşma sayfaları arası önbellek (API’den doldurulur) */
+let virtualPosStore: VirtualPosRow[] = [];
 
 export function getVirtualPosList() {
   return virtualPosStore.map((r) => ({ ...r }));

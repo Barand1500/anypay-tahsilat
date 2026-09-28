@@ -46,23 +46,32 @@ function parseBranchIds(user: {
   return user.subeDepartmanId != null ? [user.subeDepartmanId] : [];
 }
 
-function toPublicUser(user: {
-  id: number;
-  email: string;
-  adsoyad: string | null;
-  telefon: string;
-  roles: unknown;
-  twoFactor: boolean | null;
-  izinliTaksitler?: string | null;
-  subeDepartmanId?: number | null;
-  subeDepartmanIds?: string | null;
-}) {
+function toPublicUser(
+  user: {
+    id: number;
+    email: string;
+    adsoyad: string | null;
+    telefon: string;
+    roles: unknown;
+    twoFactor: boolean | null;
+    izinliTaksitler?: string | null;
+    subeDepartmanId?: number | null;
+    subeDepartmanIds?: string | null;
+  },
+  /** Atanan rol kodu (rol tablosu) — JSON roles alanından öncelikli */
+  roleCode?: string | null,
+) {
+  const fromJson = parseRoles(user.roles);
+  const roles =
+    roleCode && roleCode.trim()
+      ? [roleCode.trim()]
+      : fromJson;
   return {
     id: user.id,
     email: user.email,
     adsoyad: user.adsoyad,
     telefon: normalizeStoredPhone(user.telefon),
-    roles: parseRoles(user.roles),
+    roles,
     twoFactor: Boolean(user.twoFactor),
     /** Boş = kısıt yok (tümü); dolu = yalnızca bunlar */
     installments: parseInstallments(user.izinliTaksitler),
@@ -71,6 +80,15 @@ function toPublicUser(user: {
 }
 
 export type PublicUser = ReturnType<typeof toPublicUser>;
+
+async function roleCodeForUser(rolId: number | null | undefined): Promise<string | null> {
+  if (rolId == null) return null;
+  const rol = await prisma.rol.findFirst({
+    where: { id: rolId, OR: [{ remove: null }, { remove: false }] },
+    select: { code: true },
+  });
+  return rol?.code ?? null;
+}
 
 export type ProfileUpdateInput = {
   adsoyad?: string;
@@ -116,7 +134,7 @@ export async function loginWithPassword(email: string, password: string) {
     `Giriş - ${user.email} e-posta adresine sahip kullanıcı giriş yaptı.`,
   );
 
-  const publicUser = toPublicUser(user);
+  const publicUser = toPublicUser(user, await roleCodeForUser(user.rolId));
   const token = signToken({ sub: user.id, email: user.email });
   return { token, user: publicUser };
 }
@@ -161,7 +179,7 @@ export async function loginWithOtp(email: string, code: string) {
     `Giriş - ${user.email} e-posta adresine sahip kullanıcı giriş yaptı.`,
   );
 
-  const publicUser = toPublicUser(user);
+  const publicUser = toPublicUser(user, await roleCodeForUser(user.rolId));
   const token = signToken({ sub: user.id, email: user.email });
   return { token, user: publicUser };
 }
@@ -173,7 +191,9 @@ export async function getUserById(id: number) {
       OR: [{ remove: null }, { remove: false }],
     },
   });
-  if (user && user.isVerified) return toPublicUser(user);
+  if (user && user.isVerified) {
+    return toPublicUser(user, await roleCodeForUser(user.rolId));
+  }
   return null;
 }
 
@@ -245,7 +265,7 @@ export async function updateOwnProfile(userId: number, input: ProfileUpdateInput
     data,
   });
 
-  return toPublicUser(updated);
+  return toPublicUser(updated, await roleCodeForUser(updated.rolId));
 }
 
 export class AuthError extends Error {

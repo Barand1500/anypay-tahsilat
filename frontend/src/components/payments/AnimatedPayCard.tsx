@@ -133,7 +133,7 @@ export function AnimatedPayCard({
 
   function onPointerDown(e: ReactPointerEvent) {
     if (typing) return;
-    if ((e.target as HTMLElement).closest('input,button,textarea,label')) return;
+    if ((e.target as HTMLElement).closest('input,button,textarea,label,a')) return;
     drag.current = {
       active: true,
       px: e.clientX,
@@ -228,6 +228,8 @@ export function AnimatedPayCard({
                 background: faceBg,
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
+                // Arka yüz hit-test’i ön yüz input’larını engellemesin
+                pointerEvents: flipped ? 'none' : 'auto',
               }}
             >
               <div
@@ -267,7 +269,7 @@ export function AnimatedPayCard({
                   )}
                 </div>
 
-                <div className="mt-1">
+                <label className="mt-1 block cursor-text">
                   <span
                     className={`mb-1 block text-[9px] font-semibold uppercase tracking-[0.18em] ${muted}`}
                   >
@@ -285,9 +287,11 @@ export function AnimatedPayCard({
                       setTyping(true);
                       showFront();
                     }}
+                    onPointerDown={(e) => e.stopPropagation()}
                     inputMode="numeric"
                     autoComplete="cc-number"
                     placeholder="•••• •••• •••• ••••"
+                    maxLength={19}
                     className={[
                       'w-full rounded-lg px-3 py-2.5 font-mono text-[1.05rem] tracking-[0.12em] outline-none ring-1 sm:text-[1.12rem]',
                       field,
@@ -299,10 +303,10 @@ export function AnimatedPayCard({
                       {errors?.card || 'Kart numarası hatalı'}
                     </p>
                   ) : null}
-                </div>
+                </label>
 
                 <div className="mt-auto grid grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
-                  <div className="min-w-0">
+                  <label className="min-w-0 cursor-text">
                     <span
                       className={`mb-1 block text-[9px] font-semibold uppercase tracking-[0.18em] ${muted}`}
                     >
@@ -318,10 +322,14 @@ export function AnimatedPayCard({
                         setTyping(true);
                         showFront();
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       autoComplete="cc-name"
+                      autoCapitalize="characters"
+                      spellCheck={false}
                       placeholder="AD SOYAD"
+                      maxLength={48}
                       className={[
-                        'w-full rounded-lg px-3 py-2 text-[13px] font-bold tracking-wide outline-none ring-1',
+                        'w-full rounded-lg px-3 py-2 text-[13px] font-bold uppercase tracking-wide outline-none ring-1',
                         field,
                         ink,
                         errors?.holder ? errField : '',
@@ -330,8 +338,8 @@ export function AnimatedPayCard({
                     {errors?.holder ? (
                       <p className={`mt-1 text-[10px] font-semibold ${errText}`}>{errors.holder}</p>
                     ) : null}
-                  </div>
-                  <div>
+                  </label>
+                  <label className="cursor-text">
                     <span
                       className={`mb-1 block text-[9px] font-semibold uppercase tracking-[0.18em] ${muted}`}
                     >
@@ -349,9 +357,11 @@ export function AnimatedPayCard({
                         setTyping(true);
                         showFront();
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       inputMode="numeric"
                       autoComplete="cc-exp"
                       placeholder="AA/YY"
+                      maxLength={5}
                       className={[
                         'w-full rounded-lg px-2.5 py-2 text-center font-mono text-[13px] font-bold tabular-nums outline-none ring-1',
                         field,
@@ -366,7 +376,7 @@ export function AnimatedPayCard({
                     {errors?.expiry ? (
                       <p className={`mt-1 text-[10px] font-semibold ${errText}`}>{errors.expiry}</p>
                     ) : null}
-                  </div>
+                  </label>
                 </div>
               </div>
             </div>
@@ -379,6 +389,7 @@ export function AnimatedPayCard({
                 transform: 'rotateY(180deg)',
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
+                pointerEvents: flipped ? 'auto' : 'none',
               }}
             >
               <div
@@ -401,6 +412,7 @@ export function AnimatedPayCard({
                         setTyping(true);
                         setFlipped(true);
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       inputMode="numeric"
                       autoComplete="cc-csc"
                       placeholder="•••"

@@ -18,7 +18,13 @@ import { customersRouter } from './routes/customers.js';
 import { currenciesRouter } from './routes/currencies.js';
 import { accountTypesRouter } from './routes/accountTypes.js';
 import { branchesRouter } from './routes/branches.js';
+import { banksRouter } from './routes/banks.js';
+import { virtualPosRouter } from './routes/virtualPos.js';
+import { binsRouter } from './routes/bins.js';
+import { locationsRouter } from './routes/locations.js';
+import { taxOfficesRouter } from './routes/taxOffices.js';
 import { paymentsRouter } from './routes/payments.js';
+import { paymentsCallbackRouter } from './routes/paymentsCallback.js';
 import { paymentRequestsRouter } from './routes/paymentRequests.js';
 import { payPublicRouter } from './routes/payPublic.js';
 import { sendError } from './utils/response.js';
@@ -31,6 +37,7 @@ const port = Number(process.env.PORT || 3010);
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '8mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Canlıda Vite build çıktısı public/ altında servis edilir
 const publicDir = path.resolve(__dirname, '../public');
@@ -57,6 +64,12 @@ app.use('/api/customers', customersRouter);
 app.use('/api/currencies', currenciesRouter);
 app.use('/api/account-types', accountTypesRouter);
 app.use('/api/branches', branchesRouter);
+app.use('/api/banks', banksRouter);
+app.use('/api/virtual-pos', virtualPosRouter);
+app.use('/api/bins', binsRouter);
+app.use('/api/locations', locationsRouter);
+app.use('/api/tax-offices', taxOfficesRouter);
+app.use('/api/payments/3d', paymentsCallbackRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/payment-requests', paymentRequestsRouter);
 app.use('/api/pay', payPublicRouter);

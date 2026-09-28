@@ -6,6 +6,7 @@ import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
+import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
@@ -228,7 +229,7 @@ export default function QuickPayPage() {
     if (!validate() || !token || !payType) return;
     setSaving(true);
     try {
-      const data = await api.post<{ odemeNo: string; amount: number }>(
+      const data = await api.post<PaymentCreateResult>(
         '/api/payments',
         {
           musteriId: null,
@@ -239,12 +240,15 @@ export default function QuickPayPage() {
           tc: digitsOnly(tc),
           phone: digitsOnly(phone).slice(0, 10),
           cardDigits,
+          expiry: digitsOnly(expiry).slice(0, 4),
+          cvc: digitsOnly(cvc),
           installment: pickedInstall?.n ?? 1,
           note: note.trim(),
           parabirimiId: Number(currencyId),
         },
         token,
       );
+      if (maybeStartThreeD(data)) return;
       navigate('/hareketler', {
         replace: true,
         state: {
@@ -497,10 +501,7 @@ export default function QuickPayPage() {
               </p>
             ) : errors.install ? (
               <p className="text-xs text-rose-500">{errors.install}</p>
-            ) : (
-              <p className="text-sm text-[var(--panel-muted)]">Taksit seçmek için butona tıklayın.</p>
-            )}
-          </section>
+            ) : null}          </section>
         </div>
 
         <div data-anim className="flex flex-col items-center gap-4 pt-2">

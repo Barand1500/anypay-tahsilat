@@ -27,6 +27,7 @@ import DefinitionsLayout from './pages/definitions/DefinitionsLayout';
 import CurrenciesPage from './pages/definitions/CurrenciesPage';
 import AccountTypesPage from './pages/definitions/AccountTypesPage';
 import BranchesPage from './pages/definitions/BranchesPage';
+import BanksPage from './pages/definitions/BanksPage';
 import ApiSettingsPage from './pages/definitions/ApiSettingsPage';
 import ContractsPage from './pages/definitions/ContractsPage';
 import PosKartLayout from './pages/definitions/PosKartLayout';
@@ -127,6 +128,7 @@ export default function App() {
           <Route path="para-birimleri" element={<CurrenciesPage />} />
           <Route path="cari-tipleri" element={<AccountTypesPage />} />
           <Route path="subeler" element={<BranchesPage />} />
+          <Route path="bankalar" element={<BanksPage />} />
           <Route path="pos-kart" element={<PosKartLayout />}>
             <Route index element={<Navigate to="sanal-pos" replace />} />
             <Route path="sanal-pos" element={<VirtualPosPage />} />

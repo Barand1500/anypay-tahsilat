@@ -29,6 +29,7 @@ export const DEFINITIONS_SUBNAV = [
   { to: '/tanimlamalar/para-birimleri', label: 'Para Birimleri', ready: true, end: true },
   { to: '/tanimlamalar/cari-tipleri', label: 'Cari Tipleri', ready: true, end: true },
   { to: '/tanimlamalar/subeler', label: 'Şubeler / Departmanlar', ready: true, end: true },
+  { to: '/tanimlamalar/bankalar', label: 'Bankalar', ready: true, end: true },
   { to: '/tanimlamalar/pos-kart', label: 'POS ve Kart', ready: true, end: false },
   { to: '/tanimlamalar/sozlesmeler', label: 'Sözleşmeler', ready: true, end: true },
   { to: '/tanimlamalar/api-ayarlari', label: 'Api Ayarları', ready: true, end: true },

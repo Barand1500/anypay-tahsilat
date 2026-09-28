@@ -158,8 +158,16 @@ export default function TransactionsPage() {
       setToast(st.flash);
       navigate('.', { replace: true, state: null });
       void reload();
+      return;
     }
-  }, [location.state, navigate, reload]);
+    const params = new URLSearchParams(location.search);
+    const msg = params.get('msg');
+    if (msg) {
+      setToast(msg);
+      navigate('/hareketler', { replace: true });
+      void reload();
+    }
+  }, [location.state, location.search, navigate, reload]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');

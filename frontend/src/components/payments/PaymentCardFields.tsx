@@ -1,7 +1,7 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { TextInput } from '../ui/TextInput';
 import { AnimatedPayCard } from './AnimatedPayCard';
-import type { BankInfo } from '../../pages/payments/mockBanks';
+import { formatCardHolderName, type BankInfo } from '../../pages/payments/mockBanks';
 import {
   getStoredCardDesign,
   type CardDesignId,
@@ -134,7 +134,7 @@ export function PaymentCardFields(props: Props) {
           cardFaulty={props.cardFaulty}
           expiryOk={props.expiryOk}
           expiryFaulty={props.expiryFaulty}
-          onHolder={props.onHolder}
+          onHolder={(v) => props.onHolder(formatCardHolderName(v))}
           onCard={props.onCard}
           onExpiry={props.onExpiry}
           onCvc={props.onCvc}
@@ -156,7 +156,10 @@ export function PaymentCardFields(props: Props) {
         label="Ad Soyad"
         value={props.holder}
         error={props.errors.holder}
-        onChange={(e) => props.onHolder(e.target.value)}
+        onChange={(e) => props.onHolder(formatCardHolderName(e.target.value))}
+        autoComplete="cc-name"
+        placeholder="Kart üzerindeki ad soyad"
+        className="!uppercase tracking-wide"
       />
       <TextInput
         data-km-jump

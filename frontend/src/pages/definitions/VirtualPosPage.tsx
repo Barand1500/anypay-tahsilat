@@ -1,32 +1,65 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
-import { BANKS } from '../payments/mockBanks';
-import { getVirtualPosList, setVirtualPosList, type VirtualPosRow } from './mockPos';
+import { api } from '../../lib/api';
+import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
+import type { BankDef } from './bankTypes';
+import { setVirtualPosList, type VirtualPosRow } from './mockPos';
 import { VirtualPosModal, type VirtualPosModalMode } from './VirtualPosModal';
 
-function bankLogo(bankId: string) {
-  return BANKS.find((b) => b.id === bankId)?.logo;
-}
-
-/** Tanımlamalar › POS › Sanal POS Tanımları */
+/** Tanımlamalar › POS › Sanal POS Tanımları — API */
 export default function VirtualPosPage() {
-  const [rows, setRows] = useState(() => getVirtualPosList());
+  const { token } = useAuth();
+  const [rows, setRows] = useState<VirtualPosRow[]>([]);
+  const [banks, setBanks] = useState<BankDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<VirtualPosModalMode | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VirtualPosRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [list, bankList] = await Promise.all([
+        api.get<VirtualPosRow[]>('/api/virtual-pos', token),
+        api.get<BankDef[]>('/api/banks', token),
+      ]);
+      setRows(list);
+      setVirtualPosList(list);
+      setBanks(bankList);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Sanal POS yüklenemedi');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    setVirtualPosList(rows);
+  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
     if (!q) return rows;
     return rows.filter((r) =>
-      `${r.bankName} ${r.posName}`.toLocaleLowerCase('tr').includes(q),
+      `${r.bankName} ${r.posName} ${r.securityType}`.toLocaleLowerCase('tr').includes(q),
     );
   }, [rows, query]);
 
@@ -35,10 +68,6 @@ export default function VirtualPosPage() {
   const slice = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   useEffect(() => setPage(1), [query, pageSize]);
-
-  useEffect(() => {
-    setVirtualPosList(rows);
-  }, [rows]);
 
   useEffect(() => {
     const els = tableRef.current?.querySelectorAll('[data-vpos-row]');
@@ -56,80 +85,106 @@ export default function VirtualPosPage() {
     setPageSizeText(String(n));
   }
 
-  function toggleDefault(id: string) {
-    setRows((list) => {
-      const target = list.find((r) => r.id === id);
-      if (!target) return list;
-      const nextDefault = !target.isDefault;
-      return list.map((r) => {
-        if (r.id === id) {
-          return {
-            ...r,
-            isDefault: nextDefault,
-            // Varsayılan açılınca durum otomatik aktif
-            active: nextDefault ? true : r.active,
-          };
-        }
-        return {
-          ...r,
-          isDefault: nextDefault ? false : r.isDefault,
-        };
-      });
-    });
+  async function toggleDefault(id: string) {
+    if (!token) return;
+    const target = rows.find((r) => r.id === id);
+    if (!target) return;
+    setActionError(null);
+    try {
+      const updated = await api.patch<VirtualPosRow>(
+        `/api/virtual-pos/${id}`,
+        { isDefault: !target.isDefault },
+        token,
+      );
+      setRows((list) =>
+        list.map((r) => {
+          if (r.id === updated.id) return updated;
+          return updated.isDefault ? { ...r, isDefault: false } : r;
+        }),
+      );
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Güncellenemedi');
+    }
   }
 
-  function toggleActive(id: string) {
-    setRows((list) => list.map((r) => (r.id === id ? { ...r, active: !r.active } : r)));
+  async function toggleActive(id: string) {
+    if (!token) return;
+    const target = rows.find((r) => r.id === id);
+    if (!target) return;
+    setActionError(null);
+    try {
+      const updated = await api.patch<VirtualPosRow>(
+        `/api/virtual-pos/${id}`,
+        { active: !target.active },
+        token,
+      );
+      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Güncellenemedi');
+    }
   }
 
-  function saveRow(data: {
+  async function saveRow(data: {
     bankId: string;
     bankName: string;
     infrastructureId: string;
     posName: string;
+    merchantId: string;
+    terminalSafeId: string;
+    securityKey: string;
+    terminalPassword: string;
+    securityType: string;
   }) {
+    if (!token) throw new Error('Oturum gerekli');
+    setActionError(null);
+    const body = {
+      bankId: data.bankId,
+      infrastructureId: data.infrastructureId,
+      posName: data.posName,
+      merchantId: data.merchantId,
+      terminalSafeId: data.terminalSafeId,
+      securityKey: data.securityKey,
+      terminalPassword: data.terminalPassword,
+      securityType: data.securityType,
+    };
     if (modal?.type === 'edit') {
-      const id = modal.id;
-      setRows((list) =>
-        list.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                bankId: data.bankId,
-                bankName: data.bankName,
-                infrastructureId: data.infrastructureId,
-                posName: data.posName,
-              }
-            : r,
-        ),
+      const updated = await api.patch<VirtualPosRow>(
+        `/api/virtual-pos/${modal.row.id}`,
+        body,
+        token,
       );
+      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
     } else {
-      setRows((list) => [
-        ...list,
-        {
-          id: `vpos-${Date.now()}`,
-          bankId: data.bankId,
-          bankName: data.bankName,
-          infrastructureId: data.infrastructureId,
-          posName: data.posName,
-          isDefault: false,
-          active: true,
-        },
-      ]);
+      const created = await api.post<VirtualPosRow>('/api/virtual-pos', body, token);
+      setRows((list) => [...list, created]);
     }
-    setModal(null);
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return;
-    setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  async function confirmDelete() {
+    if (!token || !deleteTarget) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await api.delete(`/api/virtual-pos/${deleteTarget.id}`, token);
+      setRows((list) => list.filter((r) => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Silinemedi');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function exportCsv() {
-    const header = ['Banka', 'Sanal POS', 'Varsayılan', 'Durum'];
+    const header = ['Banka', 'Sanal POS', 'Güvenlik Tipi', 'Varsayılan', 'Durum'];
     const lines = filtered.map((r) =>
-      [r.bankName, r.posName, r.isDefault ? 'Evet' : 'Hayır', r.active ? 'Aktif' : 'Pasif']
+      [
+        r.bankName,
+        r.posName,
+        r.securityType,
+        r.isDefault ? 'Evet' : 'Hayır',
+        r.active ? 'Aktif' : 'Pasif',
+      ]
         .map((c) => `"${String(c).replace(/"/g, '""')}"`)
         .join(';'),
     );
@@ -137,9 +192,33 @@ export default function VirtualPosPage() {
   }
 
   const existingKeys = rows.map((r) => `${r.bankId}|${r.infrastructureId}`);
+  const bankOptions = banks.map((b) => ({
+    id: b.id,
+    name: b.name,
+    securityTypes: b.securityTypes,
+  }));
+
+  if (loading && rows.length === 0) {
+    return (
+      <div className="flex min-h-[30vh] items-center justify-center text-sm text-[var(--panel-muted)]">
+        Sanal POS yükleniyor…
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-4">
+      {loadError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {loadError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">
           Sanal POS Tanımları
@@ -183,7 +262,7 @@ export default function VirtualPosPage() {
               data-km-jump
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ara…"
+              placeholder="Ara"
               className="w-44 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-brand-500)] sm:w-56"
             />
           </div>
@@ -200,23 +279,16 @@ export default function VirtualPosPage() {
             </div>
             {slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
-                Kayıt bulunamadı.
+                Kayıt bulunamadı. + Ekle ile sanal POS tanımı oluşturun.
               </p>
             ) : (
               slice.map((r) => (
                 <VirtualPosRowView
                   key={r.id}
                   row={r}
-                  onToggleDefault={() => toggleDefault(r.id)}
-                  onToggleActive={() => toggleActive(r.id)}
-                  onEdit={() =>
-                    setModal({
-                      type: 'edit',
-                      id: r.id,
-                      bankId: r.bankId,
-                      infrastructureId: r.infrastructureId,
-                    })
-                  }
+                  onToggleDefault={() => void toggleDefault(r.id)}
+                  onToggleActive={() => void toggleActive(r.id)}
+                  onEdit={() => setModal({ type: 'edit', row: r })}
                   onDelete={() => setDeleteTarget(r)}
                 />
               ))
@@ -237,6 +309,7 @@ export default function VirtualPosPage() {
       {modal ? (
         <VirtualPosModal
           mode={modal}
+          banks={bankOptions}
           existingKeys={existingKeys}
           onClose={() => setModal(null)}
           onSave={saveRow}
@@ -246,8 +319,9 @@ export default function VirtualPosPage() {
       {deleteTarget ? (
         <DeleteModal
           name={deleteTarget.posName}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
+          busy={deleting}
+          onCancel={() => !deleting && setDeleteTarget(null)}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </div>
@@ -267,7 +341,7 @@ function VirtualPosRowView({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const logo = bankLogo(row.bankId);
+  const logo = row.bankLogoUrl;
   return (
     <div
       data-vpos-row
@@ -420,10 +494,12 @@ function PagerBtn({
 
 function DeleteModal({
   name,
+  busy,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -441,51 +517,57 @@ function DeleteModal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
+      if (e.key === 'Escape' && !busy) onCancel();
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden />
       <div
         ref={panelRef}
-        role="dialog"
+        role="alertdialog"
         aria-modal
-        className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-xl"
       >
-        <div className="px-5 py-4">
-          <h2 className="text-lg font-bold text-[var(--panel-ink)]">Sanal POS tanımını sil</h2>
-          <p className="mt-2 text-sm text-[var(--panel-muted)]">
-            <strong className="text-[var(--panel-ink)]">{name}</strong> silinsin mi? Bu işlem geri
-            alınamaz.
-          </p>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-[var(--panel-line)] px-5 py-3">
+        <h3 className="text-base font-bold text-[var(--panel-ink)]">Sanal POS sil</h3>
+        <p className="mt-2 text-sm text-[var(--panel-muted)]">
+          <span className="font-semibold text-[var(--panel-ink)]">{name}</span> kaydı silinecek. Emin
+          misiniz?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
+            disabled={busy}
             onClick={onCancel}
-            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2 text-sm font-semibold"
           >
             Vazgeç
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onConfirm}
-            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500"
+            className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Sil
+            {busy ? 'Siliniyor…' : 'Sil'}
           </button>
         </div>
       </div>
     </div>,
     document.body,
   );
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function SearchIcon() {
@@ -501,21 +583,12 @@ function TrashIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"
+        d="M5 7h14M10 11v6M14 11v6M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="1.7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
   );
-}
-
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
 }

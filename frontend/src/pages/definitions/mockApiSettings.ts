@@ -17,25 +17,25 @@ export const API_CATEGORIES: ApiCategoryMeta[] = [
     id: 'locations',
     label: 'Lokasyonlar',
     path: '/locations',
-    description: 'Ülke, il ve ilçe kayıtları',
+    description: 'Ülke / il / ilçe / mahalle (canlı)',
   },
   {
     id: 'tax-offices',
     label: 'Vergi Daireleri',
     path: '/tax-offices',
-    description: 'Vergi dairesi tanımları',
+    description: 'Vergi dairesi tanımları (canlı)',
   },
   {
     id: 'banks',
     label: 'Bankalar',
     path: '/banks',
-    description: 'Banka listesi',
+    description: 'Tanımlamalar › Bankalar (canlı)',
   },
   {
     id: 'bin',
     label: 'BIN Kayıtları',
-    path: '/bin-records',
-    description: 'Kart BIN tanımları',
+    path: '/bins',
+    description: 'Kart BIN → banka (ödeme algılama)',
   },
 ];
 
@@ -66,6 +66,8 @@ export type BinRow = {
   type: string;
   brand: string;
   kind: string;
+  /** DB banka id (API) */
+  bankId?: string;
 };
 
 export type ApiRow = LocationRow | TaxOfficeRow | BankRow | BinRow;

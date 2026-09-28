@@ -27,7 +27,7 @@ type Props = {
   /** Satırın durumunu hesapla */
   classify: (cells: string[]) => { status: ImportStatus; note: string };
   onClose: () => void;
-  onConfirm: (newRows: string[][]) => void;
+  onConfirm: (newRows: string[][]) => void | Promise<void>;
 };
 
 /**
@@ -135,7 +135,7 @@ export function ApiExcelModal({
   function confirmImport() {
     const neu = drafts.filter((d) => d.status === 'new').map((d) => d.cells);
     if (!neu.length) return;
-    onConfirm(neu);
+    void onConfirm(neu);
   }
 
   return createPortal(
