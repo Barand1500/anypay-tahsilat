@@ -7,8 +7,9 @@ import type {
 } from '../types.js';
 
 /**
- * Garanti BBVA Sanal POS — 3D_OOS_PAY / gt3dengine
- * NestPay (est3DGate) DEĞİL. successurl / errorurl zorunlu.
+ * Garanti BBVA Sanal POS — gt3dengine
+ * Güvenlik tipi banka kaydından gelir (ör. 3D_OOS_PAY — referans panel).
+ * NestPay (est3DGate) DEĞİL.
  */
 
 function sha1HexUpper(plain: string): string {
@@ -32,7 +33,7 @@ function currencyCode(code: string): string {
   return /^\d+$/.test(u) ? u : '949';
 }
 
-/** Terminal id 9 haneye tamamlanır (soldan 0) */
+/** Terminal id 9 haneye tamamlanır (soldan 0) — hash ve form aynı olmalı */
 function padTerminalId(raw: string): string {
   const d = raw.replace(/\D/g, '');
   return d.padStart(9, '0').slice(-9);
@@ -44,13 +45,21 @@ function resolveMode(gateway3dUrl: string): 'PROD' | 'TEST' {
   return 'PROD';
 }
 
+/** Banka › Güvenlik Tipleri değerini olduğu gibi kullan (3D_OOS_PAY vb.) */
 function resolveSecurityLevel(raw: string): string {
   const t = (raw || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
   if (!t) return '3D_OOS_PAY';
-  if (t.includes('OOS')) return t.includes('PAY') ? '3D_OOS_PAY' : '3D_OOS';
-  if (t === '3D_PAY' || t === '3DPAY') return '3D_PAY';
-  if (t === '3D' || t === '3DMODEL') return '3D';
+  if (t === '3DOOSPAY' || t === '3D_OOSPAY') return '3D_OOS_PAY';
+  if (t === '3DOOS' || t === '3D_OOS') return '3D_OOS';
+  if (t === '3DPAY') return '3D_PAY';
+  if (t === '3DFULL') return '3D_FULL';
+  if (t === '3DHALF') return '3D_HALF';
+  if (t === '3DMODEL') return '3D';
   return t;
+}
+
+function isOosLevel(level: string): boolean {
+  return level.includes('OOS');
 }
 
 export function looksLikeGaranti(pos: {
@@ -62,7 +71,6 @@ export function looksLikeGaranti(pos: {
   const blob = `${pos.gateway3dUrl} ${pos.infrastructureId} ${pos.bankName} ${pos.securityType || ''}`.toLowerCase();
   if (blob.includes('akbank') || blob.includes('virtualpospaymentgateway')) return false;
   if (blob.includes('est3dgate') || blob.includes('asseco') || blob.includes('nestpay')) {
-    // Klasik NestPay URL’si — Garanti değil
     if (!blob.includes('garanti.com')) return false;
   }
   return (
@@ -118,8 +126,10 @@ export const garantiGateway: PaymentGateway = {
     const installment =
       input.installment > 1 ? String(input.installment) : '';
     const level = resolveSecurityLevel(input.pos.securityType);
+    // OOS / ortak ödeme → PROVOOS; klasik 3D → PROVAUT
+    const provUser = isOosLevel(level) ? 'PROVOOS' : 'PROVAUT';
 
-    // SecurityData = SHA1(password + terminalId9).HEX.UPPER
+    // SecurityData = SHA1(password + terminalId9)
     // HashData = SHA512(terminalId9 + orderId + amount + currency + successUrl + errorUrl + type + installment + storeKey + SecurityData)
     const securityData = sha1HexUpper(password + terminalId9);
     const hashData = sha512HexUpper(
@@ -141,10 +151,10 @@ export const garantiGateway: PaymentGateway = {
     const fields: Record<string, string> = {
       mode: resolveMode(input.pos.gateway3dUrl),
       apiversion: '512',
-      terminalprovuserid: 'PROVAUT',
-      terminaluserid: merchantId,
+      terminalprovuserid: provUser,
+      terminaluserid: provUser,
       terminalmerchantid: merchantId,
-      terminalid: terminalId.replace(/\D/g, '') || terminalId,
+      terminalid: terminalId9,
       orderid: orderId,
       customeremailaddress: input.email || 'musteri@anypay.com.tr',
       customeripaddress: input.clientIp || '127.0.0.1',
@@ -191,16 +201,11 @@ export const garantiGateway: PaymentGateway = {
       raw.procreturncode || raw.ProcReturnCode || raw.procreturncode || '';
     const response = (raw.response || raw.Response || '').toLowerCase();
 
-    // Garanti: mdstatus 1–4 genelde başarılı 3D
     const mdOk =
       mdStatus === '1' ||
       mdStatus === '2' ||
       mdStatus === '3' ||
       mdStatus === '4';
-    const codeOk =
-      procReturnCode === '00' ||
-      procReturnCode === '' ||
-      response === 'approved';
 
     const success = mdOk && (procReturnCode === '00' || procReturnCode === '');
 

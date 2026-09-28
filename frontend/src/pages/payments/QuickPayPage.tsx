@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
+import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
@@ -92,10 +93,11 @@ export default function QuickPayPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [cardChecked, setCardChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
+  const binsRev = useBinsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
-  const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
+  const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   const cardFaulty =
     cardChecked &&
     cardDigits.length > 0 &&

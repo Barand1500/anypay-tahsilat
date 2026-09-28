@@ -6,6 +6,7 @@ import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useAgreementRates } from '../../hooks/useAgreementRates';
+import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
@@ -71,6 +72,7 @@ export default function PaymentCollectPage() {
   /** Yazma bitince (blur / submit) rozet kontrolü */
   const [cardChecked, setCardChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
+  const binsRev = useBinsRevision();
 
   useEffect(() => {
     if (!customer) return;
@@ -121,7 +123,7 @@ export default function PaymentCollectPage() {
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
-  const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
+  const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
 
   const { rows: agreementRows } = useAgreementRates({
     amount: amount || 0,

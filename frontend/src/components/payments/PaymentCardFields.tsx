@@ -193,13 +193,20 @@ export function PaymentCardFields(props: Props) {
           endAdornment={
             props.cardFaulty ? (
               <FaultBadge />
-            ) : props.bank ? (
+            ) : props.bank?.logo ? (
               <img
                 src={props.bank.logo}
                 alt=""
                 title={props.bank.name}
                 className="h-7 w-auto max-w-[80px] object-contain"
               />
+            ) : props.bank ? (
+              <span
+                title={props.bank.name}
+                className="max-w-[5.5rem] truncate rounded-md bg-[var(--panel-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-ink)]"
+              >
+                {props.bank.name}
+              </span>
             ) : (
               <span className="rounded-md bg-[var(--panel-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)]">
                 BIN

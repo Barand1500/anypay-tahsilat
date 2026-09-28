@@ -370,6 +370,19 @@ export async function softDeleteBin(id: number): Promise<void> {
   await prisma.$executeRawUnsafe(`DELETE FROM \`bin_kayitlari\` WHERE \`id\` = ?`, id);
 }
 
+/** Ödeme ekranı — sadece bin + banka (auth gerekmez) */
+export async function listBinCatalog(): Promise<{ bin: string; bankId: string; bank: string }[]> {
+  await ensureBinKayitlariTable();
+  const rows = await listBins();
+  return rows
+    .filter((r) => r.bin.length >= 4 && r.bank)
+    .map((r) => ({
+      bin: r.bin,
+      bankId: r.bankId,
+      bank: r.bank,
+    }));
+}
+
 /** Kart numarası → en uzun eşleşen BIN + banka */
 export async function lookupBinByCard(cardDigits: string): Promise<{
   bin: string;

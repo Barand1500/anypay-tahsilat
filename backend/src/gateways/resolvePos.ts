@@ -40,10 +40,20 @@ function mapPos(
   },
 ): PosCredentials {
   const fromPos = (pos.guvenlikTipi || '').trim();
-  const fromBank = (bank.guvenlikTipleri || '')
-    .split(/[,;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)[0] || '';
+  // Banka › Güvenlik Tipleri — virgülle ayrık; ilk dolu değer
+  const fromBank =
+    (bank.guvenlikTipleri || '')
+      .split(/[,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)[0] || '';
+  // Garanti: güvenlik tipi POS formunda yok → banka kaydı öncelikli (referans)
+  const garantiLike =
+    /garanti|gt3dengine|vpservlet/i.test(
+      `${bank.sanalPos3dUrl || ''} ${pos.altyapiKodu} ${bank.adi} ${bank.kisaAdi}`,
+    ) || pos.altyapiKodu === 'infra-garanti';
+  const securityType = garantiLike
+    ? fromBank || fromPos || ''
+    : fromPos || fromBank || '';
   return {
     bankId: bank.id,
     bankName: (bank.adi || bank.kisaAdi || `Banka #${bank.id}`).trim(),
@@ -54,7 +64,7 @@ function mapPos(
     terminalSafeId: (pos.terminalSafeId || '').trim(),
     securityKey: (pos.guvenlikAnahtari || '').trim(),
     terminalPassword: (pos.terminalSifresi || '').trim(),
-    securityType: fromPos || fromBank || '',
+    securityType,
     gateway3dUrl: (bank.sanalPos3dUrl || '').trim(),
     apiUrl: (bank.sanalPosApiUrl || '').trim(),
     xmlUrl: (bank.sanalPosXmlUrl || '').trim(),
@@ -77,7 +87,7 @@ function assertReady(c: PosCredentials): void {
     if (!c.terminalPassword) {
       throw new PosResolveError('Garanti: Terminal Şifresi eksik (Sanal POS Tanımı)');
     }
-    // güvenlik tipi boşsa 3D_OOS_PAY varsayılanı adapter’da uygulanır
+    // güvenlik tipi boşsa banka / 3D_OOS_PAY varsayılanı adapter’da
     return;
   }
 

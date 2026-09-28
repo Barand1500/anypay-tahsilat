@@ -2,6 +2,8 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
+import { useBinsRevision } from '../../hooks/useBinsRevision';
+import { useLoadBins } from '../../hooks/useLoadBins';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
@@ -38,6 +40,8 @@ type PublicPayView = {
 export default function PublicPayPage() {
   const { token: payToken } = useParams();
   const rootRef = useRef<HTMLDivElement>(null);
+  useLoadBins();
+  const binsRev = useBinsRevision();
 
   const [view, setView] = useState<PublicPayView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,7 +117,7 @@ export default function PublicPayPage() {
   }, [view]);
 
   const cardDigits = digitsOnly(card);
-  const bank = useMemo(() => detectBank(cardDigits), [cardDigits]);
+  const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   const cardFaulty =
     cardDigits.length > 0 &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));

@@ -32,7 +32,7 @@ export const BANKS: BankInfo[] = [
   { id: 'qnb', name: 'QNB', fullName: 'QNB Bank A.Ş.', logo: L('qnbbankas_logo_1745577261.webp'), bins: ['4159', '4022', '5311', '5218'] },
   { id: 'ziraat', name: 'Ziraat Bankası', fullName: 'T.C. Ziraat Bankası A.Ş.', logo: L('tcziraatbankasias_logo_1760452109.webp'), bins: ['4543', '5310', '9792'] },
   { id: 'halkbank', name: 'Halkbank', fullName: 'Türkiye Halk Bankası A.Ş.', logo: L('thalkbankasias_logo_1750066038.webp'), bins: ['5528', '5430', '9792'] },
-  { id: 'vakifbank', name: 'VakıfBank', fullName: 'Türkiye Vakıflar Bankası T.A.O.', logo: L('tvakiflarbankasitao_logo_1760452244.webp'), bins: ['4938', '5421', '4111'] },
+  { id: 'vakifbank', name: 'VakıfBank', fullName: 'Türkiye Vakıflar Bankası T.A.O.', logo: L('tvakiflarbankasitao_logo_1760452244.webp'), bins: ['535576', '4938', '5421', '4111'] },
   { id: 'denizbank', name: 'DenizBank', fullName: 'Denizbank A.Ş.', logo: L('denizbankas_logo_1760449984.webp'), bins: ['5218', '5430', '4766'] },
   { id: 'teb', name: 'TEB', fullName: 'Türk Ekonomi Bankası A.Ş.', logo: L('turkekonomibankasias_logo_1760450968.webp'), bins: ['4402', '5127'] },
   { id: 'ing', name: 'ING', fullName: 'ING Bank A.Ş.', logo: L('ingbankas_logo_1765277010.webp'), bins: ['4555', '5406'] },
@@ -166,6 +166,74 @@ export function findBankLogo(query: { id?: string; name?: string; logo?: string 
 
 import { matchRuntimeBin } from '../../lib/binStore';
 
+function normalizeBankText(s: string): string {
+  return s
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** DB adı / slug → logo kataloğu (T. VAKIFLAR BANKASI → VakıfBank) */
+function resolveBankFromName(bankName: string, bankId?: string): BankInfo | null {
+  if (bankId) {
+    const byId = BANKS.find((b) => b.id === bankId);
+    if (byId) return byId;
+  }
+  const q = normalizeBankText(bankName);
+  if (!q) return null;
+
+  const hints: [string, string][] = [
+    ['vakifbank', 'vakif'],
+    ['garanti', 'garanti'],
+    ['akbank', 'akbank'],
+    ['isbank', 'is bank'],
+    ['yapikredi', 'yapi'],
+    ['qnb', 'qnb'],
+    ['qnb', 'finansbank'],
+    ['ziraat', 'ziraat'],
+    ['halkbank', 'halk'],
+    ['denizbank', 'deniz'],
+    ['teb', 'teb'],
+    ['ing', 'ing'],
+    ['hsbc', 'hsbc'],
+    ['kuveytturk', 'kuveyt'],
+    ['fibabanka', 'fiba'],
+    ['odeabank', 'odea'],
+    ['sekerbank', 'seker'],
+    ['anadolubank', 'anadolu'],
+    ['alternatif', 'alternatif'],
+    ['albaraka', 'albaraka'],
+    ['turkiyefinans', 'turkiye finans'],
+    ['vakifkatilim', 'vakif katilim'],
+    ['ziraatkatilim', 'ziraat katilim'],
+    ['papara', 'papara'],
+    ['tosla', 'tosla'],
+    ['enpara', 'enpara'],
+  ];
+  let bestId = '';
+  let bestLen = 0;
+  for (const [id, hint] of hints) {
+    if (q.includes(hint) && hint.length > bestLen) {
+      bestId = id;
+      bestLen = hint.length;
+    }
+  }
+  if (bestId) {
+    const hit = BANKS.find((b) => b.id === bestId);
+    if (hit) return hit;
+  }
+
+  for (const b of BANKS) {
+    const n = normalizeBankText(b.name);
+    const f = normalizeBankText(b.fullName);
+    if ((n && q.includes(n)) || (f && (q.includes(f) || f.includes(q)))) return b;
+  }
+  return null;
+}
+
 export function detectBank(cardDigits: string): BankInfo | null {
   const d = digitsOnly(cardDigits);
   if (d.length < 4) return null;
@@ -173,17 +241,8 @@ export function detectBank(cardDigits: string): BankInfo | null {
   // Api Ayarları › BIN (DB) — varsa öncelikli
   const runtime = matchRuntimeBin(d);
   if (runtime) {
-    const byId = BANKS.find((b) => b.id === runtime.bankId);
-    if (byId) return byId;
-    const q = runtime.bankName.toLocaleLowerCase('tr');
-    const byName = BANKS.find(
-      (b) =>
-        b.name.toLocaleLowerCase('tr').includes(q) ||
-        b.fullName.toLocaleLowerCase('tr').includes(q) ||
-        q.includes(b.name.toLocaleLowerCase('tr')),
-    );
-    if (byName) return byName;
-    // DB bankası logo kataloğunda yoksa yine göster
+    const resolved = resolveBankFromName(runtime.bankName, runtime.bankId);
+    if (resolved) return resolved;
     return {
       id: runtime.bankId || `bin-${runtime.bin}`,
       name: runtime.bankName,

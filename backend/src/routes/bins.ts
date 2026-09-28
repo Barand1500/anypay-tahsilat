@@ -5,6 +5,7 @@ import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   BinsError,
   createBin,
+  listBinCatalog,
   listBins,
   lookupBinByCard,
   seedBinsIfEmpty,
@@ -23,6 +24,21 @@ const upsertSchema = z.object({
   type: z.string().max(64).optional().default(''),
   brand: z.string().max(64).optional().default(''),
   kind: z.string().max(64).optional().default(''),
+});
+
+/**
+ * Public katalog — ödeme linki (auth yok) + panel ödeme.
+ * Sadece bin / banka adı; CRUD değil.
+ */
+binsRouter.get('/catalog', async (_req, res) => {
+  try {
+    const { ensureBinKayitlariTable } = await import('../lib/ensureSchema.js');
+    await ensureBinKayitlariTable();
+    return sendSuccess(res, await listBinCatalog());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'BIN kataloğu yüklenemedi');
+  }
 });
 
 /** Ödeme ekranı — auth’lu lookup */

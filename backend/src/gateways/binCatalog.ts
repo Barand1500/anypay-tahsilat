@@ -10,7 +10,7 @@ const CATALOG: BinEntry[] = [
   { key: 'qnb', bins: ['4159', '4022', '5311', '5218'], nameHints: ['qnb', 'finansbank'] },
   { key: 'ziraat', bins: ['5310', '9792'], nameHints: ['ziraat'] },
   { key: 'halkbank', bins: ['5528'], nameHints: ['halk'] },
-  { key: 'vakifbank', bins: ['4938', '5421', '4111'], nameHints: ['vakıf', 'vakif'] },
+  { key: 'vakifbank', bins: ['535576', '4938', '5421', '4111'], nameHints: ['vakıf', 'vakif', 'vakıflar', 'vakiflar'] },
   { key: 'denizbank', bins: ['4766'], nameHints: ['deniz'] },
   { key: 'teb', bins: ['4402', '5127'], nameHints: ['teb', 'ekonomi'] },
   { key: 'ing', bins: ['4555'], nameHints: ['ing'] },
@@ -54,4 +54,23 @@ export function normalizeBankText(s: string): string {
     .replace(/ı/g, 'i')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+/** DB banka adı → katalog anahtarı (ör. "T. VAKIFLAR BANKASI…" → vakifbank) */
+export function matchBankKeyByName(name: string): string | null {
+  const q = normalizeBankText(name);
+  if (!q) return null;
+  let best: string | null = null;
+  let bestLen = 0;
+  for (const entry of CATALOG) {
+    for (const hint of entry.nameHints) {
+      const h = normalizeBankText(hint);
+      if (!h) continue;
+      if ((q.includes(h) || h.includes(q)) && h.length > bestLen) {
+        best = entry.key;
+        bestLen = h.length;
+      }
+    }
+  }
+  return best;
 }
