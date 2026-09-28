@@ -9,8 +9,9 @@ import type {
 /**
  * Garanti BBVA Sanal POS — gt3dengine
  *
- * 3D_OOS_PAY = Ortak Ödeme: kart bankanın sayfasında girilir (formda card* yok).
- * 3D_PAY / 3D = kart bizim formda; PROVAUT + card* alanları.
+ * Ödeme ekranımız kartı kendisi toplar → her zaman 3D_PAY + card* + PROVAUT.
+ * Bankadaki "3D_OOS_PAY" etiketi ortak-ödeme (kart bankada) içindir; bizim
+ * işyerinde OOS tanımlı değilse "Isyeri Kullanim Tipi Desteklenmiyor" verir.
  */
 
 function sha1HexUpper(plain: string): string {
@@ -40,24 +41,23 @@ function padTerminalId(raw: string): string {
 
 function resolveMode(gateway3dUrl: string): 'PROD' | 'TEST' {
   const u = gateway3dUrl.toLowerCase();
-  if (u.includes('sanalposprovtest') || u.includes('/test')) return 'TEST';
+  if (u.includes('sanalposprovtest') || /\/test(\/|$)/.test(u)) return 'TEST';
   return 'PROD';
 }
 
+/**
+ * Kartlı merchant form → 3D_PAY.
+ * OOS* banka etiketini 3D_PAY’e map’ler (işyeri OOS değilse OOS hata verir).
+ */
 function resolveSecurityLevel(raw: string): string {
   const t = (raw || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (!t) return '3D_OOS_PAY';
-  if (t === '3DOOSPAY' || t === '3D_OOSPAY') return '3D_OOS_PAY';
-  if (t === '3DOOS' || t === '3D_OOS') return '3D_OOS';
-  if (t === '3DPAY') return '3D_PAY';
-  if (t === '3DFULL') return '3D_FULL';
-  if (t === '3DHALF') return '3D_HALF';
-  if (t === '3DMODEL') return '3D';
-  return t;
-}
-
-function isOosLevel(level: string): boolean {
-  return level.includes('OOS');
+  if (!t) return '3D_PAY';
+  if (t.includes('OOS')) return '3D_PAY';
+  if (t === '3DPAY' || t === '3D_PAY') return '3D_PAY';
+  if (t === '3DFULL' || t === '3D_FULL') return '3D_FULL';
+  if (t === '3DHALF' || t === '3D_HALF') return '3D_HALF';
+  if (t === '3D' || t === '3DMODEL' || t === '3D_MODEL') return '3D';
+  return '3D_PAY';
 }
 
 export function looksLikeGaranti(pos: {
@@ -104,21 +104,14 @@ export const garantiGateway: PaymentGateway = {
     if (!input.pos.gateway3dUrl) {
       return { kind: 'error', message: 'Garanti: 3D geçit URL eksik (Banka Düzenle)' };
     }
-
-    const level = resolveSecurityLevel(input.pos.securityType);
-    const oos = isOosLevel(level);
-
-    // OOS: kart bankada girilir — card* gönderme (aksi halde "İşlem model tipi hatalı")
-    if (!oos) {
-      if (!/^\d{15,16}$/.test(input.card.number)) {
-        return { kind: 'error', message: 'Kart numarası geçersiz' };
-      }
-      if (!/^\d{4}$/.test(input.card.expiry)) {
-        return { kind: 'error', message: 'Son kullanma MMYY olmalı' };
-      }
-      if (!/^\d{3,4}$/.test(input.card.cvc)) {
-        return { kind: 'error', message: 'CVC geçersiz' };
-      }
+    if (!/^\d{15,16}$/.test(input.card.number)) {
+      return { kind: 'error', message: 'Kart numarası geçersiz' };
+    }
+    if (!/^\d{4}$/.test(input.card.expiry)) {
+      return { kind: 'error', message: 'Son kullanma MMYY olmalı' };
+    }
+    if (!/^\d{3,4}$/.test(input.card.cvc)) {
+      return { kind: 'error', message: 'CVC geçersiz' };
     }
 
     const terminalId9 = padTerminalId(terminalId);
@@ -130,9 +123,11 @@ export const garantiGateway: PaymentGateway = {
     const txntype = 'sales';
     const installment =
       input.installment > 1 ? String(input.installment) : '';
-    // OOS şifresi genelde aynı panelde PROVAUT ile tutulur; PROVOOS ayrı reset yoksa hash patlar
+    const level = resolveSecurityLevel(input.pos.securityType);
     const provUser = 'PROVAUT';
 
+    // SecurityData = SHA1(password + terminalId9)
+    // HashData = SHA512(terminalId9 + orderId + amount + currency + successUrl + errorUrl + type + installment + storeKey + SecurityData)
     const securityData = sha1HexUpper(password + terminalId9);
     const hashData = sha512HexUpper(
       terminalId9 +
@@ -146,6 +141,9 @@ export const garantiGateway: PaymentGateway = {
         storeKey +
         securityData,
     );
+
+    const mm = input.card.expiry.slice(0, 2);
+    const yy = input.card.expiry.slice(2, 4);
 
     const fields: Record<string, string> = {
       mode: resolveMode(input.pos.gateway3dUrl),
@@ -165,20 +163,15 @@ export const garantiGateway: PaymentGateway = {
       errorurl: errorUrl,
       secure3dsecuritylevel: level,
       secure3dhash: hashData,
+      cardnumber: input.card.number,
+      cardexpiredatemonth: mm,
+      cardexpiredateyear: yy,
+      cardcvv2: input.card.cvc,
       txntimestamp: String(Date.now()),
       lang: 'tr',
       refreshtime: '1',
       companyname: 'AnyPay',
     };
-
-    if (!oos) {
-      const mm = input.card.expiry.slice(0, 2);
-      const yy = input.card.expiry.slice(2, 4);
-      fields.cardnumber = input.card.number;
-      fields.cardexpiredatemonth = mm;
-      fields.cardexpiredateyear = yy;
-      fields.cardcvv2 = input.card.cvc;
-    }
 
     return {
       kind: 'form',
