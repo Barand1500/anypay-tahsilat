@@ -121,17 +121,59 @@ async function replaceAgreementRows(
     grup: string;
     blokAdi: string;
     blokLogo: string | null;
-    detay: string | null;
+    detay?: string | null;
     anlasmaKodu: string;
     remove: boolean;
   }[],
 ): Promise<void> {
+  // Canlı DB’de detay kolonu yoksa ekle
+  const { ensureKartAnlasmalariTable } = await import('../lib/ensureSchema.js');
+  await ensureKartAnlasmalariTable();
+
   await prisma.kartAnlasma.updateMany({
     where: { anlasmaKodu: code, ...notRemoved() },
     data: { remove: true },
   });
-  if (rows.length) {
-    await prisma.kartAnlasma.createMany({ data: rows });
+
+  if (!rows.length) return;
+
+  // Önce detay’sız yaz (kolon yoksa bile çalışsın)
+  const baseRows = rows.map(({ detay: _d, ...rest }) => rest);
+  try {
+    await prisma.kartAnlasma.createMany({
+      data: rows.map((r) => ({
+        ...r,
+        detay: r.detay ?? null,
+      })),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // detay kolonu / bilinmeyen alan → detay’sız tekrar dene
+    if (/detay|Unknown argument|does not exist|Unknown column/i.test(msg)) {
+      await prisma.kartAnlasma.createMany({ data: baseRows });
+      // İlk satıra detay’ı raw ile yazmayı dene
+      const firstDetay = rows.find((r) => r.detay)?.detay;
+      if (firstDetay) {
+        try {
+          const first = await prisma.kartAnlasma.findFirst({
+            where: { anlasmaKodu: code, ...notRemoved() },
+            orderBy: { id: 'asc' },
+            select: { id: true },
+          });
+          if (first) {
+            await prisma.$executeRawUnsafe(
+              `UPDATE \`kart_anlasmalari\` SET \`detay\` = ? WHERE \`id\` = ?`,
+              firstDetay,
+              first.id,
+            );
+          }
+        } catch {
+          /* detay opsiyonel */
+        }
+      }
+      return;
+    }
+    throw err;
   }
 }
 
@@ -162,11 +204,11 @@ export async function getPosBankAgreement(posId: number): Promise<{
     };
   }
 
-  // detay JSON varsa tam form
-  const head = dbRows[0]!;
-  if (head.detay) {
+  // detay JSON varsa tam form (ilk dolu satır)
+  const withDetay = dbRows.find((r) => r.detay);
+  if (withDetay?.detay) {
     try {
-      const parsed = JSON.parse(head.detay) as { items?: BankInstallmentPayload[] };
+      const parsed = JSON.parse(withDetay.detay) as { items?: BankInstallmentPayload[] };
       if (Array.isArray(parsed.items) && parsed.items.length) {
         return {
           posId: pos.id,
@@ -232,13 +274,14 @@ export async function savePosBankAgreement(
   const name = `${pos.bankName} Banka Kart Anlaşması`.slice(0, 255);
   const detay = JSON.stringify({ items });
 
-  const flat = items.map((it) => {
+  const flat = items.map((it, idx) => {
     const n = Math.min(36, Math.max(1, Math.round(Number(it.n) || 1)));
     const minLimit =
       parseTrNumber(it.bireysel?.minLimit) ??
       parseTrNumber(it.all?.minLimit) ??
       parseTrNumber(it.ticari?.minLimit);
 
+    const logo = (pos.bankLogoUrl || '').trim();
     return {
       adi: name,
       bankaId: Number.isFinite(bankIdNum) ? bankIdNum : null,
@@ -251,8 +294,9 @@ export async function savePosBankAgreement(
       komisyonTicari: it.ticari?.active ? parseTrNumber(it.ticari.customerCommission) : null,
       grup: date,
       blokAdi: pos.bankName.slice(0, 255),
-      blokLogo: (pos.bankLogoUrl || '').slice(0, 255) || null,
-      detay,
+      blokLogo: logo ? logo.slice(0, 255) : null,
+      // JSON yalnızca ilk satırda (tekrar / paket boyutu)
+      detay: idx === 0 ? detay : null,
       anlasmaKodu: code,
       remove: false,
     };

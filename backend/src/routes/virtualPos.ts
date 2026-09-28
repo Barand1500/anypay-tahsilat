@@ -65,8 +65,33 @@ virtualPosRouter.get('/:id', async (req, res) => {
   }
 });
 
+const segmentSchema = z
+  .object({
+    minLimit: z.string().optional().default(''),
+    bankCommission: z.string().optional().default(''),
+    customerCommission: z.string().optional().default(''),
+    points: z.string().optional().default('0'),
+    extraInstallment: z.string().optional().default('0'),
+    collectionDay: z.string().optional().default('0'),
+    blockDay: z.string().optional().default('0'),
+    note: z.string().optional().default(''),
+    active: z.boolean().optional().default(true),
+  })
+  .passthrough();
+
 const bankAgreementSchema = z.object({
-  items: z.array(z.record(z.unknown())).min(1),
+  items: z
+    .array(
+      z
+        .object({
+          n: z.coerce.number().int().min(1).max(36),
+          all: segmentSchema,
+          bireysel: segmentSchema,
+          ticari: segmentSchema,
+        })
+        .passthrough(),
+    )
+    .min(1),
 });
 
 const customerAgreementSchema = z.object({
@@ -112,13 +137,14 @@ virtualPosRouter.put('/:id/bank-agreement', async (req: AuthedRequest, res) => {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   }
   try {
-    const data = await savePosBankAgreement(id, parsed.data.items as never);
+    const data = await savePosBankAgreement(id, parsed.data.items);
     await writePanelLog(req.auth!.sub, `Banka kart anlaşması kaydedildi — POS #${id}`);
     return sendSuccess(res, data, 'Banka kart anlaşması kaydedildi');
   } catch (err) {
     if (err instanceof PosAgreementError) return sendError(res, 400, err.message);
-    console.error(err);
-    return sendError(res, 500, 'Banka kart anlaşması kaydedilemedi');
+    console.error('[bank-agreement]', err);
+    const msg = err instanceof Error ? err.message : 'Banka kart anlaşması kaydedilemedi';
+    return sendError(res, 500, msg.slice(0, 500));
   }
 });
 
@@ -147,8 +173,9 @@ virtualPosRouter.put('/:id/customer-agreement', async (req: AuthedRequest, res) 
     return sendSuccess(res, data, 'Müşteri kart anlaşması kaydedildi');
   } catch (err) {
     if (err instanceof PosAgreementError) return sendError(res, 400, err.message);
-    console.error(err);
-    return sendError(res, 500, 'Müşteri kart anlaşması kaydedilemedi');
+    console.error('[customer-agreement]', err);
+    const msg = err instanceof Error ? err.message : 'Müşteri kart anlaşması kaydedilemedi';
+    return sendError(res, 500, msg.slice(0, 500));
   }
 });
 
