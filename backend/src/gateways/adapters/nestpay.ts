@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type {
   CallbackResult,
   Initiate3dInput,
@@ -7,18 +7,36 @@ import type {
 } from '../types.js';
 
 /**
- * NestPay / Payten klasik 3D_PAY form (QNB, İş, Ziraat, Yapı Kredi vb.).
- * Garanti BBVA bu adapter’a GİRMEZ — ayrı gt3dengine protokolü.
- * storekey = securityKey, clientid = merchantId
+ * NestPay / Payten 3D_PAY — referans isbankasi.adapter.js (hashAlgorithm ver3).
+ * Garanti / Akbank / VakıfBank bu adapter’a girmez.
  */
 
-function sha1Base64(plain: string): string {
-  return createHash('sha1').update(plain, 'latin1').digest('base64');
+function escapeHashValue(value: string): string {
+  return String(value ?? '')
+    .replaceAll('\\', '\\\\')
+    .replaceAll('|', '\\|');
+}
+
+/** ver3: alfabetik alanlar + storeKey → SHA512 hex → base64 */
+function nestpayHashVer3(params: Record<string, string>, storeKey: string): string {
+  const keys = Object.keys(params).sort((a, b) =>
+    a.localeCompare(b, 'tr', { sensitivity: 'base' }),
+  );
+
+  let hashVal = '';
+  for (const key of keys) {
+    const lower = key.toLowerCase();
+    if (lower === 'hash' || lower === 'encoding') continue;
+    hashVal += `${escapeHashValue(params[key] ?? '')}|`;
+  }
+  hashVal += escapeHashValue(storeKey);
+
+  const hex = createHash('sha512').update(hashVal, 'utf8').digest('hex');
+  return Buffer.from(hex, 'hex').toString('base64');
 }
 
 function mapStoreType(securityType: string): string {
   const t = securityType.trim().toUpperCase().replace(/[\s-]+/g, '_');
-  // Virgüllü liste gelirse tercih sırası
   if (t.includes(',')) {
     const parts = t.split(',').map((s) => s.trim()).filter(Boolean);
     for (const p of ['3D_PAY', '3DPAY', '3D_PAY_HOSTING', '3D_HOST', '3DHOST', '3D']) {
@@ -30,7 +48,6 @@ function mapStoreType(securityType: string): string {
   if (t === '3D_PAY' || t === '3DPAY') return '3d_pay';
   if (t === '3D_HOST' || t === '3DHOST' || t === '3D_PAY_HOSTING') return '3d_pay_hosting';
   if (t === '3D' || t === '3DMODEL' || t === '3D_MODEL') return '3d';
-  // Varsayılan: kartlı formumuz için 3d_pay (ayrı provizyon yok)
   return '3d_pay';
 }
 
@@ -42,14 +59,10 @@ function currencyCode(code: string): string {
   return '949';
 }
 
-function formatAmount(amount: number): string {
-  return amount.toFixed(2);
-}
-
 export const nestpayGateway: PaymentGateway = {
   id: 'nestpay',
 
-  initiate3d(input: Initiate3dInput): Initiate3dResult {
+  async initiate3d(input: Initiate3dInput): Promise<Initiate3dResult> {
     const clientId = input.pos.merchantId;
     const storeKey = input.pos.securityKey;
     if (!clientId || !storeKey) {
@@ -68,48 +81,37 @@ export const nestpayGateway: PaymentGateway = {
       return { kind: 'error', message: 'CVC geçersiz' };
     }
 
-    const amount = formatAmount(input.amount);
-    const oid = input.orderId;
-    const okUrl = input.okUrl;
-    const failUrl = input.failUrl;
-    const islemtipi = 'Auth';
-    const taksit =
-      input.installment > 1 ? String(input.installment) : '';
-    const rnd = randomBytes(10).toString('hex');
-    const storetype = mapStoreType(input.pos.securityType);
-
-    // Hash: clientid + oid + amount + okUrl + failUrl + islemtipi + taksit + rnd + storekey
-    const hash = sha1Base64(
-      clientId + oid + amount + okUrl + failUrl + islemtipi + taksit + rnd + storeKey,
-    );
-
+    const amount = input.amount.toFixed(2);
+    const orderId = input.orderId;
+    const returnUrl = input.okUrl;
     const mm = input.card.expiry.slice(0, 2);
-    const yy = input.card.expiry.slice(2, 4);
+    const yyFull = `20${input.card.expiry.slice(2, 4)}`;
+    const taksit = input.installment > 1 ? String(input.installment) : '';
+    const billName = (input.card.holder || 'Musteri').trim();
 
-    const fields: Record<string, string> = {
+    const params: Record<string, string> = {
+      pan: input.card.number,
+      cv2: input.card.cvc,
+      Ecom_Payment_Card_ExpDate_Year: yyFull,
+      Ecom_Payment_Card_ExpDate_Month: mm,
       clientid: clientId,
       amount,
-      oid,
-      okUrl,
-      failUrl,
-      islemtipi,
-      taksit,
-      rnd,
-      hash,
-      storetype,
-      lang: 'tr',
+      oid: orderId,
+      okurl: returnUrl,
+      failUrl: input.failUrl || returnUrl,
+      callbackUrl: returnUrl,
+      TranType: 'Auth',
+      Instalment: taksit,
       currency: currencyCode(input.currencyCode),
-      pan: input.card.number,
-      Ecom_Payment_Card_ExpDate_Month: mm,
-      Ecom_Payment_Card_ExpDate_Year: yy,
-      cv2: input.card.cvc,
-      cardHolderName: input.card.holder,
+      rnd: `${Date.now()}${Math.floor(Math.random() * 100000)}`,
+      storetype: mapStoreType(input.pos.securityType),
+      hashAlgorithm: 'ver3',
+      lang: 'tr',
+      BillToName: billName,
+      BillToCompany: `${billName} Siparisi`,
     };
 
-    // Terminal no bazı entegrasyonlarda ekstra
-    if (input.pos.terminalSafeId) {
-      fields.TerminalId = input.pos.terminalSafeId;
-    }
+    params.HASH = nestpayHashVer3(params, storeKey);
 
     return {
       kind: 'form',
@@ -117,7 +119,7 @@ export const nestpayGateway: PaymentGateway = {
       form: {
         actionUrl: input.pos.gateway3dUrl,
         method: 'POST',
-        fields,
+        fields: params,
       },
     };
   },
@@ -129,20 +131,20 @@ export const nestpayGateway: PaymentGateway = {
       raw[k] = String(v);
     }
 
-    const orderId = raw.oid || raw.OrderId || raw.orderId || '';
+    const orderId = raw.oid || raw.Oid || raw.orderId || raw.OrderId || '';
     const procReturnCode = raw.ProcReturnCode || raw.procreturncode || '';
-    const mdStatus = raw.mdStatus || raw.mdStatus || '';
-    const response = (raw.Response || raw.response || '').toLowerCase();
+    const mdStatus = raw.mdStatus || '';
+    const response = (raw.Response || raw.response || '').trim();
 
-    // HASH doğrulama (HASHPARAMS / HASH)
+    // Referans: Response === Approved (hash doğrulama bankaya bırakılır)
     let hashOk = true;
-    if (raw.HASHPARAMS && raw.HASH && secretKey) {
+    if (raw.HASHPARAMS && raw.HASH && secretKey && raw.hashAlgorithm !== 'ver3') {
       const plain =
         raw.HASHPARAMS.split(':')
           .filter(Boolean)
           .map((p) => raw[p] ?? '')
           .join('') + secretKey;
-      const expected = sha1Base64(plain);
+      const expected = createHash('sha1').update(plain, 'latin1').digest('base64');
       try {
         const a = Buffer.from(expected);
         const b = Buffer.from(raw.HASH);
@@ -154,7 +156,7 @@ export const nestpayGateway: PaymentGateway = {
 
     const success =
       hashOk &&
-      (procReturnCode === '00' || response === 'approved') &&
+      (procReturnCode === '00' || response === 'Approved') &&
       (mdStatus === '' || mdStatus === '1' || mdStatus === '2' || mdStatus === '3' || mdStatus === '4');
 
     const storetype = (raw.storetype || '').toLowerCase();
@@ -191,8 +193,15 @@ export function looksLikeNestPay(pos: {
 }): boolean {
   const blob = `${pos.gateway3dUrl} ${pos.infrastructureId} ${pos.bankName}`.toLowerCase();
   if (blob.includes('akbank') || blob.includes('virtualpospaymentgateway')) return false;
-  // Garanti kendi gt3dengine protokolünü kullanır
   if (blob.includes('garanti') || blob.includes('gt3dengine') || blob.includes('vpservlet')) {
+    return false;
+  }
+  if (
+    blob.includes('vakif') ||
+    blob.includes('vakıf') ||
+    blob.includes('mpi_enrollment') ||
+    blob.includes('mpiapi')
+  ) {
     return false;
   }
   return (

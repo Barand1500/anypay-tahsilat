@@ -80,7 +80,7 @@ export function looksLikeGaranti(pos: {
 export const garantiGateway: PaymentGateway = {
   id: 'garanti',
 
-  initiate3d(input: Initiate3dInput): Initiate3dResult {
+  async initiate3d(input: Initiate3dInput): Promise<Initiate3dResult> {
     const merchantId = input.pos.merchantId.trim();
     const terminalId = input.pos.terminalSafeId.replace(/\D/g, '').trim() || input.pos.terminalSafeId.trim();
     const storeKey = input.pos.securityKey.trim();

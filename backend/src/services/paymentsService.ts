@@ -350,15 +350,17 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new PaymentsError('Geçerli tutar gerekli');
   }
+  let customerEmail = '';
   if (input.musteriId != null) {
     const musteri = await prisma.musteri.findFirst({
       where: {
         id: input.musteriId,
         OR: [{ remove: null }, { remove: false }],
       },
-      select: { id: true },
+      select: { id: true, eposta: true },
     });
     if (!musteri) throw new PaymentsError('Müşteri bulunamadı');
+    customerEmail = (musteri.eposta || '').trim();
   }
 
   const digits = input.cardDigits.replace(/\D/g, '');
@@ -426,7 +428,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     ? input.amount * (1 + commissionPct / 100)
     : input.amount;
 
-  const threeDResult = initiateThreeD({
+  const threeDResult = await initiateThreeD({
     pos,
     orderId: odemeNo,
     amount: chargedAmount,
@@ -441,7 +443,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     okUrl: `${apiBase}/api/payments/3d/ok`,
     failUrl: `${apiBase}/api/payments/3d/fail`,
     clientIp: input.clientIp,
-    email: input.email,
+    email: (input.email || customerEmail || '').trim() || undefined,
   });
 
   if (threeDResult.kind === 'error') {

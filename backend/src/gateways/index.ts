@@ -2,8 +2,14 @@ import type { Initiate3dInput, Initiate3dResult, PaymentGateway, PosCredentials 
 import { akbankV2Gateway, looksLikeAkbankV2 } from './adapters/akbankV2.js';
 import { garantiGateway, looksLikeGaranti } from './adapters/garanti.js';
 import { nestpayGateway, looksLikeNestPay } from './adapters/nestpay.js';
+import { vakifbankGateway, looksLikeVakifBank } from './adapters/vakifbank.js';
 
-const gateways: PaymentGateway[] = [akbankV2Gateway, garantiGateway, nestpayGateway];
+const gateways: PaymentGateway[] = [
+  akbankV2Gateway,
+  garantiGateway,
+  nestpayGateway,
+  vakifbankGateway,
+];
 
 /** Bilinen ama henüz adapter’ı olmayan altyapılar */
 function unsupportedPlatform(pos: PosCredentials): string | null {
@@ -17,10 +23,11 @@ function unsupportedPlatform(pos: PosCredentials): string | null {
 }
 
 /**
- * Akbank V2 SecurePay + Garanti BBVA (gt3dengine) + NestPay/Payten.
+ * Akbank V2 + Garanti BBVA + NestPay/Payten + VakıfBank MPI.
  */
 export function pickGateway(pos: PosCredentials): PaymentGateway | null {
   if (looksLikeAkbankV2(pos)) return akbankV2Gateway;
+  if (looksLikeVakifBank(pos)) return vakifbankGateway;
   if (looksLikeGaranti(pos)) return garantiGateway;
   if (looksLikeNestPay(pos)) return nestpayGateway;
 
@@ -28,6 +35,7 @@ export function pickGateway(pos: PosCredentials): PaymentGateway | null {
   if (blocked) return null;
 
   if (/securepay|payhosting/i.test(pos.gateway3dUrl)) return akbankV2Gateway;
+  if (/mpi_enrollment|mpiapi|vakifbank/i.test(pos.gateway3dUrl)) return vakifbankGateway;
   if (/gt3dengine|garanti\.com\.tr/i.test(pos.gateway3dUrl)) return garantiGateway;
 
   if (
@@ -43,7 +51,7 @@ export function pickGateway(pos: PosCredentials): PaymentGateway | null {
   return null;
 }
 
-export function initiateThreeD(input: Initiate3dInput): Initiate3dResult {
+export async function initiateThreeD(input: Initiate3dInput): Promise<Initiate3dResult> {
   const url = (input.pos.gateway3dUrl || '').trim();
   if (!url) {
     return {
@@ -57,11 +65,12 @@ export function initiateThreeD(input: Initiate3dInput): Initiate3dResult {
     blocked &&
     !looksLikeAkbankV2(input.pos) &&
     !looksLikeGaranti(input.pos) &&
-    !looksLikeNestPay(input.pos)
+    !looksLikeNestPay(input.pos) &&
+    !looksLikeVakifBank(input.pos)
   ) {
     return {
       kind: 'error',
-      message: `${input.pos.bankName}: ${blocked} altyapısı henüz desteklenmiyor. NestPay/Payten, Garanti veya Akbank SecurePay kullanın.`,
+      message: `${input.pos.bankName}: ${blocked} altyapısı henüz desteklenmiyor. NestPay/Payten, Garanti, Akbank veya VakıfBank kullanın.`,
     };
   }
 

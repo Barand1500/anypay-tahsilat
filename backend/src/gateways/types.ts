@@ -66,8 +66,17 @@ export type CallbackResult = {
   };
 };
 
+export type FinalizeCallbackInput = {
+  body: Record<string, unknown>;
+  pos: PosCredentials;
+  orderId: string;
+  clientIp?: string;
+};
+
 export interface PaymentGateway {
   readonly id: string;
-  initiate3d(input: Initiate3dInput): Initiate3dResult;
+  initiate3d(input: Initiate3dInput): Promise<Initiate3dResult>;
   parseCallback(body: Record<string, unknown>, secretKey: string): CallbackResult;
+  /** VakıfBank MPI vb. — 3D sonrası VPOS Sale */
+  finalizeCallback?(input: FinalizeCallbackInput): Promise<CallbackResult>;
 }

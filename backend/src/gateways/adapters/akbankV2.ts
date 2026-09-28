@@ -6,10 +6,11 @@ import type {
   PaymentGateway,
 } from '../types.js';
 
-/** Akbank V2 SecurePay — HMAC-SHA512 form (omnipay-akbank / resmi doc §6) */
+/** Akbank V2 SecurePay — referans akbank.adapter.js (HMAC-SHA512, sabit hash sırası) */
 
 const TXN_3D = '3000';
 const SUCCESS_CODE = 'VPS-0000';
+const PAYMENT_MODEL = '3D_PAY';
 
 function hmacB64(data: string, secret: string): string {
   return createHmac('sha512', secret).update(data, 'utf8').digest('base64');
@@ -43,100 +44,93 @@ function currencyNumeric(code: string): string {
   return map[u] ?? '949';
 }
 
-function mapPaymentModel(securityType: string): string {
-  const t = securityType.trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (t.includes(',')) {
-    const parts = t.split(',').map((s) => s.trim()).filter(Boolean);
-    for (const p of ['3D_PAY', '3DPAY', '3D_PAY_HOSTING', '3D_HOST', '3DHOST', '3D']) {
-      if (parts.some((x) => x === p || x.replace(/_/g, '') === p.replace(/_/g, ''))) {
-        return mapPaymentModel(p);
-      }
-    }
-  }
-  if (t === '3D_PAY_HOSTING' || t === '3D_HOST' || t === '3DHOST') return '3D_PAY_HOSTING';
-  if (t === '3D_PAY' || t === '3DPAY') return '3D_PAY';
-  if (t === '3D' || t === '3DMODEL' || t === '3D_MODEL') return '3D';
-  return securityType.trim() || '3D_PAY';
-}
-
-function isHosting(model: string): boolean {
-  return model === '3D_PAY_HOSTING';
-}
-
-function resolveActionUrl(gateway3dUrl: string, model: string): string {
-  const base = gateway3dUrl.replace(/\/$/, '');
-  if (isHosting(model)) {
-    if (base.includes('/securepay')) return base.replace(/\/securepay$/i, '/payhosting');
-    if (!base.includes('/payhosting')) return `${base}/payhosting`;
-  }
-  return base;
-}
-
 export const akbankV2Gateway: PaymentGateway = {
   id: 'akbank-v2',
 
-  initiate3d(input: Initiate3dInput): Initiate3dResult {
-    const model = mapPaymentModel(input.pos.securityType);
-    const hosting = isHosting(model);
-    const actionUrl = resolveActionUrl(input.pos.gateway3dUrl, model);
+  async initiate3d(input: Initiate3dInput): Promise<Initiate3dResult> {
+    const actionUrl = input.pos.gateway3dUrl.replace(/\/$/, '');
 
     if (!input.pos.merchantId || !input.pos.terminalSafeId || !input.pos.securityKey) {
       return { kind: 'error', message: 'Akbank POS kimlik bilgileri eksik' };
     }
-    if (!hosting) {
-      if (!/^\d{15,16}$/.test(input.card.number)) {
-        return { kind: 'error', message: 'Kart numarası geçersiz' };
-      }
-      if (!/^\d{4}$/.test(input.card.expiry)) {
-        return { kind: 'error', message: 'Son kullanma MMYY olmalı' };
-      }
-      if (!/^\d{3,4}$/.test(input.card.cvc)) {
-        return { kind: 'error', message: 'CVC geçersiz' };
-      }
+    if (!/^\d{15,16}$/.test(input.card.number)) {
+      return { kind: 'error', message: 'Kart numarası geçersiz' };
+    }
+    if (!/^\d{4}$/.test(input.card.expiry)) {
+      return { kind: 'error', message: 'Son kullanma MMYY olmalı' };
+    }
+    if (!/^\d{3,4}$/.test(input.card.cvc)) {
+      return { kind: 'error', message: 'CVC geçersiz' };
     }
 
+    const emailAddress = (input.email || '').trim();
+    if (!emailAddress) {
+      return { kind: 'error', message: 'Ödeme için e-posta bilgisi bulunamadı' };
+    }
+
+    const orderId = input.orderId;
+    const amount = formatAmount(input.amount);
+    const installCount = String(Math.max(1, input.installment));
+    const currencyCode = currencyNumeric(input.currencyCode);
+    const reward1 = '0.00';
+    const reward2 = '0.00';
+    const reward3 = '0.00';
+    const randomNumber = random128();
+    const reqDt = requestDateTime();
+    const okUrl = input.okUrl;
+    const failUrl = input.failUrl || okUrl;
+    const cardNo = input.card.number;
+    const expiredDate = input.card.expiry;
+    const cvv = input.card.cvc;
+
+    // Referans hash sırası (Object.values değil)
+    const hashString =
+      PAYMENT_MODEL +
+      TXN_3D +
+      input.pos.merchantId +
+      input.pos.terminalSafeId +
+      orderId +
+      'TR' +
+      amount +
+      reward1 +
+      reward2 +
+      reward3 +
+      currencyCode +
+      installCount +
+      okUrl +
+      failUrl +
+      emailAddress +
+      cardNo +
+      expiredDate +
+      cvv +
+      randomNumber +
+      reqDt;
+
+    const hash = hmacB64(hashString, input.pos.securityKey);
+
     const fields: Record<string, string> = {
-      paymentModel: model,
+      paymentModel: PAYMENT_MODEL,
       txnCode: TXN_3D,
       merchantSafeId: input.pos.merchantId,
       terminalSafeId: input.pos.terminalSafeId,
-      orderId: input.orderId,
+      orderId,
       lang: 'TR',
-      amount: formatAmount(input.amount),
-      ccbRewardAmount: '0.00',
-      pcbRewardAmount: '0.00',
-      xcbRewardAmount: '0.00',
-      currencyCode: currencyNumeric(input.currencyCode),
-      installCount: String(Math.max(1, input.installment)),
-      okUrl: input.okUrl,
-      failUrl: input.failUrl,
-      emailAddress: input.email || '',
-      mobilePhone: '',
-      homePhone: '',
-      workPhone: '',
-      subMerchantId: '',
+      amount,
+      ccbRewardAmount: reward1,
+      pcbRewardAmount: reward2,
+      xcbRewardAmount: reward3,
+      currencyCode,
+      installCount,
+      okUrl,
+      failUrl,
+      emailAddress,
+      creditCard: cardNo,
+      expiredDate,
+      cvv,
+      randomNumber,
+      requestDateTime: reqDt,
+      hash,
     };
-
-    if (!hosting) {
-      fields.creditCard = input.card.number;
-      fields.expiredDate = input.card.expiry;
-      fields.cvv = input.card.cvc;
-      fields.cardHolderName = input.card.holder;
-    }
-
-    fields.randomNumber = random128();
-    fields.requestDateTime = requestDateTime();
-    fields.b2bIdentityNumber = '';
-    fields.merchantData = '';
-    fields.merchantBranchNo = '';
-    fields.mobileEci = '';
-    fields.walletProgramData = '';
-    fields.mobileAssignedId = '';
-    fields.mobileDeviceType = '';
-
-    // Hash: alan değerleri ekleme sırasıyla (hash alanı hariç)
-    const plain = Object.values(fields).join('');
-    fields.hash = hmacB64(plain, input.pos.securityKey);
 
     return {
       kind: 'form',
@@ -154,6 +148,7 @@ export const akbankV2Gateway: PaymentGateway = {
 
     const orderId = raw.orderId || raw.OrderId || '';
     const responseCode = raw.responseCode || raw.ResponseCode || '';
+    const responseMessage = (raw.responseMessage || raw.ResponseMessage || '').trim();
     const hashParams = raw.hashParams || '';
     const hash = raw.hash || '';
 
@@ -174,32 +169,29 @@ export const akbankV2Gateway: PaymentGateway = {
       }
     }
 
+    // Referans: responseMessage BAŞARILI / SUCCESS; hash yoksa mesaja güven
+    const msgOk =
+      responseMessage === 'BAŞARILI' ||
+      responseMessage === 'BASARILI' ||
+      responseMessage.toUpperCase() === 'SUCCESS' ||
+      responseCode === SUCCESS_CODE;
+
     const mdStatus = raw.mdStatus || '';
     const success =
-      hashOk && responseCode === SUCCESS_CODE && (mdStatus === '' || mdStatus === '1');
-
-    const paymentModel = (raw.paymentModel || '').toUpperCase();
-    const needsProvision = paymentModel === '3D' && success;
+      (hashOk || (!hashParams && msgOk)) &&
+      msgOk &&
+      (mdStatus === '' || mdStatus === '1');
 
     return {
       orderId,
       success,
-      responseCode,
+      responseCode: responseCode || responseMessage,
       message:
-        raw.responseMessage ||
+        responseMessage ||
         raw.hostMessage ||
-        (success ? '3D Secure başarılı' : '3D Secure başarısız veya hash doğrulanamadı'),
+        (success ? '3D Secure başarılı' : '3D Secure başarısız'),
       raw,
-      needsProvision,
-      secure: needsProvision
-        ? {
-            secureId: raw.secureId || '',
-            secureEcomInd: raw.secureEcomInd || '',
-            secureData: raw.secureData || '',
-            secureMd: raw.secureMd || '',
-            mdStatus,
-          }
-        : undefined,
+      needsProvision: false,
     };
   },
 };

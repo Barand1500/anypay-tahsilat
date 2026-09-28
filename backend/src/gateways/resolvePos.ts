@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { looksLikeAkbankV2 } from './adapters/akbankV2.js';
 import { looksLikeGaranti } from './adapters/garanti.js';
 import { looksLikeNestPay } from './adapters/nestpay.js';
+import { looksLikeVakifBank } from './adapters/vakifbank.js';
 import { hintsForKey, matchBinKey, normalizeBankText } from './binCatalog.js';
 import { lookupBinByCard } from '../services/binsService.js';
 import { resolveRedirectBankId } from '../services/commonVirtualPosService.js';
@@ -125,6 +126,16 @@ function assertReady(c: PosCredentials): void {
     return;
   }
 
+  if (looksLikeVakifBank(c)) {
+    if (!c.terminalSafeId) {
+      throw new PosResolveError('VakıfBank: Terminal No eksik');
+    }
+    if (!c.securityKey && !c.terminalPassword) {
+      throw new PosResolveError('VakıfBank: Merchant Password eksik (güvenlik anahtarı)');
+    }
+    return;
+  }
+
   if (looksLikeNestPay(c)) {
     // NestPay: terminal no çoğu kurulumda opsiyonel
     return;
@@ -132,7 +143,6 @@ function assertReady(c: PosCredentials): void {
 
   if (looksLikeAkbankV2(c)) {
     if (!c.terminalSafeId) throw new PosResolveError('Sanal POS: Terminal Safe ID eksik');
-    if (!c.securityType) throw new PosResolveError('Sanal POS: güvenlik tipi eksik');
     return;
   }
 
