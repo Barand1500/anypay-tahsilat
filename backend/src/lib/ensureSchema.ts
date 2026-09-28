@@ -241,6 +241,32 @@ export async function ensureSchema(): Promise<void> {
   await ensureSozlesmelerTable();
 }
 
+/** Eksik kolon ekle (CREATE IF NOT EXISTS eski tabloyu güncellemez) */
+async function ensureColumns(
+  table: string,
+  cols: { name: string; ddl: string }[],
+): Promise<void> {
+  for (const col of cols) {
+    try {
+      const rows = await prisma.$queryRawUnsafe<{ COLUMN_NAME: string }[]>(
+        `SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = '${table}'
+           AND COLUMN_NAME = '${col.name}'
+         LIMIT 1`,
+      );
+      if (rows[0]) continue;
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE \`${table}\` ADD COLUMN \`${col.name}\` ${col.ddl}`,
+      );
+      console.log(`[schema] ${table}.${col.name} eklendi`);
+    } catch (err) {
+      console.warn(`[schema] ${table}.${col.name} atlandı:`, err);
+    }
+  }
+}
+
 /** Tanımlamalar › Sözleşmeler */
 export async function ensureSozlesmelerTable(): Promise<void> {
   try {
@@ -257,6 +283,28 @@ export async function ensureSozlesmelerTable(): Promise<void> {
         INDEX \`sozlesmeler_baglanti_idx\` (\`baglanti\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
+    await ensureColumns('sozlesmeler', [
+      { name: 'adi', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'icerik', ddl: 'LONGTEXT NULL' },
+      { name: 'baglanti', ddl: "VARCHAR(64) NOT NULL DEFAULT 'none'" },
+      { name: 'sira', ddl: 'INT NOT NULL DEFAULT 0' },
+      { name: 'remove', ddl: 'TINYINT(1) NULL' },
+      { name: 'olusturma', ddl: 'DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3)' },
+    ]);
+    // Eski PHP: baslik → adi
+    try {
+      const hasBaslik = await prisma.$queryRawUnsafe<{ c: number }[]>(
+        `SELECT 1 AS c FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sozlesmeler' AND COLUMN_NAME = 'baslik' LIMIT 1`,
+      );
+      if (hasBaslik[0]) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`sozlesmeler\` SET \`adi\` = \`baslik\` WHERE (\`adi\` IS NULL OR \`adi\` = '') AND \`baslik\` IS NOT NULL`,
+        );
+      }
+    } catch {
+      /* yok */
+    }
   } catch (err) {
     console.warn('[schema] sozlesmeler atlandı:', err);
   }
@@ -372,6 +420,20 @@ export async function ensureKartDefsTables(): Promise<void> {
         PRIMARY KEY (\`id\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
+    await ensureColumns('kart_tipleri', [
+      { name: 'adi', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'remove', ddl: 'TINYINT(1) NULL' },
+    ]);
+    await ensureColumns('kart_turleri', [
+      { name: 'adi', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'remove', ddl: 'TINYINT(1) NULL' },
+    ]);
+    await ensureColumns('kart_markalari', [
+      { name: 'adi', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'logo', ddl: 'VARCHAR(255) NULL' },
+      { name: 'kisa_kod', ddl: 'VARCHAR(8) NULL' },
+      { name: 'remove', ddl: 'TINYINT(1) NULL' },
+    ]);
 
     const tipCount = await prisma.kartTipi.count();
     if (tipCount === 0) {
@@ -429,24 +491,55 @@ export async function ensureOrtakSanalPosTable(): Promise<void> {
         INDEX \`ortak_sanal_pos_banka_id_idx\` (\`banka_id\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
+    await ensureColumns('ortak_sanal_pos', [
+      { name: 'banka_id', ddl: 'INT NOT NULL DEFAULT 0' },
+      { name: 'yonlenen_banka_id', ddl: 'INT NOT NULL DEFAULT 0' },
+      { name: 'aktif', ddl: 'TINYINT(1) NULL DEFAULT 1' },
+      { name: 'remove', ddl: 'TINYINT(1) NULL' },
+    ]);
   } catch (err) {
     console.warn('[schema] ortak_sanal_pos oluşturma atlandı:', err);
   }
 }
 
-/** Vergi dairesi il / ilçe adı kolonları */
+/** Vergi dairesi il / ilçe adı kolonları + eski FK’den doldur */
 export async function ensureVergiDairesiLocationColumns(): Promise<void> {
-  for (const col of [
+  await ensureColumns('vergi_daireleri', [
     { name: 'il_adi', ddl: 'VARCHAR(255) NULL' },
     { name: 'ilce_adi', ddl: 'VARCHAR(255) NULL' },
-  ]) {
-    try {
-      await prisma.$executeRawUnsafe(
-        `ALTER TABLE \`vergi_daireleri\` ADD COLUMN \`${col.name}\` ${col.ddl}`,
-      );
-    } catch {
-      /* kolon var */
+  ]);
+  // Eski dump: il_id / ilce_id varsa adları çek
+  try {
+    const hasIlId = await prisma.$queryRawUnsafe<{ c: number }[]>(
+      `SELECT 1 AS c FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vergi_daireleri' AND COLUMN_NAME = 'il_id' LIMIT 1`,
+    );
+    if (hasIlId[0]) {
+      await prisma.$executeRawUnsafe(`
+        UPDATE \`vergi_daireleri\` vd
+        INNER JOIN \`il\` i ON i.id = vd.il_id
+        SET vd.il_adi = i.adi
+        WHERE (vd.il_adi IS NULL OR vd.il_adi = '') AND vd.il_id IS NOT NULL
+      `);
     }
+  } catch (err) {
+    console.warn('[schema] vergi il backfill atlandı:', err);
+  }
+  try {
+    const hasIlceId = await prisma.$queryRawUnsafe<{ c: number }[]>(
+      `SELECT 1 AS c FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vergi_daireleri' AND COLUMN_NAME = 'ilce_id' LIMIT 1`,
+    );
+    if (hasIlceId[0]) {
+      await prisma.$executeRawUnsafe(`
+        UPDATE \`vergi_daireleri\` vd
+        INNER JOIN \`ilce\` c ON c.id = vd.ilce_id
+        SET vd.ilce_adi = c.adi
+        WHERE (vd.ilce_adi IS NULL OR vd.ilce_adi = '') AND vd.ilce_id IS NOT NULL
+      `);
+    }
+  } catch (err) {
+    console.warn('[schema] vergi ilçe backfill atlandı:', err);
   }
 }
 
@@ -468,6 +561,15 @@ export async function ensureBinKayitlariTable(): Promise<void> {
         INDEX \`bin_kayitlari_banka_id_idx\` (\`banka_id\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
+    await ensureColumns('bin_kayitlari', [
+      { name: 'banka_id', ddl: 'INT NULL' },
+      { name: 'banka_adi', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'bin', ddl: "VARCHAR(8) NOT NULL DEFAULT ''" },
+      { name: 'tip', ddl: 'VARCHAR(64) NULL' },
+      { name: 'marka', ddl: 'VARCHAR(64) NULL' },
+      { name: 'tur', ddl: 'VARCHAR(64) NULL' },
+      { name: 'remove', ddl: 'TINYINT(1) NULL' },
+    ]);
   } catch (err) {
     console.warn('[schema] bin_kayitlari oluşturma atlandı:', err);
   }

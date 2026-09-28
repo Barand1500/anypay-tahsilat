@@ -4,7 +4,7 @@ type BinEntry = { key: string; bins: string[]; nameHints: string[] };
 
 const CATALOG: BinEntry[] = [
   { key: 'akbank', bins: ['5168', '5571', '5526', '4320'], nameHints: ['akbank'] },
-  { key: 'garanti', bins: ['5406', '5549', '4824', '5209'], nameHints: ['garanti'] },
+  { key: 'garanti', bins: ['5269', '5406', '5549', '4824', '5209', '3744'], nameHints: ['garanti'] },
   { key: 'isbank', bins: ['4508', '4543', '5430', '5101'], nameHints: ['iş bank', 'is bank', 'isbank'] },
   { key: 'yapikredi', bins: ['4506', '5400', '4796', '6761'], nameHints: ['yapı', 'yapi', 'yapikredi'] },
   { key: 'qnb', bins: ['4159', '4022', '5311', '5218'], nameHints: ['qnb', 'finansbank'] },

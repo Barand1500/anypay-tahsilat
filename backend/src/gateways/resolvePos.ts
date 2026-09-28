@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { looksLikeNestPay } from './adapters/nestpay.js';
 import { hintsForKey, matchBinKey, normalizeBankText } from './binCatalog.js';
 import { lookupBinByCard } from '../services/binsService.js';
 import { resolveRedirectBankId } from '../services/commonVirtualPosService.js';
@@ -54,8 +55,11 @@ function mapPos(
 
 function assertReady(c: PosCredentials): void {
   if (!c.merchantId) throw new PosResolveError('Sanal POS: güvenli işyeri numarası eksik');
-  if (!c.terminalSafeId) throw new PosResolveError('Sanal POS: Terminal Safe ID eksik');
   if (!c.securityKey) throw new PosResolveError('Sanal POS: güvenlik anahtarı eksik');
+  // NestPay çoğu bankada Terminal Safe ID zorunlu değil; Akbank V2 ve diğerleri ister
+  if (!looksLikeNestPay(c) && !c.terminalSafeId) {
+    throw new PosResolveError('Sanal POS: Terminal Safe ID eksik');
+  }
   if (!c.securityType) throw new PosResolveError('Sanal POS: güvenlik tipi eksik');
   if (!c.gateway3dUrl) {
     throw new PosResolveError(

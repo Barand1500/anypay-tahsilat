@@ -9,6 +9,7 @@ import {
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuickAccess } from '../../components/layout/QuickAccessContext';
 import { EXTRA_QUICK_ITEMS, findNavItem, type NavItem } from '../../components/layout/navItems';
+import { usePermission } from '../../permissions/PermissionContext';
 
 const HOLD_MS = 380;
 
@@ -26,12 +27,18 @@ type Props = {
 export function NestedDefSubnav({ items, activeClass = 'is-nested-def-tab-active' }: Props) {
   const location = useLocation();
   const { startDrag, drag } = useQuickAccess();
+  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const firstPill = useRef(true);
   const holdTimer = useRef<number | null>(null);
   const holdItem = useRef<NavItem | null>(null);
   const suppressNavClick = useRef(false);
+
+  const visibleItems =
+    permPagesReady && !rolesLoading
+      ? items.filter((item) => canViewPath(item.to).allowed)
+      : [...items];
 
   function placePill(instant: boolean) {
     const track = trackRef.current;
@@ -143,7 +150,7 @@ export function NestedDefSubnav({ items, activeClass = 'is-nested-def-tab-active
         className="pointer-events-none absolute z-0 rounded-xl bg-[var(--color-brand-600)] shadow-sm will-change-[left,width]"
         style={{ opacity: 0, left: 0, top: 0, width: 0, height: 0 }}
       />
-      {items.map((item) => (
+      {visibleItems.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}

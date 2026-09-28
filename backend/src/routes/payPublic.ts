@@ -63,6 +63,10 @@ payPublicRouter.post('/:token', async (req, res) => {
       return sendError(res, 400, err.message);
     }
     console.error(err);
+    const msg = err instanceof Error ? err.message : '';
+    if (msg && msg.length < 280 && !/prisma|sql|econn|stack/i.test(msg)) {
+      return sendError(res, 400, msg);
+    }
     return sendError(res, 500, 'Ödeme alınamadı');
   }
 });

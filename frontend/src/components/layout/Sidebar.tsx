@@ -484,7 +484,8 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     </button>
   );
 
-  const settingsLink = (
+  const settingsLink =
+    !permPagesReady || rolesLoading || canViewPath('/ayarlar').allowed ? (
     <Link
       to="/ayarlar"
       aria-label="Ayarlar"
@@ -495,7 +496,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     >
       <NavIcon name="gear" size={18} />
     </Link>
-  );
+  ) : null;
 
   const footerBar = open ? (
     <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--panel-line)] px-1.5">

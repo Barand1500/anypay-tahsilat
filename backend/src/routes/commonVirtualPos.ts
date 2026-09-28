@@ -24,6 +24,8 @@ const upsertSchema = z.object({
 
 commonVirtualPosRouter.get('/', async (_req, res) => {
   try {
+    const { ensureOrtakSanalPosTable } = await import('../lib/ensureSchema.js');
+    await ensureOrtakSanalPosTable();
     return sendSuccess(res, await listCommonVirtualPos());
   } catch (err) {
     console.error(err);

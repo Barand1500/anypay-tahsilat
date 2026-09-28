@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { prefetchRoleHero } from '../../pages/roles/roleHero';
+import { usePermission } from '../../permissions/PermissionContext';
 import { dismissLogoutPortal, playLogoutPortal } from './logoutPortal';
 
 const MENU = [
@@ -52,6 +53,7 @@ function initialsOf(name: string) {
  */
 export function ProfileMenu() {
   const { user, logout } = useAuth();
+  const { canViewPath, permPagesReady, rolesLoading } = usePermission();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<PanelPos>({ placement: 'down', top: 0, left: 0 });
@@ -61,6 +63,10 @@ export function ProfileMenu() {
   const name = user?.adsoyad || user?.email || 'Kullanıcı';
   const initials = initialsOf(name);
   const role = roleLabel(user?.roles ?? []);
+  const menuItems =
+    permPagesReady && !rolesLoading
+      ? MENU.filter((item) => canViewPath(item.to).allowed)
+      : MENU;
 
   function updatePos() {
     const btn = btnRef.current;
@@ -229,7 +235,7 @@ export function ProfileMenu() {
             <div className="mx-3 h-px bg-[var(--panel-line)]" />
 
             <ul className="space-y-0.5 px-2 py-2">
-              {MENU.map((item) => (
+              {menuItems.map((item) => (
                 <li key={item.to} data-menu-item>
                   <button
                     type="button"

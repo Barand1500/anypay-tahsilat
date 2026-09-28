@@ -5,6 +5,30 @@ function money(n: number): string {
   return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Helvetica WinAnsi — Türkçe / özel karakterleri ASCII'ye çevir */
+function asciiSafe(raw: string): string {
+  return String(raw ?? '')
+    .replace(/[—–−]/g, '-')
+    .replace(/[""]/g, '"')
+    .replace(/['']/g, "'")
+    .replace(/…/g, '...')
+    .replace(/₺/g, 'TL ')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ş/g, 'S')
+    .replace(/İ/g, 'I')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C')
+    .replace(/[^\x20-\x7E]/g, '?')
+    .slice(0, 90);
+}
+
 function drawLine(
   page: ReturnType<PDFDocument['addPage']>,
   font: Awaited<ReturnType<PDFDocument['embedFont']>>,
@@ -13,7 +37,7 @@ function drawLine(
   y: number,
   size = 10,
 ) {
-  page.drawText(text, { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
+  page.drawText(asciiSafe(text), { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
 }
 
 /** Sanal POS e-dekont PDF (pdf-lib) */
@@ -41,7 +65,7 @@ export async function buildDekontPdf(tx: PublicPaymentRow): Promise<Buffer> {
   y -= 18;
   drawLine(page, bold, `Banka: ${tx.bankName}`, 50, y);
   y -= 16;
-  drawLine(page, font, `Musteri: ${tx.customerTitle || '—'}`, 50, y);
+  drawLine(page, font, `Musteri: ${tx.customerTitle || '-'}`, 50, y);
   y -= 22;
 
   page.drawRectangle({
@@ -55,41 +79,26 @@ export async function buildDekontPdf(tx: PublicPaymentRow): Promise<Buffer> {
 
   const rows: [string, string][] = [
     ['Uye Isyeri', d.merchantTitle],
-    ['Adres', d.merchantAddress || '—'],
-    ['Telefon', d.merchantPhone || '—'],
+    ['Adres', d.merchantAddress || '-'],
+    ['Telefon', d.merchantPhone || '-'],
     ['Kart Sahibi', d.cardHolderName],
-    ['TC / Vergi No', d.identityNo || '—'],
+    ['TC / Vergi No', d.identityNo || '-'],
     ['Kart', d.cardMasked],
     ['Taksit', String(tx.installments)],
     ['Tutar', `${money(tx.amount)} TL`],
     ['Komisyon', `${money(tx.commission)} TL`],
     ['Toplam', `${money(total)} TL`],
-    ['Referans', d.referenceNo || '—'],
-    ['Islem No', d.transactionNo || '—'],
-    ['Onay Kodu', d.authCode || '—'],
+    ['Referans', d.referenceNo || '-'],
+    ['Islem No', d.transactionNo || '-'],
+    ['Onay Kodu', d.authCode || '-'],
     ['3D Secure', d.threeDSecure ? 'Evet' : 'Hayir'],
-    ['Aciklama', d.description || '—'],
+    ['Aciklama', d.description || '-'],
   ];
 
   for (const [label, value] of rows) {
     if (y < 80) break;
     drawLine(page, bold, `${label}:`, 50, y, 9);
-    const safe = (value || '—').replace(/[^\x20-\x7EğüşıöçĞÜŞİÖÇİı]/gi, '?').slice(0, 70);
-    // Helvetica may not have Turkish glyphs — use ASCII-safe approx
-    const ascii = safe
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ı/g, 'i')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-      .replace(/Ğ/g, 'G')
-      .replace(/Ü/g, 'U')
-      .replace(/Ş/g, 'S')
-      .replace(/İ/g, 'I')
-      .replace(/Ö/g, 'O')
-      .replace(/Ç/g, 'C');
-    drawLine(page, font, ascii, 160, y, 9);
+    drawLine(page, font, value || '-', 160, y, 9);
     y -= 16;
   }
 
@@ -97,7 +106,7 @@ export async function buildDekontPdf(tx: PublicPaymentRow): Promise<Buffer> {
   drawLine(
     page,
     font,
-    'Bu belge sanal POS isleminin kaydidir. GUVEL Teknoloji — AnyPay Tahsilat',
+    'Bu belge sanal POS isleminin kaydidir. Guzel Teknoloji - AnyPay Tahsilat',
     50,
     y,
     8,

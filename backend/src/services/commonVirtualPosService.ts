@@ -161,13 +161,17 @@ export async function softDeleteCommonVirtualPos(id: number): Promise<void> {
 
 /** Kaynak banka → yönlenen banka id (aktif eşleme) */
 export async function resolveRedirectBankId(sourceBankId: number): Promise<number | null> {
-  const row = await prisma.ortakSanalPos.findFirst({
-    where: {
-      bankaId: sourceBankId,
-      aktif: true,
-      ...notRemoved(),
-    },
-    select: { yonlenenBankaId: true },
-  });
-  return row?.yonlenenBankaId ?? null;
+  try {
+    const row = await prisma.ortakSanalPos.findFirst({
+      where: {
+        bankaId: sourceBankId,
+        aktif: true,
+        ...notRemoved(),
+      },
+      select: { yonlenenBankaId: true },
+    });
+    return row?.yonlenenBankaId ?? null;
+  } catch {
+    return null;
+  }
 }

@@ -7,12 +7,6 @@ import { LoginMascot, type MascotFocus } from './LoginMascot';
 import { LoginSky } from './LoginSky';
 import { LoginModeActions, useLoginModeFlow } from './useLoginModeFlow';
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
 /** Klasik maskotlu giriş ekranı */
 export function LoginClassic() {
   const { login, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
@@ -27,7 +21,6 @@ export function LoginClassic() {
   const flow = useLoginModeFlow({
     onPasswordLogin: async (email, password) => {
       setOutcome('idle');
-      await sleep(2000);
       try {
         await login(email, password);
         setOutcome('success');
@@ -41,7 +34,6 @@ export function LoginClassic() {
     },
     onOtpLogin: async (email, code) => {
       setOutcome('idle');
-      await sleep(2000);
       try {
         await loginWithOtp(email, code);
         setOutcome('success');

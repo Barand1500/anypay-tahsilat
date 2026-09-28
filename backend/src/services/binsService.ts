@@ -187,6 +187,7 @@ export async function seedBinsIfEmpty(): Promise<number> {
   const samples: BinUpsert[] = [
     { bank: 'Ziraat', bin: '979241', type: 'Debit', brand: 'Troy', kind: 'Bireysel' },
     { bank: 'İş Bankası', bin: '450803', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
+    { bank: 'Garanti', bin: '526955', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },
     { bank: 'Garanti', bin: '540063', type: 'Credit', brand: 'MasterCard', kind: 'Ticari' },
     { bank: 'Yapı Kredi', bin: '454360', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
     { bank: 'Akbank', bin: '557113', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },

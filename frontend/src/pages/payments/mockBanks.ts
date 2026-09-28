@@ -26,7 +26,7 @@ const L = (file: string) => `/banks/${file}`;
 
 export const BANKS: BankInfo[] = [
   { id: 'akbank', name: 'Akbank', fullName: 'Akbank T.A.Ş.', logo: L('akbanktas_logo_1750065323.webp'), bins: ['5168', '5571', '5526', '4320'] },
-  { id: 'garanti', name: 'Garanti BBVA', fullName: 'Türkiye Garanti Bankası A.Ş.', logo: L('tgarantibankasias_logo_1750065698.webp'), bins: ['5406', '5549', '4824', '5209'] },
+  { id: 'garanti', name: 'Garanti BBVA', fullName: 'Türkiye Garanti Bankası A.Ş.', logo: L('tgarantibankasias_logo_1750065698.webp'), bins: ['5269', '5406', '5549', '4824', '5209'] },
   { id: 'isbank', name: 'İş Bankası', fullName: 'Türkiye İş Bankası A.Ş.', logo: L('tisbankasias_logo_1750066326.webp'), bins: ['4508', '4543', '5430', '5101'] },
   { id: 'yapikredi', name: 'Yapı Kredi', fullName: 'Yapı ve Kredi Bankası A.Ş.', logo: L('yapivekredibankasias_logo_1750065209.webp'), bins: ['4506', '5400', '4796', '6761'] },
   { id: 'qnb', name: 'QNB', fullName: 'QNB Bank A.Ş.', logo: L('qnbbankas_logo_1745577261.webp'), bins: ['4159', '4022', '5311', '5218'] },

@@ -52,6 +52,8 @@ const importSchema = z.object({
 
 contractsRouter.get('/', async (_req, res) => {
   try {
+    const { ensureSozlesmelerTable } = await import('../lib/ensureSchema.js');
+    await ensureSozlesmelerTable();
     return sendSuccess(res, await listContracts());
   } catch (err) {
     console.error(err);
@@ -113,6 +115,8 @@ contractsRouter.post('/', async (req: AuthedRequest, res) => {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   }
   try {
+    const { ensureSozlesmelerTable } = await import('../lib/ensureSchema.js');
+    await ensureSozlesmelerTable();
     const data = await createContract(parsed.data);
     await writePanelLog(req.auth!.sub, `Sözleşme eklendi — ${data.name}`);
     return sendSuccess(res, data, 'Sözleşme eklendi', 201);

@@ -24,6 +24,8 @@ const upsertSchema = z.object({
 
 taxOfficesRouter.get('/', async (_req, res) => {
   try {
+    const { ensureVergiDairesiLocationColumns } = await import('../lib/ensureSchema.js');
+    await ensureVergiDairesiLocationColumns();
     return sendSuccess(res, await listTaxOffices());
   } catch (err) {
     console.error(err);

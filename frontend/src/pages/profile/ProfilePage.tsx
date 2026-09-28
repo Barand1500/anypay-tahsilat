@@ -196,9 +196,20 @@ export default function ProfilePage() {
           />
           <button
             type="button"
-            title="Fotoğraf yükle"
+            title={user?.resimUrl ? 'Fotoğraf yükle · sağ tık: kaldır' : 'Fotoğraf yükle'}
             disabled={photoBusy}
             onClick={() => fileRef.current?.click()}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (!user?.resimUrl || photoBusy) return;
+              setPhotoBusy(true);
+              setSaveError(null);
+              void updateProfile({ resimDataUrl: null })
+                .catch((err) => {
+                  setSaveError(err instanceof Error ? err.message : 'Fotoğraf kaldırılamadı');
+                })
+                .finally(() => setPhotoBusy(false));
+            }}
             className="group relative -mt-2 flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--panel-bg)] bg-brand-100 text-3xl font-bold text-brand-700 shadow-[var(--panel-shadow)] transition hover:scale-[1.03] disabled:opacity-60 sm:h-32 sm:w-32"
           >
             {user?.resimUrl ? (

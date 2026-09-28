@@ -43,6 +43,8 @@ binsRouter.use(requireModuleWrite('/tanimlamalar'));
 
 binsRouter.get('/', async (_req, res) => {
   try {
+    const { ensureBinKayitlariTable } = await import('../lib/ensureSchema.js');
+    await ensureBinKayitlariTable();
     await seedBinsIfEmpty();
     return sendSuccess(res, await listBins());
   } catch (err) {

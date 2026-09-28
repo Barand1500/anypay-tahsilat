@@ -43,6 +43,8 @@ function makeNamedRouter(opts: {
 
   router.get('/', async (_req, res) => {
     try {
+      const { ensureKartDefsTables } = await import('../lib/ensureSchema.js');
+      await ensureKartDefsTables();
       return sendSuccess(res, await opts.list());
     } catch (err) {
       console.error(err);
@@ -123,6 +125,8 @@ cardBrandsRouter.use(requireModuleWrite('/tanimlamalar'));
 
 cardBrandsRouter.get('/', async (_req, res) => {
   try {
+    const { ensureKartDefsTables } = await import('../lib/ensureSchema.js');
+    await ensureKartDefsTables();
     return sendSuccess(res, await listCardBrands());
   } catch (err) {
     console.error(err);

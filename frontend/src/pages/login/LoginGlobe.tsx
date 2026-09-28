@@ -6,12 +6,6 @@ import Globe from './globe/Globe';
 import { getLoginBrandWords, type LoginBrandWords } from './loginTheme';
 import { LoginModeActions, useLoginModeFlow } from './useLoginModeFlow';
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
 /** Dünya temalı giriş — Variant 2 (solid yeşil kara / cyan okyanus) */
 export function LoginGlobe() {
   const { login, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
@@ -23,14 +17,12 @@ export function LoginGlobe() {
 
   const flow = useLoginModeFlow({
     onPasswordLogin: async (email, password) => {
-      await sleep(1200);
       await login(email, password);
     },
     onRequestOtp: async (email) => {
       await requestOtp(email);
     },
     onOtpLogin: async (email, code) => {
-      await sleep(1200);
       await loginWithOtp(email, code);
     },
     onRequestPasswordReset: async (email) => {
