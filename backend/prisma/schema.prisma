@@ -267,6 +267,8 @@ model KartAnlasma {
   komisyonTum       Float?   @map("komisyon_tum")
   komisyonBireysel  Float?   @map("komisyon_bireysel")
   komisyonTicari    Float?   @map("komisyon_ticari")
+  /** Canlı dump: NOT NULL — kayıt anı */
+  tarih             DateTime @default(now())
   /** Paket tarihi YYYY-MM-DD */
   grup              String?  @db.VarChar(255)
   blokAdi           String?  @map("blok_adi") @db.VarChar(255)

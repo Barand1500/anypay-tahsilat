@@ -124,9 +124,10 @@ async function replaceAgreementRows(
     detay?: string | null;
     anlasmaKodu: string;
     remove: boolean;
+    tarih?: Date;
   }[],
 ): Promise<void> {
-  // Canlı DB’de detay kolonu yoksa ekle
+  // Canlı DB’de detay / tarih kolonu yoksa ekle
   const { ensureKartAnlasmalariTable } = await import('../lib/ensureSchema.js');
   await ensureKartAnlasmalariTable();
 
@@ -137,43 +138,81 @@ async function replaceAgreementRows(
 
   if (!rows.length) return;
 
-  // Önce detay’sız yaz (kolon yoksa bile çalışsın)
-  const baseRows = rows.map(({ detay: _d, ...rest }) => rest);
+  const now = new Date();
+  const withTarih = rows.map((r) => ({
+    ...r,
+    tarih: r.tarih ?? now,
+    detay: r.detay ?? null,
+  }));
+
+  // Önce tam yaz; kolon uyumsuzluğunda kademeli düş
   try {
-    await prisma.kartAnlasma.createMany({
-      data: rows.map((r) => ({
-        ...r,
-        detay: r.detay ?? null,
-      })),
-    });
+    await prisma.kartAnlasma.createMany({ data: withTarih });
+    return;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // detay kolonu / bilinmeyen alan → detay’sız tekrar dene
-    if (/detay|Unknown argument|does not exist|Unknown column/i.test(msg)) {
-      await prisma.kartAnlasma.createMany({ data: baseRows });
-      // İlk satıra detay’ı raw ile yazmayı dene
-      const firstDetay = rows.find((r) => r.detay)?.detay;
-      if (firstDetay) {
-        try {
-          const first = await prisma.kartAnlasma.findFirst({
-            where: { anlasmaKodu: code, ...notRemoved() },
-            orderBy: { id: 'asc' },
-            select: { id: true },
-          });
-          if (first) {
-            await prisma.$executeRawUnsafe(
-              `UPDATE \`kart_anlasmalari\` SET \`detay\` = ? WHERE \`id\` = ?`,
-              firstDetay,
-              first.id,
-            );
-          }
-        } catch {
-          /* detay opsiyonel */
-        }
+    if (!/detay|Unknown argument|does not exist|Unknown column/i.test(msg)) {
+      // tarih eksikliği vb. — tarih’li base dene
+      if (/tarih/i.test(msg)) {
+        /* aşağıda tarih’li baseRows */
+      } else {
+        throw err;
       }
-      return;
     }
-    throw err;
+  }
+
+  const baseRows = withTarih.map(({ detay: _d, ...rest }) => rest);
+  try {
+    await prisma.kartAnlasma.createMany({ data: baseRows });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Son çare: tarih + detay yok (sadece eski kolonlar) — raw insert
+    if (/tarih|Null constraint/i.test(msg)) {
+      // tarih zorunlu — her satıra Date ekle (zaten var); Prisma client eskiyse raw
+      for (const r of baseRows) {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO \`kart_anlasmalari\`
+            (\`adi\`, \`banka_id\`, \`taksit\`, \`alt_limit\`, \`komisyon_tum\`, \`komisyon_bireysel\`, \`komisyon_ticari\`,
+             \`tarih\`, \`grup\`, \`blok_adi\`, \`blok_logo\`, \`anlasma_kodu\`, \`remove\`)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          r.adi,
+          r.bankaId,
+          r.taksit,
+          r.altLimit,
+          r.komisyonTum,
+          r.komisyonBireysel,
+          r.komisyonTicari,
+          r.tarih,
+          r.grup,
+          r.blokAdi,
+          r.blokLogo,
+          r.anlasmaKodu,
+          r.remove ? 1 : 0,
+        );
+      }
+    } else {
+      throw err;
+    }
+  }
+
+  const firstDetay = rows.find((r) => r.detay)?.detay;
+  if (firstDetay) {
+    try {
+      const first = await prisma.kartAnlasma.findFirst({
+        where: { anlasmaKodu: code, ...notRemoved() },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      if (first) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`kart_anlasmalari\` SET \`detay\` = ? WHERE \`id\` = ?`,
+          firstDetay,
+          first.id,
+        );
+      }
+    } catch {
+      /* detay opsiyonel */
+    }
   }
 }
 

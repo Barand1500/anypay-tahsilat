@@ -205,6 +205,7 @@ async function saveAgreement(
   if (!input.banks?.length) throw new CardAgreementsError('En az bir banka paneli gerekli');
 
   const date = (input.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const now = new Date();
   const flat: {
     adi: string;
     bankaId: number | null;
@@ -213,6 +214,7 @@ async function saveAgreement(
     komisyonTum: number | null;
     komisyonBireysel: number | null;
     komisyonTicari: number | null;
+    tarih: Date;
     grup: string;
     blokAdi: string;
     blokLogo: string | null;
@@ -239,6 +241,7 @@ async function saveAgreement(
         komisyonTum: parseTrNumber(inst.allRate),
         komisyonBireysel: parseTrNumber(inst.bireyselRate),
         komisyonTicari: parseTrNumber(inst.ticariRate),
+        tarih: now,
         grup: date,
         blokAdi: bankName.slice(0, 255),
         blokLogo: logo ? logo.slice(0, 255) : null,

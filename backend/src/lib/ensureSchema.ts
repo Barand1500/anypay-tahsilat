@@ -376,6 +376,7 @@ export async function ensureKartAnlasmalariTable(): Promise<void> {
         \`komisyon_tum\` DOUBLE NULL,
         \`komisyon_bireysel\` DOUBLE NULL,
         \`komisyon_ticari\` DOUBLE NULL,
+        \`tarih\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         \`grup\` VARCHAR(255) NULL,
         \`blok_adi\` VARCHAR(255) NULL,
         \`blok_logo\` VARCHAR(255) NULL,
@@ -388,6 +389,7 @@ export async function ensureKartAnlasmalariTable(): Promise<void> {
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
     await ensureColumns('kart_anlasmalari', [
+      { name: 'tarih', ddl: 'DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)' },
       { name: 'detay', ddl: 'LONGTEXT NULL' },
     ]);
   } catch (err) {
