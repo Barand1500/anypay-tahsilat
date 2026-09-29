@@ -18,16 +18,6 @@ const LINK_IDS = new Set([
   'uyelik',
 ]);
 
-const DEFAULT_SEED: { name: string; link: string }[] = [
-  { name: 'KVKK ve Aydınlatma Metni', link: 'kvkk' },
-  { name: 'Hizmet Sözleşmesi', link: 'hizmet' },
-  { name: 'Güvenlik Bilgilendirmesi', link: 'guvenlik' },
-  { name: 'Tahsilat Sözleşmesi', link: 'tahsilat' },
-  { name: 'İptal ve İade Politikası', link: 'iptal-iade' },
-  { name: 'İletişim Bilgileri', link: 'iletisim' },
-  { name: 'Üyelik Sözleşmesi', link: 'uyelik' },
-];
-
 export type PublicContract = {
   id: string;
   name: string;
@@ -36,24 +26,24 @@ export type PublicContract = {
   order: number;
 };
 
+type DbRow = {
+  id: number;
+  baslik: string;
+  metin: string | null;
+  kvkk: boolean;
+  tahsilat: boolean;
+  iade: boolean;
+  hizmet: boolean;
+  guvenlik: boolean;
+  iletisim: boolean | null;
+  uyelik: boolean | null;
+  sira: number | null;
+  remove: boolean | null;
+  seourl: string | null;
+};
+
 function notRemoved() {
   return { OR: [{ remove: null }, { remove: false }] };
-}
-
-function mapRow(r: {
-  id: number;
-  adi: string;
-  icerik: string;
-  baglanti: string;
-  sira: number;
-}): PublicContract {
-  return {
-    id: String(r.id),
-    name: r.adi,
-    body: r.icerik || '',
-    link: LINK_IDS.has(r.baglanti) ? r.baglanti : 'none',
-    order: r.sira,
-  };
 }
 
 function normalizeLink(raw: string | undefined): string {
@@ -61,36 +51,94 @@ function normalizeLink(raw: string | undefined): string {
   return LINK_IDS.has(v) ? v : 'none';
 }
 
-async function seedIfEmpty(): Promise<void> {
-  const count = await prisma.sozlesme.count({ where: notRemoved() });
-  if (count > 0) return;
-  await prisma.sozlesme.createMany({
-    data: DEFAULT_SEED.map((s, i) => ({
-      adi: s.name,
-      icerik: '',
-      baglanti: s.link,
-      sira: i,
-      remove: false,
-    })),
-  });
+/** Flag kolonlarından bağlantı tipi */
+function linkFromFlags(r: DbRow): string {
+  if (r.kvkk) return 'kvkk';
+  if (r.hizmet) return 'hizmet';
+  if (r.guvenlik) return 'guvenlik';
+  if (r.tahsilat) return 'tahsilat';
+  if (r.iade) return 'iptal-iade';
+  if (r.iletisim) return 'iletisim';
+  if (r.uyelik) return 'uyelik';
+  return 'none';
+}
+
+/** Bağlantı tipi → dump flag’leri (hepsi NOT NULL / default 0) */
+function flagsFromLink(link: string): {
+  kvkk: boolean;
+  hizmet: boolean;
+  guvenlik: boolean;
+  tahsilat: boolean;
+  iade: boolean;
+  iletisim: boolean;
+  uyelik: boolean;
+} {
+  return {
+    kvkk: link === 'kvkk',
+    hizmet: link === 'hizmet',
+    guvenlik: link === 'guvenlik',
+    tahsilat: link === 'tahsilat',
+    iade: link === 'iptal-iade',
+    iletisim: link === 'iletisim',
+    uyelik: link === 'uyelik',
+  };
+}
+
+function slugify(name: string): string {
+  return name
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 200) || 'sozlesme';
+}
+
+function mapRow(r: DbRow): PublicContract {
+  return {
+    id: String(r.id),
+    name: r.baslik,
+    body: r.metin || '',
+    link: linkFromFlags(r),
+    order: r.sira ?? 0,
+  };
 }
 
 export async function listContracts(): Promise<PublicContract[]> {
-  await seedIfEmpty();
   const rows = await prisma.sozlesme.findMany({
     where: notRemoved(),
     orderBy: [{ sira: 'asc' }, { id: 'asc' }],
   });
-  return rows.map(mapRow);
+  return rows.map((r) => mapRow(r as DbRow));
 }
 
 export async function getContractByLink(link: string): Promise<PublicContract | null> {
-  await seedIfEmpty();
+  const normalized = normalizeLink(link);
+  if (normalized === 'none') return null;
+
+  const flags = flagsFromLink(normalized);
+  const whereFlag =
+    normalized === 'kvkk'
+      ? { kvkk: true }
+      : normalized === 'hizmet'
+        ? { hizmet: true }
+        : normalized === 'guvenlik'
+          ? { guvenlik: true }
+          : normalized === 'tahsilat'
+            ? { tahsilat: true }
+            : normalized === 'iptal-iade'
+              ? { iade: true }
+              : normalized === 'iletisim'
+                ? { iletisim: true }
+                : { uyelik: true };
+
   const row = await prisma.sozlesme.findFirst({
-    where: { baglanti: link, ...notRemoved() },
+    where: { ...whereFlag, ...notRemoved() },
     orderBy: [{ sira: 'asc' }, { id: 'asc' }],
   });
-  return row ? mapRow(row) : null;
+  // flags unused except structure check
+  void flags;
+  return row ? mapRow(row as DbRow) : null;
 }
 
 export async function createContract(input: {
@@ -100,20 +148,26 @@ export async function createContract(input: {
 }): Promise<PublicContract> {
   const name = input.name.trim();
   if (!name) throw new ContractsError('Ad gerekli');
+
+  const link = normalizeLink(input.link);
+  const flags = flagsFromLink(link);
+
   const max = await prisma.sozlesme.aggregate({
     where: notRemoved(),
     _max: { sira: true },
   });
+
   const row = await prisma.sozlesme.create({
     data: {
-      adi: name.slice(0, 255),
-      icerik: input.body ?? '',
-      baglanti: normalizeLink(input.link),
+      baslik: name.slice(0, 255),
+      metin: input.body ?? '',
+      ...flags,
       sira: (max._max.sira ?? -1) + 1,
+      seourl: slugify(name),
       remove: false,
     },
   });
-  return mapRow(row);
+  return mapRow(row as DbRow);
 }
 
 export async function updateContract(
@@ -125,15 +179,22 @@ export async function updateContract(
   });
   if (!existing) throw new ContractsError('Sözleşme bulunamadı');
 
+  const data: Record<string, unknown> = {};
+  if (input.name != null) {
+    const n = input.name.trim().slice(0, 255) || existing.baslik;
+    data.baslik = n;
+    data.seourl = slugify(n);
+  }
+  if (input.body != null) data.metin = input.body;
+  if (input.link != null) {
+    Object.assign(data, flagsFromLink(normalizeLink(input.link)));
+  }
+
   const row = await prisma.sozlesme.update({
     where: { id },
-    data: {
-      adi: input.name != null ? input.name.trim().slice(0, 255) || existing.adi : undefined,
-      icerik: input.body != null ? input.body : undefined,
-      baglanti: input.link != null ? normalizeLink(input.link) : undefined,
-    },
+    data,
   });
-  return mapRow(row);
+  return mapRow(row as DbRow);
 }
 
 export async function softDeleteContract(id: number): Promise<void> {
@@ -152,9 +213,7 @@ export async function reorderContracts(ids: number[]): Promise<PublicContract[]>
   const ok = new Set(existing.map((r) => r.id));
   const ordered = ids.filter((id) => ok.has(id));
   await prisma.$transaction(
-    ordered.map((id, sira) =>
-      prisma.sozlesme.update({ where: { id }, data: { sira } }),
-    ),
+    ordered.map((id, sira) => prisma.sozlesme.update({ where: { id }, data: { sira } })),
   );
   return listContracts();
 }
@@ -167,9 +226,9 @@ export async function importContracts(
 
   const existing = await prisma.sozlesme.findMany({
     where: notRemoved(),
-    select: { id: true, icerik: true },
+    select: { id: true, metin: true },
   });
-  const hasContent = existing.some((r) => (r.icerik || '').trim().length > 0);
+  const hasContent = existing.some((r) => (r.metin || '').trim().length > 0);
   if (hasContent) {
     return listContracts();
   }
@@ -182,13 +241,18 @@ export async function importContracts(
   }
 
   await prisma.sozlesme.createMany({
-    data: items.map((it, i) => ({
-      adi: (it.name || 'Sözleşme').trim().slice(0, 255) || 'Sözleşme',
-      icerik: it.body ?? '',
-      baglanti: normalizeLink(it.link),
-      sira: typeof it.order === 'number' ? it.order : i,
-      remove: false,
-    })),
+    data: items.map((it, i) => {
+      const name = (it.name || 'Sözleşme').trim().slice(0, 255) || 'Sözleşme';
+      const link = normalizeLink(it.link);
+      return {
+        baslik: name,
+        metin: it.body ?? '',
+        ...flagsFromLink(link),
+        sira: typeof it.order === 'number' ? it.order : i,
+        seourl: slugify(name),
+        remove: false,
+      };
+    }),
   });
   return listContracts();
 }

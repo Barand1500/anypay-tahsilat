@@ -122,8 +122,9 @@ contractsRouter.post('/', async (req: AuthedRequest, res) => {
     return sendSuccess(res, data, 'Sözleşme eklendi', 201);
   } catch (err) {
     if (err instanceof ContractsError) return sendError(res, 400, err.message);
-    console.error(err);
-    return sendError(res, 500, 'Sözleşme eklenemedi');
+    console.error('[contracts POST]', err);
+    const msg = err instanceof Error ? err.message : 'Sözleşme eklenemedi';
+    return sendError(res, 500, msg.slice(0, 500));
   }
 });
 

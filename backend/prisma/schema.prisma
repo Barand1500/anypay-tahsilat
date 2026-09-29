@@ -391,17 +391,22 @@ model OtpChallenge {
   @@map("otp_challenge")
 }
 
-/** Tanımlamalar › Sözleşmeler */
+/** Tanımlamalar › Sözleşmeler — dump: baslik/metin + tip flag’leri */
 model Sozlesme {
-  id        Int       @id @default(autoincrement())
-  adi       String    @db.VarChar(255)
-  icerik    String    @db.LongText
-  baglanti  String    @default("none") @db.VarChar(64)
-  sira      Int       @default(0)
-  remove    Boolean?
-  olusturma DateTime? @default(now()) @map("olusturma")
+  id       Int      @id @default(autoincrement())
+  baslik   String   @db.VarChar(255)
+  metin    String?  @db.LongText
+  kvkk     Boolean  @default(false)
+  tahsilat Boolean  @default(false)
+  iade     Boolean  @default(false)
+  remove   Boolean?
+  seourl   String?  @db.VarChar(255)
+  sira     Int?     @default(0)
+  hizmet   Boolean  @default(false)
+  guvenlik Boolean  @default(false)
+  iletisim Boolean? @default(false)
+  uyelik   Boolean? @default(false)
 
-  @@index([baglanti])
   @@map("sozlesmeler")
 }
 

@@ -267,44 +267,41 @@ async function ensureColumns(
   }
 }
 
-/** Tanımlamalar › Sözleşmeler */
+/** Tanımlamalar › Sözleşmeler — canlı dump şeması (baslik/metin/flag) */
 export async function ensureSozlesmelerTable(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS \`sozlesmeler\` (
         \`id\` INT NOT NULL AUTO_INCREMENT,
-        \`adi\` VARCHAR(255) NOT NULL,
-        \`icerik\` LONGTEXT NOT NULL,
-        \`baglanti\` VARCHAR(64) NOT NULL DEFAULT 'none',
-        \`sira\` INT NOT NULL DEFAULT 0,
+        \`baslik\` VARCHAR(255) NOT NULL,
+        \`metin\` LONGTEXT NULL,
+        \`kvkk\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`tahsilat\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`iade\` TINYINT(1) NOT NULL DEFAULT 0,
         \`remove\` TINYINT(1) NULL,
-        \`olusturma\` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
-        PRIMARY KEY (\`id\`),
-        INDEX \`sozlesmeler_baglanti_idx\` (\`baglanti\`)
+        \`seourl\` VARCHAR(255) NULL,
+        \`sira\` INT NULL DEFAULT 0,
+        \`hizmet\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`guvenlik\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`iletisim\` TINYINT(1) NULL DEFAULT 0,
+        \`uyelik\` TINYINT(1) NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `);
     await ensureColumns('sozlesmeler', [
-      { name: 'adi', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
-      { name: 'icerik', ddl: 'LONGTEXT NULL' },
-      { name: 'baglanti', ddl: "VARCHAR(64) NOT NULL DEFAULT 'none'" },
-      { name: 'sira', ddl: 'INT NOT NULL DEFAULT 0' },
+      { name: 'baslik', ddl: "VARCHAR(255) NOT NULL DEFAULT ''" },
+      { name: 'metin', ddl: 'LONGTEXT NULL' },
+      { name: 'kvkk', ddl: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'tahsilat', ddl: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'iade', ddl: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'hizmet', ddl: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'guvenlik', ddl: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'iletisim', ddl: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'uyelik', ddl: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'seourl', ddl: 'VARCHAR(255) NULL' },
+      { name: 'sira', ddl: 'INT NULL DEFAULT 0' },
       { name: 'remove', ddl: 'TINYINT(1) NULL' },
-      { name: 'olusturma', ddl: 'DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3)' },
     ]);
-    // Eski PHP: baslik → adi
-    try {
-      const hasBaslik = await prisma.$queryRawUnsafe<{ c: number }[]>(
-        `SELECT 1 AS c FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sozlesmeler' AND COLUMN_NAME = 'baslik' LIMIT 1`,
-      );
-      if (hasBaslik[0]) {
-        await prisma.$executeRawUnsafe(
-          `UPDATE \`sozlesmeler\` SET \`adi\` = \`baslik\` WHERE (\`adi\` IS NULL OR \`adi\` = '') AND \`baslik\` IS NOT NULL`,
-        );
-      }
-    } catch {
-      /* yok */
-    }
   } catch (err) {
     console.warn('[schema] sozlesmeler atlandı:', err);
   }
