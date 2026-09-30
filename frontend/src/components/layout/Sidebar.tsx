@@ -317,7 +317,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       'relative z-[1] flex items-center gap-3 py-2.5 pl-7 pr-4 text-sm font-medium transition-colors select-none',
       isActive
         ? 'is-nav-active text-[var(--sidebar-active-text)]'
-        : 'text-[var(--sidebar-open-ink)]/90 hover:bg-[var(--sidebar-open-hover)]',
+        : 'text-[var(--sidebar-open-ink)]/90',
       drag ? 'cursor-grabbing' : 'cursor-grab',
     ].join(' ');
   }

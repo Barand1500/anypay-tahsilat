@@ -691,6 +691,21 @@ html[data-theme='dark'] .log-chip--other {
   display: none;
 }
 
+.sidebar-open .sidebar-nav a:not(.is-nav-active)::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 12px;
+  z-index: -1;
+  border-radius: 18px 0 0 18px;
+  background: var(--sidebar-open-hover);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.sidebar-open .sidebar-nav a:not(.is-nav-active):hover::before {
+  opacity: 1;
+}
+
 .sidebar-nav {
   overflow-x: hidden;
   overflow-y: auto;
