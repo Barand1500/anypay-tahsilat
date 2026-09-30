@@ -206,7 +206,6 @@ async function resolveBranchIds(input: {
 export async function listPanelUsers(): Promise<PublicPanelUser[]> {
   const rows = await prisma.user.findMany({
     where: {
-      musteriId: null,
       OR: [{ remove: null }, { remove: false }],
     },
     orderBy: { id: 'desc' },
@@ -279,7 +278,17 @@ export async function createPanelUser(input: {
   if (!role.code) throw new UsersError('Rol bulunamadı');
 
   const clash = await prisma.user.findFirst({ where: { email } });
-  if (clash) throw new UsersError('Bu e-posta zaten kayıtlı');
+  if (clash && !clash.remove) throw new UsersError('Bu e-posta zaten kayıtlı');
+  if (clash?.remove) {
+    // Önceki sürümler kullanıcıları soft-delete ediyordu; bu eski satırlar
+    // unique e-posta alanını tutmaya devam ettiğinden, kayıtlı olmayan hesap
+    // yeniden açılırken kaldırılmış satır ve kullanıcı kasası temizlenir.
+    await prisma.$transaction([
+      prisma.kasaKayit.deleteMany({ where: { kullaniciId: clash.id } }),
+      prisma.kasaAyar.deleteMany({ where: { kullaniciId: clash.id } }),
+      prisma.user.delete({ where: { id: clash.id } }),
+    ]);
+  }
 
   const subeIds = await resolveBranchIds(input);
   const plain = (input.password || '').trim() || randomPassword();
@@ -404,16 +413,17 @@ export async function updatePanelUser(
   return toPublic(row, role.name, await branchNamesFor(ids));
 }
 
-export async function softDeletePanelUser(id: number): Promise<void> {
+export async function deletePanelUser(id: number): Promise<void> {
   const existing = await prisma.user.findFirst({
-    where: { id, OR: [{ remove: null }, { remove: false }] },
+    where: { id },
   });
   if (!existing) throw new UsersError('Kullanıcı bulunamadı');
 
-  await prisma.user.update({
-    where: { id },
-    data: { remove: true, isVerified: false },
-  });
+  await prisma.$transaction([
+    prisma.kasaKayit.deleteMany({ where: { kullaniciId: id } }),
+    prisma.kasaAyar.deleteMany({ where: { kullaniciId: id } }),
+    prisma.user.delete({ where: { id } }),
+  ]);
 }
 
 function randomPassword() {

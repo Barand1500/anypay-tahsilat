@@ -30,7 +30,9 @@ type Props = {
   roleOptions: { value: string; label: string }[];
   branchOptions?: { value: string; label: string }[];
   onClose: () => void;
-  onSave: (u: Omit<AppUser, 'id'> & { id?: number; password?: string }) => Promise<void> | void;
+  onSave: (
+    u: Omit<AppUser, 'id'> & { id?: number; password?: string; sendPasswordEmail?: boolean },
+  ) => Promise<void> | void;
   /** Çift tıklanan sütuna göre odak */
   focusField?: UserFocusField | null;
 };
@@ -127,9 +129,15 @@ export function UserModal({
     };
   }, [focusField]);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !email.trim() || phone.length !== 10 || !roleId) return;
+  async function submitUser(sendPasswordEmail = false) {
+    if (!name.trim() || !email.trim() || phone.length !== 10 || !roleId) {
+      setFormError('E-posta ile göndermek için ad, e-posta, telefon ve rol alanlarını doldurun.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFormError('Geçerli bir e-posta adresi girin.');
+      return;
+    }
     if (!isEdit && password.trim().length < 6) {
       setFormError('Yeni kullanıcı için şifre en az 6 karakter');
       return;
@@ -154,12 +162,18 @@ export function UserModal({
         status,
         installments,
         password: password.trim() || undefined,
+        sendPasswordEmail,
       });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Kayıt başarısız');
     } finally {
       setSaving(false);
     }
+  }
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    void submitUser(false);
   }
 
   const phoneShown = formatPhoneLive(phone);
@@ -287,15 +301,27 @@ export function UserModal({
             />
 
             {!isEdit ? (
-              <TextInput
-                data-km-jump
-                label="Şifre *"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
+              <div>
+                <TextInput
+                  data-km-jump
+                  label="Şifre *"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  data-km-jump
+                  disabled={saving || !email.trim() || password.trim().length < 6}
+                  onClick={() => void submitUser(true)}
+                  className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-sm font-semibold text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <MailIcon />
+                  Şifreyi Mail ile Gönder
+                </button>
+              </div>
             ) : (
               <TextInput
                 data-km-jump
@@ -392,12 +418,21 @@ export function UserModal({
               disabled={saving}
               className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
             >
-              {saving ? 'Kaydediliyor…' : 'Kaydet'}
+              {saving ? 'Kaydediliyor…' : isEdit ? 'Kaydet' : 'Kullanıcıyı Ekle'}
             </button>
           </div>
         </form>
       </div>
     </div>,
     document.body,
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

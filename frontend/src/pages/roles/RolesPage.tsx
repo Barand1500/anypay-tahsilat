@@ -17,6 +17,10 @@ import { ROLE_HERO_SRC, prefetchRoleHero } from './roleHero';
 export default function RolesPage() {
   const { token } = useAuth();
   const { roles, setRoles, rolesLoading, refreshRoles, guard } = usePermission();
+  const visibleRoles = useMemo(
+    () => roles.filter((role) => !isSuperCustomerRole(role.name, role.code)),
+    [roles],
+  );
   const [pages, setPages] = useState<PermPage[]>([]);
   const [modal, setModal] = useState<
     { type: 'create' } | { type: 'edit'; role: AppRole } | null
@@ -143,13 +147,13 @@ export default function RolesPage() {
         </div>
       ) : null}
 
-      {rolesLoading && roles.length === 0 ? (
+      {rolesLoading && visibleRoles.length === 0 ? (
         <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-14 text-center text-sm text-[var(--panel-muted)]">
           Yükleniyor…
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {roles.map((role, i) => (
+          {visibleRoles.map((role, i) => (
             <RoleCard
               key={role.id}
               role={role}
@@ -184,7 +188,7 @@ export default function RolesPage() {
         </div>
       )}
 
-      {!rolesLoading && roles.length === 0 ? (
+      {!rolesLoading && visibleRoles.length === 0 ? (
         <p className="text-center text-sm text-[var(--panel-muted)]">
           Rol bulunamadı.{' '}
           <button type="button" className="font-semibold underline" onClick={() => void refreshRoles()}>
@@ -212,6 +216,14 @@ export default function RolesPage() {
       ) : null}
     </div>
   );
+}
+
+function isSuperCustomerRole(name: string, code: string): boolean {
+  const normalized = `${name} ${code}`
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return normalized.includes('super musteri') || normalized.includes('super_musteri');
 }
 
 function RoleCard({

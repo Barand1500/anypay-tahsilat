@@ -194,7 +194,7 @@ export function InstallmentOptionsModal({
                 Taksit Seçenekleri
               </h2>
               <p className="text-xs text-[var(--panel-muted)]">
-                Banka bazlı uygulanan taksit bilgileri
+                Banka bazlı taksit seçeneklerini karşılaştırın. Taksit tutarları, toplam tutarlar ve varsa taksit alt limitleri görüntülenir.
               </p>
             </div>
             <div className="flex items-center gap-2">

@@ -55,7 +55,9 @@ export default function UsersPage() {
   const rowRefs = useRef<Map<number, HTMLLIElement>>(new Map());
 
   const roleOptions = useMemo(
-    () => roles.map((r) => ({ value: String(r.id), label: r.name })),
+    () => roles
+      .filter((r) => !isSuperCustomerRole(r.name, r.code))
+      .map((r) => ({ value: String(r.id), label: r.name })),
     [roles],
   );
 
@@ -169,7 +171,9 @@ export default function UsersPage() {
     setDeleteTarget(u);
   }
 
-  async function saveUser(next: Omit<AppUser, 'id'> & { id?: number; password?: string }) {
+  async function saveUser(
+    next: Omit<AppUser, 'id'> & { id?: number; password?: string; sendPasswordEmail?: boolean },
+  ) {
     if (!guard('m-kullanicilar', 'save', 'Kullanıcılar')) return;
     if (!token) throw new Error('Oturum gerekli');
     setActionError(null);
@@ -183,6 +187,7 @@ export default function UsersPage() {
       status: next.status,
       installments: next.installments,
       password: next.password,
+      sendPasswordEmail: next.sendPasswordEmail,
     };
     if (next.id) {
       const updated = await api.patch<AppUser>(`/api/users/${next.id}`, payload, token);
@@ -192,12 +197,19 @@ export default function UsersPage() {
         return list;
       });
     } else {
-      const created = await api.post<AppUser>('/api/users', payload, token);
+      const created = await api.post<AppUser & { passwordEmailSent?: boolean }>(
+        '/api/users',
+        payload,
+        token,
+      );
       setUsers((prev) => {
         const list = [created, ...prev];
         setLiveUsers(list);
         return list;
       });
+      if (next.sendPasswordEmail && created.passwordEmailSent === false) {
+        setActionError('Kullanıcı eklendi ancak giriş bilgileri e-posta ile gönderilemedi. E-posta ayarlarını kontrol edin.');
+      }
     }
     setModal(null);
   }
@@ -516,6 +528,14 @@ export default function UsersPage() {
       <ModulesDblClickHint targetRef={firstRowRef} />
     </div>
   );
+}
+
+function isSuperCustomerRole(name: string, code: string): boolean {
+  const normalized = `${name} ${code}`
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return normalized.includes('super musteri') || normalized.includes('super_musteri');
 }
 
 function PagerBtn({

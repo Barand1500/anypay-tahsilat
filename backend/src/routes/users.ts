@@ -5,12 +5,13 @@ import { requireModulePerm } from '../middleware/permissions.js';
 import {
   UsersError,
   createPanelUser,
+  deletePanelUser,
   listBranches,
   listPanelUsers,
-  softDeletePanelUser,
   updatePanelUser,
 } from '../services/usersService.js';
 import { writePanelLog } from '../services/logsService.js';
+import { sendCustomerCredentialsMail } from '../lib/mail.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const usersRouter = Router();
@@ -32,6 +33,7 @@ const upsertSchema = z.object({
   status: statusSchema.optional(),
   installments: z.array(z.number().int().min(1).max(12)).optional(),
   password: z.string().max(128).optional(),
+  sendPasswordEmail: z.boolean().optional(),
 });
 
 const patchSchema = z.object({
@@ -75,12 +77,32 @@ usersRouter.post('/', async (req: AuthedRequest, res) => {
   }
 
   try {
-    const data = await createPanelUser(parsed.data);
+    const { sendPasswordEmail, ...userInput } = parsed.data;
+    const data = await createPanelUser(userInput);
+    let passwordEmailSent: boolean | undefined;
+    if (sendPasswordEmail && userInput.password) {
+      try {
+        await sendCustomerCredentialsMail(data.email, data.name, data.email, userInput.password);
+        passwordEmailSent = true;
+      } catch (mailError) {
+        console.error('Kullanıcı giriş bilgileri e-postası gönderilemedi', mailError);
+        passwordEmailSent = false;
+      }
+    }
     await writePanelLog(
       req.auth!.sub,
       `Kullanıcı - ${data.name} kullanıcısı eklendi.`,
     );
-    return sendSuccess(res, data, 'Kullanıcı eklendi', 201);
+    return sendSuccess(
+      res,
+      { ...data, ...(passwordEmailSent === undefined ? {} : { passwordEmailSent }) },
+      passwordEmailSent === false
+        ? 'Kullanıcı eklendi ancak e-posta gönderilemedi'
+        : passwordEmailSent
+          ? 'Kullanıcı eklendi ve giriş bilgileri e-posta ile gönderildi'
+          : 'Kullanıcı eklendi',
+      201,
+    );
   } catch (err) {
     if (err instanceof UsersError) return sendError(res, 400, err.message);
     console.error(err);
@@ -116,7 +138,7 @@ usersRouter.delete('/:id', async (req: AuthedRequest, res) => {
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
   try {
-    await softDeletePanelUser(id);
+    await deletePanelUser(id);
     await writePanelLog(req.auth!.sub, `Kullanıcı - #${id} kullanıcısı silindi.`);
     return sendSuccess(res, { ok: true }, 'Kullanıcı silindi');
   } catch (err) {
