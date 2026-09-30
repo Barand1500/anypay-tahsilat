@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma.js';
+﻿import { prisma } from '../lib/prisma.js';
 import { resolveBankLogoUrl } from './banksService.js';
 
 export class CardAgreementsError extends Error {
@@ -324,14 +324,6 @@ export async function resolveAgreementRates(opts: {
     code = await resolvePosFallbackAgreementCode(opts.bankId ?? null);
   }
   if (!code) {
-    const first = await prisma.kartAnlasma.findFirst({
-      where: notRemoved(),
-      orderBy: [{ id: 'desc' }],
-      select: { anlasmaKodu: true },
-    });
-    code = first?.anlasmaKodu ?? null;
-  }
-  if (!code) {
     return { agreementCode: null, bankId: null, bankName: null, rows: [] };
   }
 
@@ -446,3 +438,4 @@ export async function getCustomerAgreementCode(
   });
   return (row?.kartAnlasmaKodu || '').trim() || null;
 }
+

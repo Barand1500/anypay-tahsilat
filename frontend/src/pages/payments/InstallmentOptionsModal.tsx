@@ -1,4 +1,4 @@
-import gsap from "gsap";
+﻿import gsap from "gsap";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../auth/AuthContext";
@@ -40,6 +40,9 @@ export function InstallmentOptionsModal({
     Record<string, InstallmentRow[]>
   >({});
   const [ratesLoading, setRatesLoading] = useState(true);
+  const [ratesRequestKey, setRatesRequestKey] = useState("");
+  const bankIds = banks.map((b) => b.id).join("|");
+  const rateKey = `${amount}|${segment}|${agreementCode ?? ""}|${musteriId ?? ""}|${bankIds}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -90,8 +93,8 @@ export function InstallmentOptionsModal({
     if (!el) return;
     gsap.fromTo(
       el,
-      { autoAlpha: 0, y: 20, scale: 0.96 },
-      { autoAlpha: 1, y: 0, scale: 1, duration: 0.34, ease: "power3.out" },
+      { autoAlpha: 0, y: 10 },
+      { autoAlpha: 1, y: 0, duration: 0.2, ease: "power2.out" },
     );
   }, []);
 
@@ -109,9 +112,11 @@ export function InstallmentOptionsModal({
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      if (banksLoading) return;
       if (!amount || amount <= 0) {
         setRowsByBank({});
         setRatesLoading(false);
+        setRatesRequestKey(rateKey);
         return;
       }
       setRatesLoading(true);
@@ -128,6 +133,7 @@ export function InstallmentOptionsModal({
             // Serbest ödeme tabloda tüm kartlar için geçerli oranları kullanır.
             q.set("segment", segment === "serbest" ? "tumu" : segment);
             q.set("bankName", bank.fullName || bank.name);
+            q.set("bankId", bank.id);
             if (agreementCode) q.set("code", agreementCode);
             if (musteriId != null) q.set("musteriId", String(musteriId));
             const data = await api.get<{ rows: InstallmentRow[] }>(
@@ -143,6 +149,7 @@ export function InstallmentOptionsModal({
       if (!cancelled) {
         setRowsByBank(next);
         setRatesLoading(false);
+        setRatesRequestKey(rateKey);
       }
     }
     void load();
@@ -155,8 +162,11 @@ export function InstallmentOptionsModal({
     token,
     agreementCode,
     musteriId,
-    banks.map((b) => b.id).join("|"),
+    banksLoading,
+    rateKey,
   ]);
+
+  const currentRatesLoading = banksLoading || ratesLoading || ratesRequestKey !== rateKey;
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-3 sm:p-6">
@@ -169,7 +179,7 @@ export function InstallmentOptionsModal({
         role="dialog"
         aria-modal
         aria-labelledby="taksit-title"
-        className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
+        className="relative z-10 flex h-[min(82vh,740px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
       >
         <header className="shrink-0 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -223,14 +233,14 @@ export function InstallmentOptionsModal({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
-          {banksLoading ? (
-            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bankalar yükleniyor…</p>
+          {banksLoading || currentRatesLoading ? (
+            <div className="grid gap-4 xl:grid-cols-2" aria-label="Taksit seçenekleri yükleniyor">{Array.from({ length: 4 }, (_, i) => <div key={i} className="h-32 animate-pulse rounded-xl border border-[var(--panel-line)] bg-[var(--panel-hover)]/60" />)}</div>
           ) : banks.length === 0 ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Gösterilecek taksit seçeneği bulunamadı.</p>
           ) : ratesLoading ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Taksit seçenekleri yükleniyor…</p>
           ) : null}
-          {!banksLoading && !ratesLoading && banks.length > 0 && (
+          {!currentRatesLoading && banks.length > 0 && (
           <div className="grid gap-4 xl:grid-cols-2">
             {banks.filter((bank) => (rowsByBank[bank.id] ?? []).length > 0).map((bank) => {
               const rows = rowsByBank[bank.id] ?? [];
@@ -330,7 +340,7 @@ export function InstallmentOptionsModal({
             })}
           </div>
           )}
-          {!banksLoading && !ratesLoading && banks.length > 0 &&
+          {!currentRatesLoading && banks.length > 0 &&
           banks.every((bank) => (rowsByBank[bank.id] ?? []).length === 0) ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bu tutar ve müşteri grubu için tanımlı taksit seçeneği bulunamadı.</p>
           ) : null}
@@ -340,3 +350,6 @@ export function InstallmentOptionsModal({
     document.body,
   );
 }
+
+
+

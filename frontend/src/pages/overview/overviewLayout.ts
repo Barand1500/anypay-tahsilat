@@ -16,6 +16,13 @@ export type OverviewTileId =
 
 export type OverviewGroupId = 'kpis' | 'periods' | 'tools' | 'stack';
 
+export const GROUP_LABEL: Record<OverviewGroupId, string> = {
+  kpis: 'Genel Bakış',
+  periods: 'Dönem Karşılaştırmaları',
+  tools: 'Hızlı İşlemler ve Dağılım',
+  stack: 'Canlı Plan ve Hareketler',
+};
+
 export const TILE_GROUP: Record<OverviewTileId, OverviewGroupId> = {
   'kpi-customers': 'kpis',
   'kpi-moves': 'kpis',
@@ -82,6 +89,31 @@ export function defaultGroups(): OverviewGroups {
 }
 
 const LS_KEY = 'anypay.overview.groupOrder.v1';
+const VISIBILITY_KEY = 'anypay.overview.groupVisibility.v1';
+export type OverviewVisibility = Record<OverviewGroupId, boolean>;
+
+export function defaultVisibility(): OverviewVisibility {
+  return { kpis: true, periods: true, tools: true, stack: true };
+}
+
+export function loadVisibility(): OverviewVisibility {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VISIBILITY_KEY) || '{}') as Partial<OverviewVisibility>;
+    const defaults = defaultVisibility();
+    return {
+      kpis: parsed.kpis ?? defaults.kpis,
+      periods: parsed.periods ?? defaults.periods,
+      tools: parsed.tools ?? defaults.tools,
+      stack: parsed.stack ?? defaults.stack,
+    };
+  } catch {
+    return defaultVisibility();
+  }
+}
+
+export function saveVisibility(visibility: OverviewVisibility) {
+  localStorage.setItem(VISIBILITY_KEY, JSON.stringify(visibility));
+}
 
 function sanitizeGroup(group: OverviewGroupId, list: unknown): OverviewTileId[] {
   const allowed = new Set(GROUP_META[group].tiles);

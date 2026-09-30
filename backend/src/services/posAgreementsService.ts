@@ -480,10 +480,11 @@ export async function resolvePosFallbackAgreementCode(
   const pos = await prisma.sanalPosTanim.findFirst({
     where: {
       bankaId: bankId,
-      aktif: true,
       ...notRemoved(),
     },
-    orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
+    // Taksit karşılaştırması pasif POS anlaşmalarını da gösterebilir.
+    // Çalışan/varsayılan POS varsa onu tercih et, yoksa bankanın kayıtlı POS anlaşmasını kullan.
+    orderBy: [{ aktif: 'desc' }, { varsayilan: 'desc' }, { id: 'asc' }],
     select: { id: true },
   });
   if (!pos) return null;

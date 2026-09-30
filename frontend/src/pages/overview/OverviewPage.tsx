@@ -24,14 +24,18 @@ import {
 import {
   GROUP_META,
   GROUP_ORDER,
+  GROUP_LABEL,
   loadGroups,
+  loadVisibility,
   moveInGroup,
   saveGroups,
+  saveVisibility,
   TILE_GROUP,
   TILE_LABEL,
   type OverviewGroupId,
   type OverviewGroups,
   type OverviewTileId,
+  type OverviewVisibility,
 } from './overviewLayout';
 import type { OverviewData } from './overviewTypes';
 import { PlanBoard } from './PlanBoard';
@@ -58,6 +62,7 @@ export default function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [groups, setGroups] = useState<OverviewGroups>(() => loadGroups());
+  const [visibility, setVisibility] = useState<OverviewVisibility>(() => loadVisibility());
   const [editing, setEditing] = useState(false);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   const [overId, setOverId] = useState<OverviewTileId | null>(null);
@@ -83,6 +88,10 @@ export default function OverviewPage() {
   useEffect(() => {
     saveGroups(groups);
   }, [groups]);
+
+  useEffect(() => {
+    saveVisibility(visibility);
+  }, [visibility]);
 
   useEffect(() => {
     if (!token) return;
@@ -407,10 +416,20 @@ export default function OverviewPage() {
                 ref={(el) => {
                   groupEls.current[groupId] = el;
                 }}
-                className={[meta.grid, editing ? 'select-none touch-none' : '']
-                  .filter(Boolean)
-                  .join(' ')}
+                className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"
               >
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
+                  <h2 className="text-sm font-bold text-[var(--panel-ink)]">{GROUP_LABEL[groupId]}</h2>
+                  <button
+                    type="button"
+                    aria-expanded={visibility[groupId]}
+                    onClick={() => setVisibility((current) => ({ ...current, [groupId]: !current[groupId] }))}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-700)] transition hover:bg-[var(--panel-hover)]"
+                  >
+                    {visibility[groupId] ? 'Gizle' : 'Göster'}
+                  </button>
+                </div>
+                {visibility[groupId] ? <div className={[meta.grid, 'p-4 sm:p-5', editing ? 'select-none touch-none' : ''].filter(Boolean).join(' ')}>
                 {tiles.map((id) => {
                   const lifting = ghost?.id === id;
                   const isOver = overId === id && ghost?.id !== id;
@@ -451,6 +470,7 @@ export default function OverviewPage() {
                     </div>
                   );
                 })}
+                </div> : null}
               </div>
             );
           })
