@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
+import { useLoadBins } from '../../hooks/useLoadBins';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { api } from '../../lib/api';
@@ -61,6 +62,7 @@ const DEFAULT_MERCHANT: Customer = {
  */
 export default function QuickPayPage() {
   const { token } = useAuth();
+  useLoadBins();
   const navigate = useNavigate();
   const { allowed: allowedInstallments } = useEffectiveInstallments(null);
   const rootRef = useRef<HTMLDivElement>(null);

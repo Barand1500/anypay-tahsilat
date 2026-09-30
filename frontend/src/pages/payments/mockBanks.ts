@@ -1,4 +1,4 @@
-/** BIN → banka eşlemesi + mock taksit oranları (UI; POS API sonra) */
+/** Banka kataloğu ve BIN eşlemesi. Taksit oranları API anlaşmalarından gelir. */
 
 export type BankInfo = {
   id: string;
@@ -25,39 +25,34 @@ export type InstallmentRow = {
 const L = (file: string) => `/banks/${file}`;
 
 export const BANKS: BankInfo[] = [
-  { id: 'akbank', name: 'Akbank', fullName: 'Akbank T.A.Ş.', logo: L('akbanktas_logo_1750065323.webp'), bins: ['5168', '5571', '5526', '4320'] },
-  { id: 'garanti', name: 'Garanti BBVA', fullName: 'Türkiye Garanti Bankası A.Ş.', logo: L('tgarantibankasias_logo_1750065698.webp'), bins: ['5269', '5406', '5549', '4824', '5209'] },
-  { id: 'isbank', name: 'İş Bankası', fullName: 'Türkiye İş Bankası A.Ş.', logo: L('tisbankasias_logo_1750066326.webp'), bins: ['4508', '4543', '5430', '5101'] },
-  { id: 'yapikredi', name: 'Yapı Kredi', fullName: 'Yapı ve Kredi Bankası A.Ş.', logo: L('yapivekredibankasias_logo_1750065209.webp'), bins: ['4506', '5400', '4796', '6761'] },
-  { id: 'qnb', name: 'QNB', fullName: 'QNB Bank A.Ş.', logo: L('qnbbankas_logo_1745577261.webp'), bins: ['4159', '4022', '5311', '5218'] },
-  { id: 'ziraat', name: 'Ziraat Bankası', fullName: 'T.C. Ziraat Bankası A.Ş.', logo: L('tcziraatbankasias_logo_1760452109.webp'), bins: ['4543', '5310', '9792'] },
-  { id: 'halkbank', name: 'Halkbank', fullName: 'Türkiye Halk Bankası A.Ş.', logo: L('thalkbankasias_logo_1750066038.webp'), bins: ['5528', '5430', '9792'] },
-  { id: 'vakifbank', name: 'VakıfBank', fullName: 'Türkiye Vakıflar Bankası T.A.O.', logo: L('tvakiflarbankasitao_logo_1760452244.webp'), bins: ['535576', '4938', '5421', '4111'] },
-  { id: 'denizbank', name: 'DenizBank', fullName: 'Denizbank A.Ş.', logo: L('denizbankas_logo_1760449984.webp'), bins: ['5218', '5430', '4766'] },
-  { id: 'teb', name: 'TEB', fullName: 'Türk Ekonomi Ban kası A.Ş.', logo: L('turkekonomibankasias_logo_1760450968.webp'), bins: ['4402', '5127'] },
-  { id: 'ing', name: 'ING', fullName: 'ING Bank A.Ş.', logo: L('ingbankas_logo_1765277010.webp'), bins: ['4555', '5406'] },
-  { id: 'hsbc', name: 'HSBC', fullName: 'HSBC Bank A.Ş.', logo: L('hsbcbankas_logo_1760454176.webp'), bins: ['4059', '5504'] },
-  { id: 'kuveytturk', name: 'Kuveyt Türk', fullName: 'Kuveyt Türk Katılım Bankası A.Ş.', logo: L('kuveytturkkatilimbankasias_logo_1765190779.webp'), bins: ['4025', '5188'] },
-  { id: 'enpara', name: 'Enpara', fullName: 'Enpara.com QNB Finansbank A.Ş.', logo: L('enparabankas_logo_1758964639.webp'), bins: ['5353'] },
-  { id: 'fibabanka', name: 'Fibabanka', fullName: 'Fibabanka A.Ş.', logo: L('fibabankaas_logo_1760450246.webp'), bins: ['5222'] },
-  { id: 'odeabank', name: 'Odea Bank', fullName: 'Odea Bank A.Ş.', logo: L('odeabankas_logo_1765190878.webp'), bins: ['5892'] },
-  { id: 'sekerbank', name: 'Şekerbank', fullName: 'Şekerbank T.A.Ş.', logo: L('sekerbanktas_logo_1765191415.webp'), bins: ['4894'] },
-  { id: 'anadolubank', name: 'Anadolubank', fullName: 'Anadolubank A.Ş.', logo: L('anadolubankas_logo_1751546075.webp'), bins: ['5586'] },
-  { id: 'alternatif', name: 'Alternatif Bank', fullName: 'Alternatifbank A.Ş.', logo: L('alternatifbankas_logo_1751546028.webp'), bins: ['4662'] },
-  { id: 'albaraka', name: 'Albaraka Türk', fullName: 'Albaraka Türk Katılım Bankası A.Ş.', logo: L('albarakaturkkatilimbankasias_logo_1751545988.webp'), bins: ['4320'] },
-  { id: 'turkiyefinans', name: 'Türkiye Finans', fullName: 'Türkiye Finans Katılım Bankası A.Ş.', logo: L('turkiyefinanskatilimbankasias_logo_1760450613.webp'), bins: ['5218'] },
-  { id: 'vakifkatilim', name: 'Vakıf Katılım', fullName: 'Vakıf Katılım Bankası A.Ş.', logo: L('vakifkatilimbankasias_logo_1760450406.webp'), bins: ['6706'] },
-  { id: 'ziraatkatilim', name: 'Ziraat Katılım', fullName: 'Ziraat Katılım Bankası A.Ş.', logo: L('ziraatkatilimbankasias_logo_1760450320.webp'), bins: ['6705'] },
-  { id: 'papara', name: 'Papara', fullName: 'Papara Elektronik Para ve Ödeme Hizmetleri A.Ş.', logo: L('paparaelektronikparaveodemehizmetlerias_logo_1765191069.webp'), bins: ['5351'] },
-  { id: 'tosla', name: 'Tosla', fullName: 'Tosla (Aktif Yatırım Bankası A.Ş.)', logo: L('tosla_logo_1765811180.webp'), bins: ['9792'] },
+  { id: 'akbank', name: 'Akbank', fullName: 'Akbank T.A.Ş.', logo: L('akbanktas_logo_1750065323.webp'), bins: [] },
+  { id: 'garanti', name: 'Garanti BBVA', fullName: 'Türkiye Garanti Bankası A.Ş.', logo: L('tgarantibankasias_logo_1750065698.webp'), bins: [] },
+  { id: 'isbank', name: 'İş Bankası', fullName: 'Türkiye İş Bankası A.Ş.', logo: L('tisbankasias_logo_1750066326.webp'), bins: [] },
+  { id: 'yapikredi', name: 'Yapı Kredi', fullName: 'Yapı ve Kredi Bankası A.Ş.', logo: L('yapivekredibankasias_logo_1750065209.webp'), bins: [] },
+  { id: 'qnb', name: 'QNB', fullName: 'QNB Bank A.Ş.', logo: L('qnbbankas_logo_1745577261.webp'), bins: [] },
+  { id: 'ziraat', name: 'Ziraat Bankası', fullName: 'T.C. Ziraat Bankası A.Ş.', logo: L('tcziraatbankasias_logo_1760452109.webp'), bins: [] },
+  { id: 'halkbank', name: 'Halkbank', fullName: 'Türkiye Halk Bankası A.Ş.', logo: L('thalkbankasias_logo_1750066038.webp'), bins: [] },
+  { id: 'vakifbank', name: 'VakıfBank', fullName: 'Türkiye Vakıflar Bankası T.A.O.', logo: L('tvakiflarbankasitao_logo_1760452244.webp'), bins: [] },
+  { id: 'denizbank', name: 'DenizBank', fullName: 'Denizbank A.Ş.', logo: L('denizbankas_logo_1760449984.webp'), bins: [] },
+  { id: 'teb', name: 'TEB', fullName: 'Türk Ekonomi Ban kası A.Ş.', logo: L('turkekonomibankasias_logo_1760450968.webp'), bins: [] },
+  { id: 'ing', name: 'ING', fullName: 'ING Bank A.Ş.', logo: L('ingbankas_logo_1765277010.webp'), bins: [] },
+  { id: 'hsbc', name: 'HSBC', fullName: 'HSBC Bank A.Ş.', logo: L('hsbcbankas_logo_1760454176.webp'), bins: [] },
+  { id: 'kuveytturk', name: 'Kuveyt Türk', fullName: 'Kuveyt Türk Katılım Bankası A.Ş.', logo: L('kuveytturkkatilimbankasias_logo_1765190779.webp'), bins: [] },
+  { id: 'enpara', name: 'Enpara', fullName: 'Enpara.com QNB Finansbank A.Ş.', logo: L('enparabankas_logo_1758964639.webp'), bins: [] },
+  { id: 'fibabanka', name: 'Fibabanka', fullName: 'Fibabanka A.Ş.', logo: L('fibabankaas_logo_1760450246.webp'), bins: [] },
+  { id: 'odeabank', name: 'Odea Bank', fullName: 'Odea Bank A.Ş.', logo: L('odeabankas_logo_1765190878.webp'), bins: [] },
+  { id: 'sekerbank', name: 'Şekerbank', fullName: 'Şekerbank T.A.Ş.', logo: L('sekerbanktas_logo_1765191415.webp'), bins: [] },
+  { id: 'anadolubank', name: 'Anadolubank', fullName: 'Anadolubank A.Ş.', logo: L('anadolubankas_logo_1751546075.webp'), bins: [] },
+  { id: 'alternatif', name: 'Alternatif Bank', fullName: 'Alternatifbank A.Ş.', logo: L('alternatifbankas_logo_1751546028.webp'), bins: [] },
+  { id: 'albaraka', name: 'Albaraka Türk', fullName: 'Albaraka Türk Katılım Bankası A.Ş.', logo: L('albarakaturkkatilimbankasias_logo_1751545988.webp'), bins: [] },
+  { id: 'turkiyefinans', name: 'Türkiye Finans', fullName: 'Türkiye Finans Katılım Bankası A.Ş.', logo: L('turkiyefinanskatilimbankasias_logo_1760450613.webp'), bins: [] },
+  { id: 'vakifkatilim', name: 'Vakıf Katılım', fullName: 'Vakıf Katılım Bankası A.Ş.', logo: L('vakifkatilimbankasias_logo_1760450406.webp'), bins: [] },
+  { id: 'ziraatkatilim', name: 'Ziraat Katılım', fullName: 'Ziraat Katılım Bankası A.Ş.', logo: L('ziraatkatilimbankasias_logo_1760450320.webp'), bins: [] },
+  { id: 'papara', name: 'Papara', fullName: 'Papara Elektronik Para ve Ödeme Hizmetleri A.Ş.', logo: L('paparaelektronikparaveodemehizmetlerias_logo_1765191069.webp'), bins: [] },
+  { id: 'tosla', name: 'Tosla', fullName: 'Tosla (Aktif Yatırım Bankası A.Ş.)', logo: L('tosla_logo_1765811180.webp'), bins: [] },
   { id: 'paytr', name: 'PayTR', fullName: 'PayTR Ödeme ve Elektronik Para Kuruluşu A.Ş.', logo: L('paytr_logo_1765811159.webp'), bins: [] },
   { id: 'iyzico', name: 'iyzico', fullName: 'iyzico Ödeme ve Elektronik Para Hizmetleri A.Ş.', logo: L('iyzico_logo_1765811144.webp'), bins: [] },
 ];
-
-/** Bireysel kart — taksit başına komisyon % (1…12) */
-const BIREYSEL_PCT = [0, 5.34, 7.61, 9.2, 10.8, 12.4, 14.1, 15.9, 17.8, 19.9, 22.1, 24.6];
-/** Ticari kart */
-const TICARI_PCT = [0, 4.2, 6.1, 7.8, 9.4, 11.0, 12.7, 14.5, 16.4, 18.4, 20.5, 22.8];
 
 export function digitsOnly(s: string) {
   return s.replace(/\D/g, '');
@@ -248,72 +243,11 @@ export function detectBank(cardDigits: string): BankInfo | null {
       name: runtime.bankName,
       fullName: runtime.bankName,
       logo: '',
-      bins: [runtime.bin],
+      bins: [],
     };
   }
 
-  let best: BankInfo | null = null;
-  let bestLen = 0;
-  for (const bank of BANKS) {
-    for (const bin of bank.bins) {
-      if (d.startsWith(bin) && bin.length > bestLen) {
-        best = bank;
-        bestLen = bin.length;
-      }
-    }
-  }
-  return best;
-}
-
-export function buildInstallments(
-  amount: number,
-  segment: CardSegment,
-  bankId?: string,
-): InstallmentRow[] {
-  if (!amount || amount <= 0) return [];
-  const base =
-    segment === 'ticari'
-      ? TICARI_PCT
-      : segment === 'tumu' || segment === 'serbest'
-        ? BIREYSEL_PCT.map((b, i) => Math.min(b, TICARI_PCT[i] ?? b))
-        : BIREYSEL_PCT;
-  // Bankaya göre hafif sapma (mock)
-  const drift =
-    bankId === 'akbank'
-      ? 0
-      : bankId === 'garanti'
-        ? 0.15
-        : bankId === 'qnb'
-          ? -0.2
-          : bankId === 'yapikredi'
-            ? 0.1
-            : 0.05;
-
-  return base.map((pct, i) => {
-    const n = i + 1;
-    const commissionPct = Math.max(0, +(pct + drift).toFixed(2));
-    const totalAmount = amount * (1 + commissionPct / 100);
-    const installmentAmount = totalAmount / n;
-    // Mock kampanya: bazı satırlarda +taksit (örn. 6+1, 9+2)
-    const plusN = n >= 9 ? 2 : n >= 6 ? 1 : 0;
-    return {
-      n,
-      plusN,
-      commissionPct,
-      installmentAmount,
-      totalAmount,
-      minLimit: 0,
-    };
-  });
+  return null;
 }
 
 /** Karşılaştırma modalı için birkaç banka */
-export function banksForCompare(preferredId?: string | null): BankInfo[] {
-  const ids = ['qnb', 'akbank', 'garanti', 'yapikredi', 'isbank', 'ziraat'];
-  const list = ids.map((id) => BANKS.find((b) => b.id === id)!).filter(Boolean);
-  if (preferredId && !list.some((b) => b.id === preferredId)) {
-    const p = BANKS.find((b) => b.id === preferredId);
-    if (p) list.unshift(p);
-  }
-  return list.slice(0, 4);
-}

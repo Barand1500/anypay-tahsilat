@@ -1,11 +1,38 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { findLiveUser, formatPhoneLive, initialsOf } from './mockUsers';
+import { useAuth } from '../../auth/AuthContext';
+import { api } from '../../lib/api';
+import { formatPhoneLive, initialsOf, type AppUser } from './mockUsers';
 
-/** Kullanıcı detay — mock iskelet */
+/** Kullanıcı detay — API kayıtlarından yüklenir */
 export default function UserDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const user = findLiveUser(id);
+  const { token } = useAuth();
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!token || !id) return;
+      setLoading(true);
+      try {
+        const users = await api.get<AppUser[]>('/api/users', token);
+        if (!cancelled) setUser(users.find((item) => String(item.id) === id) ?? null);
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [token, id]);
+
+  if (loading) {
+    return <div className="py-16 text-center text-sm text-[var(--panel-muted)]">Kullanıcı yükleniyor…</div>;
+  }
 
   if (!user) {
     return (

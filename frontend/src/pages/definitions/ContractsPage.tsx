@@ -15,7 +15,6 @@ import { ContractModal } from './ContractModal';
 import {
   clearLocalContractsCache,
   CONTRACT_LINK_OPTIONS,
-  defaultSeedContracts,
   readLocalContractsForMigrate,
   type ContractDef,
 } from './mockContracts';
@@ -46,8 +45,8 @@ export default function ContractsPage() {
       let list = await api.get<ContractDef[]>('/api/contracts', token);
       const hasBody = list.some((c) => (c.body || '').trim());
       if (!hasBody) {
-        const local = readLocalContractsForMigrate() || defaultSeedContracts();
-        if (local.some((c) => c.body.trim())) {
+        const local = readLocalContractsForMigrate();
+        if (local?.some((c) => c.body.trim())) {
           list = await api.post<ContractDef[]>(
             '/api/contracts/import',
             {

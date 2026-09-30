@@ -31,7 +31,7 @@ const EMPTY_SMTP: SmtpSettings = {
 };
 
 /**
- * Ayarlar › E-Posta — SMTP DB; şablonlar şimdilik local mock.
+ * Ayarlar › E-Posta — SMTP ayarları ve şablonları API'den yüklenir.
  */
 export default function EmailSettingsPage() {
   const { token } = useAuth();

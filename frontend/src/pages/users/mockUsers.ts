@@ -45,31 +45,6 @@ export {
 export const INSTALLMENT_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 /** Rapor filtreleri için örnek isimler (API dışı sayfalar) */
-export const INITIAL_USERS: AppUser[] = [
-  {
-    id: 6,
-    name: 'App Test (silmeyin)',
-    email: 'apptest@guzelteknoloji.com',
-    phone: '5555555555',
-    roleId: '4',
-    roleName: 'Tahsilat',
-    branch: 'TEKNOPARK',
-    status: 'Aktif',
-    installments: [1, 2, 3],
-  },
-  {
-    id: 2,
-    name: 'Sercan Güzel',
-    email: 'sercan@guzelteknoloji.com',
-    phone: '5421046060',
-    roleId: '2',
-    roleName: 'Yönetici',
-    branch: 'MERKEZ',
-    status: 'Aktif',
-    installments: INSTALLMENT_OPTIONS,
-  },
-];
-
 export function initialsOf(name: string) {
   return name
     .split(/\s+/)
@@ -105,7 +80,7 @@ export function normalizePhoneInput(raw: string, prev: string): string {
 }
 
 /** Global arama / detay — UsersPage yükleyince set edilir */
-let liveUsers: AppUser[] = [...INITIAL_USERS];
+let liveUsers: AppUser[] = [];
 
 export function getLiveUsers() {
   return liveUsers;

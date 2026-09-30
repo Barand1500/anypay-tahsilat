@@ -51,16 +51,6 @@ export const CONTACT_KIND_OPTIONS = [
   { value: 'yabanci', label: 'Yabancı' },
 ];
 
-/** Varsayılanlar sayfası yedek — asıl liste API’den gelir */
-export const CONTACT_TAX_OFFICE_OPTIONS = [
-  { value: 'Ankara Kurumlar V.D.', label: 'Ankara Kurumlar V.D.' },
-  { value: 'Antalya Kurumlar V.D.', label: 'Antalya Kurumlar V.D.' },
-  { value: 'Kadıköy V.D.', label: 'Kadıköy V.D.' },
-  { value: 'Çankaya V.D.', label: 'Çankaya V.D.' },
-  { value: 'Kepez V.D.', label: 'Kepez V.D.' },
-  { value: 'Teknopark V.D.', label: 'Teknopark V.D.' },
-];
-
 /** Sabit hat / GSM — 850 885 11 60 */
 export function formatContactPhone(digits: string) {
   const d = digits.replace(/\D/g, '').slice(0, 10);

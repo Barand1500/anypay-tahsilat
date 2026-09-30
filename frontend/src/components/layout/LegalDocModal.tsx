@@ -39,14 +39,24 @@ export function LegalDocModal({ doc, onClose }: Props) {
         return;
       }
       try {
-        const contract = await api.get<ContractDef>(
-          `/api/contracts/by-link/${encodeURIComponent(doc.id)}`,
-          token,
-        );
+        const [contract, contact] = await Promise.all([
+          api.get<ContractDef>(`/api/contracts/by-link/${encodeURIComponent(doc.id)}`, token),
+          api.get<{
+            title: string;
+            taxNo: string;
+            taxOffice: string;
+            identityNo: string;
+            address: string;
+            email: string;
+            phone: string;
+            gsm: string;
+            fax: string;
+          }>('/api/settings/contact', token),
+        ]);
         if (cancelled) return;
         const raw = contract.body?.trim() ?? '';
         setTitle(contract.name || doc.title);
-        setBody(raw ? resolveContractVars(raw, getCompanyContractVars()) : '');
+        setBody(raw ? resolveContractVars(raw, getCompanyContractVars(contact)) : '');
       } catch {
         if (!cancelled) {
           setTitle(doc.title);

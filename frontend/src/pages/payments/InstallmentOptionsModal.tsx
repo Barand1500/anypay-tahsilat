@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { api } from "../../lib/api";
 import {
-  banksForCompare,
+  BANKS,
   formatMoneyTr,
   formatMoneyDisplay,
   type BankInfo,
@@ -34,10 +34,55 @@ export function InstallmentOptionsModal({
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const [segment, setSegment] = useState<CardSegment>("tumu");
-  const banks = banksForCompare(preferredBankId);
+  const [banks, setBanks] = useState<BankInfo[]>([]);
+  const [banksLoading, setBanksLoading] = useState(true);
   const [rowsByBank, setRowsByBank] = useState<
     Record<string, InstallmentRow[]>
   >({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBanks() {
+      if (!token) {
+        setBanks([]);
+        setBanksLoading(false);
+        return;
+      }
+      setBanksLoading(true);
+      try {
+        const list = await api.get<{ id: string; name: string; logo: string }[]>(
+          "/api/payments/banks",
+          token,
+        );
+        if (!cancelled) {
+          const preferred = BANKS.find((item) => item.id === preferredBankId);
+          const mapped = list.map((bank) => ({
+            id: bank.id,
+            name: bank.name,
+            fullName: bank.name,
+            logo: bank.logo || preferred?.logo || "",
+            bins: [],
+          }));
+          const preferredName = preferred?.name.toLocaleLowerCase("tr");
+          if (preferredName) {
+            mapped.sort((a, b) =>
+              Number(b.name.toLocaleLowerCase("tr").includes(preferredName)) -
+              Number(a.name.toLocaleLowerCase("tr").includes(preferredName)),
+            );
+          }
+          setBanks(mapped);
+        }
+      } catch {
+        if (!cancelled) setBanks([]);
+      } finally {
+        if (!cancelled) setBanksLoading(false);
+      }
+    }
+    void loadBanks();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, preferredBankId]);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -172,10 +217,15 @@ export function InstallmentOptionsModal({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+          {banksLoading ? (
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bankalar yükleniyor…</p>
+          ) : banks.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Aktif banka kaydı bulunamadı.</p>
+          ) : null}
           <div className="grid gap-4 xl:grid-cols-2">
             {banks.map((bank) => {
               const rows = rowsByBank[bank.id] ?? [];
-              const visibleRows = rows.filter((r) => r.minLimit > 0);
+              const showMinLimit = rows.some((r) => r.minLimit > 0);
               return (
                 <article
                   key={bank.id}
@@ -193,11 +243,11 @@ export function InstallmentOptionsModal({
                   </div>
                   <table className="w-full table-fixed text-left text-[11px] sm:text-[12px]">
                     <colgroup>
-                      <col className="w-[12%]" />
-                      <col className="w-[16%]" />
-                      <col className="w-[22%]" />
-                      <col className="w-[24%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[18%]" />
                       <col className="w-[26%]" />
+                      <col className="w-[28%]" />
+                      {showMinLimit ? <col className="w-[14%]" /> : null}
                     </colgroup>
                     <thead>
                       <tr className="text-[9px] uppercase leading-tight tracking-wide text-[var(--panel-muted)] sm:text-[10px]">
@@ -217,15 +267,17 @@ export function InstallmentOptionsModal({
                           <br />
                           tutar
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
-                          Taksit Alt
-                          <br />
-                          Limiti
-                        </th>
+                        {showMinLimit ? (
+                          <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                            Taksit Alt
+                            <br />
+                            Limiti
+                          </th>
+                        ) : null}
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleRows.map((r) => {
+                      {rows.map((r) => {
                         const ok =
                           !allowedInstallments?.length ||
                           allowedInstallments.includes(r.n);
@@ -252,7 +304,7 @@ export function InstallmentOptionsModal({
                             <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
                               {formatMoneyDisplay(r.totalAmount)}
                             </td>
-                            <td className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
+                            <td hidden={!showMinLimit} className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
                               {ok
                                 ? r.minLimit > 0
                                   ? formatMoneyDisplay(r.minLimit)
@@ -264,11 +316,6 @@ export function InstallmentOptionsModal({
                       })}
                     </tbody>
                   </table>
-                  {visibleRows.length === 0 ? (
-                    <p className="border-t border-[var(--panel-line)] px-3 py-3 text-center text-xs text-[var(--panel-muted)]">
-                      Bu segment için alt limit tanımlanmamış.
-                    </p>
-                  ) : null}
                 </article>
               );
             })}

@@ -100,10 +100,10 @@ export function defaultBankInstallment(n: number): BankAgreementInstallment {
 export function defaultCustomerRows(): CustomerAgreementRow[] {
   return Array.from({ length: 12 }, (_, i) => ({
     n: i + 1,
-    minLimit: i === 0 ? '0,00' : `${(i * 5000).toLocaleString('tr-TR')},00`,
+    minLimit: '',
     allRate: '',
-    bireyselRate: '0,00',
-    ticariRate: '0,00',
+    bireyselRate: '',
+    ticariRate: '',
   }));
 }
 

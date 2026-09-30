@@ -14,13 +14,11 @@ import { ApiExcelModal } from './ApiExcelModal';
 import { LocationModal, type LocationFocusField } from './LocationModal';
 import {
   API_CATEGORIES,
-  INITIAL_BANKS,
   categoryMeta,
   getApiBaseUrl,
   locationAncestors,
   locationDuplicate,
   locationParentName,
-  mockFetchCategory,
   setApiBaseUrl,
   type ApiCategoryId,
   type BankRow,
@@ -52,7 +50,7 @@ export default function ApiSettingsPage() {
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [taxOffices, setTaxOffices] = useState<TaxOfficeRow[]>([]);
-  const [banks, setBanks] = useState(() => INITIAL_BANKS.map((r) => ({ ...r })));
+  const [banks, setBanks] = useState<BankRow[]>([]);
   const [bins, setBins] = useState<BinRow[]>([]);
 
   const syncRuntimeBins = useCallback((list: BinRow[]) => {
@@ -201,7 +199,7 @@ export default function ApiSettingsPage() {
   }
 
   function openCategory(id: ApiCategoryId) {
-    // Bankalar — canlı sayfa (mock kategori değil)
+    // Banka tanımları canlı banka sayfasında yönetilir.
     if (id === 'banks') {
       navigate('/tanimlamalar/bankalar');
       return;
@@ -235,15 +233,8 @@ export default function ApiSettingsPage() {
       setToast({ kind: 'ok', text: `Vergi daireleri yenilendi — ${n} kayıt` });
       return;
     }
-    setApiBusy(true);
-    const res = await mockFetchCategory(category, endpointDraft);
     setApiBusy(false);
-    if (res.ok) {
-      if (category === 'banks') setBanks(INITIAL_BANKS.map((r) => ({ ...r })));
-      setToast({ kind: 'ok', text: `API başarılı — ${res.count} kayıt alındı` });
-    } else {
-      setToast({ kind: 'err', text: res.message });
-    }
+    setToast({ kind: 'err', text: 'Bu kategori için canlı API bağlantısı bulunamadı.' });
   }
 
   // ——— filtre / sayfalama ———

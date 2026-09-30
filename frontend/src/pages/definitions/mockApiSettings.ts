@@ -1,4 +1,4 @@
-/** Tanımlamalar › Api Ayarları — mock API kaynakları */
+/** Tanımlamalar › API kategori ve kayıt tipleri */
 
 const API_URL_KEY = 'anypay_api_base_url';
 
@@ -71,22 +71,6 @@ export type BinRow = {
 };
 
 export type ApiRow = LocationRow | TaxOfficeRow | BankRow | BinRow;
-
-export const INITIAL_LOCATIONS: LocationRow[] = [
-  { id: 'loc-tr', name: 'Türkiye', level: 'Ülke', parentId: null },
-  { id: 'loc-de', name: 'Almanya', level: 'Ülke', parentId: null },
-  { id: 'loc-tr-07', name: 'Antalya', level: 'İl', parentId: 'loc-tr' },
-  { id: 'loc-tr-34', name: 'İstanbul', level: 'İl', parentId: 'loc-tr' },
-  { id: 'loc-tr-06', name: 'Ankara', level: 'İl', parentId: 'loc-tr' },
-  { id: 'loc-tr-33', name: 'Mersin', level: 'İl', parentId: 'loc-tr' },
-  { id: 'loc-de-be', name: 'Berlin', level: 'İl', parentId: 'loc-de' },
-  { id: 'loc-tr-07-kepez', name: 'Kepez', level: 'İlçe', parentId: 'loc-tr-07' },
-  { id: 'loc-tr-07-muratpasa', name: 'Muratpaşa', level: 'İlçe', parentId: 'loc-tr-07' },
-  { id: 'loc-tr-34-kadikoy', name: 'Kadıköy', level: 'İlçe', parentId: 'loc-tr-34' },
-  { id: 'loc-tr-06-cankaya', name: 'Çankaya', level: 'İlçe', parentId: 'loc-tr-06' },
-  { id: 'loc-tr-33-toroslar', name: 'Toroslar', level: 'İlçe', parentId: 'loc-tr-33' },
-  { id: 'loc-tr-07-kepez-gazi', name: 'Gazi', level: 'Mahalle', parentId: 'loc-tr-07-kepez' },
-];
 
 export function locationParentName(list: LocationRow[], parentId: string | null) {
   if (!parentId) return '—';
@@ -191,52 +175,6 @@ export function ensureLocationPath(
     lastId = findOrCreate(parts.neighborhood, 'Mahalle', districtId);
   }
   return { list: next, id: lastId };
-}
-
-export const INITIAL_TAX_OFFICES: TaxOfficeRow[] = [
-  { id: 'to-1', city: 'Adana', district: 'Merkez', name: 'Adana İhtisas V.D.' },
-  { id: 'to-2', city: 'Antalya', district: 'Kepez', name: 'Kepez V.D.' },
-  { id: 'to-3', city: 'Ankara', district: 'Çankaya', name: 'Ankara Kurumlar V.D.' },
-  { id: 'to-4', city: 'İstanbul', district: 'Kadıköy', name: 'Kadıköy V.D.' },
-  { id: 'to-5', city: 'İzmir', district: 'Konak', name: 'Konak V.D.' },
-];
-
-export const INITIAL_BANKS: BankRow[] = [
-  { id: 'bk-1', name: 'Ziraat Katılım BANKASI A.Ş.', shortName: 'ZİRAAT KATILIM' },
-  { id: 'bk-2', name: 'Türkiye İş Bankası A.Ş.', shortName: 'İŞ BANKASI' },
-  { id: 'bk-3', name: 'Garanti BBVA', shortName: 'GARANTİ' },
-  { id: 'bk-4', name: 'Yapı ve Kredi Bankası A.Ş.', shortName: 'YAPI KREDİ' },
-  { id: 'bk-5', name: 'Akbank T.A.Ş.', shortName: 'AKBANK' },
-];
-
-export const INITIAL_BINS: BinRow[] = [
-  { id: 'bin-1', bank: 'Ziraat', bin: '979241', type: 'Debit', brand: 'Troy', kind: 'Bireysel' },
-  { id: 'bin-2', bank: 'İş Bankası', bin: '450803', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
-  { id: 'bin-3', bank: 'Garanti', bin: '540063', type: 'Credit', brand: 'MasterCard', kind: 'Ticari' },
-  { id: 'bin-4', bank: 'Yapı Kredi', bin: '454360', type: 'Credit', brand: 'Visa', kind: 'Bireysel' },
-  { id: 'bin-5', bank: 'Akbank', bin: '557113', type: 'Credit', brand: 'MasterCard', kind: 'Bireysel' },
-];
-
-/** Mock API çekimi — bazen başarısız simüle eder */
-export async function mockFetchCategory(
-  categoryId: ApiCategoryId,
-  endpoint: string,
-): Promise<{ ok: true; count: number } | { ok: false; message: string }> {
-  await new Promise((r) => setTimeout(r, 700));
-  if (!endpoint.trim()) {
-    return { ok: false, message: 'API yolu boş olamaz' };
-  }
-  // Deterministik ama “tekrar dene” hissi: endpoint uzunluğuna göre
-  if (endpoint.includes('fail') || endpoint.endsWith('/')) {
-    return { ok: false, message: 'API yanıt vermedi (mock hata)' };
-  }
-  const counts: Record<ApiCategoryId, number> = {
-    locations: INITIAL_LOCATIONS.length,
-    'tax-offices': INITIAL_TAX_OFFICES.length,
-    banks: INITIAL_BANKS.length,
-    bin: INITIAL_BINS.length,
-  };
-  return { ok: true, count: counts[categoryId] };
 }
 
 export function categoryMeta(id: ApiCategoryId) {

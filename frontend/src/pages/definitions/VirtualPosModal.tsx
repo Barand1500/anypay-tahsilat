@@ -35,8 +35,6 @@ type Props = {
   }) => Promise<void>;
 };
 
-const FALLBACK_SECURITY = ['3D', '3D_PAY', '3D_HOST', '3DModel', '3DPay', '3d_pay'];
-
 /** Sanal POS ekle / düzenle — Esc / X / Kapat; altyapıya göre dinamik alanlar */
 export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: Props) {
   const isEdit = mode.type === 'edit';
@@ -77,7 +75,7 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
       .split(/[,;]+/)
       .map((s) => s.trim())
       .filter(Boolean);
-    const list = fromBank.length ? fromBank : FALLBACK_SECURITY;
+    const list = fromBank;
     return [...new Set(list)].map((v) => ({ value: v, label: v }));
   }, [banks, bankId]);
 

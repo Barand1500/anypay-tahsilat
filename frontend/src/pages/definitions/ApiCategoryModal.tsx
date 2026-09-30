@@ -7,7 +7,6 @@ import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { GrowingValueList } from '../../components/ui/GrowingValueList';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
-import { districtsOf, PROVINCES } from '../customers/mockLocations';
 import { BankPicker } from './BankPicker';
 import type { BankRow, BinRow, LocationRow, TaxOfficeRow } from './mockApiSettings';
 
@@ -40,23 +39,6 @@ type Props =
       onClose: () => void;
       onSave: (rows: Array<Omit<BinRow, 'id'> & { id?: string }>) => void;
     };
-
-const FALLBACK_TYPE_OPTS = [
-  { value: 'Kredi Kartı', label: 'Kredi Kartı' },
-  { value: 'Banka Kartı', label: 'Banka Kartı' },
-];
-
-const FALLBACK_BRAND_OPTS = [
-  { value: 'Visa', label: 'Visa' },
-  { value: 'MasterCard', label: 'MasterCard' },
-  { value: 'TROY', label: 'TROY' },
-  { value: 'Amex', label: 'Amex' },
-];
-
-const FALLBACK_KIND_OPTS = [
-  { value: 'Bireysel Kart', label: 'Bireysel Kart' },
-  { value: 'Ticari Kart', label: 'Ticari Kart' },
-];
 
 function uniqSorted(items: string[]) {
   const map = new Map<string, string>();
@@ -98,14 +80,13 @@ export function ApiCategoryModal(props: Props) {
   const [binBrand, setBinBrand] = useState<string | null>(bin?.brand ?? null);
   const [binKind, setBinKind] = useState<string | null>(bin?.kind ?? null);
   const [binPickerOpen, setBinPickerOpen] = useState(false);
-  const [typeOpts, setTypeOpts] = useState(FALLBACK_TYPE_OPTS);
-  const [brandOpts, setBrandOpts] = useState(FALLBACK_BRAND_OPTS);
-  const [kindOpts, setKindOpts] = useState(FALLBACK_KIND_OPTS);
+  const [typeOpts, setTypeOpts] = useState<{ value: string; label: string }[]>([]);
+  const [brandOpts, setBrandOpts] = useState<{ value: string; label: string }[]>([]);
+  const [kindOpts, setKindOpts] = useState<{ value: string; label: string }[]>([]);
 
   const cityOptions = useMemo(
     () =>
       uniqSorted([
-        ...PROVINCES.map((p) => p.label),
         ...locations.filter((r) => r.level === 'İl').map((r) => r.name),
       ]),
     [locations],
@@ -146,15 +127,13 @@ export function ApiCategoryModal(props: Props) {
   const districtOptions = useMemo(() => {
     const cityKey = taxCity.trim().toLocaleLowerCase('tr');
     if (!cityKey) return [];
-    const prov = PROVINCES.find((p) => p.label.toLocaleLowerCase('tr') === cityKey);
-    const fromProv = prov ? districtsOf(prov.value).map((d) => d.label) : [];
     const cityRow = locations.find(
       (r) => r.level === 'İl' && r.name.toLocaleLowerCase('tr') === cityKey,
     );
     const fromLoc = cityRow
       ? locations.filter((r) => r.level === 'İlçe' && r.parentId === cityRow.id).map((r) => r.name)
       : [];
-    return uniqSorted([...fromProv, ...fromLoc]);
+    return uniqSorted(fromLoc);
   }, [locations, taxCity]);
 
   useEffect(() => {
