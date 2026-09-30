@@ -1,4 +1,4 @@
-import gsap from 'gsap';
+﻿import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
@@ -45,7 +45,7 @@ type ContactApi = {
 const DEFAULT_MERCHANT: Customer = {
   id: 'panel-merchant',
   code: '',
-  title: 'GÜZEL Teknoloji',
+  title: 'GÃœZEL Teknoloji',
   phone: '',
   email: '',
   taxNo: '',
@@ -58,7 +58,7 @@ const DEFAULT_MERCHANT: Customer = {
 };
 
 /**
- * Hızlı Ödeme — firma adına; 3 kart (ödeme / kart / banka).
+ * HÄ±zlÄ± Ã–deme â€” firma adÄ±na; 3 kart (Ã¶deme / kart / banka).
  */
 export default function QuickPayPage() {
   const { token } = useAuth();
@@ -96,6 +96,7 @@ export default function QuickPayPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [cardChecked, setCardChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
+  const [cvcChecked, setCvcChecked] = useState(false);
   const binsRev = useBinsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
@@ -108,21 +109,26 @@ export default function QuickPayPage() {
     segment: 'bireysel',
   });
   const availableBankRows = useMemo(
-    () => bankInstallmentRows.filter((row) =>
-      !allowedInstallments?.length || allowedInstallments.includes(row.n),
-    ),
-    [bankInstallmentRows, allowedInstallments],
+    () => {
+      const allowedRows = bankInstallmentRows.filter((row) =>
+        !allowedInstallments?.length || allowedInstallments.includes(row.n),
+      );
+      if (!amount || amount <= 0 || allowedRows.some((row) => row.n === 1)) return allowedRows;
+      return [{ n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 }, ...allowedRows];
+    },
+    [amount, bankInstallmentRows, allowedInstallments],
   );
   const cardFaulty =
     cardChecked &&
-    cardDigits.length > 0 &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
   const expiryFaulty =
     expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
   const expiryOk =
     expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
+  const cvcFaulty = cvcChecked && digitsOnly(cvc).length < 3;
+  const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKÄ°YESÄ°' : payType === 'fatura' ? 'FATURA' : 'Ã–deme Tipi SeÃ§iniz';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -160,7 +166,7 @@ export default function QuickPayPage() {
           phone: data.phone || '',
         });
       } catch {
-        /* başlık opsiyonel */
+        /* baÅŸlÄ±k opsiyonel */
       }
     })();
     return () => {
@@ -179,7 +185,7 @@ export default function QuickPayPage() {
   }, [currencyId, defaultCurrencyId]);
 
   const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
-  const currencySymbol = selectedCurrency?.symbol || '₺';
+  const currencySymbol = selectedCurrency?.symbol || 'â‚º';
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -193,10 +199,10 @@ export default function QuickPayPage() {
 
   function queryBalance() {
     if (!payType) {
-      setToast('Önce ödeme tipi seçin');
+      setToast('Ã–nce Ã¶deme tipi seÃ§in');
       return;
     }
-    setToast('ERP bakiye sorgusu henüz bağlı değil');
+    setToast('ERP bakiye sorgusu henÃ¼z baÄŸlÄ± deÄŸil');
     setBalance(null);
   }
 
@@ -223,21 +229,22 @@ export default function QuickPayPage() {
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (!payType) next.payType = 'Ödeme tipi seçin';
-    if (!currencyId) next.currency = 'Para birimi seçin';
-    if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
+    if (!payType) next.payType = 'Ã–deme tipi seÃ§in';
+    if (!currencyId) next.currency = 'Para birimi seÃ§in';
+    if (!amount || amount <= 0) next.amount = 'GeÃ§erli tutar girin';
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
-    if (tc && digitsOnly(tc).length !== 11) next.tc = 'TC 11 hane olmalı';
+    if (tc && digitsOnly(tc).length !== 11) next.tc = 'TC 11 hane olmalÄ±';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
-    if (cardDigits.length < 15) next.card = 'Kart numarası eksik';
-    else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
+    if (cardDigits.length < 15) next.card = 'Kart numarasÄ± eksik';
+    else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarasÄ± geÃ§ersiz';
     const expiryErr = getCardExpiryError(expiry);
     if (expiryErr) next.expiry = expiryErr;
     if (digitsOnly(cvc).length < 3) next.cvc = 'CVC gerekli';
-    if (!pickedInstall) next.install = 'Taksit seçin';
-    if (!contractOk) next.contract = 'Sözleşmeyi kabul edin';
+    if (!pickedInstall) next.install = 'Taksit seÃ§in';
+    if (!contractOk) next.contract = 'SÃ¶zleÅŸmeyi kabul edin';
     setCardChecked(true);
     setExpiryChecked(true);
+    setCvcChecked(true);
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -270,11 +277,11 @@ export default function QuickPayPage() {
       navigate('/hareketler', {
         replace: true,
         state: {
-          flash: `Hızlı ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyDisplay(data.amount, currencySymbol)}`,
+          flash: `HÄ±zlÄ± Ã¶deme kaydedildi â€” ${data.odemeNo} Â· ${formatMoneyDisplay(data.amount, currencySymbol)}`,
         },
       });
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'Ödeme kaydedilemedi');
+      setToast(err instanceof Error ? err.message : 'Ã–deme kaydedilemedi');
     } finally {
       setSaving(false);
     }
@@ -286,8 +293,8 @@ export default function QuickPayPage() {
         <Link to="/" className="font-medium hover:text-[var(--color-brand-600)]">
           Anasayfa
         </Link>
-        <span className="mx-1.5 opacity-50">›</span>
-        <span className="font-semibold text-[var(--panel-ink)]">Hızlı Ödeme</span>
+        <span className="mx-1.5 opacity-50">â€º</span>
+        <span className="font-semibold text-[var(--panel-ink)]">HÄ±zlÄ± Ã–deme</span>
       </nav>
 
       <h1
@@ -299,9 +306,9 @@ export default function QuickPayPage() {
 
       <form onSubmit={onSubmit} className="space-y-5">
         <div data-anim className="grid gap-4 lg:grid-cols-3">
-          {/* Ödeme */}
+          {/* Ã–deme */}
           <section className="flex flex-col gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
-            <SectionHead>Ödeme Bilgileri</SectionHead>
+            <SectionHead>Ã–deme Bilgileri</SectionHead>
 
             <div className="flex items-stretch gap-2">
               <div ref={payTypeRef} className="relative min-w-0 flex-1">
@@ -326,7 +333,7 @@ export default function QuickPayPage() {
                   <ul className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-lg">
                     {(
                       [
-                        ['ch', 'C/H BAKİYESİ'],
+                        ['ch', 'C/H BAKÄ°YESÄ°'],
                         ['fatura', 'FATURA'],
                       ] as const
                     ).map(([val, label]) => (
@@ -404,7 +411,7 @@ export default function QuickPayPage() {
                   onClick={() => setCurrencyOpen((o) => !o)}
                   className="flex h-full min-h-[46px] items-center gap-1.5 rounded-r-xl bg-[var(--panel-surface)] px-3 text-sm font-bold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
                 >
-                  <span className="min-w-[1.1rem] text-center">{currencySymbol || '—'}</span>
+                  <span className="min-w-[1.1rem] text-center">{currencySymbol || 'â€”'}</span>
                   <ChevronIcon />
                 </button>
                 {currencyOpen ? (
@@ -465,7 +472,7 @@ export default function QuickPayPage() {
 
             <TextArea
               data-km-jump
-              label="Açıklama"
+              label="AÃ§Ä±klama"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={4}
@@ -476,7 +483,7 @@ export default function QuickPayPage() {
           {/* Kart */}
           <section className="flex flex-col gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
             <PaymentCardFields
-              heading="Kredi Kartı Bilgileri"
+              heading="Kredi KartÄ± Bilgileri"
               SectionHead={SectionHead}
               holder={holder}
               tc={tc}
@@ -487,16 +494,20 @@ export default function QuickPayPage() {
               errors={errors}
               bank={bank}
               cardFaulty={cardFaulty}
+              cardOk={cardChecked && !cardFaulty && cardDigits.length >= 15}
               expiryOk={expiryOk}
               expiryFaulty={expiryFaulty}
+              cvcOk={cvcOk}
+              cvcFaulty={cvcFaulty}
               onHolder={setHolder}
               onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
               onPhone={(v) => setPhone(normalizePhoneInput(v))}
               onCard={onCardChange}
               onExpiry={onExpiryChange}
-              onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
+              onCvc={(v) => { setCvc(digitsOnly(v).slice(0, 4)); setCvcChecked(false); }}
               onCardBlur={() => setCardChecked(true)}
               onExpiryBlur={() => setExpiryChecked(true)}
+              onCvcBlur={() => setCvcChecked(true)}
             />
           </section>
 
@@ -510,7 +521,7 @@ export default function QuickPayPage() {
               onClick={() => setInstallOpen(true)}
               className="w-full rounded-xl bg-orange-500 px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Taksit Seçenekleri
+              Taksit SeÃ§enekleri
             </button>
             {bank?.logo ? (
               <div className="flex min-h-32 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white p-5">
@@ -521,12 +532,12 @@ export default function QuickPayPage() {
                 {bank.name}
               </div>
             ) : (
-              <p className="text-xs text-[var(--panel-muted)]">Banka bilgisi için kart numarasını girin.</p>
+              <p className="text-xs text-[var(--panel-muted)]">Banka bilgisi iÃ§in kart numarasÄ±nÄ± girin.</p>
             )}
-            {bank ? (
+            {amount > 0 ? (
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Bankaya göre taksit seçenekleri</p>
-                {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Bankaya gÃ¶re taksit seÃ§enekleri</p>
+                {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yÃ¼kleniyorâ€¦</p> : null}
                 {!ratesLoading && availableBankRows.length ? (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {availableBankRows.map((row) => (
@@ -534,24 +545,24 @@ export default function QuickPayPage() {
                         key={row.n}
                         type="button"
                         data-km-jump
-                        onClick={() => setPickedInstall({ n: row.n, bank })}
-                        className={`rounded-lg border px-3 py-2 text-left transition ${pickedInstall?.n === row.n && pickedInstall.bank.id === bank.id ? 'border-[var(--color-brand-600)] bg-[var(--brand-soft-bg)]' : 'border-[var(--panel-line)] hover:bg-[var(--panel-hover)]'}`}
+                        onClick={() => bank && setPickedInstall({ n: row.n, bank })}
+                        className={`rounded-lg border px-3 py-2 text-left transition ${pickedInstall?.n === row.n && pickedInstall.bank.id === bank?.id ? 'border-[var(--color-brand-600)] bg-[var(--brand-soft-bg)]' : 'border-[var(--panel-line)] hover:bg-[var(--panel-hover)]'}`}
                       >
-                        <span className="block text-xs font-bold text-[var(--panel-ink)]">{row.n === 1 ? 'Tek çekim' : `${row.n} taksit`}</span>
+                        <span className="block text-xs font-bold text-[var(--panel-ink)]">{row.n === 1 ? 'Tek Ã§ekim' : `${row.n} taksit`}</span>
                         <span className="mt-1 block text-[11px] tabular-nums text-[var(--panel-muted)]">{formatMoneyDisplay(row.installmentAmount)} / ay</span>
                       </button>
                     ))}
                   </div>
                 ) : null}
-                {!ratesLoading && !availableBankRows.length ? (
-                  <p className="text-xs text-[var(--panel-muted)]">Bu banka için taksit anlaşması bulunamadı.</p>
+                {!ratesLoading && bank && !availableBankRows.length ? (
+                  <p className="text-xs text-[var(--panel-muted)]">Bu banka iÃ§in taksit anlaÅŸmasÄ± bulunamadÄ±.</p>
                 ) : null}
               </div>
             ) : null}
             {pickedInstall ? (
               <p className="text-sm text-[var(--panel-ink)]">
                 <span className="font-semibold">{pickedInstall.n} taksit</span>
-                <span className="text-[var(--panel-muted)]"> · {pickedInstall.bank.name}</span>
+                <span className="text-[var(--panel-muted)]"> Â· {pickedInstall.bank.name}</span>
               </p>
             ) : errors.install ? (
               <p className="text-xs text-rose-500">{errors.install}</p>
@@ -573,7 +584,7 @@ export default function QuickPayPage() {
                 className="font-semibold text-[var(--color-brand-600)] hover:underline"
                 onClick={() => setContractOpen(true)}
               >
-                Tahsilat Sözleşmesi
+                Tahsilat SÃ¶zleÅŸmesi
               </button>
               &apos;ni okudum ve kabul ediyorum.
             </span>
@@ -586,7 +597,7 @@ export default function QuickPayPage() {
             disabled={saving}
             className="rounded-xl bg-[var(--color-brand-600)] px-10 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:opacity-60"
           >
-            {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
+            {saving ? 'Ä°ÅŸleniyorâ€¦' : 'Ã–demeyi Tamamla'}
           </button>
         </div>
       </form>
@@ -603,12 +614,12 @@ export default function QuickPayPage() {
           onClose={() => setInstallOpen(false)}
           onPick={(b, n) => {
             if (allowedInstallments?.length && !allowedInstallments.includes(n)) {
-              setToast('Size atanmadı');
+              setToast('Size atanmadÄ±');
               return;
             }
             setPickedInstall({ n, bank: b });
             setInstallOpen(false);
-            setToast(`${b.name} · ${n} taksit seçildi`);
+            setToast(`${b.name} Â· ${n} taksit seÃ§ildi`);
           }}
         />
       ) : null}
@@ -646,3 +657,4 @@ function ChevronIcon() {
     </svg>
   );
 }
+

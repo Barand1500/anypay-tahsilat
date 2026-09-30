@@ -26,12 +26,16 @@ type Props = {
   errors?: AnimatedPayCardErrors;
   bank: BankInfo | null;
   cardFaulty?: boolean;
+  cardOk?: boolean;
   expiryOk?: boolean;
   expiryFaulty?: boolean;
+  cvcOk?: boolean;
+  cvcFaulty?: boolean;
   onHolder: (v: string) => void;
   onCard: (v: string) => void;
   onExpiry: (v: string) => void;
   onCvc: (v: string) => void;
+  onCvcBlur?: () => void;
   onCardBlur?: () => void;
   onExpiryBlur?: () => void;
 };
@@ -70,12 +74,16 @@ export function AnimatedPayCard({
   errors,
   bank,
   cardFaulty,
+  cardOk,
   expiryOk,
   expiryFaulty,
+  cvcOk,
+  cvcFaulty,
   onHolder,
   onCard,
   onExpiry,
   onCvc,
+  onCvcBlur,
   onCardBlur,
   onExpiryBlur,
 }: Props) {
@@ -298,6 +306,7 @@ export function AnimatedPayCard({
                       cardFaulty || errors?.card ? errField : '',
                     ].join(' ')}
                   />
+                  {cardFaulty ? <span className={`mt-1 inline-block text-[10px] font-bold ${errText}`}>Hatalı</span> : cardOk ? <span className="mt-1 inline-block text-[10px] font-bold text-emerald-600">OK</span> : null}
                   {errors?.card || cardFaulty ? (
                     <p className={`mt-1 text-[10px] font-semibold ${errText}`}>
                       {errors?.card || 'Kart numarası hatalı'}
@@ -317,7 +326,7 @@ export function AnimatedPayCard({
                       data-km-jump
                       value={values.holder}
                       onChange={(e) => onHolder(e.target.value)}
-                      onBlur={() => setTyping(false)}
+                      onBlur={() => { setTyping(false); onCvcBlur?.(); }}
                       onFocus={() => {
                         setTyping(true);
                         showFront();
@@ -422,6 +431,7 @@ export function AnimatedPayCard({
                         errors?.cvc ? 'border-rose-400 text-rose-600' : '',
                       ].join(' ')}
                     />
+                    {cvcFaulty ? <span className="mt-1 block text-[9px] font-bold text-rose-500">Hatalı</span> : cvcOk ? <span className="mt-1 block text-[9px] font-bold text-emerald-600">OK</span> : null}
                   </div>
                 </div>
                 {errors?.cvc ? (

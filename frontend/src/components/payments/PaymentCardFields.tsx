@@ -27,8 +27,11 @@ type Props = {
   errors: Errors;
   bank: BankInfo | null;
   cardFaulty?: boolean;
+  cardOk?: boolean;
   expiryOk?: boolean;
   expiryFaulty?: boolean;
+  cvcOk?: boolean;
+  cvcFaulty?: boolean;
   onHolder: (v: string) => void;
   onTc: (v: string) => void;
   onPhone: (v: string) => void;
@@ -37,6 +40,7 @@ type Props = {
   onCvc: (v: string) => void;
   onCardBlur?: () => void;
   onExpiryBlur?: () => void;
+  onCvcBlur?: () => void;
   /** Üst başlık metni (SectionHead yoksa) */
   title?: string;
   SectionHead?: (props: { children: ReactNode }) => ReactNode;
@@ -132,12 +136,16 @@ export function PaymentCardFields(props: Props) {
           }}
           bank={props.bank}
           cardFaulty={props.cardFaulty}
+          cardOk={props.cardOk}
           expiryOk={props.expiryOk}
           expiryFaulty={props.expiryFaulty}
+          cvcOk={props.cvcOk}
+          cvcFaulty={props.cvcFaulty}
           onHolder={(v) => props.onHolder(formatCardHolderName(v))}
           onCard={props.onCard}
           onExpiry={props.onExpiry}
           onCvc={props.onCvc}
+          onCvcBlur={props.onCvcBlur}
           onCardBlur={props.onCardBlur}
           onExpiryBlur={props.onExpiryBlur}
         />
@@ -193,6 +201,8 @@ export function PaymentCardFields(props: Props) {
           endAdornment={
             props.cardFaulty ? (
               <FaultBadge />
+            ) : props.cardOk ? (
+              <OkBadge />
             ) : props.bank?.logo ? (
               <img
                 src={props.bank.logo}
@@ -226,9 +236,7 @@ export function PaymentCardFields(props: Props) {
           inputMode="numeric"
           autoComplete="cc-exp"
           className="!pr-20 font-mono tabular-nums"
-          endAdornment={
-            props.expiryFaulty ? <FaultBadge /> : props.expiryOk ? <OkBadge /> : null
-          }
+          endAdornment={props.expiryFaulty ? <FaultBadge /> : props.expiryOk ? <OkBadge /> : null}
         />
         <TextInput
           data-km-jump
@@ -237,7 +245,9 @@ export function PaymentCardFields(props: Props) {
           error={props.errors.cvc}
           onChange={(e) => props.onCvc(e.target.value)}
           inputMode="numeric"
-          className="font-mono tabular-nums"
+          className="!pr-20 font-mono tabular-nums"
+          onBlur={props.onCvcBlur}
+          endAdornment={props.cvcFaulty ? <FaultBadge /> : props.cvcOk ? <OkBadge /> : null}
         />
       </div>
     </div>

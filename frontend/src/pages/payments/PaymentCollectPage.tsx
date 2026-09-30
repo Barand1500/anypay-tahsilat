@@ -1,4 +1,4 @@
-import gsap from 'gsap';
+﻿import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
@@ -31,7 +31,7 @@ import {
 type PayType = '' | 'ch' | 'fatura';
 
 /**
- * Ödeme Al — ortak inputlar; taksit yalnızca modal / seçili özet.
+ * Ã–deme Al â€” ortak inputlar; taksit yalnÄ±zca modal / seÃ§ili Ã¶zet.
  */
 export default function PaymentCollectPage() {
   const { id } = useParams();
@@ -69,9 +69,10 @@ export default function PaymentCollectPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  /** Yazma bitince (blur / submit) rozet kontrolü */
+  /** Yazma bitince (blur / submit) rozet kontrolÃ¼ */
   const [cardChecked, setCardChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
+  const [cvcChecked, setCvcChecked] = useState(false);
   const binsRev = useBinsRevision();
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function PaymentCollectPage() {
   }, [currencyId, defaultCurrencyId]);
 
   const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
-  const currencySymbol = selectedCurrency?.symbol || '₺';
+  const currencySymbol = selectedCurrency?.symbol || 'â‚º';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -133,15 +134,26 @@ export default function PaymentCollectPage() {
     agreementCode: customer?.cardAgreementCode ?? null,
     segment: 'bireysel',
   });
+  const installmentRows = useMemo(() => {
+    if (amount <= 0) return [];
+    const allowedRows = agreementRows.filter((row) =>
+      !allowedInstallments?.length || allowedInstallments.includes(row.n),
+    );
+    if (allowedRows.some((row) => row.n === 1)) return allowedRows;
+    return [
+      { n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 },
+      ...allowedRows,
+    ];
+  }, [amount, agreementRows, allowedInstallments]);
 
-  const cardFaulty =
-    cardChecked &&
-    cardDigits.length > 0 &&
+  const cardFaulty = cardChecked &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
   const expiryFaulty =
     expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
   const expiryOk =
     expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
+  const cvcFaulty = cvcChecked && digitsOnly(cvc).length < 3;
+  const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
   const selected = useMemo(() => {
     if (!amount || amount <= 0) return null;
     return agreementRows.find((r) => r.n === installment) ?? agreementRows[0] ?? null;
@@ -153,11 +165,11 @@ export default function PaymentCollectPage() {
 
   function queryBalance() {
     if (!payType) {
-      flash('Önce ödeme tipi seçin');
+      flash('Ã–nce Ã¶deme tipi seÃ§in');
       return;
     }
     setBalance(null);
-    flash('Cari bakiye ERP bağlantısı henüz yok — tutarı elle girin');
+    flash('Cari bakiye ERP baÄŸlantÄ±sÄ± henÃ¼z yok â€” tutarÄ± elle girin');
   }
 
   function onCardChange(raw: string) {
@@ -182,23 +194,24 @@ export default function PaymentCollectPage() {
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (!payType) next.payType = 'Ödeme tipi seçin';
-    if (!currencyId) next.currency = 'Para birimi seçin';
-    if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
+    if (!payType) next.payType = 'Ã–deme tipi seÃ§in';
+    if (!currencyId) next.currency = 'Para birimi seÃ§in';
+    if (!amount || amount <= 0) next.amount = 'GeÃ§erli tutar girin';
     if (allowedInstallments?.length && !allowedInstallments.includes(installment)) {
-      next.installment = 'Size atanmadı';
+      next.installment = 'Size atanmadÄ±';
     }
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
-    if (tc && tc.length !== 11) next.tc = 'TC 11 hane olmalı';
+    if (tc && tc.length !== 11) next.tc = 'TC 11 hane olmalÄ±';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
-    if (cardDigits.length < 15) next.card = 'Kart numarası eksik';
-    else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
+    if (cardDigits.length < 15) next.card = 'Kart numarasÄ± eksik';
+    else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarasÄ± geÃ§ersiz';
     const expiryErr = getCardExpiryError(expiry);
     if (expiryErr) next.expiry = expiryErr;
     if (cvc.length < 3) next.cvc = 'CVC gerekli';
-    if (!agree) next.agree = 'Sözleşmeyi kabul edin';
+    if (!agree) next.agree = 'SÃ¶zleÅŸmeyi kabul edin';
     setCardChecked(true);
     setExpiryChecked(true);
+    setCvcChecked(true);
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -228,22 +241,22 @@ export default function PaymentCollectPage() {
         token,
       );
       if (maybeStartThreeD(data)) return;
-      flash(`Ödeme kaydedildi — ${data.odemeNo} · ${formatMoneyDisplay(data.amount, currencySymbol)}`);
+      flash(`Ã–deme kaydedildi â€” ${data.odemeNo} Â· ${formatMoneyDisplay(data.amount, currencySymbol)}`);
       window.setTimeout(() => navigate('/musteriler'), 900);
     } catch (err) {
-      flash(err instanceof Error ? err.message : 'Ödeme kaydedilemedi');
+      flash(err instanceof Error ? err.message : 'Ã–deme kaydedilemedi');
     } finally {
       setSaving(false);
     }
   }
 
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKÄ°YESÄ°' : payType === 'fatura' ? 'FATURA' : 'Ã–deme Tipi SeÃ§iniz';
 
   if (customerLoading) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center text-sm text-[var(--panel-muted)]">
-        Müşteri yükleniyor…
+        MÃ¼ÅŸteri yÃ¼kleniyorâ€¦
       </div>
     );
   }
@@ -251,12 +264,12 @@ export default function PaymentCollectPage() {
   if (!customer) {
     return (
       <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-8 text-center">
-        <p className="text-[var(--panel-ink)]">{customerError || 'Müşteri bulunamadı.'}</p>
+        <p className="text-[var(--panel-ink)]">{customerError || 'MÃ¼ÅŸteri bulunamadÄ±.'}</p>
         <Link
           to="/musteriler"
           className="mt-3 inline-block text-sm font-semibold text-[var(--color-brand-600)]"
         >
-          Listeye dön
+          Listeye dÃ¶n
         </Link>
       </div>
     );
@@ -268,12 +281,12 @@ export default function PaymentCollectPage() {
         <Link to="/" className="font-medium hover:text-[var(--color-brand-600)]">
           Anasayfa
         </Link>
-        <span className="mx-1.5 opacity-50">›</span>
+        <span className="mx-1.5 opacity-50">â€º</span>
         <Link to="/musteriler" className="font-medium hover:text-[var(--color-brand-600)]">
-          Müşteriler
+          MÃ¼ÅŸteriler
         </Link>
-        <span className="mx-1.5 opacity-50">›</span>
-        <span className="font-semibold text-[var(--panel-ink)]">Ödeme Al</span>
+        <span className="mx-1.5 opacity-50">â€º</span>
+        <span className="font-semibold text-[var(--panel-ink)]">Ã–deme Al</span>
       </nav>
 
       <div data-anim className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -282,7 +295,7 @@ export default function PaymentCollectPage() {
             {customer.title}
           </h1>
           <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
-            {customer.code} · Ödeme al
+            {customer.code} Â· Ã–deme al
             {balance != null ? (
               <span className="ml-2 font-semibold text-[var(--color-brand-600)]">
                 Bakiye {formatMoneyDisplay(balance)}
@@ -294,7 +307,7 @@ export default function PaymentCollectPage() {
           to="/musteriler"
           className="rounded-xl border border-[var(--panel-line)] px-3.5 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
         >
-          Vazgeç
+          VazgeÃ§
         </Link>
       </div>
 
@@ -304,9 +317,9 @@ export default function PaymentCollectPage() {
           className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"
         >
           <div className="grid lg:grid-cols-3">
-            {/* Ödeme */}
+            {/* Ã–deme */}
             <div className="flex flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
-              <SectionHead>Ödeme bilgileri</SectionHead>
+              <SectionHead>Ã–deme bilgileri</SectionHead>
 
               <div className="flex items-stretch gap-2">
                 <div ref={payTypeRef} className="relative min-w-0 flex-1">
@@ -331,8 +344,8 @@ export default function PaymentCollectPage() {
                     <ul className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
                       {(
                         [
-                          ['', 'Ödeme Tipi Seçiniz'],
-                          ['ch', 'C/H BAKİYESİ'],
+                          ['', 'Ã–deme Tipi SeÃ§iniz'],
+                          ['ch', 'C/H BAKÄ°YESÄ°'],
                           ['fatura', 'FATURA'],
                         ] as const
                       ).map(([val, label]) => (
@@ -371,7 +384,7 @@ export default function PaymentCollectPage() {
                 </button>
               </div>
 
-              {/* Tutar + para birimi iç içe */}
+              {/* Tutar + para birimi iÃ§ iÃ§e */}
               <div>
                 <div
                   className={[
@@ -416,7 +429,7 @@ export default function PaymentCollectPage() {
                       className="flex h-full min-h-[46px] items-center gap-1.5 rounded-r-xl bg-[var(--panel-surface)] px-3 text-sm font-bold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
                     >
                       <span className="min-w-[1.1rem] text-center">
-                        {currencySymbol || '—'}
+                        {currencySymbol || 'â€”'}
                       </span>
                       <ChevronIcon />
                     </button>
@@ -483,7 +496,7 @@ export default function PaymentCollectPage() {
 
               <TextArea
                 data-km-jump
-                label="Açıklama"
+                label="AÃ§Ä±klama"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={4}
@@ -494,7 +507,7 @@ export default function PaymentCollectPage() {
             {/* Kart */}
             <div className="flex flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
               <PaymentCardFields
-                heading="Kredi kartı"
+                heading="Kredi kartÄ±"
                 SectionHead={SectionHead}
                 holder={holder}
                 tc={tc}
@@ -505,16 +518,20 @@ export default function PaymentCollectPage() {
                 errors={errors}
                 bank={bank}
                 cardFaulty={cardFaulty}
+                cardOk={cardChecked && !cardFaulty && cardDigits.length >= 15}
                 expiryOk={expiryOk}
                 expiryFaulty={expiryFaulty}
+                cvcOk={cvcOk}
+                cvcFaulty={cvcFaulty}
                 onHolder={setHolder}
                 onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
                 onPhone={(v) => setPhone(normalizePhoneInput(v))}
                 onCard={onCardChange}
                 onExpiry={onExpiryChange}
-                onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
+                onCvc={(v) => { setCvc(digitsOnly(v).slice(0, 4)); setCvcChecked(false); }}
                 onCardBlur={() => setCardChecked(true)}
                 onExpiryBlur={() => setExpiryChecked(true)}
+                onCvcBlur={() => setCvcChecked(true)}
               />
             </div>
 
@@ -533,7 +550,7 @@ export default function PaymentCollectPage() {
                   </div>
                 ) : (
                   <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">
-                    Kart numarasını yazınca banka logosu burada belirir.
+                    Kart numarasÄ±nÄ± yazÄ±nca banka logosu burada belirir.
                   </p>
                 )}
 
@@ -544,25 +561,25 @@ export default function PaymentCollectPage() {
                   onClick={() => setCompareOpen(true)}
                   className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  Taksit Seçenekleri
+                  Taksit SeÃ§enekleri
                 </button>
 
                 {selected && bank ? (
                   <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                      Seçili
+                      SeÃ§ili
                     </p>
                     <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                      {selected.n === 1 ? 'Tek çekim' : `${selected.n} taksit`}
+                      {selected.n === 1 ? 'Tek Ã§ekim' : `${selected.n} taksit`}
                     </p>
                     <p className="text-sm tabular-nums text-[var(--panel-muted)]">
                       {selected.n > 1
-                        ? `${selected.n} × ${formatMoneyDisplay(selected.installmentAmount)}`
+                        ? `${selected.n} Ã— ${formatMoneyDisplay(selected.installmentAmount)}`
                         : `${formatMoneyDisplay(selected.totalAmount)}`}
                     </p>
                     {selected.commissionPct > 0 ? (
                       <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                        Vade farkı %{formatMoneyTr(selected.commissionPct)}
+                        Vade farkÄ± %{formatMoneyTr(selected.commissionPct)}
                       </p>
                     ) : (
                       <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -576,15 +593,15 @@ export default function PaymentCollectPage() {
           </div>
         </section>
 
-        {/* Taksit ızgarası — yalnızca banka algılanınca */}
-        {bank && amount > 0 ? (
+        {/* Taksit Ä±zgarasÄ± â€” yalnÄ±zca banka algÄ±lanÄ±nca */}
+        {amount > 0 ? (
           <section data-anim>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
-              <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
+              <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planÄ±</h2>
+              <p className="text-xs text-[var(--panel-muted)]">Tutara gÃ¶re hesaplandÄ±</p>
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {agreementRows.map((r) => {
+              {installmentRows.map((r) => {
                 const active = installment === r.n;
                 const ok =
                   !allowedInstallments || allowedInstallments.includes(r.n);
@@ -593,7 +610,7 @@ export default function PaymentCollectPage() {
                     key={r.n}
                     type="button"
                     data-km-jump={ok || undefined}
-                    title={ok ? undefined : 'Size atanmadı'}
+                    title={ok ? undefined : 'Size atanmadÄ±'}
                     disabled={!ok}
                     onClick={() => ok && setInstallment(r.n)}
                     className={[
@@ -629,7 +646,7 @@ export default function PaymentCollectPage() {
                         active ? 'text-white/80' : 'text-[var(--panel-muted)]',
                       ].join(' ')}
                     >
-                      {r.n === 1 ? 'Tek çekim' : `${r.n} taksit`}
+                      {r.n === 1 ? 'Tek Ã§ekim' : `${r.n} taksit`}
                     </p>
                     <p
                       className={[
@@ -639,7 +656,7 @@ export default function PaymentCollectPage() {
                     >
                       {r.n === 1
                         ? formatMoneyTr(r.totalAmount)
-                        : `${r.n} × ${formatMoneyTr(r.installmentAmount)}`}
+                        : `${r.n} Ã— ${formatMoneyTr(r.installmentAmount)}`}
                     </p>
                     {r.n > 1 ? (
                       <p
@@ -678,7 +695,7 @@ export default function PaymentCollectPage() {
                   setContractOpen(true);
                 }}
               >
-                Tahsilat Sözleşmesi
+                Tahsilat SÃ¶zleÅŸmesi
               </button>
               &apos;ni okudum ve kabul ediyorum.
             </span>
@@ -691,7 +708,7 @@ export default function PaymentCollectPage() {
             disabled={saving}
             className="inline-flex min-w-[220px] items-center justify-center rounded-xl bg-[var(--color-brand-600)] px-8 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:opacity-60"
           >
-            {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
+            {saving ? 'Ä°ÅŸleniyorâ€¦' : 'Ã–demeyi Tamamla'}
           </button>
         </div>
       </form>
@@ -749,3 +766,4 @@ function ChevronIcon() {
     </svg>
   );
 }
+
