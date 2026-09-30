@@ -15,7 +15,7 @@ import { SETTINGS_SUBNAV } from './mockSettings';
 const HOLD_MS = 380;
 
 /** Ayarlar alt sekmeleri — kayan aktif gösterge */
-export function SettingsSubnav() {
+export function SettingsSubnav({ visibleTabs }: { visibleTabs: string[] }) {
   const location = useLocation();
   const { startDrag, drag } = useQuickAccess();
   const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
@@ -28,7 +28,7 @@ export function SettingsSubnav() {
 
   const tabs =
     permPagesReady && !rolesLoading
-      ? SETTINGS_SUBNAV.filter((item) => canViewNavItem(item.to))
+      ? SETTINGS_SUBNAV.filter((item) => visibleTabs.includes(item.to) && canViewNavItem(item.to))
       : [];
 
   function placePill(instant: boolean) {
@@ -74,7 +74,7 @@ export function SettingsSubnav() {
         active?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
       }
     });
-  }, [location.pathname]);
+  }, [location.pathname, visibleTabs]);
 
   useEffect(() => {
     const track = trackRef.current;

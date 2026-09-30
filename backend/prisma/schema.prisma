@@ -456,6 +456,8 @@ model Ayarlar {
   varsayilanlar          String?   @map("varsayilanlar") @db.LongText
   /** SMTP ayarları — JSON (host, port, email, password, ssl, tls) */
   smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
+  /** Üst ayar sekmelerinin görünürlüğü — JSON yol listesi */
+  gorunenAyarSekmeleri    String?   @map("gorunen_ayar_sekmeleri") @db.LongText
 
   @@map("ayarlar")
 }

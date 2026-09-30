@@ -8,7 +8,9 @@ import { Button } from '../../components/ui/Button';
 import { GrowingValueList } from '../../components/ui/GrowingValueList';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
-import { type GeneralSettings } from './mockSettings';
+import { useOutletContext } from 'react-router-dom';
+import { SETTINGS_SUBNAV, type GeneralSettings } from './mockSettings';
+import type { SettingsTabsOutlet } from './SettingsLayout';
 
 gsap.registerPlugin(useGSAP);
 
@@ -46,6 +48,7 @@ function fileToDataUrl(file: File): Promise<string> {
 export default function GeneralSettingsPage() {
   const { token } = useAuth();
   const { applyBrand, refreshBrand } = useBrand();
+  const { setVisibleTabs } = useOutletContext<SettingsTabsOutlet>();
   const rootRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<GeneralSettings | null>(null);
   const [baseline, setBaseline] = useState<GeneralSettings | null>(null);
@@ -106,6 +109,7 @@ export default function GeneralSettingsPage() {
       draft.virtualPosTarget !== baseline.virtualPosTarget ||
       draft.appSignup !== baseline.appSignup ||
       draft.binListUrl !== baseline.binListUrl ||
+      draft.visibleSettingsTabs.join('|') !== baseline.visibleSettingsTabs.join('|') ||
       draft.notifyEmails.join('|') !== baseline.notifyEmails.join('|') ||
       draft.notifyPhones.join('|') !== baseline.notifyPhones.join('|') ||
       !!logoDataUrl ||
@@ -169,6 +173,7 @@ export default function GeneralSettingsPage() {
           notifyEmails: draft.notifyEmails,
           notifyPhones: draft.notifyPhones.map(digitsPhone),
           binListUrl: draft.binListUrl,
+          visibleSettingsTabs: draft.visibleSettingsTabs,
           logoDataUrl: logoDataUrl || null,
           faviconDataUrl: faviconDataUrl || null,
         },
@@ -180,6 +185,7 @@ export default function GeneralSettingsPage() {
         notifyPhones: [...saved.notifyPhones],
       };
       setDraft(next);
+      setVisibleTabs(saved.visibleSettingsTabs);
       setBaseline({
         ...saved,
         notifyEmails: [...saved.notifyEmails],
@@ -273,6 +279,49 @@ export default function GeneralSettingsPage() {
                 checked={draft.appSignup}
                 onChange={(v) => patch('appSignup', v)}
               />
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-[var(--panel-ink)]">Üst Ayar Sekmeleri</h2>
+                  <p className="mt-1 text-xs text-[var(--panel-muted)]">
+                    Üstte görünecek sekmeleri seçin. Genel Ayarlar açık kalır; en az 3, en fazla 7 sekme seçilebilir.
+                  </p>
+                </div>
+                <span className="rounded-full border border-[var(--panel-line)] px-2.5 py-1 text-xs font-semibold text-[var(--panel-ink)]">
+                  {draft.visibleSettingsTabs.length} / 7 açık
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {SETTINGS_SUBNAV.map((item) => {
+                  const checked = draft.visibleSettingsTabs.includes(item.to);
+                  const fixed = item.to === '/ayarlar/genel';
+                  const disabled = fixed || (checked
+                    ? draft.visibleSettingsTabs.length <= 3
+                    : draft.visibleSettingsTabs.length >= 7);
+                  return (
+                    <button
+                      key={item.to}
+                      type="button"
+                      role="switch"
+                      aria-checked={checked}
+                      disabled={disabled}
+                      onClick={() => patch('visibleSettingsTabs', checked
+                        ? draft.visibleSettingsTabs.filter((path) => path !== item.to)
+                        : [...draft.visibleSettingsTabs, item.to])}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-left text-sm font-medium text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      <span>{item.label}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${checked
+                        ? 'bg-[var(--color-brand-600)] text-white'
+                        : 'bg-[var(--panel-surface)] text-[var(--panel-muted)]'}`}>
+                        {checked ? 'Açık' : 'Kapalı'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </section>
 
             <section className="grid gap-4 lg:grid-cols-2">

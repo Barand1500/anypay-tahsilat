@@ -227,6 +227,7 @@ export async function ensureSchema(): Promise<void> {
   await ensureTaksitSiralamaColumn();
   await ensureVarsayilanlarColumn();
   await ensureSmtpAyarlarColumn();
+  await ensureSettingsTabsColumn();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();
   await ensureBankPosColumns();
@@ -239,6 +240,27 @@ export async function ensureSchema(): Promise<void> {
   await ensureKasaTables();
   await ensureOtpChallengeTable();
   await ensureSozlesmelerTable();
+}
+
+/** Genel ayarlardan yönetilen üst sekmeler */
+export async function ensureSettingsTabsColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'gorunen_ayar_sekmeleri'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `gorunen_ayar_sekmeleri` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.gorunen_ayar_sekmeleri eklendi');
+  } catch (err) {
+    console.warn('[schema] ayar sekmeleri sütunu kontrolü atlandı:', err);
+  }
 }
 
 /** Eksik kolon ekle (CREATE IF NOT EXISTS eski tabloyu güncellemez) */

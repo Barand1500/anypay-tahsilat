@@ -4,6 +4,7 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   SettingsError,
+  SETTINGS_TAB_PATHS,
   getBrandAssets,
   getContactSettings,
   getGeneralSettings,
@@ -84,6 +85,11 @@ const generalPatchSchema = z.object({
         .filter((d) => d.length >= 10),
     ),
   binListUrl: z.string().max(255),
+  visibleSettingsTabs: z.array(z.enum(SETTINGS_TAB_PATHS))
+    .min(3, 'En az 3 sekme açık olmalı')
+    .max(7, 'En fazla 7 sekme açık olabilir')
+    .refine((tabs) => new Set(tabs).size === tabs.length && tabs.includes('/ayarlar/genel'),
+      'Genel Ayarlar sekmesi açık kalmalı ve sekmeler tekrarlanmamalı'),
   logoDataUrl: z.string().max(6_000_000).nullable().optional(),
   faviconDataUrl: z.string().max(6_000_000).nullable().optional(),
 });

@@ -17,7 +17,35 @@ export type PublicGeneralSettings = {
   notifyEmails: string[];
   notifyPhones: string[];
   binListUrl: string;
+  visibleSettingsTabs: string[];
 };
+
+export const SETTINGS_TAB_PATHS = [
+  '/ayarlar/genel',
+  '/ayarlar/kisisel',
+  '/ayarlar/iletisim',
+  '/ayarlar/varsayilanlar',
+  '/ayarlar/e-posta',
+  '/ayarlar/sms',
+  '/ayarlar/sablon-degiskenleri',
+  '/ayarlar/erp',
+] as const;
+
+const DEFAULT_SETTINGS_TABS: string[] = [...SETTINGS_TAB_PATHS.slice(0, 7)];
+
+function parseVisibleSettingsTabs(raw: string | null): string[] {
+  if (!raw) return [...DEFAULT_SETTINGS_TABS];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...DEFAULT_SETTINGS_TABS];
+    const selected = SETTINGS_TAB_PATHS.filter((path) => parsed.includes(path));
+    return selected.length >= 3 && selected.length <= 7 && selected.includes('/ayarlar/genel')
+      ? selected
+      : [...DEFAULT_SETTINGS_TABS];
+  } catch {
+    return [...DEFAULT_SETTINGS_TABS];
+  }
+}
 
 export type UpdateGeneralInput = {
   systemName: string;
@@ -27,6 +55,7 @@ export type UpdateGeneralInput = {
   notifyEmails: string[];
   notifyPhones: string[];
   binListUrl: string;
+  visibleSettingsTabs: string[];
   /** data:image/...;base64,... — yoksa logo değişmez */
   logoDataUrl?: string | null;
   faviconDataUrl?: string | null;
@@ -113,6 +142,7 @@ export async function getGeneralSettings(): Promise<PublicGeneralSettings> {
     notifyEmails: splitList(row.bildirimEpostalar),
     notifyPhones: splitList(row.bildirimSmsler),
     binListUrl: row.binListLink || '',
+    visibleSettingsTabs: parseVisibleSettingsTabs(row.gorunenAyarSekmeleri),
   };
 }
 
@@ -139,6 +169,17 @@ export async function updateGeneralSettings(
   const systemUrl = input.systemUrl.trim();
   if (!systemName) throw new SettingsError('Sistem adı gerekli');
   if (!systemUrl) throw new SettingsError('Sistem adresi gerekli');
+  const visibleSettingsTabs = SETTINGS_TAB_PATHS.filter((path) =>
+    input.visibleSettingsTabs.includes(path),
+  );
+  if (
+    visibleSettingsTabs.length !== input.visibleSettingsTabs.length ||
+    visibleSettingsTabs.length < 3 ||
+    visibleSettingsTabs.length > 7 ||
+    !visibleSettingsTabs.includes('/ayarlar/genel')
+  ) {
+    throw new SettingsError('Genel Ayarlar dahil 3 ile 7 sekme açık olmalı');
+  }
 
   let logo = row.logo;
   let favicon = row.favicon;
@@ -157,6 +198,7 @@ export async function updateGeneralSettings(
       bildirimEpostalar: joinList(input.notifyEmails),
       bildirimSmsler: joinList(input.notifyPhones),
       binListLink: input.binListUrl.trim().slice(0, 255) || null,
+      gorunenAyarSekmeleri: JSON.stringify(visibleSettingsTabs),
       dbTarih: new Date(),
     },
   });
