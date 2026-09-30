@@ -19,6 +19,7 @@ type Props = {
   allowedInstallments?: number[] | null;
   musteriId?: number | null;
   agreementCode?: string | null;
+  agreementScope?: 'customer' | 'pos';
   onPick?: (bank: BankInfo, installment: number) => void;
 };
 
@@ -30,6 +31,7 @@ export function InstallmentOptionsModal({
   allowedInstallments,
   musteriId,
   agreementCode,
+  agreementScope = 'customer',
 }: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -42,7 +44,7 @@ export function InstallmentOptionsModal({
   const [ratesLoading, setRatesLoading] = useState(true);
   const [ratesRequestKey, setRatesRequestKey] = useState("");
   const bankIds = banks.map((b) => b.id).join("|");
-  const rateKey = `${amount}|${segment}|${agreementCode ?? ""}|${musteriId ?? ""}|${bankIds}`;
+  const rateKey = `${amount}|${segment}|${agreementCode ?? ""}|${musteriId ?? ""}|${agreementScope}|${bankIds}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -130,10 +132,10 @@ export function InstallmentOptionsModal({
           try {
             const q = new URLSearchParams();
             q.set("amount", String(amount));
-            // Serbest ödeme tabloda tüm kartlar için geçerli oranları kullanır.
-            q.set("segment", segment === "serbest" ? "tumu" : segment);
+            q.set("segment", segment);
             q.set("bankName", bank.fullName || bank.name);
             q.set("bankId", bank.id);
+            q.set("scope", agreementScope);
             if (agreementCode) q.set("code", agreementCode);
             if (musteriId != null) q.set("musteriId", String(musteriId));
             const data = await api.get<{ rows: InstallmentRow[] }>(
@@ -161,6 +163,7 @@ export function InstallmentOptionsModal({
     segment,
     token,
     agreementCode,
+    agreementScope,
     musteriId,
     banksLoading,
     rateKey,

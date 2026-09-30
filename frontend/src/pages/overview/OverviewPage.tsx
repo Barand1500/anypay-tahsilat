@@ -23,7 +23,8 @@ import {
 } from './OverviewFilterFab';
 import {
   GROUP_META,
-  GROUP_ORDER,
+  loadGroupOrder,
+  saveGroupOrder,
   GROUP_LABEL,
   loadGroups,
   loadVisibility,
@@ -63,6 +64,7 @@ export default function OverviewPage() {
 
   const [groups, setGroups] = useState<OverviewGroups>(() => loadGroups());
   const [visibility, setVisibility] = useState<OverviewVisibility>(() => loadVisibility());
+  const [groupOrder, setGroupOrder] = useState<OverviewGroupId[]>(() => loadGroupOrder());
   const [editing, setEditing] = useState(false);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   const [overId, setOverId] = useState<OverviewTileId | null>(null);
@@ -92,6 +94,21 @@ export default function OverviewPage() {
   useEffect(() => {
     saveVisibility(visibility);
   }, [visibility]);
+
+  useEffect(() => {
+    saveGroupOrder(groupOrder);
+  }, [groupOrder]);
+
+  function moveGroup(groupId: OverviewGroupId, direction: -1 | 1) {
+    setGroupOrder((current) => {
+      const index = current.indexOf(groupId);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex]!, next[index]!];
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -407,7 +424,7 @@ export default function OverviewPage() {
       ) : null}
 
       {data
-        ? GROUP_ORDER.map((groupId) => {
+        ? groupOrder.map((groupId, groupIndex) => {
             const meta = GROUP_META[groupId];
             const tiles = groups[groupId];
             return (
@@ -416,20 +433,24 @@ export default function OverviewPage() {
                 ref={(el) => {
                   groupEls.current[groupId] = el;
                 }}
-                className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]"
+                className=""
               >
-                <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
+                <div className="flex items-center justify-between gap-3 px-1 py-2">
                   <h2 className="text-sm font-bold text-[var(--panel-ink)]">{GROUP_LABEL[groupId]}</h2>
-                  <button
-                    type="button"
-                    aria-expanded={visibility[groupId]}
-                    onClick={() => setVisibility((current) => ({ ...current, [groupId]: !current[groupId] }))}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-700)] transition hover:bg-[var(--panel-hover)]"
-                  >
-                    {visibility[groupId] ? 'Gizle' : 'Göster'}
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button type="button" title="Grubu yukarı taşı" aria-label="Grubu yukarı taşı" disabled={groupIndex === 0} onClick={() => moveGroup(groupId, -1)} className="rounded-lg px-2 py-1 text-sm text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] disabled:opacity-30">↑</button>
+                    <button type="button" title="Grubu aşağı taşı" aria-label="Grubu aşağı taşı" disabled={groupIndex === groupOrder.length - 1} onClick={() => moveGroup(groupId, 1)} className="rounded-lg px-2 py-1 text-sm text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] disabled:opacity-30">↓</button>
+                    <button
+                      type="button"
+                      aria-expanded={visibility[groupId]}
+                      onClick={() => setVisibility((current) => ({ ...current, [groupId]: !current[groupId] }))}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-700)] transition hover:bg-[var(--panel-hover)]"
+                    >
+                      {visibility[groupId] ? 'Gizle' : 'Göster'}
+                    </button>
+                  </div>
                 </div>
-                {visibility[groupId] ? <div className={[meta.grid, 'p-4 sm:p-5', editing ? 'select-none touch-none' : ''].filter(Boolean).join(' ')}>
+                {visibility[groupId] ? <div className={[meta.grid, editing ? 'select-none touch-none' : ''].filter(Boolean).join(' ')}>
                 {tiles.map((id) => {
                   const lifting = ghost?.id === id;
                   const isOver = overId === id && ghost?.id !== id;

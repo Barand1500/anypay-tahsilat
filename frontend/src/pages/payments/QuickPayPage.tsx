@@ -74,7 +74,7 @@ export default function QuickPayPage() {
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
-  const [amountText, setAmountText] = useState(() => formatMoneyTr(1000));
+  const [amountText, setAmountText] = useState(() => formatMoneyTr(0));
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
@@ -596,9 +596,10 @@ export default function QuickPayPage() {
       ) : null}
       {installOpen ? (
         <InstallmentOptionsModal
-          amount={amount > 0 ? amount : 1000}
+          amount={amount}
           preferredBankId={bank?.id}
           allowedInstallments={allowedInstallments}
+          agreementScope="pos"
           onClose={() => setInstallOpen(false)}
           onPick={(b, n) => {
             if (allowedInstallments?.length && !allowedInstallments.includes(n)) {

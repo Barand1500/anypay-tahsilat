@@ -381,6 +381,30 @@ export async function resolveAgreementRates(opts: {
 
   const rows: AgreementRateRow[] = [...byN.values()]
     .sort((a, b) => a.taksit - b.taksit)
+    .filter((r) => {
+      if (r.altLimit != null && r.altLimit > amount) return false;
+      if (!r.detay) return true;
+      try {
+        const detail = JSON.parse(r.detay) as {
+          items?: Array<{
+            n?: number;
+            all?: { active?: boolean };
+            bireysel?: { active?: boolean };
+            ticari?: { active?: boolean };
+          }>;
+        };
+        const item = detail.items?.find((entry) => entry.n === r.taksit);
+        const activeFor = (key: 'all' | 'bireysel' | 'ticari') => item?.[key]?.active;
+        const active = segment === 'tumu'
+          ? activeFor('all') ?? (activeFor('bireysel') === true || activeFor('ticari') === true)
+          : activeFor(segment === 'serbest' ? 'all' : segment);
+        if (active === false) return false;
+        if (active === undefined && r.komisyonTum == null && r.komisyonBireysel == null && r.komisyonTicari == null) return false;
+        return true;
+      } catch {
+        return true;
+      }
+    })
     .map((r) => {
       const commissionPct = Math.max(0, +(pickRate(r, segment) || 0).toFixed(4));
       const totalAmount = amount * (1 + commissionPct / 100);
@@ -397,10 +421,11 @@ export async function resolveAgreementRates(opts: {
             }>;
           };
           const item = detail.items?.find((entry) => entry.n === n);
-          const segmentData =
-            segment === 'serbest' || segment === 'tumu'
-              ? item?.all
-              : item?.[segment];
+          const segmentData = segment === 'ticari'
+            ? item?.ticari
+            : segment === 'bireysel'
+              ? item?.bireysel
+              : item?.all ?? item?.bireysel ?? item?.ticari;
           if (segmentData?.active) {
             plusN = Math.max(0, Math.min(36 - n, Math.round(parseTrNumber(segmentData.extraInstallment) ?? 0)));
           }

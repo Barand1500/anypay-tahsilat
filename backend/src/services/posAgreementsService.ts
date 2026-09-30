@@ -505,3 +505,33 @@ export async function resolvePosFallbackAgreementCode(
 
   return null;
 }
+
+/** Taksit karşılaştırmasında, banka ID'sine bağlı POS kayıtlarından kayıtlı oran anlaşmasını bul. */
+export async function resolvePosBankAgreementCode(
+  bankId: number | null | undefined,
+): Promise<string | null> {
+  if (bankId == null || !Number.isFinite(bankId)) return null;
+  const positions = await prisma.sanalPosTanim.findMany({
+    where: { bankaId: bankId, ...notRemoved() },
+    orderBy: [{ aktif: 'desc' }, { varsayilan: 'desc' }, { id: 'asc' }],
+    select: { id: true },
+  });
+  for (const pos of positions) {
+    const code = bankAgreementCode(pos.id);
+    const rows = await prisma.kartAnlasma.findMany({
+      where: { anlasmaKodu: code, ...notRemoved() },
+      select: { detay: true, komisyonTum: true, komisyonBireysel: true, komisyonTicari: true },
+    });
+    if (rows.some((row) => {
+      if (row.komisyonTum != null || row.komisyonBireysel != null || row.komisyonTicari != null) return true;
+      if (!row.detay) return false;
+      try {
+        const detail = JSON.parse(row.detay) as { items?: Array<{ all?: { active?: boolean }; bireysel?: { active?: boolean }; ticari?: { active?: boolean } }> };
+        return detail.items?.some((item) => item.all?.active || item.bireysel?.active || item.ticari?.active) ?? false;
+      } catch {
+        return false;
+      }
+    })) return code;
+  }
+  return null;
+}

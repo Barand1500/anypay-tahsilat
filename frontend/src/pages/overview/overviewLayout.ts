@@ -14,13 +14,14 @@ export type OverviewTileId =
   | 'plan-board'
   | 'chart';
 
-export type OverviewGroupId = 'kpis' | 'periods' | 'tools' | 'stack';
+export type OverviewGroupId = 'kpis' | 'periods' | 'tools' | 'plan' | 'moves';
 
 export const GROUP_LABEL: Record<OverviewGroupId, string> = {
   kpis: 'Genel Bakış',
   periods: 'Dönem Karşılaştırmaları',
   tools: 'Hızlı İşlemler ve Dağılım',
-  stack: 'Canlı Plan ve Hareketler',
+  plan: 'Canlı Plan',
+  moves: 'Hareketler',
 };
 
 export const TILE_GROUP: Record<OverviewTileId, OverviewGroupId> = {
@@ -34,8 +35,8 @@ export const TILE_GROUP: Record<OverviewTileId, OverviewGroupId> = {
   'period-year': 'periods',
   'quick-actions': 'tools',
   distribution: 'tools',
-  'plan-board': 'stack',
-  chart: 'stack',
+  'plan-board': 'plan',
+  chart: 'moves',
 };
 
 export const GROUP_META: Record<
@@ -54,13 +55,32 @@ export const GROUP_META: Record<
     grid: 'grid items-stretch gap-4 sm:grid-cols-2',
     tiles: ['quick-actions', 'distribution'],
   },
-  stack: {
+  plan: {
     grid: 'grid gap-4',
-    tiles: ['plan-board', 'chart'],
+    tiles: ['plan-board'],
+  },
+  moves: {
+    grid: 'grid gap-4',
+    tiles: ['chart'],
   },
 };
 
-export const GROUP_ORDER: OverviewGroupId[] = ['kpis', 'periods', 'tools', 'stack'];
+export const DEFAULT_GROUP_ORDER: OverviewGroupId[] = ['kpis', 'periods', 'tools', 'plan', 'moves'];
+const ORDER_KEY = 'anypay.overview.groupDisplayOrder.v1';
+
+export function loadGroupOrder(): OverviewGroupId[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') as unknown[];
+    const saved = raw.filter((id): id is OverviewGroupId => typeof id === 'string' && DEFAULT_GROUP_ORDER.includes(id as OverviewGroupId));
+    return [...saved, ...DEFAULT_GROUP_ORDER.filter((id) => !saved.includes(id))];
+  } catch {
+    return [...DEFAULT_GROUP_ORDER];
+  }
+}
+
+export function saveGroupOrder(order: OverviewGroupId[]) {
+  localStorage.setItem(ORDER_KEY, JSON.stringify(order));
+}
 
 export const TILE_LABEL: Record<OverviewTileId, string> = {
   'kpi-customers': 'Müşteriler',
@@ -84,7 +104,8 @@ export function defaultGroups(): OverviewGroups {
     kpis: [...GROUP_META.kpis.tiles],
     periods: [...GROUP_META.periods.tiles],
     tools: [...GROUP_META.tools.tiles],
-    stack: [...GROUP_META.stack.tiles],
+    plan: [...GROUP_META.plan.tiles],
+    moves: [...GROUP_META.moves.tiles],
   };
 }
 
@@ -93,18 +114,19 @@ const VISIBILITY_KEY = 'anypay.overview.groupVisibility.v1';
 export type OverviewVisibility = Record<OverviewGroupId, boolean>;
 
 export function defaultVisibility(): OverviewVisibility {
-  return { kpis: true, periods: true, tools: true, stack: true };
+  return { kpis: true, periods: true, tools: true, plan: true, moves: true };
 }
 
 export function loadVisibility(): OverviewVisibility {
   try {
-    const parsed = JSON.parse(localStorage.getItem(VISIBILITY_KEY) || '{}') as Partial<OverviewVisibility>;
+    const parsed = JSON.parse(localStorage.getItem(VISIBILITY_KEY) || '{}') as Partial<OverviewVisibility> & { stack?: boolean };
     const defaults = defaultVisibility();
     return {
       kpis: parsed.kpis ?? defaults.kpis,
       periods: parsed.periods ?? defaults.periods,
       tools: parsed.tools ?? defaults.tools,
-      stack: parsed.stack ?? defaults.stack,
+      plan: parsed.plan ?? parsed.stack ?? defaults.plan,
+      moves: parsed.moves ?? parsed.stack ?? defaults.moves,
     };
   } catch {
     return defaultVisibility();
@@ -136,7 +158,8 @@ export function loadGroups(): OverviewGroups {
       kpis: sanitizeGroup('kpis', parsed.kpis),
       periods: sanitizeGroup('periods', parsed.periods),
       tools: sanitizeGroup('tools', parsed.tools),
-      stack: sanitizeGroup('stack', parsed.stack),
+      plan: sanitizeGroup('plan', parsed.plan),
+      moves: sanitizeGroup('moves', parsed.moves),
     };
   } catch {
     return defaultGroups();

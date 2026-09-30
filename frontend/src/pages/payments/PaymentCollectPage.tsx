@@ -49,7 +49,7 @@ export default function PaymentCollectPage() {
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
-  const [amountText, setAmountText] = useState(() => formatMoneyTr(1000));
+  const [amountText, setAmountText] = useState(() => formatMoneyTr(0));
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);

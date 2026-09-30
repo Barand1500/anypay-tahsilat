@@ -13,6 +13,7 @@ import {
   updateCardAgreement,
 } from '../services/cardAgreementsService.js';
 import { writePanelLog } from '../services/logsService.js';
+import { resolvePosBankAgreementCode } from '../services/posAgreementsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const cardAgreementsRouter = Router();
@@ -70,11 +71,15 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
     req.query.musteriId != null && String(req.query.musteriId).trim() !== ''
       ? Number(req.query.musteriId)
       : null;
+  const scope = req.query.scope === 'pos' ? 'pos' : 'customer';
 
   try {
-    let code = agreementCode || null;
-    if (!code && musteriId != null && Number.isFinite(musteriId)) {
+    let code = scope === 'pos' ? null : agreementCode || null;
+    if (scope === 'customer' && !code && musteriId != null && Number.isFinite(musteriId)) {
       code = await getCustomerAgreementCode(musteriId);
+    }
+    if (scope === 'pos' && bankId != null && Number.isFinite(bankId)) {
+      code = await resolvePosBankAgreementCode(bankId);
     }
     const data = await resolveAgreementRates({
       agreementCode: code,
