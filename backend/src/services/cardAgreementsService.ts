@@ -406,7 +406,7 @@ export async function resolveAgreementRates(opts: {
         const item = agreementItems.find((entry) => entry.n === r.taksit);
         const activeFor = (key: 'all' | 'bireysel' | 'ticari') => item?.[key]?.active;
         const active = segment === 'tumu'
-          ? activeFor('all') ?? (activeFor('bireysel') === true || activeFor('ticari') === true)
+          ? activeFor('all') === true || activeFor('bireysel') === true || activeFor('ticari') === true
           : activeFor(segment === 'serbest' ? 'all' : segment);
         if (active === false) return false;
         if (active === undefined && r.komisyonTum == null && r.komisyonBireysel == null && r.komisyonTicari == null) return false;
@@ -427,7 +427,11 @@ export async function resolveAgreementRates(opts: {
             ? item?.ticari
             : segment === 'bireysel'
               ? item?.bireysel
-              : item?.all ?? item?.bireysel ?? item?.ticari;
+              : segment === 'tumu'
+                ? (item?.all?.active ? item.all : null) ??
+                  (item?.bireysel?.active ? item.bireysel : null) ??
+                  (item?.ticari?.active ? item.ticari : null)
+                : item?.all;
           if (segmentData?.active) {
             plusN = Math.max(0, Math.min(36 - n, Math.round(parseTrNumber(segmentData.extraInstallment) ?? 0)));
           }
