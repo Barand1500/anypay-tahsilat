@@ -39,6 +39,7 @@ export function InstallmentOptionsModal({
   const [rowsByBank, setRowsByBank] = useState<
     Record<string, InstallmentRow[]>
   >({});
+  const [ratesLoading, setRatesLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,8 +111,10 @@ export function InstallmentOptionsModal({
     async function load() {
       if (!amount || amount <= 0) {
         setRowsByBank({});
+        setRatesLoading(false);
         return;
       }
+      setRatesLoading(true);
       const next: Record<string, InstallmentRow[]> = {};
       await Promise.all(
         banks.map(async (bank) => {
@@ -137,7 +140,10 @@ export function InstallmentOptionsModal({
           }
         }),
       );
-      if (!cancelled) setRowsByBank(next);
+      if (!cancelled) {
+        setRowsByBank(next);
+        setRatesLoading(false);
+      }
     }
     void load();
     return () => {
@@ -220,10 +226,13 @@ export function InstallmentOptionsModal({
           {banksLoading ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bankalar yükleniyor…</p>
           ) : banks.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Aktif banka kaydı bulunamadı.</p>
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Gösterilecek taksit seçeneği bulunamadı.</p>
+          ) : ratesLoading ? (
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Taksit seçenekleri yükleniyor…</p>
           ) : null}
+          {!banksLoading && !ratesLoading && banks.length > 0 && (
           <div className="grid gap-4 xl:grid-cols-2">
-            {banks.map((bank) => {
+            {banks.filter((bank) => (rowsByBank[bank.id] ?? []).length > 0).map((bank) => {
               const rows = rowsByBank[bank.id] ?? [];
               const showMinLimit = rows.some((r) => r.minLimit > 0);
               return (
@@ -320,6 +329,11 @@ export function InstallmentOptionsModal({
               );
             })}
           </div>
+          )}
+          {!banksLoading && !ratesLoading && banks.length > 0 &&
+          banks.every((bank) => (rowsByBank[bank.id] ?? []).length === 0) ? (
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bu tutar ve müşteri grubu için tanımlı taksit seçeneği bulunamadı.</p>
+          ) : null}
         </div>
       </div>
     </div>,
