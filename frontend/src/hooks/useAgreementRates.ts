@@ -20,6 +20,7 @@ export function useAgreementRates(opts: {
   musteriId?: number | null;
   agreementCode?: string | null;
   segment?: CardSegment;
+  scope?: 'customer' | 'pos';
 }) {
   const { token } = useAuth();
   const [rows, setRows] = useState<InstallmentRow[]>([]);
@@ -42,6 +43,7 @@ export function useAgreementRates(opts: {
       const q = new URLSearchParams();
       q.set('amount', String(amount));
       q.set('segment', segment);
+      if (opts.scope) q.set('scope', opts.scope);
       if (opts.agreementCode) q.set('code', opts.agreementCode);
       if (opts.musteriId != null) q.set('musteriId', String(opts.musteriId));
       if (opts.bankName) q.set('bankName', opts.bankName);
@@ -66,6 +68,7 @@ export function useAgreementRates(opts: {
     opts.musteriId,
     opts.bankName,
     opts.bankId,
+    opts.scope,
   ]);
 
   useEffect(() => {

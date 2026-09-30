@@ -107,6 +107,7 @@ export default function QuickPayPage() {
     bankName: bank?.fullName || bank?.name,
     bankId: bank?.id,
     segment: 'bireysel',
+    scope: 'pos',
   });
   const availableBankRows = useMemo(
     () => {

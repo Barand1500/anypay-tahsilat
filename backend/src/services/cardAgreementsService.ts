@@ -379,21 +379,31 @@ export async function resolveAgreementRates(opts: {
     if (!byN.has(r.taksit)) byN.set(r.taksit, r);
   }
 
+  // POS anlaşmasının detay JSON'u boyut nedeniyle yalnızca ilk DB satırına yazılır.
+  // Ek taksit bilgisi bu nedenle bütün taksit numaraları için aynı JSON'dan okunmalı.
+  const agreementDetailRow = matched.find((r) => r.detay);
+  let agreementItems: Array<{
+    n?: number;
+    all?: { active?: boolean; extraInstallment?: string };
+    bireysel?: { active?: boolean; extraInstallment?: string };
+    ticari?: { active?: boolean; extraInstallment?: string };
+  }> = [];
+  if (agreementDetailRow?.detay) {
+    try {
+      const detail = JSON.parse(agreementDetailRow.detay) as { items?: typeof agreementItems };
+      agreementItems = detail.items ?? [];
+    } catch {
+      agreementItems = [];
+    }
+  }
+
   const rows: AgreementRateRow[] = [...byN.values()]
     .sort((a, b) => a.taksit - b.taksit)
     .filter((r) => {
       if (r.altLimit != null && r.altLimit > amount) return false;
-      if (!r.detay) return true;
+      if (!r.detay && !agreementItems.length) return true;
       try {
-        const detail = JSON.parse(r.detay) as {
-          items?: Array<{
-            n?: number;
-            all?: { active?: boolean };
-            bireysel?: { active?: boolean };
-            ticari?: { active?: boolean };
-          }>;
-        };
-        const item = detail.items?.find((entry) => entry.n === r.taksit);
+        const item = agreementItems.find((entry) => entry.n === r.taksit);
         const activeFor = (key: 'all' | 'bireysel' | 'ticari') => item?.[key]?.active;
         const active = segment === 'tumu'
           ? activeFor('all') ?? (activeFor('bireysel') === true || activeFor('ticari') === true)
@@ -410,17 +420,9 @@ export async function resolveAgreementRates(opts: {
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
       let plusN = 0;
-      if (r.detay) {
+      if (agreementItems.length) {
         try {
-          const detail = JSON.parse(r.detay) as {
-            items?: Array<{
-              n?: number;
-              all?: { active?: boolean; extraInstallment?: string };
-              bireysel?: { active?: boolean; extraInstallment?: string };
-              ticari?: { active?: boolean; extraInstallment?: string };
-            }>;
-          };
-          const item = detail.items?.find((entry) => entry.n === n);
+          const item = agreementItems.find((entry) => entry.n === n);
           const segmentData = segment === 'ticari'
             ? item?.ticari
             : segment === 'bireysel'
