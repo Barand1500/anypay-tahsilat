@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { Link, useLocation } from 'react-router-dom';
 import { findNavItem } from './navItems';
 import { NavIcon } from './NavIcon';
-import { QUICK_SLOTS, useQuickAccess } from './QuickAccessContext';
+import { useQuickAccess } from './QuickAccessContext';
 
-/** Header’da 4 boş yuva — sürükle-bırak hızlı erişim */
+/** Header / dock sürükle-bırak hızlı erişim yuvaları */
 export function QuickAccessSlots() {
-  const { slots, drag, setSlot, endDrag, moveDrag } = useQuickAccess();
+  const { slots, config, drag, setSlot, endDrag, moveDrag } = useQuickAccess();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const location = useLocation();
 
@@ -42,14 +42,16 @@ export function QuickAccessSlots() {
     };
   }, [drag, endDrag, moveDrag]);
 
+  if (!config.enabled) return null;
+
   return (
     <>
       <div
-        className="flex items-center gap-1.5"
+        className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         title="Hızlı erişim — menüden basılı tutup buraya sürükle"
         onDoubleClick={(e: ReactMouseEvent) => e.stopPropagation()}
       >
-        {Array.from({ length: QUICK_SLOTS }, (_, i) => {
+        {Array.from({ length: config.slotCount }, (_, i) => {
           const to = slots[i];
           const item = to ? findNavItem(to) : null;
           const active = item
@@ -61,7 +63,7 @@ export function QuickAccessSlots() {
 
           if (item) {
             return (
-              <div key={i} data-quick-slot={i}>
+              <div key={i} data-quick-slot={i} className="shrink-0">
                 <Link
                   to={item.to}
                   title={`${item.label} — sağ tık: kaldır`}
@@ -88,7 +90,7 @@ export function QuickAccessSlots() {
               key={i}
               data-quick-slot={i}
               className={[
-                'flex h-9 w-9 items-center justify-center rounded-xl border border-dashed transition',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-dashed transition',
                 isTarget
                   ? 'scale-105 border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_16%,var(--panel-surface))] text-[var(--brand-on-soft)]'
                   : 'border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--panel-muted)]',

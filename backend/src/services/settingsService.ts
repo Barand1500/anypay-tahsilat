@@ -17,33 +17,24 @@ export type PublicGeneralSettings = {
   notifyEmails: string[];
   notifyPhones: string[];
   binListUrl: string;
-  visibleSettingsTabs: string[];
+  quickAccess: QuickAccessSettings;
 };
 
-export const SETTINGS_TAB_PATHS = [
-  '/ayarlar/genel',
-  '/ayarlar/kisisel',
-  '/ayarlar/iletisim',
-  '/ayarlar/varsayilanlar',
-  '/ayarlar/e-posta',
-  '/ayarlar/sms',
-  '/ayarlar/sablon-degiskenleri',
-  '/ayarlar/erp',
-] as const;
+export type QuickAccessSettings = { enabled: boolean; slotCount: number };
 
-const DEFAULT_SETTINGS_TABS: string[] = [...SETTINGS_TAB_PATHS.slice(0, 7)];
-
-function parseVisibleSettingsTabs(raw: string | null): string[] {
-  if (!raw) return [...DEFAULT_SETTINGS_TABS];
+function parseQuickAccessSettings(raw: string | null): QuickAccessSettings {
+  const fallback = { enabled: true, slotCount: 4 };
+  if (!raw) return fallback;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...DEFAULT_SETTINGS_TABS];
-    const selected = SETTINGS_TAB_PATHS.filter((path) => parsed.includes(path));
-    return selected.length >= 3 && selected.length <= 7 && selected.includes('/ayarlar/genel')
-      ? selected
-      : [...DEFAULT_SETTINGS_TABS];
+    const parsed = JSON.parse(raw) as Partial<QuickAccessSettings>;
+    return {
+      enabled: typeof parsed?.enabled === 'boolean' ? parsed.enabled : fallback.enabled,
+      slotCount: Number.isInteger(parsed?.slotCount) && Number(parsed.slotCount) >= 3 && Number(parsed.slotCount) <= 7
+        ? Number(parsed.slotCount)
+        : fallback.slotCount,
+    };
   } catch {
-    return [...DEFAULT_SETTINGS_TABS];
+    return fallback;
   }
 }
 
@@ -55,7 +46,7 @@ export type UpdateGeneralInput = {
   notifyEmails: string[];
   notifyPhones: string[];
   binListUrl: string;
-  visibleSettingsTabs: string[];
+  quickAccess: QuickAccessSettings;
   /** data:image/...;base64,... — yoksa logo değişmez */
   logoDataUrl?: string | null;
   faviconDataUrl?: string | null;
@@ -129,6 +120,11 @@ async function getRow() {
   return row;
 }
 
+export async function getQuickAccessSettings(): Promise<QuickAccessSettings> {
+  const row = await getRow();
+  return parseQuickAccessSettings(row.hizliErisimAyarlari);
+}
+
 export async function getGeneralSettings(): Promise<PublicGeneralSettings> {
   const row = await getRow();
   const bust = row.dbTarih?.getTime() ?? Date.now();
@@ -142,7 +138,7 @@ export async function getGeneralSettings(): Promise<PublicGeneralSettings> {
     notifyEmails: splitList(row.bildirimEpostalar),
     notifyPhones: splitList(row.bildirimSmsler),
     binListUrl: row.binListLink || '',
-    visibleSettingsTabs: parseVisibleSettingsTabs(row.gorunenAyarSekmeleri),
+    quickAccess: parseQuickAccessSettings(row.hizliErisimAyarlari),
   };
 }
 
@@ -169,16 +165,8 @@ export async function updateGeneralSettings(
   const systemUrl = input.systemUrl.trim();
   if (!systemName) throw new SettingsError('Sistem adı gerekli');
   if (!systemUrl) throw new SettingsError('Sistem adresi gerekli');
-  const visibleSettingsTabs = SETTINGS_TAB_PATHS.filter((path) =>
-    input.visibleSettingsTabs.includes(path),
-  );
-  if (
-    visibleSettingsTabs.length !== input.visibleSettingsTabs.length ||
-    visibleSettingsTabs.length < 3 ||
-    visibleSettingsTabs.length > 7 ||
-    !visibleSettingsTabs.includes('/ayarlar/genel')
-  ) {
-    throw new SettingsError('Genel Ayarlar dahil 3 ile 7 sekme açık olmalı');
+  if (!Number.isInteger(input.quickAccess.slotCount) || input.quickAccess.slotCount < 3 || input.quickAccess.slotCount > 7) {
+    throw new SettingsError('Hızlı erişim yuva sayısı 3 ile 7 arasında olmalı');
   }
 
   let logo = row.logo;
@@ -198,7 +186,7 @@ export async function updateGeneralSettings(
       bildirimEpostalar: joinList(input.notifyEmails),
       bildirimSmsler: joinList(input.notifyPhones),
       binListLink: input.binListUrl.trim().slice(0, 255) || null,
-      gorunenAyarSekmeleri: JSON.stringify(visibleSettingsTabs),
+      hizliErisimAyarlari: JSON.stringify(input.quickAccess),
       dbTarih: new Date(),
     },
   });

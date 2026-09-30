@@ -17,8 +17,6 @@ export const SETTINGS_SUBNAV: SettingsSubnavItem[] = [
   { to: '/ayarlar/erp', label: 'ERP Entegrasyon', ready: true },
 ];
 
-export const DEFAULT_VISIBLE_SETTINGS_TABS = SETTINGS_SUBNAV.slice(0, 7).map((item) => item.to);
-
 export type GeneralSettings = {
   systemName: string;
   systemUrl: string;
@@ -29,7 +27,7 @@ export type GeneralSettings = {
   notifyEmails: string[];
   notifyPhones: string[];
   binListUrl: string;
-  visibleSettingsTabs: string[];
+  quickAccess: { enabled: boolean; slotCount: number };
 };
 
 export type ContactEntityKind = 'gercek' | 'tuzel' | 'yabanci';

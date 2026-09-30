@@ -3,6 +3,7 @@ import { useDockMode } from './DockModeContext';
 import { GestureWindSettingsButton } from './GestureWindContext';
 import { ProfileMenu } from './ProfileMenu';
 import { QuickAccessSlots } from './QuickAccessSlots';
+import { useQuickAccess } from './QuickAccessContext';
 import { SearchTrigger } from './SearchTrigger';
 import { ThemeBurstToggle } from './ThemeBurstToggle';
 import { VaultDockChip } from './VaultWidget';
@@ -15,6 +16,7 @@ type Props = {
 
 export function Header({ autoHide = false, onHeaderDoubleClick, onOpenSearch }: Props) {
   const { enabled: dockOn } = useDockMode();
+  const { config: quickAccess } = useQuickAccess();
 
   return (
     <header
@@ -30,9 +32,11 @@ export function Header({ autoHide = false, onHeaderDoubleClick, onOpenSearch }: 
     >
       <SearchTrigger onOpen={onOpenSearch} dockAttr="source" />
 
-      <div data-dock-source="quick">
-        <QuickAccessSlots />
-      </div>
+      {quickAccess.enabled ? (
+        <div data-dock-source="quick" className="min-w-0 overflow-hidden">
+          <QuickAccessSlots />
+        </div>
+      ) : null}
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {!dockOn ? <GestureWindSettingsButton /> : null}

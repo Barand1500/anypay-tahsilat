@@ -17,7 +17,7 @@ const HOLD_MS = 380;
 /** Raporlar alt sekmeleri — kayan aktif gösterge + hızlı erişime sürükle */
 export function ReportSubnav() {
   const location = useLocation();
-  const { startDrag, drag } = useQuickAccess();
+  const { startDrag, drag, config: quickAccess } = useQuickAccess();
   const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -104,6 +104,7 @@ export function ReportSubnav() {
     if (e.button !== 0) return;
     suppressNavClick.current = false;
     clearTabHold();
+    if (!quickAccess.enabled) return;
     const item = findNavItem(to) ?? EXTRA_QUICK_ITEMS.find((x) => x.to === to) ?? {
       to,
       label,

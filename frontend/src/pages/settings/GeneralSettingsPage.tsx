@@ -5,12 +5,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../auth/AuthContext';
 import { useBrand } from '../../brand/BrandContext';
 import { Button } from '../../components/ui/Button';
+import { useQuickAccess } from '../../components/layout/QuickAccessContext';
 import { GrowingValueList } from '../../components/ui/GrowingValueList';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
-import { useOutletContext } from 'react-router-dom';
-import { SETTINGS_SUBNAV, type GeneralSettings } from './mockSettings';
-import type { SettingsTabsOutlet } from './SettingsLayout';
+import { type GeneralSettings } from './mockSettings';
 
 gsap.registerPlugin(useGSAP);
 
@@ -48,7 +47,7 @@ function fileToDataUrl(file: File): Promise<string> {
 export default function GeneralSettingsPage() {
   const { token } = useAuth();
   const { applyBrand, refreshBrand } = useBrand();
-  const { setVisibleTabs } = useOutletContext<SettingsTabsOutlet>();
+  const { setConfig: setQuickAccessConfig } = useQuickAccess();
   const rootRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<GeneralSettings | null>(null);
   const [baseline, setBaseline] = useState<GeneralSettings | null>(null);
@@ -109,7 +108,8 @@ export default function GeneralSettingsPage() {
       draft.virtualPosTarget !== baseline.virtualPosTarget ||
       draft.appSignup !== baseline.appSignup ||
       draft.binListUrl !== baseline.binListUrl ||
-      draft.visibleSettingsTabs.join('|') !== baseline.visibleSettingsTabs.join('|') ||
+      draft.quickAccess.enabled !== baseline.quickAccess.enabled ||
+      draft.quickAccess.slotCount !== baseline.quickAccess.slotCount ||
       draft.notifyEmails.join('|') !== baseline.notifyEmails.join('|') ||
       draft.notifyPhones.join('|') !== baseline.notifyPhones.join('|') ||
       !!logoDataUrl ||
@@ -173,7 +173,7 @@ export default function GeneralSettingsPage() {
           notifyEmails: draft.notifyEmails,
           notifyPhones: draft.notifyPhones.map(digitsPhone),
           binListUrl: draft.binListUrl,
-          visibleSettingsTabs: draft.visibleSettingsTabs,
+          quickAccess: draft.quickAccess,
           logoDataUrl: logoDataUrl || null,
           faviconDataUrl: faviconDataUrl || null,
         },
@@ -185,7 +185,7 @@ export default function GeneralSettingsPage() {
         notifyPhones: [...saved.notifyPhones],
       };
       setDraft(next);
-      setVisibleTabs(saved.visibleSettingsTabs);
+      setQuickAccessConfig(saved.quickAccess);
       setBaseline({
         ...saved,
         notifyEmails: [...saved.notifyEmails],
@@ -281,49 +281,6 @@ export default function GeneralSettingsPage() {
               />
             </section>
 
-            <section className="space-y-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-sm font-semibold text-[var(--panel-ink)]">Üst Ayar Sekmeleri</h2>
-                  <p className="mt-1 text-xs text-[var(--panel-muted)]">
-                    Üstte görünecek sekmeleri seçin. Genel Ayarlar açık kalır; en az 3, en fazla 7 sekme seçilebilir.
-                  </p>
-                </div>
-                <span className="rounded-full border border-[var(--panel-line)] px-2.5 py-1 text-xs font-semibold text-[var(--panel-ink)]">
-                  {draft.visibleSettingsTabs.length} / 7 açık
-                </span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {SETTINGS_SUBNAV.map((item) => {
-                  const checked = draft.visibleSettingsTabs.includes(item.to);
-                  const fixed = item.to === '/ayarlar/genel';
-                  const disabled = fixed || (checked
-                    ? draft.visibleSettingsTabs.length <= 3
-                    : draft.visibleSettingsTabs.length >= 7);
-                  return (
-                    <button
-                      key={item.to}
-                      type="button"
-                      role="switch"
-                      aria-checked={checked}
-                      disabled={disabled}
-                      onClick={() => patch('visibleSettingsTabs', checked
-                        ? draft.visibleSettingsTabs.filter((path) => path !== item.to)
-                        : [...draft.visibleSettingsTabs, item.to])}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-left text-sm font-medium text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      <span>{item.label}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${checked
-                        ? 'bg-[var(--color-brand-600)] text-white'
-                        : 'bg-[var(--panel-surface)] text-[var(--panel-muted)]'}`}>
-                        {checked ? 'Açık' : 'Kapalı'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
             <section className="grid gap-4 lg:grid-cols-2">
               <GrowingValueList
                 label="Bildirim E-Posta Adresleri"
@@ -358,6 +315,43 @@ export default function GeneralSettingsPage() {
                 Dikkat: Bu alana yalnızca firmamızca geliştirilmiş yazılımların linklerini giriniz.
                 Aksi durumda sistemde hatalar oluşabilir.
               </p>
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-bg)] p-4">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--panel-ink)]">Header Hızlı Erişim</h2>
+                <p className="mt-1 text-xs text-[var(--panel-muted)]">
+                  Aramanın yanındaki sürükle bırak yuvalarını yönetin.
+                </p>
+              </div>
+              <ToggleCard
+                label="Hızlı erişimi göster"
+                checked={draft.quickAccess.enabled}
+                onChange={(enabled) => patch('quickAccess', { ...draft.quickAccess, enabled })}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-[var(--panel-ink)]">Yuva sayısı</p>
+                  <p className="text-xs text-[var(--panel-muted)]">Açıkken 3 ile 7 arasında yuva gösterilir.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Yuva sayısını azalt"
+                    disabled={draft.quickAccess.slotCount <= 3}
+                    onClick={() => patch('quickAccess', { ...draft.quickAccess, slotCount: draft.quickAccess.slotCount - 1 })}
+                    className="h-9 w-9 rounded-lg border border-[var(--panel-line)] text-lg font-semibold text-[var(--panel-ink)] disabled:opacity-40"
+                  >−</button>
+                  <span className="w-6 text-center font-semibold tabular-nums text-[var(--panel-ink)]">{draft.quickAccess.slotCount}</span>
+                  <button
+                    type="button"
+                    aria-label="Yuva sayısını artır"
+                    disabled={draft.quickAccess.slotCount >= 7}
+                    onClick={() => patch('quickAccess', { ...draft.quickAccess, slotCount: draft.quickAccess.slotCount + 1 })}
+                    className="h-9 w-9 rounded-lg border border-[var(--panel-line)] text-lg font-semibold text-[var(--panel-ink)] disabled:opacity-40"
+                  >+</button>
+                </div>
+              </div>
             </section>
 
             <div className="flex flex-wrap items-center gap-3 pt-1">

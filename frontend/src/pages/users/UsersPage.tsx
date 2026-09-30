@@ -90,11 +90,12 @@ export default function UsersPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
     if (!q) return users;
+    const phoneQuery = q.replace(/\D/g, '');
     return users.filter(
       (u) =>
         u.name.toLocaleLowerCase('tr').includes(q) ||
         u.email.toLocaleLowerCase('tr').includes(q) ||
-        u.phone.includes(q.replace(/\D/g, '')) ||
+        (phoneQuery.length > 0 && u.phone.includes(phoneQuery)) ||
         u.roleName.toLocaleLowerCase('tr').includes(q) ||
         u.branch.toLocaleLowerCase('tr').includes(q),
     );
@@ -363,6 +364,8 @@ export default function UsersPage() {
             <SearchIcon />
           </span>
           <input
+            type="search"
+            aria-label="Kullanıcı ara"
             data-km-jump
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -400,7 +403,9 @@ export default function UsersPage() {
           {loading ? (
             <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
           ) : slice.length === 0 ? (
-            <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">Kayıt yok.</p>
+            <p className="px-4 py-12 text-center text-sm text-[var(--panel-muted)]">
+              {query.trim() ? 'Aramanızla eşleşen kullanıcı bulunamadı.' : 'Kayıt yok.'}
+            </p>
           ) : (
             <ul>
               {slice.map((u, i) => (

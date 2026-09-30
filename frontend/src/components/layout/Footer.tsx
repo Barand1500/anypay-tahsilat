@@ -12,6 +12,7 @@ import {
 } from './DockModeContext';
 import { ProfileMenu } from './ProfileMenu';
 import { QuickAccessSlots } from './QuickAccessSlots';
+import { useQuickAccess } from './QuickAccessContext';
 import { RatesFooterStage } from './RatesFooterStage';
 import { SearchTrigger } from './SearchTrigger';
 import { ThemeBurstToggle } from './ThemeBurstToggle';
@@ -35,6 +36,7 @@ export const PAYMENT_BADGES = [
  * Alt çubuk — rozetler / dock araçları; RatesFooterStage ile kur şeridi.
  */
 export function Footer({ autoHide = false, onFooterDoubleClick, onOpenSearch }: Props) {
+  const { config: quickAccess } = useQuickAccess();
   const {
     enabled: dockOn,
     reordering,
@@ -142,7 +144,8 @@ export function Footer({ autoHide = false, onFooterDoubleClick, onOpenSearch }: 
     );
   }
 
-  const pushRightAt = order.findIndex((id) => id === 'theme' || id === 'profile');
+  const visibleOrder = quickAccess.enabled ? order : order.filter((id) => id !== 'quick');
+  const pushRightAt = visibleOrder.findIndex((id) => id === 'theme' || id === 'profile');
 
   return (
     <RatesFooterStage>
@@ -157,7 +160,7 @@ export function Footer({ autoHide = false, onFooterDoubleClick, onOpenSearch }: 
         onDoubleClick={(e) => e.stopPropagation()}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
-          {order.map((id, i) => (
+          {visibleOrder.map((id, i) => (
             <div
               key={id}
               className={i === pushRightAt ? 'ml-auto flex shrink-0 items-center' : undefined}

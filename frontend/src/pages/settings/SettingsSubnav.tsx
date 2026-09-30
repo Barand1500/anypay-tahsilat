@@ -15,9 +15,9 @@ import { SETTINGS_SUBNAV } from './mockSettings';
 const HOLD_MS = 380;
 
 /** Ayarlar alt sekmeleri — kayan aktif gösterge */
-export function SettingsSubnav({ visibleTabs }: { visibleTabs: string[] }) {
+export function SettingsSubnav() {
   const location = useLocation();
-  const { startDrag, drag } = useQuickAccess();
+  const { startDrag, drag, config: quickAccess } = useQuickAccess();
   const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -28,7 +28,7 @@ export function SettingsSubnav({ visibleTabs }: { visibleTabs: string[] }) {
 
   const tabs =
     permPagesReady && !rolesLoading
-      ? SETTINGS_SUBNAV.filter((item) => visibleTabs.includes(item.to) && canViewNavItem(item.to))
+      ? SETTINGS_SUBNAV.filter((item) => canViewNavItem(item.to))
       : [];
 
   function placePill(instant: boolean) {
@@ -74,7 +74,7 @@ export function SettingsSubnav({ visibleTabs }: { visibleTabs: string[] }) {
         active?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
       }
     });
-  }, [location.pathname, visibleTabs]);
+  }, [location.pathname]);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -100,6 +100,7 @@ export function SettingsSubnav({ visibleTabs }: { visibleTabs: string[] }) {
     if (e.button !== 0) return;
     suppressNavClick.current = false;
     clearTabHold();
+    if (!quickAccess.enabled) return;
     const item = findNavItem(to) ?? EXTRA_QUICK_ITEMS.find((x) => x.to === to) ?? {
       to,
       label,

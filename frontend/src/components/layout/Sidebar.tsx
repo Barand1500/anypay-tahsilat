@@ -112,7 +112,7 @@ function BoltIcon() {
 export function Sidebar({ collapsed, onToggle }: Props) {
   const { theme } = useTheme();
   const { logoUrl, faviconUrl, systemName } = useBrand();
-  const { startDrag, drag } = useQuickAccess();
+  const { startDrag, drag, config: quickAccess } = useQuickAccess();
   const { enabled: kmOn, toggle: toggleKm } = useKeyboardMode();
   const { enabled: dockOn, toggle: toggleDock, animating: dockAnimating } = useDockMode();
   const { phase: ratesPhase, toggleFromSidebar } = useRates();
@@ -278,6 +278,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     if (e.button !== 0) return;
     suppressClick.current = false;
     clearHold();
+    if (!quickAccess.enabled) return;
     holdItem.current = item;
     const x = e.clientX;
     const y = e.clientY;
