@@ -272,7 +272,14 @@ export default function PublicPayPage() {
                 expiryFaulty={expiryFaulty}
                 onHolder={setHolder}
                 onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
-                onPhone={(v) => setPhone(normalizePhoneInput(v))}
+                onPhone={(v) => {
+                  setPhone(normalizePhoneInput(v));
+                  setErrors((prev) => {
+                    if (!prev.phone) return prev;
+                    const { phone: _, ...rest } = prev;
+                    return rest;
+                  });
+                }}
                 onCard={(v) => setCard(digitsOnly(v).slice(0, 16))}
                 onExpiry={(v) => setExpiry(formatExpiryInput(v))}
                 onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}

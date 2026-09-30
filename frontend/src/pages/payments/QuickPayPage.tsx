@@ -502,7 +502,14 @@ export default function QuickPayPage() {
               cvcFaulty={cvcFaulty}
               onHolder={setHolder}
               onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
-              onPhone={(v) => setPhone(normalizePhoneInput(v))}
+              onPhone={(v) => {
+                setPhone(normalizePhoneInput(v));
+                setErrors((prev) => {
+                  if (!prev.phone) return prev;
+                  const { phone: _, ...rest } = prev;
+                  return rest;
+                });
+              }}
               onCard={onCardChange}
               onExpiry={onExpiryChange}
               onCvc={(v) => { setCvc(digitsOnly(v).slice(0, 4)); setCvcChecked(false); }}

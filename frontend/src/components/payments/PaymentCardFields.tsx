@@ -1,4 +1,4 @@
-import { useSyncExternalStore, type ReactNode } from 'react';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { TextInput } from '../ui/TextInput';
 import { AnimatedPayCard } from './AnimatedPayCard';
 import { formatCardHolderName, type BankInfo } from '../../pages/payments/mockBanks';
@@ -6,7 +6,7 @@ import {
   getStoredCardDesign,
   type CardDesignId,
 } from '../../pages/settings/personalPrefs';
-import { formatPhoneLive } from '../../pages/customers/mockCustomers';
+import { formatPhoneLive, normalizePhoneInput } from '../../pages/customers/mockCustomers';
 
 type Errors = Partial<{
   holder: string;
@@ -90,7 +90,16 @@ function OkBadge() {
  */
 export function PaymentCardFields(props: Props) {
   const design = useSyncExternalStore(subscribeCardDesign, readCardDesign, () => 'plain');
+  const [phoneChecked, setPhoneChecked] = useState(false);
+  const phoneDigits = normalizePhoneInput(props.phone);
+  const phoneFaulty = (phoneChecked || Boolean(props.errors.phone)) && phoneDigits.length !== 10;
+  const phoneOk = phoneChecked && phoneDigits.length === 10 && !props.errors.phone;
   const Head = props.SectionHead;
+
+  function onPhoneChange(value: string) {
+    setPhoneChecked(false);
+    props.onPhone(value);
+  }
 
   if (design === 'animated') {
     return (
@@ -113,11 +122,13 @@ export function PaymentCardFields(props: Props) {
           <TextInput
             data-km-jump
             label="Telefon"
-            value={formatPhoneLive(props.phone)}
+            value={formatPhoneLive(phoneDigits)}
             error={props.errors.phone}
-            onChange={(e) => props.onPhone(e.target.value)}
+            onChange={(e) => onPhoneChange(e.target.value)}
+            onBlur={() => setPhoneChecked(true)}
             inputMode="tel"
-            className="!h-10 !pb-1 !pt-3.5 font-mono text-xs tabular-nums"
+            className="!h-10 !pb-1 !pt-3.5 !pr-16 font-mono text-xs tabular-nums"
+            endAdornment={phoneFaulty ? <FaultBadge /> : phoneOk ? <OkBadge /> : null}
           />
         </div>
 
@@ -181,11 +192,13 @@ export function PaymentCardFields(props: Props) {
       <TextInput
         data-km-jump
         label="Telefon No"
-        value={formatPhoneLive(props.phone)}
+        value={formatPhoneLive(phoneDigits)}
         error={props.errors.phone}
-        onChange={(e) => props.onPhone(e.target.value)}
+        onChange={(e) => onPhoneChange(e.target.value)}
+        onBlur={() => setPhoneChecked(true)}
         inputMode="tel"
-        className="font-mono tabular-nums"
+        className="!pr-20 font-mono tabular-nums"
+        endAdornment={phoneFaulty ? <FaultBadge /> : phoneOk ? <OkBadge /> : null}
       />
       <div>
         <TextInput
