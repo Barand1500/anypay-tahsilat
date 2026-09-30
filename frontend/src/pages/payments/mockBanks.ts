@@ -10,7 +10,7 @@ export type BankInfo = {
   bins: string[];
 };
 
-export type CardSegment = 'bireysel' | 'ticari' | 'tumu';
+export type CardSegment = 'bireysel' | 'ticari' | 'tumu' | 'serbest';
 
 export type InstallmentRow = {
   n: number;
@@ -34,7 +34,7 @@ export const BANKS: BankInfo[] = [
   { id: 'halkbank', name: 'Halkbank', fullName: 'Türkiye Halk Bankası A.Ş.', logo: L('thalkbankasias_logo_1750066038.webp'), bins: ['5528', '5430', '9792'] },
   { id: 'vakifbank', name: 'VakıfBank', fullName: 'Türkiye Vakıflar Bankası T.A.O.', logo: L('tvakiflarbankasitao_logo_1760452244.webp'), bins: ['535576', '4938', '5421', '4111'] },
   { id: 'denizbank', name: 'DenizBank', fullName: 'Denizbank A.Ş.', logo: L('denizbankas_logo_1760449984.webp'), bins: ['5218', '5430', '4766'] },
-  { id: 'teb', name: 'TEB', fullName: 'Türk Ekonomi Bankası A.Ş.', logo: L('turkekonomibankasias_logo_1760450968.webp'), bins: ['4402', '5127'] },
+  { id: 'teb', name: 'TEB', fullName: 'Türk Ekonomi Ban kası A.Ş.', logo: L('turkekonomibankasias_logo_1760450968.webp'), bins: ['4402', '5127'] },
   { id: 'ing', name: 'ING', fullName: 'ING Bank A.Ş.', logo: L('ingbankas_logo_1765277010.webp'), bins: ['4555', '5406'] },
   { id: 'hsbc', name: 'HSBC', fullName: 'HSBC Bank A.Ş.', logo: L('hsbcbankas_logo_1760454176.webp'), bins: ['4059', '5504'] },
   { id: 'kuveytturk', name: 'Kuveyt Türk', fullName: 'Kuveyt Türk Katılım Bankası A.Ş.', logo: L('kuveytturkkatilimbankasias_logo_1765190779.webp'), bins: ['4025', '5188'] },
@@ -274,7 +274,7 @@ export function buildInstallments(
   const base =
     segment === 'ticari'
       ? TICARI_PCT
-      : segment === 'tumu'
+      : segment === 'tumu' || segment === 'serbest'
         ? BIREYSEL_PCT.map((b, i) => Math.min(b, TICARI_PCT[i] ?? b))
         : BIREYSEL_PCT;
   // Bankaya göre hafif sapma (mock)

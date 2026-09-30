@@ -275,8 +275,11 @@ export async function softDeleteCardAgreement(code: string): Promise<void> {
 
 function pickRate(
   row: FlatRow,
-  segment: 'bireysel' | 'ticari' | 'tumu',
+  segment: 'bireysel' | 'ticari' | 'tumu' | 'serbest',
 ): number {
+  if (segment === 'serbest') {
+    return row.komisyonTum ?? row.komisyonBireysel ?? row.komisyonTicari ?? 0;
+  }
   if (segment === 'ticari') {
     return row.komisyonTicari ?? row.komisyonTum ?? row.komisyonBireysel ?? 0;
   }
@@ -300,7 +303,7 @@ export async function resolveAgreementRates(opts: {
   agreementCode?: string | null;
   bankId?: number | null;
   bankName?: string | null;
-  segment?: 'bireysel' | 'ticari' | 'tumu';
+  segment?: 'bireysel' | 'ticari' | 'tumu' | 'serbest';
   amount: number;
 }): Promise<{
   agreementCode: string | null;

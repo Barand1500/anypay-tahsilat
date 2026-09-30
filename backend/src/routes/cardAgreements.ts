@@ -63,7 +63,9 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
       : null;
   const segmentRaw = typeof req.query.segment === 'string' ? req.query.segment : 'bireysel';
   const segment =
-    segmentRaw === 'ticari' || segmentRaw === 'tumu' ? segmentRaw : 'bireysel';
+    segmentRaw === 'ticari' || segmentRaw === 'tumu' || segmentRaw === 'serbest'
+      ? segmentRaw
+      : 'bireysel';
   const musteriId =
     req.query.musteriId != null && String(req.query.musteriId).trim() !== ''
       ? Number(req.query.musteriId)

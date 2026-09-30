@@ -1,17 +1,16 @@
-import gsap from 'gsap';
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useAuth } from '../../auth/AuthContext';
-import { api } from '../../lib/api';
+import gsap from "gsap";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useAuth } from "../../auth/AuthContext";
+import { api } from "../../lib/api";
 import {
   banksForCompare,
-  buildInstallments,
   formatMoneyTr,
   formatMoneyDisplay,
   type BankInfo,
   type CardSegment,
   type InstallmentRow,
-} from './mockBanks';
+} from "./mockBanks";
 
 type Props = {
   amount: number;
@@ -34,9 +33,11 @@ export function InstallmentOptionsModal({
 }: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [segment, setSegment] = useState<CardSegment>('tumu');
+  const [segment, setSegment] = useState<CardSegment>("tumu");
   const banks = banksForCompare(preferredBankId);
-  const [rowsByBank, setRowsByBank] = useState<Record<string, InstallmentRow[]>>({});
+  const [rowsByBank, setRowsByBank] = useState<
+    Record<string, InstallmentRow[]>
+  >({});
 
   useEffect(() => {
     const el = panelRef.current;
@@ -44,19 +45,19 @@ export function InstallmentOptionsModal({
     gsap.fromTo(
       el,
       { autoAlpha: 0, y: 20, scale: 0.96 },
-      { autoAlpha: 1, y: 0, scale: 1, duration: 0.34, ease: 'power3.out' },
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.34, ease: "power3.out" },
     );
   }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.preventDefault();
         onClose();
       }
     }
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
   useEffect(() => {
@@ -70,26 +71,24 @@ export function InstallmentOptionsModal({
       await Promise.all(
         banks.map(async (bank) => {
           if (!token) {
-            next[bank.id] = buildInstallments(amount, segment, bank.id);
+            next[bank.id] = [];
             return;
           }
           try {
             const q = new URLSearchParams();
-            q.set('amount', String(amount));
-            q.set('segment', segment);
-            q.set('bankName', bank.fullName || bank.name);
-            if (agreementCode) q.set('code', agreementCode);
-            if (musteriId != null) q.set('musteriId', String(musteriId));
+            q.set("amount", String(amount));
+            // Serbest ödeme tabloda tüm kartlar için geçerli oranları kullanır.
+            q.set("segment", segment === "serbest" ? "tumu" : segment);
+            q.set("bankName", bank.fullName || bank.name);
+            if (agreementCode) q.set("code", agreementCode);
+            if (musteriId != null) q.set("musteriId", String(musteriId));
             const data = await api.get<{ rows: InstallmentRow[] }>(
               `/api/card-agreements/rates?${q}`,
               token,
             );
-            next[bank.id] =
-              data.rows?.length > 0
-                ? data.rows
-                : buildInstallments(amount, segment, bank.id);
+            next[bank.id] = data.rows ?? [];
           } catch {
-            next[bank.id] = buildInstallments(amount, segment, bank.id);
+            next[bank.id] = [];
           }
         }),
       );
@@ -99,11 +98,21 @@ export function InstallmentOptionsModal({
     return () => {
       cancelled = true;
     };
-  }, [amount, segment, token, agreementCode, musteriId, banks.map((b) => b.id).join('|')]);
+  }, [
+    amount,
+    segment,
+    token,
+    agreementCode,
+    musteriId,
+    banks.map((b) => b.id).join("|"),
+  ]);
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-3 sm:p-6">
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden />
+      <div
+        className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+        aria-hidden
+      />
       <div
         ref={panelRef}
         role="dialog"
@@ -114,20 +123,24 @@ export function InstallmentOptionsModal({
         <header className="shrink-0 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 id="taksit-title" className="text-lg font-bold leading-tight text-[var(--panel-ink)]">
-                Taksit seçenekleri
+              <h2
+                id="taksit-title"
+                className="text-lg font-bold leading-tight text-[var(--panel-ink)]"
+              >
+                Taksit Seçenekleri
               </h2>
               <p className="text-xs text-[var(--panel-muted)]">
-                Kart anlaşması oranları · izinli taksitler ayrıca uygulanır
+                Banka bazlı uygulanan taksit bilgileri
               </p>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex rounded-xl border border-[var(--panel-line)] p-0.5">
                 {(
                   [
-                    ['tumu', 'Tümü'],
-                    ['bireysel', 'Bireysel'],
-                    ['ticari', 'Ticari'],
+                    ["tumu", "Tümü"],
+                    ["bireysel", "Bireysel"],
+                    ["ticari", "Ticari"],
+                    ["serbest", "Serbest ödeme"],
                   ] as const
                 ).map(([k, label]) => (
                   <button
@@ -135,11 +148,11 @@ export function InstallmentOptionsModal({
                     type="button"
                     onClick={() => setSegment(k)}
                     className={[
-                      'rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                      "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
                       segment === k
-                        ? 'bg-[var(--color-brand-600)] text-white'
-                        : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]',
-                    ].join(' ')}
+                        ? "bg-[var(--color-brand-600)] text-white"
+                        : "text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]",
+                    ].join(" ")}
                   >
                     {label}
                   </button>
@@ -151,8 +164,8 @@ export function InstallmentOptionsModal({
                 className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
                 aria-label="Kapat"
               >
-                <span className="text-base leading-none">×</span>
-                Esc
+                <span className="text-base leading-none">X</span>
+                ESC
               </button>
             </div>
           </div>
@@ -161,8 +174,8 @@ export function InstallmentOptionsModal({
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
           <div className="grid gap-4 xl:grid-cols-2">
             {banks.map((bank) => {
-              const rows =
-                rowsByBank[bank.id] || buildInstallments(amount, segment, bank.id);
+              const rows = rowsByBank[bank.id] ?? [];
+              const visibleRows = rows.filter((r) => r.minLimit > 0);
               return (
                 <article
                   key={bank.id}
@@ -188,8 +201,12 @@ export function InstallmentOptionsModal({
                     </colgroup>
                     <thead>
                       <tr className="text-[9px] uppercase leading-tight tracking-wide text-[var(--panel-muted)] sm:text-[10px]">
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">Taksit</th>
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">Komisyon</th>
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                          Taksit
+                        </th>
+                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                          Komisyon
+                        </th>
                         <th className="px-2 py-2 text-right font-semibold sm:px-3">
                           Taksit
                           <br />
@@ -208,19 +225,20 @@ export function InstallmentOptionsModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((r) => {
+                      {visibleRows.map((r) => {
                         const ok =
-                          !allowedInstallments?.length || allowedInstallments.includes(r.n);
+                          !allowedInstallments?.length ||
+                          allowedInstallments.includes(r.n);
                         return (
                           <tr
                             key={r.n}
-                            title={ok ? undefined : 'Size atanmadı'}
+                            title={ok ? undefined : "Size atanmadı"}
                             className={[
-                              'border-t border-[var(--panel-line)]/80',
+                              "border-t border-[var(--panel-line)]/80",
                               ok
-                                ? 'hover:bg-[var(--panel-hover)]/50'
-                                : 'cursor-not-allowed opacity-45',
-                            ].join(' ')}
+                                ? "hover:bg-[var(--panel-hover)]/50"
+                                : "cursor-not-allowed opacity-45",
+                            ].join(" ")}
                           >
                             <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
                               {r.plusN > 0 ? `${r.n}+${r.plusN}` : r.n}
@@ -238,14 +256,19 @@ export function InstallmentOptionsModal({
                               {ok
                                 ? r.minLimit > 0
                                   ? formatMoneyDisplay(r.minLimit)
-                                  : '—'
-                                : 'Size atanmadı'}
+                                  : "—"
+                                : "Size atanmadı"}
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
+                  {visibleRows.length === 0 ? (
+                    <p className="border-t border-[var(--panel-line)] px-3 py-3 text-center text-xs text-[var(--panel-muted)]">
+                      Bu segment için alt limit tanımlanmamış.
+                    </p>
+                  ) : null}
                 </article>
               );
             })}
