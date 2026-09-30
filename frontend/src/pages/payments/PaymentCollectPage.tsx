@@ -642,6 +642,7 @@ export default function PaymentCollectPage() {
                     <p
                       className={[
                         'relative text-sm font-semibold',
+                        r.n === 1 ? 'text-right' : 'text-left',
                         active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                       ].join(' ')}
                     >
@@ -650,6 +651,7 @@ export default function PaymentCollectPage() {
                     <p
                       className={[
                         'relative mt-2 text-xl font-bold tabular-nums',
+                        r.n === 1 ? 'text-right' : 'text-left',
                         'text-[var(--panel-ink)]',
                       ].join(' ')}
                     >
