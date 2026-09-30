@@ -117,6 +117,7 @@ export default function GeneralSettingsPage() {
 
   useGSAP(
     () => {
+      if (!draft) return;
       const parts = rootRef.current?.querySelectorAll('[data-anim]');
       if (!parts?.length) return;
       gsap.fromTo(
@@ -125,7 +126,7 @@ export default function GeneralSettingsPage() {
         { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.06, ease: 'power3.out' },
       );
     },
-    { scope: rootRef, dependencies: [draft] },
+    { scope: rootRef, dependencies: [Boolean(draft)] },
   );
 
   function patch<K extends keyof GeneralSettings>(key: K, value: GeneralSettings[K]) {
