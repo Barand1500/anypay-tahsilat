@@ -279,22 +279,34 @@ export async function createPanelUser(input: {
 
   const clash = await prisma.user.findFirst({ where: { email } });
   if (clash && !clash.remove) throw new UsersError('Bu e-posta zaten kayıtlı');
-  if (clash?.remove) {
-    // Önceki sürümler kullanıcıları soft-delete ediyordu; bu eski satırlar
-    // unique e-posta alanını tutmaya devam ettiğinden, kayıtlı olmayan hesap
-    // yeniden açılırken kaldırılmış satır ve kullanıcı kasası temizlenir.
-    await prisma.$transaction([
-      prisma.kasaKayit.deleteMany({ where: { kullaniciId: clash.id } }),
-      prisma.kasaAyar.deleteMany({ where: { kullaniciId: clash.id } }),
-      prisma.user.delete({ where: { id: clash.id } }),
-    ]);
-  }
 
   const subeIds = await resolveBranchIds(input);
   const plain = (input.password || '').trim() || randomPassword();
   if (plain.length < 6) throw new UsersError('Şifre en az 6 karakter olmalı');
   const hash = await bcrypt.hash(plain, 13);
   const status: UserStatus = input.status === 'Pasif' ? 'Pasif' : 'Aktif';
+
+  if (clash) {
+    // Eski sürümlerde silme soft-delete idi. Benzersiz e-posta alanını koruyan
+    // bu satırı yeniden kullanmak geçmiş referansları bozmadan hesabı açar.
+    const row = await prisma.user.update({
+      where: { id: clash.id },
+      data: {
+        adsoyad: name.slice(0, 255),
+        telefon: phone,
+        password: hash,
+        isVerified: status === 'Aktif',
+        isPassword: true,
+        roles: [role.code],
+        rolId,
+        subeDepartmanId: subeIds[0] ?? null,
+        subeDepartmanIds: encodeIdList(subeIds),
+        izinliTaksitler: encodeInstallments(input.installments || []),
+        remove: null,
+      },
+    });
+    return toPublic(row, role.name, await branchNamesFor(subeIds));
+  }
 
   const row = await prisma.user.create({
     data: {
@@ -422,6 +434,10 @@ export async function deletePanelUser(id: number): Promise<void> {
   await prisma.$transaction([
     prisma.kasaKayit.deleteMany({ where: { kullaniciId: id } }),
     prisma.kasaAyar.deleteMany({ where: { kullaniciId: id } }),
+    // Geçmiş işlemler korunur; kullanıcıya olan opsiyonel bağlantıları kaldırılır.
+    prisma.log.updateMany({ where: { kullaniciId: id }, data: { kullaniciId: null } }),
+    prisma.odeme.updateMany({ where: { kullaniciId: id }, data: { kullaniciId: null } }),
+    prisma.odemeIstegi.updateMany({ where: { kullaniciId: id }, data: { kullaniciId: null } }),
     prisma.user.delete({ where: { id } }),
   ]);
 }

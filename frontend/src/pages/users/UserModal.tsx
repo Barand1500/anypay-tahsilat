@@ -316,7 +316,7 @@ export function UserModal({
                   data-km-jump
                   disabled={saving || !email.trim() || password.trim().length < 6}
                   onClick={() => void submitUser(true)}
-                  className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-sm font-semibold text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-sm font-semibold text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <MailIcon />
                   Şifreyi Mail ile Gönder

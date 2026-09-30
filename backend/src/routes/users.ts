@@ -106,6 +106,8 @@ usersRouter.post('/', async (req: AuthedRequest, res) => {
   } catch (err) {
     if (err instanceof UsersError) return sendError(res, 400, err.message);
     console.error(err);
+    const code = (err as { code?: string })?.code;
+    if (code === 'P2002') return sendError(res, 409, 'Bu e-posta zaten kayıtlı');
     return sendError(res, 500, 'Kullanıcı eklenemedi');
   }
 });
@@ -144,6 +146,11 @@ usersRouter.delete('/:id', async (req: AuthedRequest, res) => {
   } catch (err) {
     if (err instanceof UsersError) return sendError(res, 400, err.message);
     console.error(err);
+    const code = (err as { code?: string })?.code;
+    if (code === 'P2003') {
+      return sendError(res, 409, 'Kullanıcıya bağlı veriler kaldırılamadı. Lütfen tekrar deneyin.');
+    }
+    if (code === 'P2025') return sendError(res, 404, 'Kullanıcı bulunamadı');
     return sendError(res, 500, 'Kullanıcı silinemedi');
   }
 });
