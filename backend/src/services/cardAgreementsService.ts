@@ -90,6 +90,7 @@ type FlatRow = {
   grup: string | null;
   blokAdi: string | null;
   blokLogo: string | null;
+  detay?: string | null;
   anlasmaKodu: string;
 };
 
@@ -346,9 +347,21 @@ export async function resolveAgreementRates(opts: {
   if (opts.bankId != null && Number.isFinite(opts.bankId)) {
     const byId = all.filter((r) => r.bankaId === opts.bankId);
     if (byId.length) matched = byId;
+    else if (opts.bankName) {
+      const byName = all.filter((r) => bankNameMatch(r, opts.bankName!));
+      if (!byName.length) {
+        return { agreementCode: code, bankId: opts.bankId, bankName: opts.bankName, rows: [] };
+      }
+      matched = byName;
+    } else {
+      return { agreementCode: code, bankId: opts.bankId, bankName: null, rows: [] };
+    }
   } else if (opts.bankName) {
     const byName = all.filter((r) => bankNameMatch(r, opts.bankName!));
-    if (byName.length) matched = byName;
+    if (!byName.length) {
+      return { agreementCode: code, bankId: null, bankName: opts.bankName, rows: [] };
+    }
+    matched = byName;
   }
 
   // Aynı banka paneli yoksa ilk blok / bankanın oranları
@@ -380,11 +393,35 @@ export async function resolveAgreementRates(opts: {
       const commissionPct = Math.max(0, +(pickRate(r, segment) || 0).toFixed(4));
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
+      let plusN = 0;
+      if (r.detay) {
+        try {
+          const detail = JSON.parse(r.detay) as {
+            items?: Array<{
+              n?: number;
+              all?: { active?: boolean; extraInstallment?: string };
+              bireysel?: { active?: boolean; extraInstallment?: string };
+              ticari?: { active?: boolean; extraInstallment?: string };
+            }>;
+          };
+          const item = detail.items?.find((entry) => entry.n === n);
+          const segmentData =
+            segment === 'serbest' || segment === 'tumu'
+              ? item?.all
+              : item?.[segment];
+          if (segmentData?.active) {
+            plusN = Math.max(0, Math.min(36 - n, Math.round(parseTrNumber(segmentData.extraInstallment) ?? 0)));
+          }
+        } catch {
+          /* eski anlaşma detayı olmayabilir */
+        }
+      }
+      const totalInstallments = n + plusN;
       return {
         n,
-        plusN: 0,
+        plusN,
         commissionPct,
-        installmentAmount: totalAmount / n,
+        installmentAmount: totalAmount / totalInstallments,
         totalAmount,
         minLimit: r.altLimit ?? 0,
       };

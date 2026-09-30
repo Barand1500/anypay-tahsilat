@@ -79,6 +79,18 @@ export type PublicPaymentRow = {
     cardMasked: string;
     threeDSecure: boolean;
   };
+  detail: {
+    amount: number;
+    commissionIncluded: boolean;
+    customerCommission: number;
+    bankCommission: number;
+    ip: string;
+    collectionDay: string;
+    blockDay: string;
+    referenceNo: string;
+    authCode: string;
+    operationHistory: Array<{ at: string; operation: string; status: string; amount: number; referenceNo: string; authCode: string }>;
+  };
 };
 
 export type ListPaymentsQuery = {
@@ -116,6 +128,21 @@ function maskPhone(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(-10);
   if (d.length < 7) return raw || '—';
   return `${d.slice(0, 3)} *** ** ${d.slice(-2)}`;
+}
+
+function bankResponseDetails(raw: string | null | undefined) {
+  if (!raw) return { referenceNo: '', authCode: '' };
+  const find = (keys: string[]) => {
+    for (const key of keys) {
+      const match = raw.match(new RegExp(`(?:"|\\b)${key}(?:"|\\b)\\s*[:=]\\s*"?([^",\\s}]+)`, 'i'));
+      if (match?.[1]) return match[1];
+    }
+    return '';
+  };
+  return {
+    referenceNo: find(['refno', 'referenceNo', 'hostRefNum', 'rrn']),
+    authCode: find(['authcode', 'authCode', 'approvalCode', 'procreturncode']),
+  };
 }
 
 function makeOdemeNo(): string {
@@ -206,6 +233,11 @@ type OdemeRow = {
   subeDepartmanId: number | null;
   kullaniciId: number | null;
   iptalIadeHareket: string | null;
+  ip: string | null;
+  tahsilGunu: string | null;
+  blokeGunu: string | null;
+  taksitOran: number | null;
+  odemeTipi: number;
 };
 
 async function merchantDefaults() {
@@ -280,6 +312,11 @@ async function hydrate(
     const amount = Number(r.gercekTutar ?? r.tutar ?? 0) || 0;
     const phone = (r.telefon || '').trim();
     const at = r.tarih ? r.tarih.toISOString() : new Date(0).toISOString();
+    const responseDetails = bankResponseDetails(r.bankaCevabi);
+    const referenceNo = responseDetails.referenceNo;
+    const authCode = responseDetails.authCode;
+    const customerCommission = Math.max(0, amount - Number(r.gercekTutar ?? r.tutar ?? 0));
+    const historyStatus = statusOf(r.durum, r.iptalIadeHareket);
 
     return {
       dbId: r.id,
@@ -308,11 +345,30 @@ async function hydrate(
         cardHolderPhone: phone || '—',
         identityNo: (r.tc || '').trim(),
         description: (r.aciklama || '').trim() || '—',
-        referenceNo: '',
+        referenceNo,
         transactionNo: r.odemeNo || String(r.id),
-        authCode: '',
+        authCode,
         cardMasked: (r.kartNo || '').trim() || '—',
         threeDSecure: true,
+      },
+      detail: {
+        amount: Number(r.tutar) || 0,
+        commissionIncluded: Boolean(r.komisyonDahil),
+        customerCommission,
+        bankCommission: commission,
+        ip: (r.ip || '').trim(),
+        collectionDay: (r.tahsilGunu || '').trim(),
+        blockDay: (r.blokeGunu || '').trim(),
+        referenceNo,
+        authCode,
+        operationHistory: [{
+          at,
+          operation: historyStatus === 'cancelled' ? 'İPTAL' : historyStatus === 'refunded' ? 'İADE' : 'ÖDEME',
+          status: historyStatus === 'paid' ? 'BAŞARILI' : historyStatus === 'pending' ? 'BEKLEMEDE' : historyStatus === 'failed' ? 'BAŞARISIZ' : 'TAMAMLANDI',
+          amount: Number(r.tutar) || 0,
+          referenceNo,
+          authCode,
+        }],
       },
     };
   });

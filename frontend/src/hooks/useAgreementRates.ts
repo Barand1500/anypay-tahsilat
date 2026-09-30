@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../lib/api';
-import {
-  buildInstallments,
-  type CardSegment,
-  type InstallmentRow,
-} from '../pages/payments/mockBanks';
+import type { CardSegment, InstallmentRow } from '../pages/payments/mockBanks';
 
 type RatesResponse = {
   agreementCode: string | null;
@@ -15,8 +11,7 @@ type RatesResponse = {
 };
 
 /**
- * Kart anlaşmasından taksit oranları.
- * Yoksa mockBanks fallback. İzinli taksit listesi (allowed) ayrı — useEffectiveInstallments.
+ * Kart anlaşmasından taksit oranları. Anlaşma yoksa sessizce örnek oran üretmez.
  */
 export function useAgreementRates(opts: {
   amount: number;
@@ -39,7 +34,7 @@ export function useAgreementRates(opts: {
       return;
     }
     if (!token) {
-      setRows(buildInstallments(amount, segment, opts.bankId || undefined));
+      setRows([]);
       return;
     }
     setLoading(true);
@@ -56,10 +51,10 @@ export function useAgreementRates(opts: {
       if (data.rows?.length) {
         setRows(data.rows);
       } else {
-        setRows(buildInstallments(amount, segment, opts.bankId || undefined));
+        setRows([]);
       }
     } catch {
-      setRows(buildInstallments(amount, segment, opts.bankId || undefined));
+      setRows([]);
     } finally {
       setLoading(false);
     }

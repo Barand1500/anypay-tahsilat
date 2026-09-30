@@ -6,6 +6,7 @@ import { TextArea } from '../../components/ui/TextArea';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
+import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
@@ -98,6 +99,18 @@ export default function QuickPayPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
+    amount,
+    bankName: bank?.fullName || bank?.name,
+    bankId: bank?.id,
+    segment: 'bireysel',
+  });
+  const availableBankRows = useMemo(
+    () => bankInstallmentRows.filter((row) =>
+      !allowedInstallments?.length || allowedInstallments.includes(row.n),
+    ),
+    [bankInstallmentRows, allowedInstallments],
+  );
   const cardFaulty =
     cardChecked &&
     cardDigits.length > 0 &&
@@ -187,6 +200,7 @@ export default function QuickPayPage() {
 
   function onCardChange(raw: string) {
     setCard(formatCardNumber(raw));
+    setPickedInstall(null);
     setCardChecked(false);
     setErrors((prev) => {
       if (!prev.card) return prev;
@@ -496,6 +510,42 @@ export default function QuickPayPage() {
             >
               Taksit Seçenekleri
             </button>
+            {bank?.logo ? (
+              <div className="flex min-h-32 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white p-5">
+                <img src={bank.logo} alt={bank.name} className="max-h-24 w-full object-contain" />
+              </div>
+            ) : bank ? (
+              <div className="flex min-h-24 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 text-center text-lg font-bold text-[var(--panel-ink)]">
+                {bank.name}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--panel-muted)]">Banka bilgisi için kart numarasını girin.</p>
+            )}
+            {bank ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Bankaya göre taksit seçenekleri</p>
+                {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
+                {!ratesLoading && availableBankRows.length ? (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {availableBankRows.map((row) => (
+                      <button
+                        key={row.n}
+                        type="button"
+                        data-km-jump
+                        onClick={() => setPickedInstall({ n: row.n, bank })}
+                        className={`rounded-lg border px-3 py-2 text-left transition ${pickedInstall?.n === row.n && pickedInstall.bank.id === bank.id ? 'border-[var(--color-brand-600)] bg-[var(--brand-soft-bg)]' : 'border-[var(--panel-line)] hover:bg-[var(--panel-hover)]'}`}
+                      >
+                        <span className="block text-xs font-bold text-[var(--panel-ink)]">{row.n === 1 ? 'Tek çekim' : `${row.n} taksit`}</span>
+                        <span className="mt-1 block text-[11px] tabular-nums text-[var(--panel-muted)]">{formatMoneyDisplay(row.installmentAmount)} / ay</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {!ratesLoading && !availableBankRows.length ? (
+                  <p className="text-xs text-[var(--panel-muted)]">Bu banka için taksit anlaşması bulunamadı.</p>
+                ) : null}
+              </div>
+            ) : null}
             {pickedInstall ? (
               <p className="text-sm text-[var(--panel-ink)]">
                 <span className="font-semibold">{pickedInstall.n} taksit</span>

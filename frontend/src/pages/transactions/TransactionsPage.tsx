@@ -614,7 +614,12 @@ export default function TransactionsPage() {
                 <div
                   key={tx.dbId}
                   data-tx-id={tx.dbId}
-                  className="grid grid-cols-[minmax(140px,1fr)_minmax(160px,1.1fr)_minmax(180px,1.3fr)_minmax(130px,0.9fr)_120px] gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition hover:bg-[var(--panel-hover)]/50"
+                  onDoubleClick={(event) => {
+                    if ((event.target as HTMLElement).closest('button, input, a')) return;
+                    navigate(`/hareketler/${tx.dbId}`);
+                  }}
+                  title="Detayı açmak için çift tıklayın"
+                  className="grid cursor-pointer grid-cols-[minmax(140px,1fr)_minmax(160px,1.1fr)_minmax(180px,1.3fr)_minmax(130px,0.9fr)_120px] gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition hover:bg-[var(--panel-hover)]/50"
                 >
                   <div className="min-w-0">
                     <CopyLine

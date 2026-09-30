@@ -39,6 +39,25 @@ export type Transaction = {
   userId: string;
   userName: string;
   dekont: TxDekont;
+  detail: {
+    amount: number;
+    commissionIncluded: boolean;
+    customerCommission: number;
+    bankCommission: number;
+    ip: string;
+    collectionDay: string;
+    blockDay: string;
+    referenceNo: string;
+    authCode: string;
+    operationHistory: Array<{
+      at: string;
+      operation: string;
+      status: string;
+      amount: number;
+      referenceNo: string;
+      authCode: string;
+    }>;
+  };
 };
 
 export const TX_STATUS_LABEL: Record<TxStatus, string> = {

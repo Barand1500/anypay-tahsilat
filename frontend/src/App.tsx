@@ -10,6 +10,7 @@ import PaymentRequestPage from './pages/payments/PaymentRequestPage';
 import QuickPayPage from './pages/payments/QuickPayPage';
 import PublicPayPage from './pages/payments/PublicPayPage';
 import TransactionsPage from './pages/transactions/TransactionsPage';
+import TransactionDetailPage from './pages/transactions/TransactionDetailPage';
 import PaymentRequestsPage from './pages/payment-requests/PaymentRequestsPage';
 import LoginPage from './pages/login/LoginPage';
 import ModulesPage from './pages/modules/ModulesPage';
@@ -110,6 +111,7 @@ export default function App() {
         <Route path="musteriler/:id/odeme-istegi" element={<PaymentRequestPage />} />
         <Route path="musteriler/:id" element={<CustomerDetailPage />} />
         <Route path="hareketler" element={<TransactionsPage />} />
+        <Route path="hareketler/:id" element={<TransactionDetailPage />} />
         <Route path="odeme-istekleri" element={<PaymentRequestsPage />} />
         <Route path="odeme-istekleri/yeni" element={<PaymentRequestPage forPanel />} />
         <Route path="odeme-istekleri/:reqId/duzenle" element={<PaymentRequestPage />} />

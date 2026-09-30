@@ -85,6 +85,18 @@ paymentsRouter.get('/', async (req, res) => {
   }
 });
 
+paymentsRouter.get('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) return sendError(res, 400, 'Geçersiz hareket');
+  try {
+    return sendSuccess(res, await getPayment(id));
+  } catch (err) {
+    if (err instanceof PaymentsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Hareket detayı yüklenemedi');
+  }
+});
+
 paymentsRouter.post('/', async (req: AuthedRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
