@@ -90,14 +90,9 @@ export default function BankCardAgreementPage() {
   }, [load]);
 
   const activeSegmentCount = useMemo(
-    () =>
-      items.reduce((acc, it) => {
-        let n = 0;
-        if (it.all.active) n += 1;
-        if (it.bireysel.active) n += 1;
-        if (it.ticari.active) n += 1;
-        return acc + n;
-      }, 0),
+    () => (['all', 'bireysel', 'ticari'] as const).filter((key) =>
+      items.some((item) => item[key].active),
+    ).length,
     [items],
   );
 
@@ -116,8 +111,8 @@ export default function BankCardAgreementPage() {
   function patchSeg(n: number, key: SegmentKey, patch: Partial<CardSegmentRates>) {
     setItems((list) =>
       list.map((x) => {
-        if (x.n !== n) return x;
-        const next = { ...x, [key]: { ...x[key], ...patch } };
+        if (x.n !== n && patch.active !== true) return x;
+        const next = x.n === n ? { ...x, [key]: { ...x[key], ...patch } } : { ...x };
         if (patch.active === true) {
           if (key === 'all') {
             next.bireysel = { ...next.bireysel, active: false };
@@ -134,7 +129,14 @@ export default function BankCardAgreementPage() {
   function addInstallment() {
     const n = Math.min(36, Math.max(1, Number(addN) || 1));
     if (items.some((x) => x.n === n)) return;
-    setItems((list) => [...list, defaultBankInstallment(n)].sort((a, b) => a.n - b.n));
+    setItems((list) => {
+      const next = defaultBankInstallment(n);
+      if (list.some((item) => item.all.active)) {
+        next.bireysel.active = false;
+        next.ticari.active = false;
+      }
+      return [...list, next].sort((a, b) => a.n - b.n);
+    });
     setAddN(String(Math.min(36, n + 1)));
   }
 

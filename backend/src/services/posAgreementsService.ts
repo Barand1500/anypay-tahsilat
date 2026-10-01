@@ -94,6 +94,15 @@ function defaultBankItems(): BankInstallmentPayload[] {
   }));
 }
 
+function normalizeBankSegments(items: BankInstallmentPayload[]): BankInstallmentPayload[] {
+  if (!items.some((item) => item.all.active)) return items;
+  return items.map((item) => ({
+    ...item,
+    bireysel: { ...item.bireysel, active: false },
+    ticari: { ...item.ticari, active: false },
+  }));
+}
+
 function defaultCustomerBlocks(): CustomerBlockPayload[] {
   const rows = Array.from({ length: 12 }, (_, i) => ({
     n: i + 1,
@@ -254,13 +263,7 @@ export async function getPosBankAgreement(posId: number): Promise<{
           bankId: pos.bankId,
           bankName: pos.bankName,
           agreementCode: code,
-          items: parsed.items.map((item) => item.all.active
-            ? {
-                ...item,
-                bireysel: { ...item.bireysel, active: false },
-                ticari: { ...item.ticari, active: false },
-              }
-            : item),
+          items: normalizeBankSegments(parsed.items),
         };
       }
     } catch {
@@ -298,7 +301,7 @@ export async function getPosBankAgreement(posId: number): Promise<{
     bankId: pos.bankId,
     bankName: pos.bankName,
     agreementCode: code,
-    items: items.length ? items : defaultBankItems(),
+    items: items.length ? normalizeBankSegments(items) : defaultBankItems(),
   };
 }
 
@@ -313,13 +316,7 @@ export async function savePosBankAgreement(
     throw new PosAgreementError('En az bir taksit satırı gerekli');
   }
 
-  const normalizedItems = items.map((item) => item.all.active
-    ? {
-        ...item,
-        bireysel: { ...item.bireysel, active: false },
-        ticari: { ...item.ticari, active: false },
-      }
-    : item);
+  const normalizedItems = normalizeBankSegments(items);
   const code = bankAgreementCode(posId);
   const bankIdNum = Number(pos.bankId);
   const date = new Date().toISOString().slice(0, 10);

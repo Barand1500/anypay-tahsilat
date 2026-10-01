@@ -22,6 +22,7 @@ type Props = {
   agreementScope?: 'customer' | 'pos';
   onPick?: (bank: BankInfo, installment: number) => void;
 };
+type VisibleSegment = Exclude<CardSegment, 'serbest'>;
 
 /** Taksit karşılaştırma — Esc / X; oranlar kart anlaşmasından */
 export function InstallmentOptionsModal({
@@ -35,17 +36,17 @@ export function InstallmentOptionsModal({
 }: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [segment, setSegment] = useState<CardSegment>("tumu");
+  const [segment, setSegment] = useState<VisibleSegment>("tumu");
   const [banks, setBanks] = useState<BankInfo[]>([]);
   const [banksLoading, setBanksLoading] = useState(true);
-  const [rowsByBank, setRowsByBank] = useState<
-    Record<string, InstallmentRow[]>
-  >({});
-  const [availableSegments, setAvailableSegments] = useState<CardSegment[]>([]);
+  const [rowsBySegment, setRowsBySegment] = useState<Record<VisibleSegment, Record<string, InstallmentRow[]>>>(
+    { tumu: {}, bireysel: {}, ticari: {} },
+  );
+  const [availableSegments, setAvailableSegments] = useState<VisibleSegment[]>([]);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [ratesRequestKey, setRatesRequestKey] = useState("");
   const bankIds = banks.map((b) => b.id).join("|");
-  const rateKey = `${amount}|${segment}|${agreementCode ?? ""}|${musteriId ?? ""}|${agreementScope}|${bankIds}`;
+  const rateKey = `${amount}|${agreementCode ?? ""}|${musteriId ?? ""}|${agreementScope}|${bankIds}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -117,47 +118,52 @@ export function InstallmentOptionsModal({
     async function load() {
       if (banksLoading) return;
       if (!amount || amount <= 0) {
-        setRowsByBank({});
+        setRowsBySegment({ tumu: {}, bireysel: {}, ticari: {} });
         setAvailableSegments([]);
         setRatesLoading(false);
         setRatesRequestKey(rateKey);
         return;
       }
       setRatesLoading(true);
-      const next: Record<string, InstallmentRow[]> = {};
-      const nextSegments = new Set<CardSegment>();
+      const next: Record<VisibleSegment, Record<string, InstallmentRow[]>> = { tumu: {}, bireysel: {}, ticari: {} };
+      const nextSegments = new Set<VisibleSegment>();
       await Promise.all(
         banks.map(async (bank) => {
           if (!token) {
-            next[bank.id] = [];
             return;
           }
           try {
             const q = new URLSearchParams();
             q.set("amount", String(amount));
-            q.set("segment", segment);
+            q.set("segment", "tumu");
             q.set("bankName", bank.fullName || bank.name);
             q.set("bankId", bank.id);
             q.set("scope", agreementScope);
             if (agreementCode) q.set("code", agreementCode);
             if (musteriId != null) q.set("musteriId", String(musteriId));
-            const data = await api.get<{ rows: InstallmentRow[]; availableSegments?: CardSegment[] }>(
+            const data = await api.get<{
+              rows: InstallmentRow[];
+              rowsBySegment?: Record<VisibleSegment, InstallmentRow[]>;
+              availableSegments?: VisibleSegment[];
+            }>(
               `/api/card-agreements/rates?${q}`,
               token,
             );
-            next[bank.id] = data.rows ?? [];
+            for (const key of ["tumu", "bireysel", "ticari"] as const) {
+              next[key][bank.id] = data.rowsBySegment?.[key] ?? (key === 'tumu' ? data.rows ?? [] : []);
+            }
             data.availableSegments?.forEach((key) => nextSegments.add(key));
           } catch {
-            next[bank.id] = [];
+            for (const key of ["tumu", "bireysel", "ticari"] as const) next[key][bank.id] = [];
           }
         }),
       );
       if (!cancelled) {
-        setRowsByBank(next);
+        setRowsBySegment(next);
         const orderedSegments = (["tumu", "bireysel", "ticari"] as const).filter((key) => nextSegments.has(key));
         setAvailableSegments(orderedSegments);
-        if (orderedSegments.length && !orderedSegments.some((key) => key === segment)) {
-          setSegment(orderedSegments[0]);
+        if (orderedSegments.length) {
+          setSegment((current) => orderedSegments.some((key) => key === current) ? current : orderedSegments[0]!);
         }
         setRatesLoading(false);
         setRatesRequestKey(rateKey);
@@ -169,7 +175,6 @@ export function InstallmentOptionsModal({
     };
   }, [
     amount,
-    segment,
     token,
     agreementCode,
     agreementScope,
@@ -180,6 +185,7 @@ export function InstallmentOptionsModal({
 
   const currentRatesLoading = banksLoading || ratesLoading || ratesRequestKey !== rateKey;
   const visibleSegments = currentRatesLoading ? [] : availableSegments;
+  const rowsByBank = rowsBySegment[segment];
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-3 sm:p-6">

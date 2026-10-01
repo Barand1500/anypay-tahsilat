@@ -312,6 +312,7 @@ export async function resolveAgreementRates(opts: {
   bankName: string | null;
   rows: AgreementRateRow[];
   availableSegments: AgreementSegment[];
+  rowsBySegment?: Record<AgreementSegment, AgreementRateRow[]>;
 }> {
   const amount = opts.amount;
   const segment = opts.segment || 'bireysel';
@@ -423,10 +424,10 @@ export async function resolveAgreementRates(opts: {
     return limit == null || limit <= amount;
   }));
 
-  const rows: AgreementRateRow[] = [...byN.values()]
+  const calculateRows = (requestedSegment: 'bireysel' | 'ticari' | 'tumu' | 'serbest'): AgreementRateRow[] => [...byN.values()]
     .sort((a, b) => a.taksit - b.taksit)
     .filter((r) => {
-      const key = segment === 'serbest' ? 'tumu' : segment;
+      const key = requestedSegment === 'serbest' ? 'tumu' : requestedSegment;
       const detail = detailFor(r);
       const effectiveKey = opts.allowAllFallback !== false && key !== 'tumu' && detail?.all?.active && !configuredFor(r, key) ? 'tumu' : key;
       if (!configuredFor(r, effectiveKey)) return false;
@@ -435,7 +436,7 @@ export async function resolveAgreementRates(opts: {
       return minLimit == null || minLimit <= amount;
     })
     .map((r) => {
-      const key = segment === 'serbest' ? 'tumu' : segment;
+      const key = requestedSegment === 'serbest' ? 'tumu' : requestedSegment;
       const item = detailFor(r);
       const effectiveKey = opts.allowAllFallback !== false && key !== 'tumu' && item?.all?.active && !configuredFor(r, key) ? 'tumu' : key;
       const selected = item?.[effectiveKey === 'tumu' ? 'all' : effectiveKey];
@@ -455,6 +456,14 @@ export async function resolveAgreementRates(opts: {
         minLimit: item ? parseTrNumber(selected?.minLimit) ?? 0 : r.altLimit ?? 0,
       };
     });
+  const rowsBySegment = opts.allowAllFallback === false ? {
+    tumu: calculateRows('tumu'),
+    bireysel: calculateRows('bireysel'),
+    ticari: calculateRows('ticari'),
+  } : undefined;
+  const rows = rowsBySegment && segment !== 'serbest'
+    ? rowsBySegment[segment]
+    : calculateRows(segment);
 
   const head = matched[0]!;
   return {
@@ -463,6 +472,7 @@ export async function resolveAgreementRates(opts: {
     bankName: head.blokAdi,
     rows,
     availableSegments,
+    rowsBySegment,
   };
 }
 
