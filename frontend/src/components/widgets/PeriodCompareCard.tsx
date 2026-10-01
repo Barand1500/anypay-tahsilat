@@ -101,7 +101,7 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
               ))}
             </div>
           ) : (
-            <ul className="space-y-1.5">
+            <ul className="max-h-[90px] space-y-1.5 overflow-y-auto pr-1">
               {banks.map((b) => <BankRow key={b.id || b.name} bank={b} />)}
             </ul>
           )}

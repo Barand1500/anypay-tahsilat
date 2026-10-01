@@ -489,14 +489,14 @@ export default function OverviewPage() {
                       data-tile-id={id}
                       onPointerDown={(e) => onTileDown(id, e)}
                       className={[
-                        'relative h-full min-h-0 min-w-0 transition-[box-shadow] duration-200 ease-out',
+                        'relative min-h-0 min-w-0 transition-[box-shadow] duration-200 ease-out',
+                        groupId === 'periods' ? 'h-[240px]' : 'h-full',
                         editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
                         lifting ? 'z-10' : '',
                         isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
-                      style={groupId === 'periods' ? { flex: id === 'period-year' ? '1.5 1 0%' : id === 'period-month' ? '1 1 0%' : '0.9 1 0%' } : undefined}
                     >
                       <div
                         className={[

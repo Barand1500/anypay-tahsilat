@@ -48,7 +48,7 @@ export const GROUP_META: Record<
     tiles: ['kpi-customers', 'kpi-moves', 'kpi-cancel', 'kpi-requests'],
   },
   periods: {
-    grid: 'grid items-stretch gap-4 sm:grid-cols-2 xl:flex',
+    grid: 'grid items-stretch gap-4 sm:grid-cols-2',
     tiles: ['period-day', 'period-week', 'period-month', 'period-year'],
   },
   tools: {
