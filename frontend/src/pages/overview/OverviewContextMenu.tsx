@@ -13,15 +13,17 @@ type Props = {
   y: number;
   hidden: OverviewGroupId[];
   onRestore: (id: OverviewGroupId) => void;
+  onResetLayout: () => void;
+  onRefresh: () => void;
   onClose: () => void;
 };
 
-export function OverviewContextMenu({ x, y, hidden, onRestore, onClose }: Props) {
+export function OverviewContextMenu({ x, y, hidden, onRestore, onResetLayout, onRefresh, onClose }: Props) {
   const { accent, applyAccent } = useTheme();
   const [submenu, setSubmenu] = useState<'hidden' | 'colors' | null>(null);
   const toLeft = x + 430 > window.innerWidth;
   const sideClass = toLeft ? 'right-full' : 'left-full';
-  const menuHeight = Math.max(150, Math.min(220, hidden.length * 36 + 16));
+  const menuHeight = Math.max(172, Math.min(220, hidden.length * 36 + 16));
   const rowClass = 'flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-left text-sm text-[var(--panel-ink)] hover:bg-[var(--panel-hover)] focus:bg-[var(--panel-hover)] focus:outline-none';
 
   return (
@@ -61,6 +63,13 @@ export function OverviewContextMenu({ x, y, hidden, onRestore, onClose }: Props)
           </div>
         ) : null}
       </div>
+      <div className="my-1 border-t border-[var(--panel-line)]" />
+      <button type="button" role="menuitem" className={rowClass} onMouseEnter={() => setSubmenu(null)} onClick={() => { onRefresh(); onClose(); }}>
+        <span>Verileri yenile</span><span aria-hidden>↻</span>
+      </button>
+      <button type="button" role="menuitem" className={rowClass} onMouseEnter={() => setSubmenu(null)} onClick={() => { onResetLayout(); onClose(); }}>
+        <span>Düzeni sıfırla</span><span aria-hidden>↺</span>
+      </button>
     </div>
   );
 }

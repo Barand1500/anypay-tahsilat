@@ -1,6 +1,8 @@
+import gsap from 'gsap';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -22,7 +24,10 @@ import {
   type OverviewFilterState,
 } from './OverviewFilterFab';
 import {
+  DEFAULT_GROUP_ORDER,
   GROUP_META,
+  defaultGroups,
+  defaultVisibility,
   loadGroupOrder,
   saveGroupOrder,
   GROUP_LABEL,
@@ -64,6 +69,9 @@ export default function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshAnimation, setRefreshAnimation] = useState(0);
 
   const [groups, setGroups] = useState<OverviewGroups>(() => loadGroups());
   const [visibility, setVisibility] = useState<OverviewVisibility>(() => loadVisibility());
@@ -74,6 +82,8 @@ export default function OverviewPage() {
   const [overId, setOverId] = useState<OverviewTileId | null>(null);
 
   const groupEls = useRef<Partial<Record<OverviewGroupId, HTMLDivElement | null>>>({});
+  const rootRef = useRef<HTMLDivElement>(null);
+  const refreshPendingRef = useRef(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
@@ -120,6 +130,19 @@ export default function OverviewPage() {
     setGroupOrder((current) => [...current.filter((id) => id !== groupId), groupId]);
   }
 
+  function resetLayout() {
+    exitEdit();
+    setGroups(defaultGroups());
+    setVisibility(defaultVisibility());
+    setGroupOrder([...DEFAULT_GROUP_ORDER]);
+  }
+
+  function refreshData() {
+    refreshPendingRef.current = true;
+    setRefreshing(true);
+    setRefreshKey((current) => current + 1);
+  }
+
   function openContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
     if (event.defaultPrevented) return;
     event.preventDefault();
@@ -161,13 +184,23 @@ export default function OverviewPage() {
         if (filter.to) qs.set('to', filter.to);
         qs.set('chartRange', chartRange);
         const next = await api.get<OverviewData>(`/api/overview?${qs.toString()}`, token);
-        if (!cancelled) setData(next);
+        if (!cancelled) {
+          setData(next);
+          if (refreshPendingRef.current) {
+            refreshPendingRef.current = false;
+            setRefreshAnimation((current) => current + 1);
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Özet yüklenemedi');
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+          refreshPendingRef.current = false;
+        }
       }
     }
 
@@ -175,7 +208,22 @@ export default function OverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, filter.branch, filter.user, filter.from, filter.to, chartRange]);
+  }, [token, filter.branch, filter.user, filter.from, filter.to, chartRange, refreshKey]);
+
+  useLayoutEffect(() => {
+    if (!refreshAnimation || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const tiles = rootRef.current?.querySelectorAll<HTMLElement>('[data-tile-id] > div:first-child');
+    if (!tiles?.length) return;
+    const tween = gsap.fromTo(
+      tiles,
+      { autoAlpha: 0.55, y: 10 },
+      { autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.035, ease: 'power2.out', clearProps: 'opacity,visibility,transform' },
+    );
+    return () => {
+      tween.kill();
+      gsap.set(tiles, { clearProps: 'opacity,visibility,transform' });
+    };
+  }, [refreshAnimation]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -420,7 +468,13 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="relative min-h-[280px] w-full space-y-5" onContextMenu={openContextMenu}>
+    <div ref={rootRef} className="relative min-h-[280px] w-full space-y-5" onContextMenu={openContextMenu}>
+      {refreshing ? (
+        <div role="status" className="pointer-events-none fixed bottom-20 right-6 z-50 flex items-center gap-2 rounded-full border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-xs font-semibold text-[var(--panel-ink)] shadow-[var(--panel-shadow)]">
+          <span className="inline-block size-3 animate-spin rounded-full border-2 border-[var(--panel-line)] border-t-[var(--color-brand-600)] motion-reduce:animate-none" aria-hidden />
+          Veriler yenileniyor…
+        </div>
+      ) : null}
       {error ? (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
           {error}
@@ -537,6 +591,8 @@ export default function OverviewPage() {
             y={contextMenu.y}
             hidden={groupOrder.filter((id) => !visibility[id])}
             onRestore={(id) => setVisibility((current) => ({ ...current, [id]: true }))}
+            onResetLayout={resetLayout}
+            onRefresh={refreshData}
             onClose={() => setContextMenu(null)}
           />
         </div>,
