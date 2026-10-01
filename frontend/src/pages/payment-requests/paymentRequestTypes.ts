@@ -12,7 +12,7 @@ export {
 
 export type PayRequestStatus = 'pending' | 'paid' | 'cancelled' | 'expired';
 
-export type PayRequestType = 'ch' | 'fatura' | 'taksit' | 'diger';
+export type PayRequestType = 'ch' | 'fatura' | 'serbest' | 'taksit' | 'diger';
 
 export type PaymentRequest = {
   id: string;
@@ -55,6 +55,7 @@ export const PAY_REQ_STATUS_FILTER: { value: 'pending' | 'paid'; label: string }
 export const PAY_REQ_TYPE_LABEL: Record<PayRequestType, string> = {
   ch: 'C/H İSTİNADEN',
   fatura: 'FATURA',
+  serbest: 'SERBEST ÖDEME',
   taksit: 'TAKSİTLİ',
   diger: 'DİĞER',
 };

@@ -14,7 +14,7 @@ import { InstallmentPaintGrid } from './InstallmentPaintGrid';
 import { loadReadyDescriptions } from './mockReadyDescriptions';
 import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
 
-type PayType = '' | 'ch' | 'fatura';
+type PayType = '' | 'ch' | 'fatura' | 'serbest';
 
 type AttachedFile = { name: string; path: string; url: string };
 
@@ -154,7 +154,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
       try {
         const data = await api.get<{
           id: number;
-          type: 'ch' | 'fatura' | 'diger';
+          type: 'ch' | 'fatura' | 'serbest' | 'diger';
           status: 'pending' | 'paid';
           customerId: string | null;
           customerTitle: string;
@@ -183,7 +183,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           code: '',
           accountTypeId: data.accountTypeId ?? null,
         });
-        setPayType(data.type === 'fatura' ? 'fatura' : 'ch');
+        setPayType(data.type === 'fatura' ? 'fatura' : data.type === 'serbest' ? 'serbest' : 'ch');
         setAmountText(formatMoneyTr(data.amount));
         if (data.currencyId) setCurrencyId(data.currencyId);
         setCommissionIncluded(data.commissionIncluded);
@@ -224,7 +224,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'serbest' ? 'SERBEST ÖDEME' : 'Ödeme Tipi Seçiniz';
 
   function flash(msg: string) {
     setToast(msg);
@@ -581,6 +581,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                           ['', 'Ödeme Tipi Seçiniz'],
                           ['ch', 'C/H BAKİYESİ'],
                           ['fatura', 'FATURA'],
+                          ['serbest', 'SERBEST ÖDEME'],
                         ] as const
                       ).map(([val, label]) => (
                         <li key={label}>

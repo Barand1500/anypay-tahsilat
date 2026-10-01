@@ -32,7 +32,7 @@ const upload = multer({
 
 const createSchema = z.object({
   musteriId: z.number().int().positive(),
-  payType: z.enum(['ch', 'fatura']),
+  payType: z.enum(['ch', 'fatura', 'serbest']),
   amount: z.number().positive(),
   commissionIncluded: z.boolean().optional().default(false),
   installments: z.array(z.number().int().min(1).max(12)).min(1),
@@ -43,7 +43,7 @@ const createSchema = z.object({
 });
 
 const updateSchema = z.object({
-  payType: z.enum(['ch', 'fatura']),
+  payType: z.enum(['ch', 'fatura', 'serbest']),
   amount: z.number().positive(),
   commissionIncluded: z.boolean().optional().default(false),
   installments: z.array(z.number().int().min(1).max(12)).min(1),

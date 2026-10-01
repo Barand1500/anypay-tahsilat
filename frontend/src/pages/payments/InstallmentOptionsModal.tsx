@@ -204,7 +204,6 @@ export function InstallmentOptionsModal({
                     ["tumu", "Tümü"],
                     ["bireysel", "Bireysel"],
                     ["ticari", "Ticari"],
-                    ["serbest", "Serbest ödeme"],
                   ] as const
                 ).map(([k, label]) => (
                   <button
@@ -256,7 +255,7 @@ export function InstallmentOptionsModal({
                   <div className="flex items-center gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5">
                     <img
                       src={bank.logo}
-                      alt=""
+                      alt=""  
                       className="h-8 w-auto max-w-[120px] shrink-0 object-contain"
                     />
                     <span className="min-w-0 flex-1 text-right text-sm font-bold leading-snug text-[var(--panel-ink)]">

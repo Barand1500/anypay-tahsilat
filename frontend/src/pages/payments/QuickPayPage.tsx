@@ -29,7 +29,7 @@ import {
   type BankInfo,
 } from './mockBanks';
 
-type PayType = '' | 'ch' | 'fatura';
+type PayType = '' | 'ch' | 'fatura' | 'serbest';
 
 type ContactApi = {
   title: string;
@@ -106,7 +106,7 @@ export default function QuickPayPage() {
     amount,
     bankName: bank?.fullName || bank?.name,
     bankId: bank?.id,
-    segment: 'bireysel',
+    segment: payType === 'serbest' ? 'serbest' : 'bireysel',
     scope: 'pos',
   });
   const availableBankRows = useMemo(
@@ -129,7 +129,7 @@ export default function QuickPayPage() {
   const cvcFaulty = cvcChecked && digitsOnly(cvc).length < 3;
   const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'serbest' ? 'SERBEST ÖDEME' : 'Ödeme Tipi Seçiniz';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -336,6 +336,7 @@ export default function QuickPayPage() {
                       [
                         ['ch', 'C/H BAKİYESİ'],
                         ['fatura', 'FATURA'],
+                        ['serbest', 'SERBEST ÖDEME'],
                       ] as const
                     ).map(([val, label]) => (
                       <li key={val}>

@@ -23,7 +23,7 @@ export class PaymentsError extends Error {
 
 export type CreatePaymentInput = {
   musteriId: number | null;
-  payType: 'ch' | 'fatura';
+  payType: 'ch' | 'fatura' | 'serbest';
   amount: number;
   commissionIncluded: boolean;
   holder: string;
@@ -106,9 +106,9 @@ export type ListPaymentsQuery = {
   take?: number;
 };
 
-/** Dump: 0=C/H, 2=fatura */
-function tipFromPayType(payType: 'ch' | 'fatura'): number {
-  return payType === 'fatura' ? 2 : 0;
+/** Veritabanı ödeme tipi: 0=C/H, 1=serbest, 2=fatura. */
+function tipFromPayType(payType: 'ch' | 'fatura' | 'serbest'): number {
+  return payType === 'fatura' ? 2 : payType === 'serbest' ? 1 : 0;
 }
 
 function maskCard(digits: string): string {
@@ -471,7 +471,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       agreementCode: code,
       bankId: pos.bankId,
       bankName: pos.bankName,
-      segment: 'bireysel',
+      segment: input.payType === 'serbest' ? 'serbest' : 'bireysel',
       amount: input.amount,
     });
     const hit = rates.rows.find((r) => r.n === installment);

@@ -19,7 +19,7 @@ import {
 
 type PublicPayView = {
   token: string;
-  type: 'ch' | 'fatura' | 'diger';
+  type: 'ch' | 'fatura' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerTitle: string;
   amount: number;

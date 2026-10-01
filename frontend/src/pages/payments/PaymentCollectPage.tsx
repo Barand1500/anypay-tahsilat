@@ -28,7 +28,7 @@ import {
   isValidLuhn,
 } from './mockBanks';
 
-type PayType = '' | 'ch' | 'fatura';
+type PayType = '' | 'ch' | 'fatura' | 'serbest';
 
 /**
  * Ödeme Al — ortak inputlar; taksit yalnızca modal / seçili özet.
@@ -132,7 +132,7 @@ export default function PaymentCollectPage() {
     bankId: bank?.id || null,
     musteriId: customer?.id ? Number(customer.id) : null,
     agreementCode: customer?.cardAgreementCode ?? null,
-    segment: 'bireysel',
+    segment: payType === 'serbest' ? 'serbest' : 'bireysel',
   });
   const installmentRows = useMemo(() => {
     if (amount <= 0) return [];
@@ -251,7 +251,7 @@ export default function PaymentCollectPage() {
   }
 
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'serbest' ? 'SERBEST ÖDEME' : 'Ödeme Tipi Seçiniz';
 
   if (customerLoading) {
     return (
@@ -347,6 +347,7 @@ export default function PaymentCollectPage() {
                           ['', 'Ödeme Tipi Seçiniz'],
                           ['ch', 'C/H BAKİYESİ'],
                           ['fatura', 'FATURA'],
+                          ['serbest', 'SERBEST ÖDEME'],
                         ] as const
                       ).map(([val, label]) => (
                         <li key={label}>

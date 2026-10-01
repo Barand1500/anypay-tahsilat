@@ -23,7 +23,7 @@ paymentsRouter.use(requireModulePerm('/hareketler'));
 
 const createSchema = z.object({
   musteriId: z.number().int().positive().nullable().optional(),
-  payType: z.enum(['ch', 'fatura']),
+  payType: z.enum(['ch', 'fatura', 'serbest']),
   amount: z.number().positive(),
   commissionIncluded: z.boolean().optional().default(false),
   holder: z.string().min(1).max(255),

@@ -18,7 +18,7 @@ export class PaymentRequestsError extends Error {
 
 export type CreatePaymentRequestInput = {
   musteriId: number;
-  payType: 'ch' | 'fatura';
+  payType: 'ch' | 'fatura' | 'serbest';
   amount: number;
   commissionIncluded: boolean;
   installments: number[];
@@ -31,7 +31,7 @@ export type CreatePaymentRequestInput = {
 
 export type PublicPayView = {
   token: string;
-  type: 'ch' | 'fatura' | 'diger';
+  type: 'ch' | 'fatura' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerTitle: string;
   amount: number;
@@ -60,7 +60,7 @@ export type PayByTokenInput = {
 export type PublicPaymentRequest = {
   id: number;
   token: string;
-  type: 'ch' | 'fatura' | 'diger';
+  type: 'ch' | 'fatura' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerId: string | null;
   customerTitle: string;
@@ -83,12 +83,13 @@ export type PublicPaymentRequest = {
   accountTypeId: number | null;
 };
 
-function tipFromPayType(payType: 'ch' | 'fatura'): number {
-  return payType === 'fatura' ? 2 : 0;
+function tipFromPayType(payType: 'ch' | 'fatura' | 'serbest'): number {
+  return payType === 'fatura' ? 2 : payType === 'serbest' ? 1 : 0;
 }
 
-function payTypeFromTip(tip: number): 'ch' | 'fatura' | 'diger' {
+function payTypeFromTip(tip: number): 'ch' | 'fatura' | 'serbest' | 'diger' {
   if (tip === 2) return 'fatura';
+  if (tip === 1) return 'serbest';
   if (tip === 0) return 'ch';
   return 'diger';
 }
@@ -349,7 +350,7 @@ export async function payPaymentRequestByToken(
   }
 
   const tip = payTypeFromTip(row.odemeTipi);
-  const payType = tip === 'fatura' ? 'fatura' : 'ch';
+  const payType = tip === 'fatura' ? 'fatura' : tip === 'serbest' ? 'serbest' : 'ch';
   const kullaniciId = row.kullaniciId ?? 0;
   if (!kullaniciId) throw new PaymentRequestsError('Ödeme isteği kullanıcı bilgisi eksik');
 
@@ -415,7 +416,7 @@ export async function getPaymentRequest(id: number): Promise<PublicPaymentReques
 }
 
 export type UpdatePaymentRequestInput = {
-  payType: 'ch' | 'fatura';
+  payType: 'ch' | 'fatura' | 'serbest';
   amount: number;
   commissionIncluded: boolean;
   installments: number[];
