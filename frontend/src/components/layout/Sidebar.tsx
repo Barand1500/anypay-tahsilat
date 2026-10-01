@@ -547,7 +547,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         title="Boş alana çift tıkla: menüyü aç/kapa"
         className="flex h-full min-h-0 w-[76px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--panel-sidebar)] transition-[width] duration-300 ease-out"
       >
-        <div className="flex shrink-0 flex-col items-center px-2 py-4">
+        <div className="flex h-16 shrink-0 items-center justify-center px-2">
           <img src={collapsedLogo} alt={systemName} className="h-10 w-10 object-contain" />
         </div>
         <div className="shrink-0 px-2 pb-3">
@@ -575,12 +575,12 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       title="Boş alana çift tıkla: menüyü aç/kapa"
       className="sidebar-open flex h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden border-r border-[var(--panel-line)] bg-[var(--sidebar-open-bg)] text-[var(--sidebar-open-ink)] transition-[width] duration-300 ease-out"
     >
-      <div className="flex shrink-0 items-center px-4 pb-3 pt-5">
+      <div className="flex h-16 shrink-0 items-center px-4">
         <div className="flex min-w-0 flex-1 items-center">
           <img
             src={expandedLogo}
             alt={systemName}
-            className="h-14 w-auto max-w-[210px] object-contain object-left drop-shadow-sm"
+            className="max-h-11 w-auto max-w-[210px] object-contain object-left drop-shadow-sm"
           />
         </div>
       </div>
