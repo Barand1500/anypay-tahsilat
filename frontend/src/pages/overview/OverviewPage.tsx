@@ -3,12 +3,12 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { AccentColorPicker } from '../../components/ui/AccentColorPicker';
 import { ChartPanel, type ChartRange } from '../../components/widgets/ChartPanel';
 import { FavoriteCustomerSlots } from '../../components/widgets/FavoriteCustomerSlots';
 import { PeriodCompareCard } from '../../components/widgets/PeriodCompareCard';
@@ -39,7 +39,9 @@ import {
   type OverviewVisibility,
 } from './overviewLayout';
 import type { OverviewData } from './overviewTypes';
+import { OverviewContextMenu } from './OverviewContextMenu';
 import { PlanBoard } from './PlanBoard';
+import { RecentMoves } from './RecentMoves';
 
 const LONG_MS = 420;
 const CANCEL_PX = 10;
@@ -65,11 +67,13 @@ export default function OverviewPage() {
   const [groups, setGroups] = useState<OverviewGroups>(() => loadGroups());
   const [visibility, setVisibility] = useState<OverviewVisibility>(() => loadVisibility());
   const [groupOrder, setGroupOrder] = useState<OverviewGroupId[]>(() => loadGroupOrder());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState(false);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   const [overId, setOverId] = useState<OverviewTileId | null>(null);
 
   const groupEls = useRef<Partial<Record<OverviewGroupId, HTMLDivElement | null>>>({});
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
   const editingRef = useRef(false);
@@ -109,6 +113,37 @@ export default function OverviewPage() {
       return next;
     });
   }
+
+  function hideGroup(groupId: OverviewGroupId) {
+    setVisibility((current) => ({ ...current, [groupId]: false }));
+    setGroupOrder((current) => [...current.filter((id) => id !== groupId), groupId]);
+  }
+
+  function openContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    clearPending();
+    setContextMenu({ x: event.clientX, y: event.clientY });
+  }
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) setContextMenu(null);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null);
+    };
+    const onScroll = () => setContextMenu(null);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!token) return;
@@ -150,14 +185,6 @@ export default function OverviewPage() {
     }
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);
-  }, []);
-
-  useEffect(() => {
-    function onCtx(e: Event) {
-      if (editingRef.current || pending.current) e.preventDefault();
-    }
-    document.addEventListener('contextmenu', onCtx, true);
-    return () => document.removeEventListener('contextmenu', onCtx, true);
   }, []);
 
   const clearPending = useCallback(() => {
@@ -335,7 +362,7 @@ export default function OverviewPage() {
       case 'kpi-requests': {
         const k = data.kpis.find((x) => `kpi-${x.id}` === id);
         if (!k) return null;
-        return <StatCard title={k.title} value={k.value} meta={k.meta} tone={k.tone} />;
+        return <StatCard title={k.title} value={k.value} meta={k.meta} tone={k.tone} footer={id === 'kpi-customers' ? <FavoriteCustomerSlots /> : id === 'kpi-moves' ? <RecentMoves moves={data.recentMoves ?? { successful: [], failed: [] }} /> : undefined} />;
       }
       case 'period-day':
       case 'period-week':
@@ -350,13 +377,6 @@ export default function OverviewPage() {
             previous={p.previous}
             changePct={p.changePct}
             banks={p.banks}
-            footer={
-              p.id === 'day' ? (
-                <AccentColorPicker />
-              ) : p.id === 'week' ? (
-                <FavoriteCustomerSlots />
-              ) : undefined
-            }
           />
         );
       }
@@ -388,7 +408,7 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="relative w-full space-y-5">
+    <div className="relative min-h-[280px] w-full space-y-5" onContextMenu={openContextMenu}>
       {error ? (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
           {error}
@@ -424,7 +444,7 @@ export default function OverviewPage() {
       ) : null}
 
       {data
-        ? groupOrder.map((groupId, groupIndex) => {
+        ? groupOrder.filter((id) => visibility[id]).map((groupId, groupIndex, visibleGroups) => {
             const meta = GROUP_META[groupId];
             const tiles = groups[groupId];
             return (
@@ -439,18 +459,17 @@ export default function OverviewPage() {
                   <h2 className="text-sm font-bold text-[var(--panel-ink)]">{GROUP_LABEL[groupId]}</h2>
                   <div className="flex items-center gap-1">
                     <button type="button" title="Grubu yukarı taşı" aria-label="Grubu yukarı taşı" disabled={groupIndex === 0} onClick={() => moveGroup(groupId, -1)} className="rounded-lg px-2 py-1 text-sm text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] disabled:opacity-30">↑</button>
-                    <button type="button" title="Grubu aşağı taşı" aria-label="Grubu aşağı taşı" disabled={groupIndex === groupOrder.length - 1} onClick={() => moveGroup(groupId, 1)} className="rounded-lg px-2 py-1 text-sm text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] disabled:opacity-30">↓</button>
+                    <button type="button" title="Grubu aşağı taşı" aria-label="Grubu aşağı taşı" disabled={groupIndex === visibleGroups.length - 1} onClick={() => moveGroup(groupId, 1)} className="rounded-lg px-2 py-1 text-sm text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] disabled:opacity-30">↓</button>
                     <button
                       type="button"
-                      aria-expanded={visibility[groupId]}
-                      onClick={() => setVisibility((current) => ({ ...current, [groupId]: !current[groupId] }))}
+                      onClick={() => hideGroup(groupId)}
                       className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-700)] transition hover:bg-[var(--panel-hover)]"
                     >
-                      {visibility[groupId] ? 'Gizle' : 'Göster'}
+                      Gizle
                     </button>
                   </div>
                 </div>
-                {visibility[groupId] ? <div className={[meta.grid, editing ? 'select-none touch-none' : ''].filter(Boolean).join(' ')}>
+                <div className={[meta.grid, editing ? 'select-none touch-none' : ''].filter(Boolean).join(' ')}>
                 {tiles.map((id) => {
                   const lifting = ghost?.id === id;
                   const isOver = overId === id && ghost?.id !== id;
@@ -462,6 +481,7 @@ export default function OverviewPage() {
                       onPointerDown={(e) => onTileDown(id, e)}
                       className={[
                         'relative h-full min-h-0 transition-[box-shadow] duration-200 ease-out',
+                        groupId === 'kpis' ? 'xl:col-span-2' : '',
                         editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
                         lifting ? 'z-10' : '',
                         isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',
@@ -491,11 +511,25 @@ export default function OverviewPage() {
                     </div>
                   );
                 })}
-                </div> : null}
+                </div>
               </div>
             );
           })
         : null}
+
+      {contextMenu ? createPortal(
+        <div ref={contextMenuRef}>
+          <OverviewContextMenu
+            key={`${contextMenu.x}-${contextMenu.y}`}
+            x={contextMenu.x}
+            y={contextMenu.y}
+            hidden={groupOrder.filter((id) => !visibility[id])}
+            onRestore={(id) => setVisibility((current) => ({ ...current, [id]: true }))}
+            onClose={() => setContextMenu(null)}
+          />
+        </div>,
+        document.body,
+      ) : null}
 
       {ghost
         ? createPortal(

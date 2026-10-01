@@ -30,7 +30,7 @@ function readSlots(userId: number | undefined): (FavCustomer | null)[] {
   }
 }
 
-/** Haftalık kart altı — favori müşteri yuvaları (API listesi) */
+/** Genel Bakış müşteri kartındaki favori müşteri yuvaları (API listesi). */
 export function FavoriteCustomerSlots() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -113,9 +113,9 @@ export function FavoriteCustomerSlots() {
                   e.preventDefault();
                   clear(i);
                 }}
-                className="flex h-9 w-full items-center justify-center truncate rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-1.5 text-[10px] font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]"
+                className="flex h-9 w-full min-w-0 items-center justify-center truncate rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2 text-[11px] font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]"
               >
-                {initials(c.name)}
+                <span className="truncate">{c.name}</span>
               </button>
             ) : (
               <button
@@ -166,14 +166,4 @@ export function FavoriteCustomerSlots() {
       </div>
     </div>
   );
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 }

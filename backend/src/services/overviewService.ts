@@ -67,6 +67,10 @@ export type OverviewFilterOption = { value: string; label: string };
 
 export type OverviewPayload = {
   kpis: OverviewKpi[];
+  recentMoves: {
+    successful: { id: number; number: string; amount: string; at: string }[];
+    failed: { id: number; number: string; amount: string; at: string }[];
+  };
   periods: OverviewPeriod[];
   pieDatasets: OverviewPieDataset[];
   chart: {
@@ -447,6 +451,8 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
       prisma.odeme.findMany({
         where: filterWhere,
         select: {
+          id: true,
+          odemeNo: true,
           durum: true,
           tutar: true,
           gercekTutar: true,
@@ -505,6 +511,19 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
 
   const payments = filteredPayments as OdemeRow[];
   const scoped = scopedPayments as OdemeRow[];
+  const recentRows = [...filteredPayments].sort((a, b) =>
+    (b.tarih?.getTime() ?? 0) - (a.tarih?.getTime() ?? 0) || b.id - a.id,
+  );
+  const recentItem = (row: (typeof recentRows)[number]) => ({
+    id: row.id,
+    number: row.odemeNo,
+    amount: formatMoneyTr(amountOf(row)),
+    at: row.tarih?.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }) ?? '—',
+  });
+  const recentMoves = {
+    successful: recentRows.filter((row) => row.durum === DURUM_OK).slice(0, 5).map(recentItem),
+    failed: recentRows.filter((row) => isFailed(row.durum)).slice(0, 5).map(recentItem),
+  };
 
   let ok = 0;
   let fail = 0;
@@ -696,6 +715,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
 
   return {
     kpis,
+    recentMoves,
     periods,
     pieDatasets,
     chart: {

@@ -53,6 +53,10 @@ export type OverviewFilterOption = { value: string; label: string };
 
 export type OverviewData = {
   kpis: OverviewKpi[];
+  recentMoves: {
+    successful: { id: number; number: string; amount: string; at: string }[];
+    failed: { id: number; number: string; amount: string; at: string }[];
+  };
   periods: OverviewPeriod[];
   pieDatasets: OverviewPieDataset[];
   chart: {

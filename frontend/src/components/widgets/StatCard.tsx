@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 type Tone = 'blue' | 'green' | 'red' | 'orange';
 
@@ -7,6 +7,7 @@ type Props = {
   value: string;
   meta: string;
   tone: Tone;
+  footer?: ReactNode;
 };
 
 const TONE: Record<Tone, string> = {
@@ -16,7 +17,7 @@ const TONE: Record<Tone, string> = {
   orange: 'bg-orange-500/15 text-orange-600',
 };
 
-export function StatCard({ title, value, meta, tone }: Props) {
+export function StatCard({ title, value, meta, tone, footer }: Props) {
   const [hovered, setHovered] = useState(false);
   const [display, setDisplay] = useState(value);
   const raf = useRef(0);
@@ -56,7 +57,7 @@ export function StatCard({ title, value, meta, tone }: Props) {
     <article
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      className="panel-card group relative flex h-full min-h-[120px] flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:-translate-y-1.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_40%,var(--panel-line))] hover:shadow-[0_18px_44px_color-mix(in_srgb,var(--color-brand-500)_20%,transparent)]"
+      className={`panel-card group relative flex h-full min-h-[120px] flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:z-20 hover:-translate-y-1.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_40%,var(--panel-line))] hover:shadow-[0_18px_44px_color-mix(in_srgb,var(--color-brand-500)_20%,transparent)] ${footer ? 'overflow-visible' : 'overflow-hidden'}`}
     >
       <div
         className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-0 blur-2xl transition duration-500 group-hover:opacity-100"
@@ -83,6 +84,7 @@ export function StatCard({ title, value, meta, tone }: Props) {
           <Dot />
         </span>
       </div>
+      {footer ? <div className="relative mt-auto pt-4">{footer}</div> : null}
     </article>
   );
 }
