@@ -90,14 +90,14 @@ function OkBadge() {
  */
 export function PaymentCardFields(props: Props) {
   const design = useSyncExternalStore(subscribeCardDesign, readCardDesign, () => 'plain');
-  const [phoneChecked, setPhoneChecked] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const phoneDigits = normalizePhoneInput(props.phone);
-  const phoneFaulty = (phoneChecked || Boolean(props.errors.phone)) && phoneDigits.length !== 10;
-  const phoneOk = phoneChecked && phoneDigits.length === 10 && !props.errors.phone;
+  const phoneFaulty = (phoneTouched || Boolean(props.errors.phone)) && phoneDigits.length !== 10;
+  const phoneOk = phoneDigits.length === 10 && !props.errors.phone;
   const Head = props.SectionHead;
 
   function onPhoneChange(value: string) {
-    setPhoneChecked(false);
+    setPhoneTouched(true);
     props.onPhone(value);
   }
 
@@ -125,7 +125,7 @@ export function PaymentCardFields(props: Props) {
             value={formatPhoneLive(phoneDigits)}
             error={props.errors.phone}
             onChange={(e) => onPhoneChange(e.target.value)}
-            onBlur={() => setPhoneChecked(true)}
+            onBlur={() => setPhoneTouched(true)}
             inputMode="tel"
             className="!h-10 !pb-1 !pt-3.5 !pr-16 font-mono text-xs tabular-nums"
             endAdornment={phoneFaulty ? <FaultBadge /> : phoneOk ? <OkBadge /> : null}
@@ -195,7 +195,7 @@ export function PaymentCardFields(props: Props) {
         value={formatPhoneLive(phoneDigits)}
         error={props.errors.phone}
         onChange={(e) => onPhoneChange(e.target.value)}
-        onBlur={() => setPhoneChecked(true)}
+        onBlur={() => setPhoneTouched(true)}
         inputMode="tel"
         className="!pr-20 font-mono tabular-nums"
         endAdornment={phoneFaulty ? <FaultBadge /> : phoneOk ? <OkBadge /> : null}
