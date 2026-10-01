@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { usePermission } from './permissions/PermissionContext';
 import { useAuth } from './auth/AuthContext';
 import { AppShell } from './components/layout/AppShell';
+import { EXTRA_QUICK_ITEMS, NAV_ITEMS } from './components/layout/navItems';
 import CustomersPage from './pages/customers/CustomersPage';
 import CustomerFormPage from './pages/customers/CustomerFormPage';
 import CustomerDetailPage from './pages/customers/CustomerDetailPage';
@@ -57,6 +59,21 @@ import LogsPage from './pages/logs/LogsPage';
 import SystemResetPage from './pages/system-reset/SystemResetPage';
 import VersionsPage from './pages/versions/VersionsPage';
 import { getDefaultLandingPath } from './pages/settings/defaultsStore';
+import { DEFINITIONS_SUBNAV } from './pages/definitions/currencyTypes';
+import { POS_KART_SUBNAV } from './pages/definitions/PosKartLayout';
+import { REPORT_SUBNAV } from './pages/reports/statisticsTypes';
+import { SETTINGS_SUBNAV } from './pages/settings/mockSettings';
+
+function FirstPermittedSectionPage({ paths }: { paths: readonly string[] }) {
+  const { canViewNavItem, rolesLoading, permPagesReady } = usePermission();
+  if (rolesLoading || !permPagesReady) return null;
+  const first = paths.find((path) => canViewNavItem(path));
+  return <Navigate to={first || '/profil'} replace />;
+}
+
+const DEFINITION_PATHS = DEFINITIONS_SUBNAV.flatMap((tab) =>
+  tab.to === '/tanimlamalar/pos-kart' ? POS_KART_SUBNAV.map((item) => item.to) : [tab.to],
+);
 
 function Protected({ children }: { children: ReactNode }) {
   const { token, booting } = useAuth();
@@ -73,6 +90,7 @@ function Protected({ children }: { children: ReactNode }) {
 
 function GuestOnly({ children }: { children: ReactNode }) {
   const { token, booting } = useAuth();
+  const { canViewNavItem, rolesLoading, permPagesReady } = usePermission();
   if (booting) {
     return (
       <div className="flex min-h-screen items-center justify-center text-[var(--panel-muted)]">
@@ -80,7 +98,13 @@ function GuestOnly({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (token) return <Navigate to={getDefaultLandingPath()} replace />;
+  if (token) {
+    if (rolesLoading || !permPagesReady) return null;
+    const first = [...NAV_ITEMS.slice(1), ...EXTRA_QUICK_ITEMS]
+      .find((item) => canViewNavItem(item.to));
+    const landing = canViewNavItem('/') ? getDefaultLandingPath() : first?.to || '/profil';
+    return <Navigate to={landing} replace />;
+  }
   return children;
 }
 
@@ -117,7 +141,7 @@ export default function App() {
         <Route path="odeme-istekleri/:reqId/duzenle" element={<PaymentRequestPage />} />
         <Route path="hizli-odeme" element={<QuickPayPage />} />
         <Route path="raporlar" element={<ReportsLayout />}>
-          <Route index element={<Navigate to="istatistikler" replace />} />
+          <Route index element={<FirstPermittedSectionPage paths={REPORT_SUBNAV.map((item) => item.to)} />} />
           <Route path="istatistikler" element={<StatisticsPage />} />
           <Route path="tahsilat-raporu" element={<CollectionReportPage />} />
           <Route path="musteri-tahsilat-raporu" element={<CustomerCollectionReportPage />} />
@@ -126,13 +150,13 @@ export default function App() {
           <Route path="gonderim-gecmisi" element={<SendHistoryPage />} />
         </Route>
         <Route path="tanimlamalar" element={<DefinitionsLayout />}>
-          <Route index element={<Navigate to="para-birimleri" replace />} />
+          <Route index element={<FirstPermittedSectionPage paths={DEFINITION_PATHS} />} />
           <Route path="para-birimleri" element={<CurrenciesPage />} />
           <Route path="cari-tipleri" element={<AccountTypesPage />} />
           <Route path="subeler" element={<BranchesPage />} />
           <Route path="bankalar" element={<BanksPage />} />
           <Route path="pos-kart" element={<PosKartLayout />}>
-            <Route index element={<Navigate to="sanal-pos" replace />} />
+            <Route index element={<FirstPermittedSectionPage paths={POS_KART_SUBNAV.map((item) => item.to)} />} />
             <Route path="sanal-pos" element={<VirtualPosPage />} />
             <Route path="sanal-pos/:id/banka-anlasma" element={<BankCardAgreementPage />} />
             <Route path="sanal-pos/:id/musteri-anlasma" element={<CustomerCardAgreementPage />} />
@@ -147,7 +171,7 @@ export default function App() {
           <Route path="api-ayarlari" element={<ApiSettingsPage />} />
         </Route>
         <Route path="ayarlar" element={<SettingsLayout />}>
-          <Route index element={<Navigate to="genel" replace />} />
+          <Route index element={<FirstPermittedSectionPage paths={SETTINGS_SUBNAV.map((item) => item.to)} />} />
           <Route path="genel" element={<GeneralSettingsPage />} />
           <Route path="kisisel" element={<PersonalSettingsPage />} />
           <Route path="iletisim" element={<ContactSettingsPage />} />

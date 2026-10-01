@@ -4,12 +4,30 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { AvatarStack } from '../../components/ui/AvatarStack';
+import { EXTRA_QUICK_ITEMS, NAV_ITEMS } from '../../components/layout/navItems';
 import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
 import type { AppModule } from '../modules/mockModules';
 import { countGranted, type AppRole, type PagePerm, type PermPage } from './mockRoles';
 import { RoleModal } from './RoleModal';
 import { ROLE_HERO_SRC, prefetchRoleHero } from './roleHero';
+
+const PAGE_ORDER = [
+  ...NAV_ITEMS.slice(0, 4),
+  NAV_ITEMS[4]!,
+  ...EXTRA_QUICK_ITEMS.filter((item) => item.to.startsWith('/raporlar/')),
+  NAV_ITEMS[5]!,
+  ...EXTRA_QUICK_ITEMS.filter((item) => item.to.startsWith('/tanimlamalar/')),
+  ...EXTRA_QUICK_ITEMS.filter((item) => item.to === '/ayarlar'),
+  ...EXTRA_QUICK_ITEMS.filter((item) => item.to.startsWith('/ayarlar/')),
+].map((item) => item.to);
+
+function pageOrder(path: string): number {
+  const exact = PAGE_ORDER.indexOf(path);
+  if (exact >= 0) return exact;
+  const parent = PAGE_ORDER.findIndex((item) => item !== '/' && path.startsWith(`${item}/`));
+  return parent >= 0 ? parent + 0.5 : PAGE_ORDER.length;
+}
 
 /**
  * Roller — kart grid + izin modalı (API / rol tablosu).
@@ -41,7 +59,8 @@ export default function RolesPage() {
             id: String(m.id),
             name: m.name,
             urlPrefix: m.urlPrefix,
-          })),
+          })).sort((a, b) => pageOrder(a.urlPrefix) - pageOrder(b.urlPrefix)
+            || a.name.localeCompare(b.name, 'tr')),
         );
       } catch {
         if (!cancelled) setPages([]);

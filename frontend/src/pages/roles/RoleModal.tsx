@@ -46,6 +46,19 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
     for (const p of pages) empty[p.id] = emptyPerm();
     return empty;
   });
+  useEffect(() => {
+    if (pages.length === 0) return;
+    setPerms((previous) => {
+      const next = { ...previous };
+      for (const page of pages) {
+        if (next[page.id]) continue;
+        next[page.id] = mode.type === 'edit'
+          ? normalizePerm(mode.role.permissions[page.id] ?? emptyPerm())
+          : emptyPerm();
+      }
+      return next;
+    });
+  }, [pages, isEdit, mode]);
   const [query, setQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -87,7 +100,9 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
     if (!q) return pages;
-    return pages.filter((p) => p.name.toLocaleLowerCase('tr').includes(q));
+    return pages.filter((p) =>
+      p.name.toLocaleLowerCase('tr').includes(q)
+      || p.urlPrefix.toLocaleLowerCase('tr').includes(q));
   }, [query, pages]);
 
   const allSelected = useMemo(() => {
@@ -132,7 +147,7 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || pages.length === 0) return;
     setSaving(true);
     setFormError(null);
     try {
@@ -297,7 +312,7 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
             <button
               type="submit"
               data-km-jump
-              disabled={saving}
+              disabled={saving || pages.length === 0}
               className="rounded-xl bg-[var(--color-brand-600)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
             >
               {saving ? 'Kaydediliyor…' : 'Kaydet'}

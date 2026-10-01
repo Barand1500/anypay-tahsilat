@@ -26,6 +26,7 @@ import {
   findModuleForPath,
   isAlwaysAllowedPath,
   normalizePath,
+  pathCandidates,
   resolveModuleId,
 } from './permResolve';
 
@@ -75,6 +76,7 @@ function elevatedSession(role: AppRole | undefined, authRoles: string[] | undefi
 /** Menü yolu ile ilgili modüller (üst + alt path) */
 function relatedModules(pathname: string, pages: PermPage[]): PermPage[] {
   const base = normalizePath(pathname);
+  const bases = pathCandidates(base);
   return pages.filter((p) => {
     const pref = normalizePath(p.urlPrefix || '');
     if (!pref) return false;
@@ -82,7 +84,10 @@ function relatedModules(pathname: string, pages: PermPage[]): PermPage[] {
     if (base === '/') {
       return pref === '/' || pref === '/ozet';
     }
-    return pref === base || pref.startsWith(`${base}/`);
+    return bases.some((candidate) =>
+      (candidate !== '/tanimlamalar/bankalar' || base !== '/tanimlamalar/pos-kart' || pref !== candidate) &&
+      (pref === candidate || pref.startsWith(`${candidate}/`)),
+    );
   });
 }
 
@@ -170,6 +175,13 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     (pathname: string): PathViewResult => {
       if (isAlwaysAllowedPath(pathname)) return { allowed: true };
       if (elevatedSession(sessionRole, user?.roles)) return { allowed: true };
+
+      const path = normalizePath(pathname);
+      if (path === '/raporlar' || path === '/tanimlamalar' || path === '/tanimlamalar/pos-kart' || path === '/ayarlar') {
+        if (path === '/ayarlar' && isAlwaysAllowedPath('/ayarlar/kisisel')) return { allowed: true };
+        const openChild = relatedModules(path, permPages).find((m) => getPermForModule(sessionRole, m.id).view);
+        if (openChild) return { allowed: true };
+      }
 
       const mod = findModuleForPath(pathname, permPages);
       if (mod) {

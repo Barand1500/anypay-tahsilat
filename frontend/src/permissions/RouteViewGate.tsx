@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { EXTRA_QUICK_ITEMS, NAV_ITEMS } from '../components/layout/navItems';
 import { usePermission } from './PermissionContext';
 
 /**
@@ -7,7 +8,7 @@ import { usePermission } from './PermissionContext';
  */
 export function RouteViewGate({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const { canViewPath, rolesLoading, permPagesReady } = usePermission();
+  const { canViewPath, canViewNavItem, rolesLoading, permPagesReady } = usePermission();
 
   if (rolesLoading || !permPagesReady) {
     return (
@@ -18,6 +19,11 @@ export function RouteViewGate({ children }: { children: ReactNode }) {
   }
 
   const result = canViewPath(location.pathname);
+  if (location.pathname === '/' && !canViewNavItem('/')) {
+    const first = [...NAV_ITEMS.slice(1), ...EXTRA_QUICK_ITEMS]
+      .find((item) => canViewNavItem(item.to));
+    return <Navigate to={first?.to || '/profil'} replace />;
+  }
   if (result.allowed) return <>{children}</>;
 
   return (
