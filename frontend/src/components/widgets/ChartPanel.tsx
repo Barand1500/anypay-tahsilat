@@ -74,14 +74,21 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
     const width = Math.max(1, size.width - PAD.left - PAD.right);
     const height = Math.max(1, size.height - PAD.top - PAD.bottom);
     const step = width / Math.max(points.length, 1);
-    const barWidth = Math.min(44, Math.max(4, step * 0.64));
-    return { totals, total, count, peakIndex, max, width, height, step, barWidth };
+    return { totals, total, count, peakIndex, max, width, height, step };
   }, [points, size]);
 
   const peak = points[chart.peakIndex];
   const active = hover == null ? null : points[hover];
   const activeX = hover == null ? 0 : PAD.left + chart.step * (hover + 0.5);
   const labelStep = Math.max(1, Math.ceil(points.length / Math.max(2, Math.floor(chart.width / 68))));
+  const linePoints = chart.totals.map((value, index) => ({
+    x: PAD.left + chart.step * (index + 0.5),
+    y: PAD.top + chart.height * (1 - value / chart.max),
+  }));
+  const linePath = linePoints.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
+  const areaPath = linePoints.length
+    ? `${linePath} L ${linePoints[linePoints.length - 1].x} ${PAD.top + chart.height} L ${linePoints[0].x} ${PAD.top + chart.height} Z`
+    : '';
 
   function onPlotMove(event: MouseEvent<HTMLDivElement>) {
     if (!points.length) return;
@@ -103,13 +110,14 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
   const otherAmount = active ? Math.max(0, active.total - bankBreakdown.reduce((sum, bank) => sum + bank.amount, 0)) : 0;
 
   return (
-    <section className="min-w-0 max-w-full rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-[var(--panel-ink)]">{title}</h2>
-          <p className="mt-0.5 text-sm text-[var(--panel-muted)]">{subtitle}</p>
+    <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--panel-line)] px-4 py-4 sm:px-6">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-brand-600)]">Tahsilat akışı</p>
+          <h2 className="mt-1 text-lg font-bold text-[var(--panel-ink)]">{title}</h2>
+          <p className="text-xs text-[var(--panel-muted)]">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1" aria-label="Grafik aralığı">
+        <div className="flex flex-wrap gap-1 rounded-full border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1" aria-label="Grafik aralığı">
           {RANGES.map((item) => (
             <button
               key={item.id}
@@ -117,7 +125,7 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
               title={item.title}
               aria-pressed={range === item.id}
               onClick={() => onRangeChange(item.id)}
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 ${range === item.id ? 'bg-[var(--color-brand-600)] text-white shadow-sm' : 'text-[var(--panel-muted)] hover:bg-[var(--panel-elevated)] hover:text-[var(--panel-ink)]'}`}
+              className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 ${range === item.id ? 'bg-[var(--color-brand-600)] text-white shadow-sm' : 'text-[var(--panel-muted)] hover:bg-[var(--panel-elevated)] hover:text-[var(--panel-ink)]'}`}
             >
               <span className="mr-1 opacity-75">{item.id}</span>{item.label}
             </button>
@@ -125,18 +133,18 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
         </div>
       </div>
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-3">
-        <div className="min-w-0 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3">
-          <p className="text-[11px] font-medium text-[var(--panel-muted)]">Toplam tahsilat</p>
-          <p className="mt-1 truncate text-lg font-bold tabular-nums text-[var(--panel-ink)]" title={money(chart.total)}>{money(chart.total)}</p>
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-4 px-4 pb-2 pt-5 sm:px-6">
+        <div className="min-w-0 sm:mr-auto">
+          <p className="text-xs font-medium text-[var(--panel-muted)]">Toplam tahsilat</p>
+          <p className="mt-1 truncate text-3xl font-bold tracking-tight tabular-nums text-[var(--panel-ink)] sm:text-4xl" title={money(chart.total)}>{money(chart.total)}</p>
         </div>
-        <div className="min-w-0 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3">
-          <p className="text-[11px] font-medium text-[var(--panel-muted)]">Başarılı işlem</p>
-          <p className="mt-1 text-lg font-bold tabular-nums text-[var(--panel-ink)]">{chart.count.toLocaleString('tr-TR')}</p>
+        <div className="border-l-2 border-[var(--color-brand-500)] pl-3">
+          <p className="text-xs text-[var(--panel-muted)]">Başarılı işlem</p>
+          <p className="text-lg font-bold tabular-nums text-[var(--panel-ink)]">{chart.count.toLocaleString('tr-TR')}</p>
         </div>
-        <div className="min-w-0 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3">
-          <p className="text-[11px] font-medium text-[var(--panel-muted)]">En yüksek dönem</p>
-          <p className="mt-1 truncate text-lg font-bold tabular-nums text-[var(--panel-ink)]" title={peak?.full}>
+        <div className="min-w-0 border-l-2 border-[var(--panel-line)] pl-3">
+          <p className="text-xs text-[var(--panel-muted)]">En yüksek dönem</p>
+          <p className="max-w-48 truncate text-lg font-bold tabular-nums text-[var(--panel-ink)]" title={peak?.full}>
             {chart.total > 0 && peak ? `${peak.label} · ${money(chart.totals[chart.peakIndex])}` : '—'}
           </p>
         </div>
@@ -144,15 +152,15 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
 
       <div
         ref={plotRef}
-        className={`relative mt-4 h-[300px] overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--chart-bg)] transition-opacity sm:h-[340px] ${loading ? 'opacity-50' : 'opacity-100'}`}
+        className={`relative mx-2 mb-4 mt-3 h-[280px] overflow-hidden rounded-xl bg-[var(--chart-bg)] transition-opacity sm:mx-4 sm:h-[320px] ${loading ? 'opacity-50' : 'opacity-100'}`}
         onMouseMove={onPlotMove}
         onMouseLeave={() => setHover(null)}
       >
         <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${size.width} ${size.height}`} role="img" aria-label={`${title}: seçili aralıkta ${money(chart.total)} ve ${chart.count} başarılı işlem`}>
           <defs>
-            <linearGradient id="overview-bar-gradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-brand-500)" />
-              <stop offset="100%" stopColor="var(--color-brand-700)" />
+            <linearGradient id="overview-area-gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-brand-500)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="var(--color-brand-500)" stopOpacity="0.01" />
             </linearGradient>
           </defs>
           {[0, 1, 2, 3, 4].map((index) => {
@@ -164,17 +172,18 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
               </g>
             );
           })}
+          {areaPath ? <path d={areaPath} fill="url(#overview-area-gradient)" /> : null}
+          {linePath ? <path d={linePath} fill="none" stroke="var(--color-brand-600)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : null}
           {points.map((point, index) => {
             const center = PAD.left + chart.step * (index + 0.5);
             const labelX = range === '1G'
               ? index === points.length - 1 ? PAD.left + chart.width : PAD.left + chart.step * index
               : center;
-            const height = Math.max(0, (chart.totals[index] / chart.max) * chart.height);
             const selected = hover === index;
             return (
               <g key={`${point.full}-${index}`}>
-                {selected ? <rect x={center - chart.step / 2} y={PAD.top} width={chart.step} height={chart.height} fill="var(--color-brand-500)" opacity="0.07" /> : null}
-                {height > 0 ? <rect x={center - chart.barWidth / 2} y={PAD.top + chart.height - height} width={chart.barWidth} height={height} rx={Math.min(6, chart.barWidth / 3)} fill="url(#overview-bar-gradient)" opacity={hover == null || selected ? 0.95 : 0.58} /> : null}
+                {selected ? <line x1={center} x2={center} y1={PAD.top} y2={PAD.top + chart.height} stroke="var(--color-brand-500)" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" /> : null}
+                {(selected || points.length <= 14) && chart.totals[index] > 0 ? <circle cx={center} cy={linePoints[index].y} r={selected ? 6 : 3} fill="var(--color-brand-600)" stroke="var(--panel-elevated)" strokeWidth={selected ? 3 : 1.5} /> : null}
                 {(index === points.length - 1 || (index % labelStep === 0 && index < points.length - labelStep)) ? (
                   <text x={labelX} y={size.height - 15} textAnchor={range === '1G' && index === points.length - 1 ? 'end' : range === '1G' && index === 0 ? 'start' : 'middle'} fill="var(--panel-muted)" fontSize="11">
                     {range === '1G' && index === points.length - 1 ? '24:00' : point.label}
