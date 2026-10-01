@@ -148,11 +148,11 @@ function BankRow({ bank }: { bank: PeriodBank }) {
     >
       <span className="flex min-w-0 items-center">
         {src && !broken ? (
-          <span className="flex h-6 w-10 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] sm:w-12">
+          <span className="flex h-6 w-14 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-0.5 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] sm:w-16">
             <img
               src={src}
               alt={bank.name}
-              className="max-h-4 w-auto max-w-full object-contain object-left transition duration-300 group-hover:scale-105"
+              className="max-h-5 w-auto max-w-full object-contain object-left transition duration-300 group-hover:scale-105"
               loading="lazy"
               onError={() => setBroken(true)}
             />

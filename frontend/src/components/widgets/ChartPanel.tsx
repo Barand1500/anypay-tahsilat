@@ -113,8 +113,7 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
     <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--panel-line)] px-4 py-4 sm:px-6">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-brand-600)]">Tahsilat akışı</p>
-          <h2 className="mt-1 text-lg font-bold text-[var(--panel-ink)]">{title}</h2>
+          <h2 className="text-lg font-bold text-[var(--panel-ink)]">{title}</h2>
           <p className="text-xs text-[var(--panel-muted)]">{subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-1 rounded-full border border-[var(--panel-line)] bg-[var(--panel-surface)] p-1" aria-label="Grafik aralığı">
