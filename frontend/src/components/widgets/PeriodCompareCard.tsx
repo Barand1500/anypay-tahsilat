@@ -92,10 +92,10 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
       {banks.length > 0 ? (
         <div ref={banksRef} className="mt-3 border-t border-[var(--panel-line)] pt-3">
           {compactBanks ? (
-            <div className="relative grid grid-cols-2 gap-3">
+            <div className="relative grid grid-cols-2 gap-2.5">
               <span className="pointer-events-none absolute bottom-2 left-1/2 top-2 w-px bg-[var(--panel-line)]" aria-hidden />
               {[banks.slice(0, bankSplit), banks.slice(bankSplit)].map((column, index) => (
-                <ul key={index} className="max-h-[126px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
+                <ul key={index} className="max-h-[90px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
                   {column.map((b) => <BankRow key={b.id || b.name} bank={b} compact />)}
                 </ul>
               ))}
@@ -123,12 +123,12 @@ function BankRow({ bank, compact = false }: { bank: PeriodBank; compact?: boolea
   return (
     <li
       data-bank-row
-      className={compact ? 'flex min-w-0 flex-col items-start gap-0.5 text-[10px]' : 'flex items-center justify-between gap-2 text-xs'}
+      className={compact ? 'flex min-w-0 items-center justify-between gap-1 text-[10px]' : 'flex items-center justify-between gap-2 text-xs'}
       title={`${bank.name} — ${bank.amount}`}
     >
       <span className="flex min-w-0 items-center">
         {src && !broken ? (
-          <span className="flex h-6 w-[4.25rem] shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1.5 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))]">
+          <span className={`flex h-6 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] ${compact ? 'w-12' : 'w-[4.25rem]'}`}>
             <img
               src={src}
               alt={bank.name}
@@ -141,7 +141,7 @@ function BankRow({ bank, compact = false }: { bank: PeriodBank; compact?: boolea
           <span className="truncate font-semibold text-[var(--panel-ink)]">{bank.name}</span>
         )}
       </span>
-      <span className={compact ? 'max-w-full truncate tabular-nums text-[var(--panel-muted)]' : 'shrink-0 tabular-nums text-[var(--panel-muted)]'}>{bank.amount}</span>
+      <span className={compact ? 'min-w-0 truncate text-right text-[9px] tabular-nums text-[var(--panel-muted)]' : 'shrink-0 tabular-nums text-[var(--panel-muted)]'}>{bank.amount}</span>
     </li>
   );
 }

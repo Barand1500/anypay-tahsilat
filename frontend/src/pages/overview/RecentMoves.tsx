@@ -22,7 +22,7 @@ function MoveColumn({ title, moves, tone }: { title: string; moves: Move[]; tone
 export function RecentMoves({ moves }: { moves: OverviewData['recentMoves'] }) {
   return (
     <div className="relative flex min-w-0 gap-4 border-t border-[var(--panel-line)] pt-3">
-      <div className="pointer-events-none absolute bottom-2 left-1/2 top-5 w-px bg-[var(--panel-line)]" aria-hidden />
+      <div className="pointer-events-none absolute bottom-[3px] left-1/2 top-5 w-px bg-[var(--panel-line)]" aria-hidden />
       <MoveColumn title="Son 5 başarılı" moves={moves.successful} tone="text-emerald-600" />
       <MoveColumn title="Son 5 başarısız" moves={moves.failed} tone="text-rose-600" />
     </div>
