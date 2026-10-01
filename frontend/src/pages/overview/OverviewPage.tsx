@@ -42,6 +42,7 @@ import type { OverviewData } from './overviewTypes';
 import { OverviewContextMenu } from './OverviewContextMenu';
 import { PlanBoard } from './PlanBoard';
 import { RecentMoves } from './RecentMoves';
+import { RecentKpiList } from './RecentKpiList';
 
 const LONG_MS = 420;
 const CANCEL_PX = 10;
@@ -362,7 +363,14 @@ export default function OverviewPage() {
       case 'kpi-requests': {
         const k = data.kpis.find((x) => `kpi-${x.id}` === id);
         if (!k) return null;
-        return <StatCard title={k.title} value={k.value} meta={k.meta} tone={k.tone} footer={id === 'kpi-customers' ? <FavoriteCustomerSlots /> : id === 'kpi-moves' ? <RecentMoves moves={data.recentMoves ?? { successful: [], failed: [] }} /> : undefined} />;
+        const footer = id === 'kpi-customers'
+          ? <FavoriteCustomerSlots />
+          : id === 'kpi-moves'
+            ? <RecentMoves moves={data.recentMoves ?? { successful: [], failed: [] }} />
+            : id === 'kpi-cancel'
+              ? <RecentKpiList kind="cancel" rows={data.recentCancels ?? []} />
+              : <RecentKpiList kind="request" rows={data.recentRequests ?? []} />;
+        return <StatCard title={k.title} value={k.value} meta={k.meta} tone={k.tone} footer={footer} />;
       }
       case 'period-day':
       case 'period-week':
@@ -481,7 +489,7 @@ export default function OverviewPage() {
                       onPointerDown={(e) => onTileDown(id, e)}
                       className={[
                         'relative h-full min-h-0 transition-[box-shadow] duration-200 ease-out',
-                        groupId === 'kpis' ? 'xl:col-span-2' : '',
+                        groupId === 'kpis' ? 'min-h-[340px]' : '',
                         editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
                         lifting ? 'z-10' : '',
                         isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',

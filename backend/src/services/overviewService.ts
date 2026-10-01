@@ -71,6 +71,8 @@ export type OverviewPayload = {
     successful: { id: number; number: string; amount: string; at: string }[];
     failed: { id: number; number: string; amount: string; at: string }[];
   };
+  recentCancels: { id: number; number: string; amount: string; at: string; kind: 'İptal' | 'İade' }[];
+  recentRequests: { id: number; number: string; amount: string; at: string; status: 'Ödendi' | 'Bekliyor' }[];
   periods: OverviewPeriod[];
   pieDatasets: OverviewPieDataset[];
   chart: {
@@ -492,7 +494,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
               }
             : {}),
         },
-        select: { durum: true },
+        select: { id: true, istekNo: true, tutar: true, tarih: true, durum: true },
       }),
       prisma.subeDepartman.findMany({
         where: { OR: [{ remove: null }, { remove: false }] },
@@ -524,6 +526,23 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
     successful: recentRows.filter((row) => row.durum === DURUM_OK).slice(0, 5).map(recentItem),
     failed: recentRows.filter((row) => isFailed(row.durum)).slice(0, 5).map(recentItem),
   };
+  const recentCancels = recentRows
+    .filter((row) => row.durum === DURUM_CANCEL)
+    .slice(0, 5)
+    .map((row) => ({
+      ...recentItem(row),
+      kind: cancelKind(row.iptalIadeHareket) === 'iade' ? 'İade' as const : 'İptal' as const,
+    }));
+  const recentRequests = [...requests]
+    .sort((a, b) => b.tarih.getTime() - a.tarih.getTime() || b.id - a.id)
+    .slice(0, 5)
+    .map((row) => ({
+      id: row.id,
+      number: row.istekNo,
+      amount: formatMoneyTr(row.tutar),
+      at: row.tarih.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }),
+      status: row.durum ? 'Ödendi' as const : 'Bekliyor' as const,
+    }));
 
   let ok = 0;
   let fail = 0;
@@ -716,6 +735,8 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
   return {
     kpis,
     recentMoves,
+    recentCancels,
+    recentRequests,
     periods,
     pieDatasets,
     chart: {

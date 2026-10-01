@@ -57,6 +57,8 @@ export type OverviewData = {
     successful: { id: number; number: string; amount: string; at: string }[];
     failed: { id: number; number: string; amount: string; at: string }[];
   };
+  recentCancels: { id: number; number: string; amount: string; at: string; kind: 'İptal' | 'İade' }[];
+  recentRequests: { id: number; number: string; amount: string; at: string; status: 'Ödendi' | 'Bekliyor' }[];
   periods: OverviewPeriod[];
   pieDatasets: OverviewPieDataset[];
   chart: {

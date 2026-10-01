@@ -11,7 +11,7 @@ function MoveColumn({ title, moves, tone }: { title: string; moves: Move[]; tone
         {moves.length ? moves.map((move) => (
           <Link key={move.id} to={`/hareketler/${move.id}`} title={`${move.number} · ${move.at} · ${move.amount}`} className="block min-w-0 rounded-md px-1 py-1 transition hover:bg-[var(--panel-hover)]">
             <span className="block truncate text-[11px] font-semibold text-[var(--panel-ink)]">{move.number}</span>
-            <span className="block truncate text-[10px] text-[var(--panel-muted)]">{move.amount} · {move.at}</span>
+            <span className="block truncate text-[10px] text-[var(--panel-muted)]">{move.amount}</span>
           </Link>
         )) : <p className="text-[11px] text-[var(--panel-muted)]">Hareket yok</p>}
       </div>

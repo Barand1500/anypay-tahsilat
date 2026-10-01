@@ -6,7 +6,7 @@ import { useCustomersList } from '../../pages/customers/useCustomersList';
 export type FavCustomer = { id: string; name: string };
 
 const STORAGE_KEY = 'anypay_tahsilat_fav_customers';
-const SLOT_COUNT = 3;
+const SLOT_COUNT = 6;
 
 function storageKey(userId: number | undefined) {
   return userId != null ? `${STORAGE_KEY}_${userId}` : STORAGE_KEY;
@@ -101,9 +101,9 @@ export function FavoriteCustomerSlots() {
       <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
         Favori müşteriler
       </p>
-      <div className="flex gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {slots.map((c, i) => (
-          <div key={i} className="relative flex-1">
+          <div key={i} className="relative min-w-0">
             {c ? (
               <button
                 type="button"
