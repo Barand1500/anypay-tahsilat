@@ -42,6 +42,8 @@ export type OverviewChartPoint = {
   label: string;
   full: string;
   values: Record<string, number>;
+  total: number;
+  count: number;
 };
 
 export type OverviewChartSeries = {

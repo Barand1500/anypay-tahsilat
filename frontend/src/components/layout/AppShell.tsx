@@ -201,7 +201,7 @@ function AppShellInner() {
             ) : null}
           </div>
 
-          <main className="min-h-0 flex-1 overflow-y-auto p-4 transition-[padding] duration-300 sm:p-5 lg:p-6">
+          <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 transition-[padding] duration-300 sm:p-5 lg:p-6">
             <RouteViewGate>
               <Outlet />
             </RouteViewGate>

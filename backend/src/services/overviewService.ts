@@ -56,6 +56,8 @@ export type OverviewChartPoint = {
   label: string;
   full: string;
   values: Record<string, number>;
+  total: number;
+  count: number;
 };
 
 export type OverviewChartSeries = {
@@ -352,27 +354,28 @@ function periodWindow(
   };
 }
 
-function buildChartBuckets(range: ChartRange, now = new Date()) {
-  const today = dayKeyIstanbul(now);
+function buildChartBuckets(range: ChartRange, today = dayKeyIstanbul(new Date())) {
   const p = parseDayKey(today)!;
 
   if (range === '1G') {
-    const day = rangeForDayKey(today)!;
-    return Array.from({ length: 24 }, (_, h) => {
+    return Array.from({ length: 18 }, (_, i) => {
+      const h = i + 6;
       const start = new Date(p.y, p.m - 1, p.d, h, 0, 0, 0);
       const end = new Date(p.y, p.m - 1, p.d, h, 59, 59, 999);
       return {
         start,
         end,
         label: `${pad2(h)}:00`,
-        full: `${p.d}.${pad2(p.m)}.${p.y} ${pad2(h)}:00`,
+        full: `${p.d}.${pad2(p.m)}.${p.y} ${pad2(h)}:00–${pad2(h + 1)}:00`,
       };
-    }).map((b) => ({ ...b, start: b.start < day.start ? day.start : b.start }));
+    });
   }
 
   if (range === '1H') {
+    const weekday = (new Date(p.y, p.m - 1, p.d).getDay() + 6) % 7;
+    const monday = addDaysKey(today, -weekday);
     return Array.from({ length: 7 }, (_, i) => {
-      const key = addDaysKey(today, -(6 - i));
+      const key = addDaysKey(monday, i);
       const r = rangeForDayKey(key)!;
       const dp = parseDayKey(key)!;
       const d = new Date(dp.y, dp.m - 1, dp.d);
@@ -386,8 +389,9 @@ function buildChartBuckets(range: ChartRange, now = new Date()) {
   }
 
   if (range === '1A') {
-    return Array.from({ length: 30 }, (_, i) => {
-      const key = addDaysKey(today, -(29 - i));
+    const daysInMonth = new Date(p.y, p.m, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const key = `${p.y}-${pad2(p.m)}-${pad2(i + 1)}`;
       const r = rangeForDayKey(key)!;
       const dp = parseDayKey(key)!;
       return {
@@ -401,7 +405,7 @@ function buildChartBuckets(range: ChartRange, now = new Date()) {
 
   if (range === '6A') {
     return Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(p.y, p.m - 1 - (5 - i), 1);
+      const d = new Date(p.y, p.m - 1 - 3 + i, 1);
       const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
       return {
@@ -420,7 +424,7 @@ function buildChartBuckets(range: ChartRange, now = new Date()) {
     return {
       start,
       end,
-      label: `${pad2(i + 1)}/${p.y}`,
+      label: d.toLocaleDateString('tr-TR', { month: 'short' }),
       full: d.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }),
     };
   });
@@ -686,7 +690,10 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
   ];
 
   // Grafik — başarılı tutarlar, en çok işlem gören bankalar
-  const buckets = buildChartBuckets(chartRange);
+  const anchorDay = (q.to && parseDayKey(q.to) ? q.to : null)
+    ?? (q.from && parseDayKey(q.from) ? q.from : null)
+    ?? dayKeyIstanbul(new Date());
+  const buckets = buildChartBuckets(chartRange, anchorDay);
   const chartWindowStart = buckets[0]?.start;
   const chartWindowEnd = buckets[buckets.length - 1]?.end;
   const chartBankTotals = new Map<number, number>();
@@ -720,17 +727,21 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
 
   const points: OverviewChartPoint[] = buckets.map((b) => {
     const values: Record<string, number> = {};
+    let total = 0;
+    let count = 0;
     for (const s of series) values[s.id] = 0;
     for (const r of scoped) {
       if (r.durum !== DURUM_OK || !r.tarih) continue;
       if (r.tarih < b.start || r.tarih > b.end) continue;
+      total += amountOf(r);
+      count += 1;
       const bid = effectiveBankId(r);
       if (bid == null) continue;
       const key = String(bid);
       if (!(key in values)) continue;
       values[key] = Math.round((values[key] + amountOf(r)) * 100) / 100;
     }
-    return { label: b.label, full: b.full, values };
+    return { label: b.label, full: b.full, values, total: Math.round(total * 100) / 100, count };
   });
 
   return {
@@ -742,7 +753,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
     pieDatasets,
     chart: {
       title: 'Hareketler',
-      subtitle: 'Başarılı tahsilat akışı (banka bazlı)',
+      subtitle: 'Takvim aralığına göre başarılı tahsilatlar',
       series,
       points,
     },

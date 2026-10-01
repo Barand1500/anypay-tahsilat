@@ -411,6 +411,7 @@ export default function OverviewPage() {
             onRangeChange={setChartRange}
             series={data.chart.series}
             points={data.chart.points}
+            loading={loading}
           />
         );
       default:
