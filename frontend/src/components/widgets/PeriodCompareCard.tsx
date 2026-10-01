@@ -18,15 +18,17 @@ type Props = {
   previous: string;
   changePct: number;
   banks: PeriodBank[];
+  compactBanks?: boolean;
   /** Boş alanı doldurmak için (örn. vurgu rengi seçici) — kartı büyütmez */
   footer?: ReactNode;
 };
 
-export function PeriodCompareCard({ title, current, previous, changePct, banks, footer }: Props) {
+export function PeriodCompareCard({ title, current, previous, changePct, banks, compactBanks = false, footer }: Props) {
   const up = changePct >= 0;
+  const bankSplit = banks.length <= 6 ? Math.min(3, banks.length) : Math.ceil(banks.length / 2);
   const [displayPct, setDisplayPct] = useState(changePct);
   const raf = useRef(0);
-  const banksRef = useRef<HTMLUListElement>(null);
+  const banksRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -88,11 +90,22 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
       </p>
       <p className="mt-1 text-xs text-[var(--panel-muted)]">Önceki: {previous}</p>
       {banks.length > 0 ? (
-        <ul ref={banksRef} className="mt-3 space-y-1.5 border-t border-[var(--panel-line)] pt-3">
-          {banks.map((b) => (
-            <BankRow key={b.id || b.name} bank={b} />
-          ))}
-        </ul>
+        <div ref={banksRef} className="mt-3 border-t border-[var(--panel-line)] pt-3">
+          {compactBanks ? (
+            <div className="relative grid grid-cols-2 gap-3">
+              <span className="pointer-events-none absolute bottom-2 left-1/2 top-2 w-px bg-[var(--panel-line)]" aria-hidden />
+              {[banks.slice(0, bankSplit), banks.slice(bankSplit)].map((column, index) => (
+                <ul key={index} className="max-h-[126px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
+                  {column.map((b) => <BankRow key={b.id || b.name} bank={b} compact />)}
+                </ul>
+              ))}
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {banks.map((b) => <BankRow key={b.id || b.name} bank={b} />)}
+            </ul>
+          )}
+        </div>
       ) : (
         <div className="mt-3 min-h-0 flex-1" aria-hidden />
       )}
@@ -103,14 +116,14 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
   );
 }
 
-function BankRow({ bank }: { bank: PeriodBank }) {
+function BankRow({ bank, compact = false }: { bank: PeriodBank; compact?: boolean }) {
   const src = findBankLogo(bank);
   const [broken, setBroken] = useState(false);
 
   return (
     <li
       data-bank-row
-      className="flex items-center justify-between gap-2 text-xs"
+      className={compact ? 'flex min-w-0 flex-col items-start gap-0.5 text-[10px]' : 'flex items-center justify-between gap-2 text-xs'}
       title={`${bank.name} — ${bank.amount}`}
     >
       <span className="flex min-w-0 items-center">
@@ -128,7 +141,7 @@ function BankRow({ bank }: { bank: PeriodBank }) {
           <span className="truncate font-semibold text-[var(--panel-ink)]">{bank.name}</span>
         )}
       </span>
-      <span className="shrink-0 tabular-nums text-[var(--panel-muted)]">{bank.amount}</span>
+      <span className={compact ? 'max-w-full truncate tabular-nums text-[var(--panel-muted)]' : 'shrink-0 tabular-nums text-[var(--panel-muted)]'}>{bank.amount}</span>
     </li>
   );
 }

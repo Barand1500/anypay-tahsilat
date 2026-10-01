@@ -84,7 +84,7 @@ export function StatCard({ title, value, meta, tone, footer }: Props) {
           <Dot />
         </span>
       </div>
-      {footer ? <div className="relative mt-auto pt-4">{footer}</div> : null}
+      {footer ? <div className="relative mt-4">{footer}</div> : null}
     </article>
   );
 }

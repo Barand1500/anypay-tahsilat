@@ -385,6 +385,7 @@ export default function OverviewPage() {
             previous={p.previous}
             changePct={p.changePct}
             banks={p.banks}
+            compactBanks={id === 'period-year'}
           />
         );
       }
@@ -489,7 +490,6 @@ export default function OverviewPage() {
                       onPointerDown={(e) => onTileDown(id, e)}
                       className={[
                         'relative h-full min-h-0 transition-[box-shadow] duration-200 ease-out',
-                        groupId === 'kpis' ? 'min-h-[340px]' : '',
                         editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
                         lifting ? 'z-10' : '',
                         isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',
