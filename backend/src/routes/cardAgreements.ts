@@ -87,6 +87,7 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
       bankName,
       segment,
       amount: Number.isFinite(amount) ? amount : 0,
+      allowAllFallback: false,
     });
     return sendSuccess(res, data);
   } catch (err) {

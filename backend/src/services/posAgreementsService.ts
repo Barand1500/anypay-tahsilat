@@ -254,7 +254,13 @@ export async function getPosBankAgreement(posId: number): Promise<{
           bankId: pos.bankId,
           bankName: pos.bankName,
           agreementCode: code,
-          items: parsed.items,
+          items: parsed.items.map((item) => item.all.active
+            ? {
+                ...item,
+                bireysel: { ...item.bireysel, active: false },
+                ticari: { ...item.ticari, active: false },
+              }
+            : item),
         };
       }
     } catch {
@@ -307,18 +313,25 @@ export async function savePosBankAgreement(
     throw new PosAgreementError('En az bir taksit satırı gerekli');
   }
 
+  const normalizedItems = items.map((item) => item.all.active
+    ? {
+        ...item,
+        bireysel: { ...item.bireysel, active: false },
+        ticari: { ...item.ticari, active: false },
+      }
+    : item);
   const code = bankAgreementCode(posId);
   const bankIdNum = Number(pos.bankId);
   const date = new Date().toISOString().slice(0, 10);
   const name = `${pos.bankName} Banka Kart Anlaşması`.slice(0, 255);
-  const detay = JSON.stringify({ items });
+  const detay = JSON.stringify({ items: normalizedItems });
 
-  const flat = items.map((it, idx) => {
+  const flat = normalizedItems.map((it, idx) => {
     const n = Math.min(36, Math.max(1, Math.round(Number(it.n) || 1)));
     const minLimit =
-      parseTrNumber(it.bireysel?.minLimit) ??
-      parseTrNumber(it.all?.minLimit) ??
-      parseTrNumber(it.ticari?.minLimit);
+      (it.all.active ? parseTrNumber(it.all.minLimit) : null) ??
+      (it.bireysel.active ? parseTrNumber(it.bireysel.minLimit) : null) ??
+      (it.ticari.active ? parseTrNumber(it.ticari.minLimit) : null);
 
     const logo = (pos.bankLogoUrl || '').trim();
     return {
@@ -342,7 +355,7 @@ export async function savePosBankAgreement(
   });
 
   await replaceAgreementRows(code, flat);
-  return { agreementCode: code, items };
+  return { agreementCode: code, items: normalizedItems };
 }
 
 /** Müşteri kart anlaşması — GET */

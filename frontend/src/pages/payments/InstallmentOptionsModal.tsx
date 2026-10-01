@@ -41,6 +41,7 @@ export function InstallmentOptionsModal({
   const [rowsByBank, setRowsByBank] = useState<
     Record<string, InstallmentRow[]>
   >({});
+  const [availableSegments, setAvailableSegments] = useState<CardSegment[]>([]);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [ratesRequestKey, setRatesRequestKey] = useState("");
   const bankIds = banks.map((b) => b.id).join("|");
@@ -117,12 +118,14 @@ export function InstallmentOptionsModal({
       if (banksLoading) return;
       if (!amount || amount <= 0) {
         setRowsByBank({});
+        setAvailableSegments([]);
         setRatesLoading(false);
         setRatesRequestKey(rateKey);
         return;
       }
       setRatesLoading(true);
       const next: Record<string, InstallmentRow[]> = {};
+      const nextSegments = new Set<CardSegment>();
       await Promise.all(
         banks.map(async (bank) => {
           if (!token) {
@@ -138,11 +141,12 @@ export function InstallmentOptionsModal({
             q.set("scope", agreementScope);
             if (agreementCode) q.set("code", agreementCode);
             if (musteriId != null) q.set("musteriId", String(musteriId));
-            const data = await api.get<{ rows: InstallmentRow[] }>(
+            const data = await api.get<{ rows: InstallmentRow[]; availableSegments?: CardSegment[] }>(
               `/api/card-agreements/rates?${q}`,
               token,
             );
             next[bank.id] = data.rows ?? [];
+            data.availableSegments?.forEach((key) => nextSegments.add(key));
           } catch {
             next[bank.id] = [];
           }
@@ -150,6 +154,11 @@ export function InstallmentOptionsModal({
       );
       if (!cancelled) {
         setRowsByBank(next);
+        const orderedSegments = (["tumu", "bireysel", "ticari"] as const).filter((key) => nextSegments.has(key));
+        setAvailableSegments(orderedSegments);
+        if (orderedSegments.length && !orderedSegments.some((key) => key === segment)) {
+          setSegment(orderedSegments[0]);
+        }
         setRatesLoading(false);
         setRatesRequestKey(rateKey);
       }
@@ -170,6 +179,7 @@ export function InstallmentOptionsModal({
   ]);
 
   const currentRatesLoading = banksLoading || ratesLoading || ratesRequestKey !== rateKey;
+  const visibleSegments = currentRatesLoading ? [] : availableSegments;
 
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-center justify-center p-3 sm:p-6">
@@ -198,14 +208,8 @@ export function InstallmentOptionsModal({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex rounded-xl border border-[var(--panel-line)] p-0.5">
-                {(
-                  [
-                    ["tumu", "Tümü"],
-                    ["bireysel", "Bireysel"],
-                    ["ticari", "Ticari"],
-                  ] as const
-                ).map(([k, label]) => (
+              {visibleSegments.length > 0 ? <div className="flex rounded-xl border border-[var(--panel-line)] p-0.5">
+                {visibleSegments.map((k) => (
                   <button
                     key={k}
                     type="button"
@@ -217,10 +221,10 @@ export function InstallmentOptionsModal({
                         : "text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]",
                     ].join(" ")}
                   >
-                    {label}
+                    {k === "tumu" ? "Tümü" : k === "bireysel" ? "Bireysel" : "Ticari"}
                   </button>
                 ))}
-              </div>
+              </div> : null}
               <button
                 type="button"
                 onClick={onClose}
@@ -241,6 +245,8 @@ export function InstallmentOptionsModal({
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Gösterilecek taksit seçeneği bulunamadı.</p>
           ) : ratesLoading ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Taksit seçenekleri yükleniyor…</p>
+          ) : availableSegments.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bu tutar için etkin taksit anlaşması bulunamadı.</p>
           ) : null}
           {!currentRatesLoading && banks.length > 0 && (
           <div className="grid gap-4 xl:grid-cols-2">

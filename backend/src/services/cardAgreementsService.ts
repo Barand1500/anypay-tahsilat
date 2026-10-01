@@ -44,6 +44,7 @@ export type AgreementRateRow = {
   totalAmount: number;
   minLimit: number;
 };
+export type AgreementSegment = 'tumu' | 'bireysel' | 'ticari';
 
 function notRemoved() {
   return { OR: [{ remove: null }, { remove: false }] };
@@ -285,9 +286,7 @@ function pickRate(
     return row.komisyonTicari ?? row.komisyonTum ?? row.komisyonBireysel ?? 0;
   }
   if (segment === 'tumu') {
-    const a = row.komisyonTum ?? row.komisyonBireysel ?? 0;
-    const b = row.komisyonTicari ?? a;
-    return Math.min(a, b);
+    return row.komisyonTum ?? 0;
   }
   return row.komisyonBireysel ?? row.komisyonTum ?? 0;
 }
@@ -306,16 +305,18 @@ export async function resolveAgreementRates(opts: {
   bankName?: string | null;
   segment?: 'bireysel' | 'ticari' | 'tumu' | 'serbest';
   amount: number;
+  allowAllFallback?: boolean;
 }): Promise<{
   agreementCode: string | null;
   bankId: number | null;
   bankName: string | null;
   rows: AgreementRateRow[];
+  availableSegments: AgreementSegment[];
 }> {
   const amount = opts.amount;
   const segment = opts.segment || 'bireysel';
   if (!amount || amount <= 0) {
-    return { agreementCode: null, bankId: null, bankName: null, rows: [] };
+    return { agreementCode: null, bankId: null, bankName: null, rows: [], availableSegments: [] };
   }
 
   let code = (opts.agreementCode || '').trim() || null;
@@ -324,7 +325,7 @@ export async function resolveAgreementRates(opts: {
     code = await resolvePosFallbackAgreementCode(opts.bankId ?? null);
   }
   if (!code) {
-    return { agreementCode: null, bankId: null, bankName: null, rows: [] };
+    return { agreementCode: null, bankId: null, bankName: null, rows: [], availableSegments: [] };
   }
 
   const all = await prisma.kartAnlasma.findMany({
@@ -332,7 +333,7 @@ export async function resolveAgreementRates(opts: {
     orderBy: [{ taksit: 'asc' }],
   });
   if (!all.length) {
-    return { agreementCode: code, bankId: null, bankName: null, rows: [] };
+    return { agreementCode: code, bankId: null, bankName: null, rows: [], availableSegments: [] };
   }
 
   let matched = all;
@@ -342,16 +343,16 @@ export async function resolveAgreementRates(opts: {
     else if (opts.bankName) {
       const byName = all.filter((r) => bankNameMatch(r, opts.bankName!));
       if (!byName.length) {
-        return { agreementCode: code, bankId: opts.bankId, bankName: opts.bankName, rows: [] };
+        return { agreementCode: code, bankId: opts.bankId, bankName: opts.bankName, rows: [], availableSegments: [] };
       }
       matched = byName;
     } else {
-      return { agreementCode: code, bankId: opts.bankId, bankName: null, rows: [] };
+      return { agreementCode: code, bankId: opts.bankId, bankName: null, rows: [], availableSegments: [] };
     }
   } else if (opts.bankName) {
     const byName = all.filter((r) => bankNameMatch(r, opts.bankName!));
     if (!byName.length) {
-      return { agreementCode: code, bankId: null, bankName: opts.bankName, rows: [] };
+      return { agreementCode: code, bankId: null, bankName: opts.bankName, rows: [], availableSegments: [] };
     }
     matched = byName;
   }
@@ -382,11 +383,18 @@ export async function resolveAgreementRates(opts: {
   // POS anlaşmasının detay JSON'u boyut nedeniyle yalnızca ilk DB satırına yazılır.
   // Ek taksit bilgisi bu nedenle bütün taksit numaraları için aynı JSON'dan okunmalı.
   const agreementDetailRow = matched.find((r) => r.detay);
+  type AgreementSegmentDetail = {
+    active?: boolean;
+    minLimit?: string;
+    bankCommission?: string;
+    customerCommission?: string;
+    extraInstallment?: string;
+  };
   let agreementItems: Array<{
     n?: number;
-    all?: { active?: boolean; extraInstallment?: string };
-    bireysel?: { active?: boolean; extraInstallment?: string };
-    ticari?: { active?: boolean; extraInstallment?: string };
+    all?: AgreementSegmentDetail;
+    bireysel?: AgreementSegmentDetail;
+    ticari?: AgreementSegmentDetail;
   }> = [];
   if (agreementDetailRow?.detay) {
     try {
@@ -397,48 +405,46 @@ export async function resolveAgreementRates(opts: {
     }
   }
 
+  const segmentKeys: AgreementSegment[] = ['tumu', 'bireysel', 'ticari'];
+  const detailFor = (row: FlatRow) => agreementItems.find((entry) => entry.n === row.taksit);
+  const configuredFor = (row: FlatRow, key: AgreementSegment) => {
+    const detail = detailFor(row);
+    const columnRate = key === 'tumu' ? row.komisyonTum
+      : key === 'bireysel' ? row.komisyonBireysel : row.komisyonTicari;
+    if (!detail) return columnRate != null;
+    const item = detail[key === 'tumu' ? 'all' : key];
+    if (!item?.active || (key !== 'tumu' && detail.all?.active)) return false;
+    return columnRate != null || parseTrNumber(item.bankCommission) != null;
+  };
+  const availableSegments = segmentKeys.filter((key) => matched.some((row) => {
+    if (!configuredFor(row, key)) return false;
+    const detail = detailFor(row)?.[key === 'tumu' ? 'all' : key];
+    const limit = detail ? parseTrNumber(detail.minLimit) ?? 0 : row.altLimit;
+    return limit == null || limit <= amount;
+  }));
+
   const rows: AgreementRateRow[] = [...byN.values()]
     .sort((a, b) => a.taksit - b.taksit)
     .filter((r) => {
-      if (r.altLimit != null && r.altLimit > amount) return false;
-      if (!r.detay && !agreementItems.length) return true;
-      try {
-        const item = agreementItems.find((entry) => entry.n === r.taksit);
-        const activeFor = (key: 'all' | 'bireysel' | 'ticari') => item?.[key]?.active;
-        const active = segment === 'tumu'
-          ? activeFor('all') === true || activeFor('bireysel') === true || activeFor('ticari') === true
-          : activeFor(segment === 'serbest' ? 'all' : segment);
-        if (active === false) return false;
-        if (active === undefined && r.komisyonTum == null && r.komisyonBireysel == null && r.komisyonTicari == null) return false;
-        return true;
-      } catch {
-        return true;
-      }
+      const key = segment === 'serbest' ? 'tumu' : segment;
+      const detail = detailFor(r);
+      const effectiveKey = opts.allowAllFallback !== false && key !== 'tumu' && detail?.all?.active && !configuredFor(r, key) ? 'tumu' : key;
+      if (!configuredFor(r, effectiveKey)) return false;
+      const limit = detail?.[effectiveKey === 'tumu' ? 'all' : effectiveKey]?.minLimit;
+      const minLimit = detail ? parseTrNumber(limit) ?? 0 : r.altLimit;
+      return minLimit == null || minLimit <= amount;
     })
     .map((r) => {
-      const commissionPct = Math.max(0, +(pickRate(r, segment) || 0).toFixed(4));
+      const key = segment === 'serbest' ? 'tumu' : segment;
+      const item = detailFor(r);
+      const effectiveKey = opts.allowAllFallback !== false && key !== 'tumu' && item?.all?.active && !configuredFor(r, key) ? 'tumu' : key;
+      const selected = item?.[effectiveKey === 'tumu' ? 'all' : effectiveKey];
+      const commissionPct = Math.max(0, +((parseTrNumber(selected?.customerCommission) ?? pickRate(r, effectiveKey)) || 0).toFixed(4));
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
-      let plusN = 0;
-      if (agreementItems.length) {
-        try {
-          const item = agreementItems.find((entry) => entry.n === n);
-          const segmentData = segment === 'ticari'
-            ? item?.ticari
-            : segment === 'bireysel'
-              ? item?.bireysel
-              : segment === 'tumu'
-                ? (item?.all?.active ? item.all : null) ??
-                  (item?.bireysel?.active ? item.bireysel : null) ??
-                  (item?.ticari?.active ? item.ticari : null)
-                : item?.all;
-          if (segmentData?.active) {
-            plusN = Math.max(0, Math.min(36 - n, Math.round(parseTrNumber(segmentData.extraInstallment) ?? 0)));
-          }
-        } catch {
-          /* eski anlaşma detayı olmayabilir */
-        }
-      }
+      const plusN = selected?.active
+        ? Math.max(0, Math.min(36 - n, Math.round(parseTrNumber(selected.extraInstallment) ?? 0)))
+        : 0;
       const totalInstallments = n + plusN;
       return {
         n,
@@ -446,7 +452,7 @@ export async function resolveAgreementRates(opts: {
         commissionPct,
         installmentAmount: totalAmount / totalInstallments,
         totalAmount,
-        minLimit: r.altLimit ?? 0,
+        minLimit: item ? parseTrNumber(selected?.minLimit) ?? 0 : r.altLimit ?? 0,
       };
     });
 
@@ -456,6 +462,7 @@ export async function resolveAgreementRates(opts: {
     bankId: head.bankaId,
     bankName: head.blokAdi,
     rows,
+    availableSegments,
   };
 }
 

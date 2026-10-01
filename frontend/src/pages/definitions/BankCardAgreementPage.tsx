@@ -115,7 +115,19 @@ export default function BankCardAgreementPage() {
 
   function patchSeg(n: number, key: SegmentKey, patch: Partial<CardSegmentRates>) {
     setItems((list) =>
-      list.map((x) => (x.n === n ? { ...x, [key]: { ...x[key], ...patch } } : x)),
+      list.map((x) => {
+        if (x.n !== n) return x;
+        const next = { ...x, [key]: { ...x[key], ...patch } };
+        if (patch.active === true) {
+          if (key === 'all') {
+            next.bireysel = { ...next.bireysel, active: false };
+            next.ticari = { ...next.ticari, active: false };
+          } else {
+            next.all = { ...next.all, active: false };
+          }
+        }
+        return next;
+      }),
     );
   }
 
@@ -160,6 +172,7 @@ export default function BankCardAgreementPage() {
         token,
       );
       setAgreementCode(data.agreementCode);
+      setItems(data.items);
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1600);
     } catch (err) {
