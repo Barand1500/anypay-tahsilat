@@ -87,10 +87,10 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
           {displayPct.toFixed(2)}%
         </span>
       </div>
-      <p className="mt-2 text-[1.7rem] font-extrabold leading-tight tabular-nums text-[var(--panel-ink)]">
+      <p className="mt-2 text-[1.85rem] font-extrabold leading-tight tabular-nums text-[var(--panel-ink)]">
         {current}
       </p>
-      <p className="mt-1 text-sm text-[var(--panel-muted)]">Önceki: <strong className="font-bold tabular-nums text-[var(--panel-ink)]">{previous}</strong></p>
+      <p className="mt-1 text-sm text-[var(--panel-muted)]">Önceki: <strong className="text-base font-extrabold tabular-nums text-[var(--panel-ink)]">{previous}</strong></p>
       <div ref={banksRef} className="mt-3 border-t border-[var(--panel-line)] pt-2">
         <p className="mb-1 text-[10px] font-semibold text-[var(--panel-muted)]">En çok tahsilat yapılan bankalar</p>
         <div className="relative grid grid-cols-2 gap-2.5">
@@ -143,12 +143,12 @@ function BankRow({ bank }: { bank: PeriodBank }) {
   return (
     <li
       data-bank-row
-      className="flex min-w-0 items-center justify-between gap-1 text-[10px]"
+      className="flex min-w-0 items-center justify-between gap-1.5"
       title={`${bank.name} — ${bank.amount}`}
     >
       <span className="flex min-w-0 items-center">
         {src && !broken ? (
-          <span className="flex h-6 w-12 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] xl:w-16">
+          <span className="flex h-6 w-10 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] sm:w-12">
             <img
               src={src}
               alt={bank.name}
@@ -161,7 +161,7 @@ function BankRow({ bank }: { bank: PeriodBank }) {
           <span className="truncate font-semibold text-[var(--panel-ink)]">{bank.name}</span>
         )}
       </span>
-      <span className="min-w-0 truncate text-right text-[10px] font-semibold tabular-nums text-[var(--panel-ink)] xl:text-[11px]">{bank.amount}</span>
+      <span className="min-w-0 truncate text-right text-xs font-extrabold tabular-nums text-[var(--panel-ink)] sm:text-[13px]">{bank.amount}</span>
     </li>
   );
 }
