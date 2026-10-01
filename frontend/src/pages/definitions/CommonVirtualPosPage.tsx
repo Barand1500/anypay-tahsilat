@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -246,7 +247,7 @@ export default function CommonVirtualPosPage() {
                   <BankCell logoUrl={r.bankLogoUrl} name={r.bankName} />
                   <BankCell logoUrl={r.targetBankLogoUrl} name={r.targetBankName} />
                   <StatusBadge active={r.active} />
-                  <button
+                  <CanRemove><button
                     type="button"
                     aria-label="Sil"
                     title="Sil"
@@ -258,7 +259,7 @@ export default function CommonVirtualPosPage() {
                     className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                   >
                     <TrashIcon />
-                  </button>
+                  </button></CanRemove>
                 </div>
               ))
             )}

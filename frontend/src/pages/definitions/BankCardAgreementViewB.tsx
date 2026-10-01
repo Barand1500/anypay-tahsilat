@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import { Fragment, useState } from 'react';
 import type { BankAgreementInstallment } from './mockPos';
 import {
@@ -168,7 +169,7 @@ export function BankCardAgreementViewB({
                           </button>
                         ) : null}
                         {item.n !== 1 ? (
-                          <button
+                          <CanRemove><button
                             type="button"
                             title="Sil"
                             aria-label="Sil"
@@ -176,7 +177,7 @@ export function BankCardAgreementViewB({
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--panel-muted)] hover:bg-rose-600 hover:text-white"
                           >
                             <TrashIcon />
-                          </button>
+                          </button></CanRemove>
                         ) : null}
                       </div>
                     </td>

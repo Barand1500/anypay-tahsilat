@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -499,7 +500,7 @@ export default function EmailSettingsPage() {
                     </span>
                   </Button>
                 </div>
-                <button
+                <CanRemove><button
                   type="button"
                   data-km-jump
                   title="Sıfırla"
@@ -509,7 +510,7 @@ export default function EmailSettingsPage() {
                   className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/8 text-rose-500 transition hover:bg-rose-500/15 disabled:opacity-50"
                 >
                   <TrashIcon />
-                </button>
+                </button></CanRemove>
               </div>
             </form>
 
@@ -663,7 +664,7 @@ export default function EmailSettingsPage() {
                       </span>
                       <span className="truncate text-sm text-[var(--panel-muted)]">{t.subject}</span>
                       <div className="flex justify-end">
-                        <button
+                        <CanRemove><button
                           type="button"
                           aria-label="Sil"
                           title="Sil"
@@ -674,7 +675,7 @@ export default function EmailSettingsPage() {
                           className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                         >
                           <TrashIcon />
-                        </button>
+                        </button></CanRemove>
                       </div>
                     </div>
                   ))

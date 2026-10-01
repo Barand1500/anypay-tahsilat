@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import {
   useCallback,
@@ -333,7 +334,7 @@ export default function ContractsPage() {
                     </span>
                     <span className="truncate text-xs text-[var(--panel-muted)]">{linkLabel}</span>
                     <div className="flex justify-end">
-                      <button
+                      <CanRemove><button
                         type="button"
                         aria-label="Sil"
                         title="Sil"
@@ -344,7 +345,7 @@ export default function ContractsPage() {
                         className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                       >
                         <TrashIcon />
-                      </button>
+                      </button></CanRemove>
                     </div>
                   </div>
                 );

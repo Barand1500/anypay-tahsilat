@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '../../auth/AuthContext';
@@ -411,7 +412,7 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
                       >
                         <LockIcon />
                       </button>
-                      <button
+                      <CanRemove><button
                         type="button"
                         aria-label="Sil"
                         title="Sil"
@@ -421,7 +422,7 @@ export function CustomerUsersTab({ customer, flash, onCustomerPatched }: Props) 
                         className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                       >
                         <TrashIcon />
-                      </button>
+                      </button></CanRemove>
                     </div>
                   </td>
                 </tr>

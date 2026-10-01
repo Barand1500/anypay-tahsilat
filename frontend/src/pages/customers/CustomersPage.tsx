@@ -67,7 +67,7 @@ function readCols(): ColId[] {
  */
 export default function CustomersPage() {
   const { token } = useAuth();
-  const { guard } = usePermission();
+  const { guard, can } = usePermission();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -815,7 +815,7 @@ export default function CustomersPage() {
                 >
                   {cols.map((id) => renderCol(id, c, hoverRowId === c.id || kmRowId === c.id))}
                   <div className="flex justify-end">
-                    <button
+                    {can('m-musteriler', 'remove') ? <button
                       type="button"
                       aria-label="Sil"
                       title="Sil"
@@ -826,7 +826,7 @@ export default function CustomersPage() {
                       className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                     >
                       <TrashIcon />
-                    </button>
+                    </button> : null}
                   </div>
                 </li>
               ))}

@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -249,7 +250,7 @@ export default function LogsPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           <div ref={deleteRef} className="relative">
-            <button
+            <CanRemove><button
               type="button"
               data-km-jump
               disabled={snapping}
@@ -262,7 +263,7 @@ export default function LogsPage() {
               <TrashIcon />
               Kayıtları Sil
               <Chevron open={deleteOpen} />
-            </button>
+            </button></CanRemove>
             {deleteOpen ? (
               <div className="absolute right-0 top-[calc(100%+6px)] z-30 min-w-[220px] overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[var(--panel-shadow)]">
                 <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">

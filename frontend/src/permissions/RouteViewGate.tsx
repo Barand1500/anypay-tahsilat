@@ -1,7 +1,22 @@
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { EXTRA_QUICK_ITEMS, NAV_ITEMS } from '../components/layout/navItems';
+import { DEFINITIONS_SUBNAV } from '../pages/definitions/currencyTypes';
+import { POS_KART_SUBNAV } from '../pages/definitions/PosKartLayout';
+import { REPORT_SUBNAV } from '../pages/reports/statisticsTypes';
+import { SETTINGS_SUBNAV } from '../pages/settings/mockSettings';
 import { usePermission } from './PermissionContext';
+
+const SECTION_PAGES: Record<string, readonly string[]> = {
+  '/raporlar': REPORT_SUBNAV.map((item) => item.to),
+  '/tanimlamalar': DEFINITIONS_SUBNAV.flatMap((item) =>
+    item.to === '/tanimlamalar/pos-kart'
+      ? POS_KART_SUBNAV.map((child) => child.to)
+      : [item.to],
+  ),
+  '/tanimlamalar/pos-kart': POS_KART_SUBNAV.map((item) => item.to),
+  '/ayarlar': SETTINGS_SUBNAV.map((item) => item.to),
+};
 
 /**
  * Rota görüntüleme kapısı — Görüntüle izni yoksa içeriği basmaz.
@@ -16,6 +31,12 @@ export function RouteViewGate({ children }: { children: ReactNode }) {
         Yetkiler yükleniyor…
       </div>
     );
+  }
+
+  const sectionPages = SECTION_PAGES[location.pathname.replace(/\/+$/, '')];
+  if (sectionPages) {
+    const first = sectionPages.find((path) => canViewNavItem(path));
+    if (first) return <Navigate to={first} replace />;
   }
 
   const result = canViewPath(location.pathname);

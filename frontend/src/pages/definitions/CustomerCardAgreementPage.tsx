@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -404,14 +405,14 @@ function CardBlock({
                   />
                 </td>
                 <td className="px-0.5 py-0.5">
-                  <button
+                  <CanRemove><button
                     type="button"
                     aria-label="Sil"
                     onClick={() => onDeleteRow(i)}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--panel-muted)] transition hover:bg-rose-600 hover:text-white"
                   >
                     <TrashIcon />
-                  </button>
+                  </button></CanRemove>
                 </td>
               </tr>
             ))}

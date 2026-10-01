@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -381,14 +382,14 @@ function BankPanel({
               />
               <Cell value={r.bireyselRate} onChange={(v) => onPatchRow(i, { bireyselRate: v })} />
               <Cell value={r.ticariRate} onChange={(v) => onPatchRow(i, { ticariRate: v })} />
-              <button
+              <CanRemove><button
                 type="button"
                 aria-label="Sil"
                 onClick={() => onDeleteRow(i, `${r.n}. Taksit`)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition hover:bg-rose-500/10"
               >
                 <TrashIcon />
-              </button>
+              </button></CanRemove>
             </div>
           ))}
         </div>

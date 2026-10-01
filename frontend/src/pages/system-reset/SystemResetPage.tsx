@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -501,7 +502,7 @@ export default function SystemResetPage() {
                     {row.mysqlTable || row.table}
                   </code>
                   <div className="flex justify-end">
-                    <button
+                    <CanRemove><button
                       type="button"
                       disabled={row.cleared || unlocking || clearing}
                       title={
@@ -529,7 +530,7 @@ export default function SystemResetPage() {
                         <TrashIcon />
                       )}
                       Sil
-                    </button>
+                    </button></CanRemove>
                   </div>
                   <span />
                 </li>

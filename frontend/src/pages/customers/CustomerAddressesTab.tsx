@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
@@ -623,7 +624,7 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
                     className="px-5 py-3 sm:px-6"
                     onDoubleClick={(e) => e.stopPropagation()}
                   >
-                    <button
+                    <CanRemove><button
                       type="button"
                       aria-label="Sil"
                       title="Sil"
@@ -633,7 +634,7 @@ export function CustomerAddressesTab({ customer, flash, onCustomerPatched }: Pro
                       className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                     >
                       <TrashIcon />
-                    </button>
+                    </button></CanRemove>
                   </td>
                 </tr>
               ))

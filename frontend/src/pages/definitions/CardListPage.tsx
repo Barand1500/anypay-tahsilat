@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -208,7 +209,7 @@ export function CardListPage(config: Config) {
                 >
                   <span className="truncate font-semibold text-[var(--panel-ink)]">{r.name}</span>
                   <div className="flex justify-end">
-                    <button
+                    <CanRemove><button
                       type="button"
                       aria-label="Sil"
                       title="Sil"
@@ -220,7 +221,7 @@ export function CardListPage(config: Config) {
                       className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                     >
                       <TrashIcon />
-                    </button>
+                    </button></CanRemove>
                   </div>
                 </div>
               ))

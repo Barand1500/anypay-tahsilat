@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
@@ -1445,7 +1446,7 @@ function Sheet({
           >
             {r.cells}
             <div className="flex justify-end">
-              <button
+              <CanRemove><button
                 type="button"
                 aria-label="Sil"
                 title="Sil"
@@ -1456,7 +1457,7 @@ function Sheet({
                 className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
               >
                 <TrashIcon />
-              </button>
+              </button></CanRemove>
             </div>
           </div>
         ))

@@ -85,7 +85,7 @@ const STATUS_OPTIONS = PAY_REQ_STATUS_FILTER;
  */
 export default function PaymentRequestsPage() {
   const { token } = useAuth();
-  const { guard } = usePermission();
+  const { guard, can } = usePermission();
   const navigate = useNavigate();
   const location = useLocation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -802,7 +802,7 @@ export default function PaymentRequestsPage() {
                   </div>
 
                   <div className="flex items-start justify-end pt-0.5">
-                    <button
+                    {can('m-odeme-istekleri', 'remove') ? <button
                       type="button"
                       aria-label="Sil"
                       title="Sil"
@@ -810,7 +810,7 @@ export default function PaymentRequestsPage() {
                       className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                     >
                       <TrashIcon />
-                    </button>
+                    </button> : null}
                   </div>
                 </div>
               ))

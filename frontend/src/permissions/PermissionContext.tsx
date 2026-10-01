@@ -51,6 +51,7 @@ type PermissionContextValue = {
   /** Yetki varsa true; yoksa modal açar ve false döner */
   guard: (moduleId: string, action: PermAction, pageName?: string) => boolean;
   can: (moduleId: string, action: PermAction) => boolean;
+  canRemovePath: (pathname: string) => boolean;
   /** Rota görüntüleme — eşleşen modül yoksa açık */
   canViewPath: (pathname: string) => PathViewResult;
   /** Sidebar / profil menü — yetkisiz öğeyi hiç gösterme */
@@ -89,6 +90,25 @@ function relatedModules(pathname: string, pages: PermPage[]): PermPage[] {
       (pref === candidate || pref.startsWith(`${candidate}/`)),
     );
   });
+}
+
+/** Sekmeler kendi modül iznini kullanır; komşu alt sayfanın izni sekmeyi açmaz. */
+function isSectionTab(pathname: string): boolean {
+  const path = normalizePath(pathname);
+  const depth = path.split('/').filter(Boolean).length;
+  return (depth === 2 && (
+    path.startsWith('/tanimlamalar/') && path !== '/tanimlamalar/pos-kart'
+    || path.startsWith('/raporlar/')
+    || path.startsWith('/ayarlar/')
+  )) || (depth === 3 && path.startsWith('/tanimlamalar/pos-kart/'));
+}
+
+function exactModules(pathname: string, pages: PermPage[]): PermPage[] {
+  const path = normalizePath(pathname);
+  const candidates = path === '/tanimlamalar/bankalar'
+    ? [path]
+    : pathCandidates(path);
+  return pages.filter((page) => candidates.includes(normalizePath(page.urlPrefix || '')));
 }
 
 export function PermissionProvider({ children }: { children: ReactNode }) {
@@ -177,6 +197,17 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       if (elevatedSession(sessionRole, user?.roles)) return { allowed: true };
 
       const path = normalizePath(pathname);
+      if (isSectionTab(path)) {
+        const exact = exactModules(path, permPages);
+        const granted = exact.find((module) => getPermForModule(sessionRole, module.id).view);
+        if (granted) return { allowed: true };
+        const module = exact[0];
+        return {
+          allowed: false,
+          pageName: module?.name || 'Bu sekme',
+          moduleId: module?.id || '',
+        };
+      }
       if (path === '/raporlar' || path === '/tanimlamalar' || path === '/tanimlamalar/pos-kart' || path === '/ayarlar') {
         if (path === '/ayarlar' && isAlwaysAllowedPath('/ayarlar/kisisel')) return { allowed: true };
         const openChild = relatedModules(path, permPages).find((m) => getPermForModule(sessionRole, m.id).view);
@@ -191,7 +222,9 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       }
 
       // Üst menü yolu (örn. /raporlar) — alt modüllerden en az biri açık mı?
-      const related = relatedModules(pathname, permPages);
+      const related = isSectionTab(pathname)
+        ? exactModules(pathname, permPages)
+        : relatedModules(pathname, permPages);
       if (related.length > 0) {
         const open = related.find((m) => getPermForModule(sessionRole, m.id).view);
         if (open) return { allowed: true };
@@ -205,13 +238,35 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     [sessionRole, user?.roles, permPages],
   );
 
+  const canRemovePath = useCallback((pathname: string): boolean => {
+    if (elevatedSession(sessionRole, user?.roles)) return true;
+    const path = normalizePath(pathname);
+    // Tanımlamalar ve Ayarlar API'leri yazma/silme için bölüm modülünü de denetliyor.
+    const apiSection = path.startsWith('/tanimlamalar/')
+      ? '/tanimlamalar'
+      : path.startsWith('/ayarlar/') ? '/ayarlar' : null;
+    if (apiSection) {
+      const parent = findModuleForPath(apiSection, permPages);
+      if (!parent || !getPermForModule(sessionRole, parent.id).remove) return false;
+    }
+    const modules = isSectionTab(pathname)
+      ? exactModules(pathname, permPages)
+      : [findModuleForPath(pathname, permPages)].filter((module) => module !== undefined);
+    return modules.some((module) => {
+      const permission = getPermForModule(sessionRole, module.id);
+      return permission.view && permission.remove;
+    });
+  }, [sessionRole, user?.roles, permPages]);
+
   /** Menü: bu path veya altındaki hiç bir modülde view yoksa gizle */
   const canViewNavItem = useCallback(
     (pathname: string): boolean => {
       if (isAlwaysAllowedPath(pathname)) return true;
       if (elevatedSession(sessionRole, user?.roles)) return true;
 
-      const related = relatedModules(pathname, permPages);
+      const related = isSectionTab(pathname)
+        ? exactModules(pathname, permPages)
+        : relatedModules(pathname, permPages);
       if (related.length === 0) {
         // Katalogda karşılık yok → menüde gösterme (önceden yanlışlıkla açık kalıyordu)
         return false;
@@ -246,6 +301,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       sessionRole,
       guard,
       can,
+      canRemovePath,
       canViewPath,
       canViewNavItem,
     }),
@@ -258,6 +314,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       sessionRole,
       guard,
       can,
+      canRemovePath,
       canViewPath,
       canViewNavItem,
     ],

@@ -34,7 +34,7 @@ function pageOrder(path: string): number {
  */
 export default function RolesPage() {
   const { token } = useAuth();
-  const { roles, setRoles, rolesLoading, refreshRoles, guard } = usePermission();
+  const { roles, setRoles, rolesLoading, refreshRoles, guard, can } = usePermission();
   const visibleRoles = useMemo(
     () => roles.filter((role) => !isSuperCustomerRole(role.name, role.code)),
     [roles],
@@ -180,6 +180,7 @@ export default function RolesPage() {
               index={i}
               onEdit={() => openEdit(role)}
               onDelete={() => askDelete(role)}
+              canDelete={can('m-roller', 'remove')}
             />
           ))}
 
@@ -251,12 +252,14 @@ function RoleCard({
   index,
   onEdit,
   onDelete,
+  canDelete,
 }: {
   role: AppRole;
   pages: PermPage[];
   index: number;
   onEdit: () => void;
   onDelete: () => void;
+  canDelete: boolean;
 }) {
   const { pages: granted, total } = useMemo(
     () => countGranted(role, pages.length ? pages : undefined),
@@ -305,7 +308,7 @@ function RoleCard({
         >
           Rolü Düzenle
         </button>
-        <button
+        {canDelete ? <button
           type="button"
           aria-label="Rolü sil"
           title="Sil"
@@ -316,7 +319,7 @@ function RoleCard({
           className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/12 hover:text-rose-500"
         >
           <TrashIcon />
-        </button>
+        </button> : null}
       </div>
     </article>
   );

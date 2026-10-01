@@ -31,7 +31,7 @@ type ModulePayload = {
  */
 export default function ModulesPage() {
   const { token } = useAuth();
-  const { guard } = usePermission();
+  const { guard, can } = usePermission();
   const [modules, setModules] = useState<AppModule[]>([]);
   const [tableOptions, setTableOptions] = useState<string[]>([...DB_TABLE_OPTIONS]);
   const [loading, setLoading] = useState(true);
@@ -347,7 +347,7 @@ export default function ModulesPage() {
                     </h2>
                     <p className="mt-0.5 truncate text-xs text-[var(--panel-muted)]">{m.dbTable}</p>
                   </div>
-                  <button
+                  {can('m-moduller', 'remove') ? <button
                     type="button"
                     aria-label="Sil"
                     title="Sil"
@@ -359,7 +359,7 @@ export default function ModulesPage() {
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                   >
                     <TrashIcon />
-                  </button>
+                  </button> : null}
                 </div>
 
                 <code className="mt-3 block truncate rounded-lg bg-[var(--panel-surface)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--panel-muted)] ring-1 ring-[var(--panel-line)]">

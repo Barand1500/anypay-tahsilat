@@ -30,7 +30,7 @@ const COL_FOCUS: Record<string, UserFocusField> = {
  */
 export default function UsersPage() {
   const { token } = useAuth();
-  const { roles, guard } = usePermission();
+  const { roles, guard, can } = usePermission();
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
@@ -462,7 +462,7 @@ export default function UsersPage() {
                     {u.status}
                   </span>
                   <div className="flex justify-end">
-                    <button
+                    {can('m-kullanicilar', 'remove') ? <button
                       type="button"
                       aria-label="Sil"
                       title="Sil"
@@ -473,7 +473,7 @@ export default function UsersPage() {
                       className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
                     >
                       <TrashIcon />
-                    </button>
+                    </button> : null}
                   </div>
                 </li>
               ))}

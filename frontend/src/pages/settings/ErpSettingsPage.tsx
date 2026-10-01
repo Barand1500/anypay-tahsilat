@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -359,7 +360,7 @@ export default function ErpSettingsPage() {
               </span>
             </Button>
           </div>
-          <button
+          <CanRemove><button
             type="button"
             data-km-jump
             title="Sıfırla"
@@ -369,7 +370,7 @@ export default function ErpSettingsPage() {
             className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/8 text-rose-500 transition hover:bg-rose-500/15 disabled:opacity-50"
           >
             <TrashIcon />
-          </button>
+          </button></CanRemove>
         </div>
       </form>
     </div>

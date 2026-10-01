@@ -1,3 +1,4 @@
+import { CanRemove } from '../../permissions/CanRemove';
 import gsap from 'gsap';
 import {
   useCallback,
@@ -409,7 +410,7 @@ export default function BanksPage() {
               >
                 Düzenle
               </button>
-              <button
+              <CanRemove><button
                 type="button"
                 className="block w-full px-3 py-2 text-left text-sm font-medium text-rose-600 hover:bg-rose-500/10"
                 onClick={() => {
@@ -419,7 +420,7 @@ export default function BanksPage() {
                 }}
               >
                 Sil
-              </button>
+              </button></CanRemove>
             </div>,
             document.body,
           )
