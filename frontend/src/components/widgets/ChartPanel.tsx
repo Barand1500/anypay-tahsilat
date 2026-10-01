@@ -20,12 +20,12 @@ type Props = {
   loading?: boolean;
 };
 
-const RANGES: { id: ChartRange; label: string; title: string }[] = [
-  { id: '1G', label: 'Gün', title: '06.00–24.00' },
-  { id: '1H', label: 'Hafta', title: 'Pazartesi–Pazar' },
-  { id: '1A', label: 'Ay', title: 'Seçili ayın günleri' },
-  { id: '6A', label: '6 Ay', title: 'Üç ay önce, seçili ay ve iki ay sonra' },
-  { id: '1Y', label: 'Yıl', title: 'Ocak–Aralık' },
+const RANGES: { id: ChartRange; title: string }[] = [
+  { id: '1G', title: '06.00–24.00' },
+  { id: '1H', title: 'Pazartesi–Pazar' },
+  { id: '1A', title: 'Seçili ayın günleri' },
+  { id: '6A', title: 'Üç ay önce, seçili ay ve iki ay sonra' },
+  { id: '1Y', title: 'Ocak–Aralık' },
 ];
 
 const PAD = { left: 62, right: 18, top: 22, bottom: 43 };
@@ -127,7 +127,7 @@ export function ChartPanel({ title, subtitle, range, onRangeChange, series, poin
               onClick={() => onRangeChange(item.id)}
               className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 ${range === item.id ? 'bg-[var(--color-brand-600)] text-white shadow-sm' : 'text-[var(--panel-muted)] hover:bg-[var(--panel-elevated)] hover:text-[var(--panel-ink)]'}`}
             >
-              <span className="mr-1 opacity-75">{item.id}</span>{item.label}
+              {item.id}
             </button>
           ))}
         </div>
