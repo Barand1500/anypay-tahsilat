@@ -385,7 +385,9 @@ export default function OverviewPage() {
             previous={p.previous}
             changePct={p.changePct}
             banks={p.banks}
-            compactBanks={id === 'period-year'}
+            previousBanks={p.previousBanks ?? []}
+            currentBankLabel={id === 'period-day' ? 'Bugün' : id === 'period-week' ? 'Bu hafta' : id === 'period-month' ? 'Bu ay' : 'Bu yıl'}
+            previousBankLabel={id === 'period-day' ? 'Dün' : id === 'period-week' ? 'Geçen hafta' : id === 'period-month' ? 'Geçen ay' : 'Geçen yıl'}
           />
         );
       }
@@ -490,7 +492,7 @@ export default function OverviewPage() {
                       onPointerDown={(e) => onTileDown(id, e)}
                       className={[
                         'relative min-h-0 min-w-0 transition-[box-shadow] duration-200 ease-out',
-                        groupId === 'periods' ? 'h-[240px]' : 'h-full',
+                        groupId === 'periods' ? 'h-[264px]' : 'h-full',
                         editing && !lifting ? 'cursor-grab overview-ios-edit' : '',
                         lifting ? 'z-10' : '',
                         isOver ? 'rounded-2xl ring-2 ring-[var(--color-brand-500)]/30' : '',

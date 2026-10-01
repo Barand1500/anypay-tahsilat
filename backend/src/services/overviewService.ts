@@ -36,6 +36,7 @@ export type OverviewPeriod = {
   previous: string;
   changePct: number;
   banks: OverviewPeriodBank[];
+  previousBanks: OverviewPeriodBank[];
 };
 
 export type OverviewPieSlice = {
@@ -266,7 +267,6 @@ function banksInRange(
   }
   return [...totals.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
     .map(([bid, amount]) => {
       const meta = banks.get(bid);
       return {
@@ -608,6 +608,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
       previous: formatMoneyTr(previous),
       changePct: changePct(current, previous),
       banks: banksInRange(scoped, w.curStart, w.curEnd, banks),
+      previousBanks: banksInRange(scoped, w.prevStart, w.prevEnd, banks),
     };
   });
 

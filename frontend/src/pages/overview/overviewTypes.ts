@@ -22,6 +22,7 @@ export type OverviewPeriod = {
   previous: string;
   changePct: number;
   banks: OverviewPeriodBank[];
+  previousBanks: OverviewPeriodBank[];
 };
 
 export type OverviewPieSlice = {

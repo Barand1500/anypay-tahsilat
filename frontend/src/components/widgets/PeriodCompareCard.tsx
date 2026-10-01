@@ -18,14 +18,15 @@ type Props = {
   previous: string;
   changePct: number;
   banks: PeriodBank[];
-  compactBanks?: boolean;
+  previousBanks: PeriodBank[];
+  currentBankLabel: string;
+  previousBankLabel: string;
   /** Boş alanı doldurmak için (örn. vurgu rengi seçici) — kartı büyütmez */
   footer?: ReactNode;
 };
 
-export function PeriodCompareCard({ title, current, previous, changePct, banks, compactBanks = false, footer }: Props) {
+export function PeriodCompareCard({ title, current, previous, changePct, banks, previousBanks, currentBankLabel, previousBankLabel, footer }: Props) {
   const up = changePct >= 0;
-  const bankSplit = banks.length <= 6 ? Math.min(3, banks.length) : Math.ceil(banks.length / 2);
   const [displayPct, setDisplayPct] = useState(changePct);
   const raf = useRef(0);
   const banksRef = useRef<HTMLDivElement>(null);
@@ -53,7 +54,7 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
 
   useEffect(() => {
     const list = banksRef.current;
-    if (!list || banks.length === 0) return;
+    if (!list || (banks.length === 0 && previousBanks.length === 0)) return;
     const items = list.querySelectorAll('[data-bank-row]');
     if (!items.length) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -70,7 +71,7 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
         clearProps: 'opacity,visibility,transform',
       },
     );
-  }, [banks]);
+  }, [banks, previousBanks]);
 
   return (
     <article className="panel-card group flex h-full min-h-[168px] flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] hover:shadow-[0_16px_40px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)]">
@@ -85,30 +86,29 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
           {displayPct.toFixed(2)}%
         </span>
       </div>
-      <p className="mt-3 text-xl font-bold text-[var(--panel-ink)] transition group-hover:tracking-wide">
+      <p className="mt-2 text-[1.7rem] font-extrabold leading-tight tabular-nums text-[var(--panel-ink)]">
         {current}
       </p>
-      <p className="mt-1 text-xs text-[var(--panel-muted)]">Önceki: {previous}</p>
-      {banks.length > 0 ? (
-        <div ref={banksRef} className="mt-3 border-t border-[var(--panel-line)] pt-3">
-          {compactBanks ? (
-            <div className="relative grid grid-cols-2 gap-2.5">
-              <span className="pointer-events-none absolute bottom-2 left-1/2 top-2 w-px bg-[var(--panel-line)]" aria-hidden />
-              {[banks.slice(0, bankSplit), banks.slice(bankSplit)].map((column, index) => (
-                <ul key={index} className="max-h-[90px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
-                  {column.map((b) => <BankRow key={b.id || b.name} bank={b} compact />)}
-                </ul>
-              ))}
+      <p className="mt-1 text-sm text-[var(--panel-muted)]">Önceki: <strong className="font-bold tabular-nums text-[var(--panel-ink)]">{previous}</strong></p>
+      <div ref={banksRef} className="mt-3 border-t border-[var(--panel-line)] pt-2">
+        <p className="mb-1 text-[10px] font-semibold text-[var(--panel-muted)]">En çok tahsilat yapılan bankalar</p>
+        <div className="relative grid grid-cols-2 gap-2.5">
+          <span className="pointer-events-none absolute bottom-1 left-1/2 top-1 w-px bg-[var(--panel-line)]" aria-hidden />
+          {[
+            { label: currentBankLabel, rows: banks },
+            { label: previousBankLabel, rows: previousBanks },
+          ].map((column) => (
+            <div key={column.label} className="min-w-0">
+              <p className="mb-1 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
+              <ul className="max-h-[90px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
+                {column.rows.length ? column.rows.map((b) => <BankRow key={b.id || b.name} bank={b} />) : (
+                  <li className="text-[10px] text-[var(--panel-muted)]">İşlem yok</li>
+                )}
+              </ul>
             </div>
-          ) : (
-            <ul className="max-h-[90px] space-y-1.5 overflow-y-auto pr-1">
-              {banks.map((b) => <BankRow key={b.id || b.name} bank={b} />)}
-            </ul>
-          )}
+          ))}
         </div>
-      ) : (
-        <div className="mt-3 min-h-0 flex-1" aria-hidden />
-      )}
+      </div>
       {footer ? (
         <div className="mt-auto flex min-h-0 flex-col justify-end pt-3">{footer}</div>
       ) : null}
@@ -116,19 +116,19 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
   );
 }
 
-function BankRow({ bank, compact = false }: { bank: PeriodBank; compact?: boolean }) {
+function BankRow({ bank }: { bank: PeriodBank }) {
   const src = findBankLogo(bank);
   const [broken, setBroken] = useState(false);
 
   return (
     <li
       data-bank-row
-      className={compact ? 'flex min-w-0 items-center justify-between gap-1 text-[10px]' : 'flex items-center justify-between gap-2 text-xs'}
+      className="flex min-w-0 items-center justify-between gap-1 text-[10px]"
       title={`${bank.name} — ${bank.amount}`}
     >
       <span className="flex min-w-0 items-center">
         {src && !broken ? (
-          <span className={`flex h-6 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] ${compact ? 'w-12' : 'w-[4.25rem]'}`}>
+          <span className="flex h-6 w-12 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-1 ring-1 ring-[var(--panel-line)] transition group-hover:ring-[color-mix(in_srgb,var(--color-brand-500)_25%,var(--panel-line))] xl:w-16">
             <img
               src={src}
               alt={bank.name}
@@ -141,7 +141,7 @@ function BankRow({ bank, compact = false }: { bank: PeriodBank; compact?: boolea
           <span className="truncate font-semibold text-[var(--panel-ink)]">{bank.name}</span>
         )}
       </span>
-      <span className={compact ? 'min-w-0 truncate text-right text-[9px] tabular-nums text-[var(--panel-muted)]' : 'shrink-0 tabular-nums text-[var(--panel-muted)]'}>{bank.amount}</span>
+      <span className="min-w-0 truncate text-right text-[10px] font-semibold tabular-nums text-[var(--panel-ink)] xl:text-[11px]">{bank.amount}</span>
     </li>
   );
 }
