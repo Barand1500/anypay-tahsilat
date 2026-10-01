@@ -306,7 +306,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   function navClass(isActive: boolean) {
     if (!open) {
       return [
-        'relative z-[1] mx-auto flex w-full max-w-[52px] items-center justify-center rounded-xl px-0 py-2.5 transition-colors select-none',
+        'relative z-[1] mx-auto flex size-[38px] shrink-0 items-center justify-center rounded-xl transition-colors select-none',
         isActive
           ? 'is-nav-active text-[var(--nav-active-text)]'
           : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
@@ -327,7 +327,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       ref={navRef}
       className={[
         'sidebar-nav relative min-h-0 flex-1 overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none]',
-        open ? 'pb-4 pl-0 pr-0' : 'flex flex-col items-stretch px-2 pb-4',
+        open ? 'pb-4 pl-0 pr-0' : 'sidebar-nav--compact flex flex-col items-stretch px-2 pb-4',
       ].join(' ')}
     >
       <div

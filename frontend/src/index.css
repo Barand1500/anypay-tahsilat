@@ -691,6 +691,15 @@ html[data-theme='dark'] .log-chip--other {
   display: none;
 }
 
+.sidebar-nav--compact a svg [stroke] {
+  transition: stroke-width 180ms ease;
+}
+
+.sidebar-nav--compact a:hover svg [stroke],
+.sidebar-nav--compact a.is-nav-active svg [stroke] {
+  stroke-width: 2.15px;
+}
+
 .sidebar-open .sidebar-nav a:not(.is-nav-active)::before {
   content: '';
   position: absolute;
