@@ -74,8 +74,9 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
   }, [banks, previousBanks]);
 
   return (
-    <article className="panel-card group flex h-full min-h-[168px] flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] hover:shadow-[0_16px_40px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)]">
-      <div className="flex items-start justify-between gap-2">
+    <article className="panel-card group relative flex h-full min-h-[168px] flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] transition duration-300 hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] hover:shadow-[0_16px_40px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)]">
+      <TrendArrow up={up} />
+      <div className="relative z-10 flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium text-[var(--panel-muted)] transition group-hover:text-[var(--panel-ink)]">
           {title}
         </h3>
@@ -113,6 +114,25 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
         <div className="mt-auto flex min-h-0 flex-col justify-end pt-3">{footer}</div>
       ) : null}
     </article>
+  );
+}
+
+function TrendArrow({ up }: { up: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={`pointer-events-none absolute right-1 top-1 h-20 w-20 opacity-20 ${up ? 'text-emerald-600' : 'text-rose-600'}`}
+    >
+      <path
+        d={up ? 'M3 18 9 12l4 3 8-9M15 6h6v6' : 'M3 6l6 6 4-3 8 9m-6 0h6v-6'}
+        stroke="currentColor"
+        strokeWidth="2.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
