@@ -691,6 +691,10 @@ html[data-theme='dark'] .log-chip--other {
   display: none;
 }
 
+.sidebar-nav--compact a:hover {
+  background: transparent;
+}
+
 .sidebar-nav--compact a svg [stroke] {
   transition: stroke-width 180ms ease;
 }

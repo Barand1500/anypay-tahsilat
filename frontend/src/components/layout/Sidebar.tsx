@@ -309,7 +309,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         'relative z-[1] mx-auto flex size-[38px] shrink-0 items-center justify-center rounded-xl transition-colors select-none',
         isActive
           ? 'is-nav-active text-[var(--nav-active-text)]'
-          : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]',
+          : 'text-[var(--panel-muted)] hover:text-[var(--nav-active-text)]',
         drag ? 'cursor-grabbing' : 'cursor-grab',
       ].join(' ');
     }
@@ -367,7 +367,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
 
   const footerIdle = open
     ? 'text-[var(--sidebar-open-ink)]/70 hover:bg-[var(--sidebar-open-hover)] hover:text-[var(--sidebar-open-ink)]'
-    : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]';
+    : 'text-[var(--panel-muted)] hover:text-[var(--nav-active-text)]';
 
   const footerOn =
     'bg-[color-mix(in_srgb,var(--color-brand-500)_22%,transparent)] text-[var(--brand-on-soft)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-brand-500)_35%,transparent),0_8px_20px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] backdrop-blur-md';
