@@ -25,6 +25,85 @@ type Props = {
   }) => Promise<void>;
 };
 
+type PermissionGroup = {
+  key: string;
+  label: string;
+  pages: PermPage[];
+  children?: PermissionGroup[];
+};
+
+function normalizedPath(page: PermPage): string {
+  return (page.urlPrefix || '/').replace(/\/+$/, '') || '/';
+}
+
+function isPosCardPage(page: PermPage): boolean {
+  const path = normalizedPath(page);
+  if (path.startsWith('/tanimlamalar/pos-kart')) return true;
+  return [
+    '/tanimlamalar/bankalar/sanal-pos-tanimlari',
+    '/tanimlamalar/bankalar/ortak-sanalpos',
+    '/tanimlamalar/bankalar/kart-anlasmalari',
+    '/tanimlamalar/bankalar/kart-tipleri',
+    '/tanimlamalar/bankalar/kart-turleri',
+    '/tanimlamalar/bankalar/kart-markalari',
+  ].some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+function buildPermissionGroups(pages: PermPage[]): PermissionGroup[] {
+  const reports: PermPage[] = [];
+  const definitions: PermPage[] = [];
+  const posCard: PermPage[] = [];
+  const settings: PermPage[] = [];
+  const management: PermPage[] = [];
+  const general: PermPage[] = [];
+  const managementRoots = ['/moduller', '/roller', '/kullanicilar', '/surum-gecmisi', '/log-kayitlari', '/sistem-sifirlama', '/siralama'];
+
+  for (const page of pages) {
+    const path = normalizedPath(page);
+    if (path === '/raporlar' || path.startsWith('/raporlar/')) reports.push(page);
+    else if (isPosCardPage(page)) posCard.push(page);
+    else if (path === '/tanimlamalar' || path.startsWith('/tanimlamalar/')) definitions.push(page);
+    else if (path === '/ayarlar' || path.startsWith('/ayarlar/')) settings.push(page);
+    else if (managementRoots.some((root) => path === root || path.startsWith(`${root}/`))) management.push(page);
+    else general.push(page);
+  }
+
+  const result: PermissionGroup[] = [];
+  if (general.length) result.push({ key: 'general', label: 'Genel Sayfalar', pages: general });
+  if (reports.length) result.push({ key: 'reports', label: 'Raporlar', pages: reports });
+  if (definitions.length || posCard.length) {
+    result.push({
+      key: 'definitions',
+      label: 'Tanımlamalar',
+      pages: definitions,
+      children: posCard.length ? [{ key: 'definitions-pos-card', label: 'POS ve Kart', pages: posCard }] : [],
+    });
+  }
+  if (settings.length) result.push({ key: 'settings', label: 'Ayarlar', pages: settings });
+  if (management.length) result.push({ key: 'management', label: 'Yönetim', pages: management });
+  return result;
+}
+
+function groupPages(group: PermissionGroup): PermPage[] {
+  return [...group.pages, ...(group.children ?? []).flatMap(groupPages)];
+}
+
+function canonicalPath(page: PermPage): string {
+  const path = normalizedPath(page);
+  const aliases: Array<[string, string]> = [
+    ['/tanimlamalar/bankalar/sanal-pos-tanimlari', '/tanimlamalar/pos-kart/sanal-pos'],
+    ['/tanimlamalar/bankalar/ortak-sanalpos', '/tanimlamalar/pos-kart/ortak-sanal-pos'],
+    ['/tanimlamalar/bankalar/kart-anlasmalari', '/tanimlamalar/pos-kart/anlasmalar'],
+    ['/tanimlamalar/bankalar/kart-tipleri', '/tanimlamalar/pos-kart/tipler'],
+    ['/tanimlamalar/bankalar/kart-turleri', '/tanimlamalar/pos-kart/turler'],
+    ['/tanimlamalar/bankalar/kart-markalari', '/tanimlamalar/pos-kart/markalar'],
+  ];
+  for (const [legacy, modern] of aliases) {
+    if (path === legacy || path.startsWith(`${legacy}/`)) return path.replace(legacy, modern);
+  }
+  return path;
+}
+
 /**
  * Rol ekle / düzenle — sayfa bazlı Görüntüle · Kaydet · Sil
  * Görüntüle kapalı → Kaydet/Sil pasif
@@ -60,6 +139,7 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
     });
   }, [pages, isEdit, mode]);
   const [query, setQuery] = useState('');
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(['general']));
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -97,13 +177,29 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
     );
   }, [query, isAdmin]);
 
-  const filtered = useMemo(() => {
+  const groups = useMemo(() => buildPermissionGroups(pages), [pages]);
+  const filteredGroups = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
-    if (!q) return pages;
-    return pages.filter((p) =>
-      p.name.toLocaleLowerCase('tr').includes(q)
-      || p.urlPrefix.toLocaleLowerCase('tr').includes(q));
-  }, [query, pages]);
+    if (!q) return groups;
+    const filterGroup = (group: PermissionGroup): PermissionGroup | null => {
+      const groupMatches = group.label.toLocaleLowerCase('tr').includes(q);
+      const matchingPages = groupMatches
+        ? group.pages
+        : group.pages.filter((page) =>
+            page.name.toLocaleLowerCase('tr').includes(q)
+            || page.urlPrefix.toLocaleLowerCase('tr').includes(q));
+      const children = (group.children ?? [])
+        .map(filterGroup)
+        .filter((child): child is PermissionGroup => child !== null);
+      if (!groupMatches && matchingPages.length === 0 && children.length === 0) return null;
+      return {
+        ...group,
+        pages: groupMatches ? group.pages : matchingPages,
+        children: groupMatches ? group.children : children,
+      };
+    };
+    return groups.map(filterGroup).filter((group): group is PermissionGroup => group !== null);
+  }, [query, groups]);
 
   const allSelected = useMemo(() => {
     if (isAdmin) return true;
@@ -141,7 +237,57 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
       if ((key === 'save' || key === 'remove') && value && !cur.view) {
         next = { ...next, view: true };
       }
-      return { ...prev, [id]: normalizePerm(next) };
+      const updated = { ...prev, [id]: normalizePerm(next) };
+      if (value) {
+        const selected = pages.find((page) => page.id === id);
+        if (selected) {
+          const childPath = canonicalPath(selected);
+          for (const candidate of pages) {
+            const parentPath = canonicalPath(candidate);
+            if (parentPath === '/' || parentPath === childPath) continue;
+            if (childPath.startsWith(`${parentPath}/`)) {
+              const parent = updated[candidate.id] ?? emptyPerm();
+              updated[candidate.id] = { ...parent, view: true };
+            }
+          }
+        }
+      }
+      return updated;
+    });
+  }
+
+  function toggleGroup(group: PermissionGroup, on: boolean) {
+    if (isAdmin) setIsAdmin(false);
+    setPerms((previous) => {
+      const next = { ...previous };
+      const changedPages = groupPages(group);
+      for (const page of changedPages) {
+        const current = next[page.id] ?? emptyPerm();
+        next[page.id] = on ? { ...current, view: true } : emptyPerm();
+      }
+      if (on) {
+        for (const selected of changedPages) {
+          const childPath = canonicalPath(selected);
+          for (const candidate of pages) {
+            const parentPath = canonicalPath(candidate);
+            if (parentPath === '/' || parentPath === childPath) continue;
+            if (childPath.startsWith(`${parentPath}/`)) {
+              const parent = next[candidate.id] ?? emptyPerm();
+              next[candidate.id] = { ...parent, view: true };
+            }
+          }
+        }
+      }
+      return next;
+    });
+  }
+
+  function toggleAccordion(key: string) {
+    setOpenGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
     });
   }
 
@@ -171,7 +317,7 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
         ref={panelRef}
         role="dialog"
         aria-modal
-        className="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
+        className="relative z-10 flex max-h-[min(94vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--panel-line)] px-5 py-4 sm:px-6">
           <h2 className="text-lg font-bold text-[var(--panel-ink)]">
@@ -254,46 +400,24 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
               <p className="py-8 text-center text-sm text-[var(--panel-muted)]">
                 Modül listesi yüklenemedi.
               </p>
+            ) : filteredGroups.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Aramayla eşleşen sayfa bulunamadı.</p>
             ) : (
-              <ul className="divide-y divide-[var(--panel-line)] rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)]">
-                {filtered.map((page) => {
-                  const p = perms[page.id] ?? emptyPerm();
-                  const locked = !p.view;
-                  return (
-                    <li
-                      key={page.id}
-                      data-perm-row
-                      className="grid grid-cols-1 gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px_56px] sm:items-center sm:gap-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--panel-ink)]">
-                          {page.name}
-                        </p>
-                        <p className="truncate font-mono text-[10px] text-[var(--panel-muted)]">
-                          {page.urlPrefix}
-                        </p>
-                      </div>
-                      <PermCheck
-                        label="Görüntüle"
-                        checked={p.view}
-                        onChange={(v) => patch(page.id, 'view', v)}
-                      />
-                      <PermCheck
-                        label="Kaydet"
-                        checked={p.save}
-                        disabled={locked}
-                        onChange={(v) => patch(page.id, 'save', v)}
-                      />
-                      <PermCheck
-                        label="Sil"
-                        checked={p.remove}
-                        disabled={locked}
-                        onChange={(v) => patch(page.id, 'remove', v)}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="space-y-2 py-1">
+                {filteredGroups.map((group) => (
+                  <PermissionAccordion
+                    key={group.key}
+                    group={group}
+                    depth={0}
+                    forceOpen={Boolean(query.trim())}
+                    openGroups={openGroups}
+                    perms={perms}
+                    onToggleOpen={toggleAccordion}
+                    onToggleGroup={toggleGroup}
+                    onPatch={patch}
+                  />
+                ))}
+              </div>
             )}
           </div>
 
@@ -322,6 +446,144 @@ export function RoleModal({ mode, pages, onClose, onSave }: Props) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+function PermissionAccordion({
+  group,
+  depth,
+  forceOpen,
+  openGroups,
+  perms,
+  onToggleOpen,
+  onToggleGroup,
+  onPatch,
+}: {
+  group: PermissionGroup;
+  depth: number;
+  forceOpen: boolean;
+  openGroups: Set<string>;
+  perms: Record<string, PagePerm>;
+  onToggleOpen: (key: string) => void;
+  onToggleGroup: (group: PermissionGroup, on: boolean) => void;
+  onPatch: (id: string, key: keyof PagePerm, value: boolean) => void;
+}) {
+  const allPages = groupPages(group);
+  const selected = allPages.filter((page) => perms[page.id]?.view).length;
+  const all = allPages.length > 0 && selected === allPages.length;
+  const partial = selected > 0 && selected < allPages.length;
+  const open = forceOpen || openGroups.has(group.key);
+  const checkboxRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) checkboxRef.current.indeterminate = partial;
+  }, [partial]);
+
+  return (
+    <section
+      className={[
+        'overflow-hidden rounded-xl border',
+        depth > 0
+          ? 'ml-3 border-amber-400/35 bg-amber-500/[0.035]'
+          : 'border-[var(--panel-line)] bg-[var(--panel-elevated)]',
+      ].join(' ')}
+    >
+      <div
+        className={[
+          'flex items-center gap-3 px-3 py-2.5 transition',
+          partial
+            ? 'bg-amber-400/12'
+            : all
+              ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_12%,transparent)]'
+              : 'bg-[var(--panel-surface)]/65',
+        ].join(' ')}
+      >
+        <button
+          type="button"
+          onClick={() => onToggleOpen(group.key)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={open}
+        >
+          <ChevronIcon open={open} />
+          <span className="truncate text-sm font-semibold text-[var(--panel-ink)]">{group.label}</span>
+          <span className={[
+            'ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums',
+            partial
+              ? 'bg-amber-400/20 text-amber-700 dark:text-amber-300'
+              : all
+                ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_18%,transparent)] text-[var(--brand-on-soft)]'
+                : 'bg-[var(--panel-elevated)] text-[var(--panel-muted)]',
+          ].join(' ')}>
+            {selected}/{allPages.length} açık
+          </span>
+        </button>
+        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-[var(--panel-muted)]">
+          <input
+            ref={checkboxRef}
+            type="checkbox"
+            checked={all}
+            onChange={(event) => onToggleGroup(group, event.target.checked)}
+            className="h-4 w-4 rounded border-[var(--panel-line)] text-[var(--color-brand-600)]"
+          />
+          Tümü
+        </label>
+      </div>
+
+      {open ? (
+        <div className={depth > 0 ? 'border-l-2 border-amber-400/35 pl-2' : ''}>
+          {group.pages.map((page) => (
+            <PermissionRow key={page.id} page={page} permission={perms[page.id] ?? emptyPerm()} onPatch={onPatch} />
+          ))}
+          {(group.children ?? []).map((child) => (
+            <div key={child.key} className="px-2 pb-2 pt-1">
+              <PermissionAccordion
+                group={child}
+                depth={depth + 1}
+                forceOpen={forceOpen}
+                openGroups={openGroups}
+                perms={perms}
+                onToggleOpen={onToggleOpen}
+                onToggleGroup={onToggleGroup}
+                onPatch={onPatch}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function PermissionRow({
+  page,
+  permission,
+  onPatch,
+}: {
+  page: PermPage;
+  permission: PagePerm;
+  onPatch: (id: string, key: keyof PagePerm, value: boolean) => void;
+}) {
+  return (
+    <div
+      data-perm-row
+      className="grid grid-cols-1 gap-2 border-t border-[var(--panel-line)] px-3 py-2.5 first:border-t-0 sm:grid-cols-[1fr_72px_72px_56px] sm:items-center sm:gap-2"
+    >
+      <div className="min-w-0 pl-1">
+        <p className="truncate text-sm font-medium text-[var(--panel-ink)]">{page.name}</p>
+        <p className="truncate font-mono text-[10px] text-[var(--panel-muted)]">{page.urlPrefix}</p>
+      </div>
+      <PermCheck label="Görüntüle" checked={permission.view} onChange={(value) => onPatch(page.id, 'view', value)} />
+      <PermCheck label="Kaydet" checked={permission.save} disabled={!permission.view} onChange={(value) => onPatch(page.id, 'save', value)} />
+      <PermCheck label="Sil" checked={permission.remove} disabled={!permission.view} onChange={(value) => onPatch(page.id, 'remove', value)} />
+    </div>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}>
+      <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

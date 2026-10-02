@@ -30,6 +30,21 @@ export function pathCandidates(pathname: string): string[] {
     add(p.replace('/tanimlamalar/bankalar', '/tanimlamalar/pos-kart'));
   }
 
+  const posAliases: Array<[string, string]> = [
+    ['/tanimlamalar/pos-kart/sanal-pos', '/tanimlamalar/bankalar/sanal-pos-tanimlari'],
+    ['/tanimlamalar/pos-kart/ortak-sanal-pos', '/tanimlamalar/bankalar/ortak-sanalpos'],
+    ['/tanimlamalar/pos-kart/anlasmalar', '/tanimlamalar/bankalar/kart-anlasmalari'],
+    ['/tanimlamalar/pos-kart/tipler', '/tanimlamalar/bankalar/kart-tipleri'],
+    ['/tanimlamalar/pos-kart/turler', '/tanimlamalar/bankalar/kart-turleri'],
+    ['/tanimlamalar/pos-kart/markalar', '/tanimlamalar/bankalar/kart-markalari'],
+  ];
+  for (const [modern, legacy] of posAliases) {
+    for (const cur of [...out]) {
+      if (cur === modern || cur.startsWith(`${modern}/`)) add(cur.replace(modern, legacy));
+      if (cur === legacy || cur.startsWith(`${legacy}/`)) add(cur.replace(legacy, modern));
+    }
+  }
+
   for (const cur of [...out]) {
     if (cur.includes('/anlasmalar')) {
       add(cur.replace('/anlasmalar', '/kart-anlasmalari'));

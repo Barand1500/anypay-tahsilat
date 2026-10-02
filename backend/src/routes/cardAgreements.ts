@@ -18,7 +18,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const cardAgreementsRouter = Router();
 cardAgreementsRouter.use(requireAuth);
-cardAgreementsRouter.use(requireModuleWrite('/tanimlamalar'));
+cardAgreementsRouter.use(requireModuleWrite('/tanimlamalar/pos-kart/anlasmalar'));
 
 const installmentSchema = z.object({
   n: z.number().int().min(1).max(36),

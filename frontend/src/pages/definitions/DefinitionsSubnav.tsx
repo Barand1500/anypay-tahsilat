@@ -18,7 +18,7 @@ const HOLD_MS = 380;
 export function DefinitionsSubnav() {
   const location = useLocation();
   const { startDrag, drag, config: quickAccess } = useQuickAccess();
-  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
+  const { canViewNavItem, navPermissionState, permPagesReady, rolesLoading } = usePermission();
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const firstPill = useRef(true);
@@ -30,6 +30,14 @@ export function DefinitionsSubnav() {
     permPagesReady && !rolesLoading
       ? DEFINITIONS_SUBNAV.filter((item) => !item.ready || canViewNavItem(item.to))
       : [];
+  const activeDefinition = DEFINITIONS_SUBNAV.find((item) =>
+    item.to === '/tanimlamalar/pos-kart'
+      ? location.pathname.startsWith('/tanimlamalar/pos-kart')
+      : location.pathname === item.to,
+  );
+  const activeIsPartial = activeDefinition
+    ? navPermissionState(activeDefinition.to) === 'partial'
+    : false;
 
   function placePill(instant: boolean) {
     const track = trackRef.current;
@@ -140,7 +148,7 @@ export function DefinitionsSubnav() {
       <div
         ref={pillRef}
         aria-hidden
-        className="pointer-events-none absolute z-0 rounded-xl bg-[var(--color-brand-600)] shadow-sm will-change-[left,width]"
+        className={`pointer-events-none absolute z-0 rounded-xl shadow-sm will-change-[left,width] ${activeIsPartial ? 'bg-amber-500' : 'bg-[var(--color-brand-600)]'}`}
         style={{ opacity: 0, left: 0, top: 0, width: 0, height: 0 }}
       />
 
@@ -161,7 +169,9 @@ export function DefinitionsSubnav() {
                 'relative z-[1] shrink-0 cursor-grab rounded-xl px-3 py-2 text-sm font-semibold transition-colors duration-200 active:cursor-grabbing select-none',
                 isActive
                   ? 'is-def-tab-active text-white'
-                  : 'text-[var(--panel-muted)] hover:text-[var(--panel-ink)]',
+                  : navPermissionState(item.to) === 'partial'
+                    ? 'bg-amber-400/12 text-amber-700 ring-1 ring-inset ring-amber-400/35 hover:bg-amber-400/18 dark:text-amber-300'
+                    : 'text-[var(--panel-muted)] hover:text-[var(--panel-ink)]',
               ].join(' ')
             }
           >

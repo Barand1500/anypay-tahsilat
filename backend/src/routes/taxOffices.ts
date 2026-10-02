@@ -14,7 +14,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const taxOfficesRouter = Router();
 taxOfficesRouter.use(requireAuth);
-taxOfficesRouter.use(requireModuleWrite('/tanimlamalar'));
+taxOfficesRouter.use(requireModuleWrite('/tanimlamalar/vergi-daireleri'));
 
 const upsertSchema = z.object({
   city: z.string().min(1).max(255),

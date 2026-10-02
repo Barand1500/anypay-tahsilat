@@ -14,7 +14,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const branchesRouter = Router();
 branchesRouter.use(requireAuth);
-branchesRouter.use(requireModuleWrite('/tanimlamalar'));
+branchesRouter.use(requireModuleWrite('/tanimlamalar/subeler'));
 
 const upsertSchema = z.object({
   name: z.string().min(1).max(255),

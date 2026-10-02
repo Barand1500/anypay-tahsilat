@@ -46,6 +46,7 @@ export default function RolesPage() {
   const [deleteTarget, setDeleteTarget] = useState<AppRole | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const canSave = can('m-roller', 'save');
 
   useEffect(() => {
     if (!token) return;
@@ -180,11 +181,12 @@ export default function RolesPage() {
               index={i}
               onEdit={() => openEdit(role)}
               onDelete={() => askDelete(role)}
+              canEdit={canSave}
               canDelete={can('m-roller', 'remove')}
             />
           ))}
 
-          <button
+          {canSave ? <button
             type="button"
             data-km-jump
             data-role-card
@@ -204,7 +206,7 @@ export default function RolesPage() {
                 <p className="text-xs text-[var(--panel-muted)]">Mevcut değilse rol ekleyin</p>
               </div>
             </div>
-          </button>
+          </button> : null}
         </div>
       )}
 
@@ -252,6 +254,7 @@ function RoleCard({
   index,
   onEdit,
   onDelete,
+  canEdit,
   canDelete,
 }: {
   role: AppRole;
@@ -259,6 +262,7 @@ function RoleCard({
   index: number;
   onEdit: () => void;
   onDelete: () => void;
+  canEdit: boolean;
   canDelete: boolean;
 }) {
   const { pages: granted, total } = useMemo(
@@ -271,7 +275,7 @@ function RoleCard({
       data-role-card
       data-km-row
       tabIndex={-1}
-      onDoubleClick={onEdit}
+      onDoubleClick={canEdit ? onEdit : undefined}
       style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
       className="panel-card-in flex flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] transition hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))]"
     >
@@ -300,14 +304,14 @@ function RoleCard({
       <h2 className="mb-6 text-xl font-bold tracking-tight text-[var(--panel-ink)]">{role.name}</h2>
 
       <div className="mt-auto flex items-center justify-between gap-2">
-        <button
+        {canEdit ? <button
           type="button"
           data-km-jump
           onClick={onEdit}
           className="text-sm font-semibold text-[var(--color-brand-600)] transition hover:text-[var(--brand-on-soft)]"
         >
           Rolü Düzenle
-        </button>
+        </button> : null}
         {canDelete ? <button
           type="button"
           aria-label="Rolü sil"

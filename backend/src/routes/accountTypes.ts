@@ -14,7 +14,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const accountTypesRouter = Router();
 accountTypesRouter.use(requireAuth);
-accountTypesRouter.use(requireModuleWrite('/tanimlamalar'));
+accountTypesRouter.use(requireModuleWrite('/tanimlamalar/cari-tipleri'));
 
 const upsertSchema = z.object({
   name: z.string().min(1).max(255),

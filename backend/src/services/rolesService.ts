@@ -63,13 +63,54 @@ function slugCode(name: string): string {
   return `ROLE_${base || 'YENI'}`;
 }
 
-async function activeModuleIds(): Promise<number[]> {
-  const rows = await prisma.izinler.findMany({
+type ActiveModule = { id: number; route: string | null };
+
+async function activeModules(): Promise<ActiveModule[]> {
+  return prisma.izinler.findMany({
     where: { OR: [{ remove: null }, { remove: false }] },
-    select: { id: true },
+    select: { id: true, route: true },
     orderBy: { id: 'asc' },
   });
-  return rows.map((r) => r.id);
+}
+
+function canonicalRoute(raw: string | null): string {
+  const route = (raw || '').replace(/\/+$/, '') || '/';
+  const aliases: Array<[string, string]> = [
+    ['/tanimlamalar/bankalar/sanal-pos-tanimlari', '/tanimlamalar/pos-kart/sanal-pos'],
+    ['/tanimlamalar/bankalar/ortak-sanalpos', '/tanimlamalar/pos-kart/ortak-sanal-pos'],
+    ['/tanimlamalar/bankalar/kart-anlasmalari', '/tanimlamalar/pos-kart/anlasmalar'],
+    ['/tanimlamalar/bankalar/kart-tipleri', '/tanimlamalar/pos-kart/tipler'],
+    ['/tanimlamalar/bankalar/kart-turleri', '/tanimlamalar/pos-kart/turler'],
+    ['/tanimlamalar/bankalar/kart-markalari', '/tanimlamalar/pos-kart/markalar'],
+  ];
+  for (const [legacy, modern] of aliases) {
+    if (route === legacy || route.startsWith(`${legacy}/`)) return route.replace(legacy, modern);
+  }
+  return route;
+}
+
+/** Bir alt sayfa açıldığında mevcut üst modül kayıtlarının görüntüleme iznini de açar. */
+function withParentViews(
+  permissions: Record<string, PagePermDto> | undefined,
+  modules: ActiveModule[],
+): Record<string, PagePermDto> | undefined {
+  if (!permissions) return permissions;
+  const next = Object.fromEntries(
+    Object.entries(permissions).map(([id, value]) => [id, { ...value }]),
+  );
+  const selected = modules.filter((module) => next[String(module.id)]?.view);
+  for (const child of selected) {
+    const childRoute = canonicalRoute(child.route);
+    for (const parent of modules) {
+      const parentRoute = canonicalRoute(parent.route);
+      if (parentRoute === '/' || parentRoute === childRoute) continue;
+      if (childRoute.startsWith(`${parentRoute}/`)) {
+        const id = String(parent.id);
+        next[id] = { ...(next[id] ?? { view: false, save: false, remove: false }), view: true };
+      }
+    }
+  }
+  return next;
 }
 
 function permsFromSerialized(
@@ -139,7 +180,8 @@ async function toPublic(row: {
   yetki: number | null;
   izinler: string | null;
 }): Promise<PublicRole> {
-  const moduleIds = await activeModuleIds();
+  const modules = await activeModules();
+  const moduleIds = modules.map((module) => module.id);
   const isAdmin = deriveIsAdmin(row);
   return {
     id: row.id,
@@ -177,7 +219,8 @@ export async function createRole(input: {
   if (!name) throw new RolesError('Rol adı gerekli');
 
   const isAdmin = Boolean(input.isAdmin);
-  const moduleIds = await activeModuleIds();
+  const modules = await activeModules();
+  const moduleIds = modules.map((module) => module.id);
   let code = (input.code || slugCode(name)).trim().toUpperCase();
   if (!code.startsWith('ROLE_')) code = `ROLE_${code}`;
 
@@ -192,7 +235,7 @@ export async function createRole(input: {
       code: code.slice(0, 255),
       remove: null,
       yetki: isAdmin ? 1 : null,
-      izinler: buildSerializePayload(input.permissions, moduleIds, isAdmin),
+      izinler: buildSerializePayload(withParentViews(input.permissions, modules), moduleIds, isAdmin),
     },
   });
 
@@ -212,7 +255,8 @@ export async function updateRole(
   });
   if (!existing) throw new RolesError('Rol bulunamadı');
 
-  const moduleIds = await activeModuleIds();
+  const modules = await activeModules();
+  const moduleIds = modules.map((module) => module.id);
   const isAdmin =
     input.isAdmin !== undefined ? Boolean(input.isAdmin) : deriveIsAdmin(existing);
   const name = input.name !== undefined ? input.name.trim() : existing.adi;
@@ -230,7 +274,7 @@ export async function updateRole(
   if (isAdmin) {
     data.izinler = buildSerializePayload(undefined, moduleIds, true);
   } else if (input.permissions) {
-    data.izinler = buildSerializePayload(input.permissions, moduleIds, false);
+    data.izinler = buildSerializePayload(withParentViews(input.permissions, modules), moduleIds, false);
   } else if (input.isAdmin === false) {
     // Yönetici bayrağı kapatıldı, matris yoksa sıfırla
     data.izinler = buildSerializePayload({}, moduleIds, false);

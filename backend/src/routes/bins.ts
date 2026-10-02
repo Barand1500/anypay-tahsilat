@@ -55,7 +55,7 @@ binsRouter.get('/lookup', requireAuth, async (req, res) => {
 });
 
 binsRouter.use(requireAuth);
-binsRouter.use(requireModuleWrite('/tanimlamalar'));
+binsRouter.use(requireModuleWrite('/tanimlamalar/bankalar/bin-kayitlari'));
 
 binsRouter.get('/', async (_req, res) => {
   try {

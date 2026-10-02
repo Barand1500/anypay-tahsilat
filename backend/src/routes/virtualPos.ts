@@ -23,7 +23,14 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const virtualPosRouter = Router();
 virtualPosRouter.use(requireAuth);
-virtualPosRouter.use(requireModuleWrite('/tanimlamalar'));
+
+const canWriteVirtualPos = requireModuleWrite('/tanimlamalar/pos-kart/sanal-pos');
+const canWriteBankAgreement = requireModuleWrite(
+  '/tanimlamalar/bankalar/banka-kart-anlasmasi',
+);
+const canWriteCustomerAgreement = requireModuleWrite(
+  '/tanimlamalar/bankalar/musteri-kart-anlasmasi',
+);
 
 const upsertSchema = z.object({
   bankId: z.string().min(1),
@@ -129,7 +136,7 @@ virtualPosRouter.get('/:id/bank-agreement', async (req, res) => {
   }
 });
 
-virtualPosRouter.put('/:id/bank-agreement', async (req: AuthedRequest, res) => {
+virtualPosRouter.put('/:id/bank-agreement', canWriteBankAgreement, async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
   const parsed = bankAgreementSchema.safeParse(req.body);
@@ -160,7 +167,10 @@ virtualPosRouter.get('/:id/customer-agreement', async (req, res) => {
   }
 });
 
-virtualPosRouter.put('/:id/customer-agreement', async (req: AuthedRequest, res) => {
+virtualPosRouter.put(
+  '/:id/customer-agreement',
+  canWriteCustomerAgreement,
+  async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
   const parsed = customerAgreementSchema.safeParse(req.body);
@@ -177,9 +187,10 @@ virtualPosRouter.put('/:id/customer-agreement', async (req: AuthedRequest, res) 
     const msg = err instanceof Error ? err.message : 'Müşteri kart anlaşması kaydedilemedi';
     return sendError(res, 500, msg.slice(0, 500));
   }
-});
+  },
+);
 
-virtualPosRouter.post('/', async (req: AuthedRequest, res) => {
+virtualPosRouter.post('/', canWriteVirtualPos, async (req: AuthedRequest, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -195,7 +206,7 @@ virtualPosRouter.post('/', async (req: AuthedRequest, res) => {
   }
 });
 
-virtualPosRouter.patch('/:id', async (req: AuthedRequest, res) => {
+virtualPosRouter.patch('/:id', canWriteVirtualPos, async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
 
@@ -236,7 +247,7 @@ virtualPosRouter.patch('/:id', async (req: AuthedRequest, res) => {
   }
 });
 
-virtualPosRouter.delete('/:id', async (req: AuthedRequest, res) => {
+virtualPosRouter.delete('/:id', canWriteVirtualPos, async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz id');
   try {

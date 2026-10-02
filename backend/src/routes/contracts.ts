@@ -17,7 +17,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const contractsRouter = Router();
 contractsRouter.use(requireAuth);
-contractsRouter.use(requireModuleWrite('/tanimlamalar'));
+contractsRouter.use(requireModuleWrite('/tanimlamalar/sozlesmeler'));
 
 const linkSchema = z.enum([
   'none',

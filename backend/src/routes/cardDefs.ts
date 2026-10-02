@@ -32,6 +32,7 @@ const brandSchema = z.object({
 
 function makeNamedRouter(opts: {
   label: string;
+  modulePrefix: string;
   list: () => Promise<{ id: string; name: string }[]>;
   create: (name: string) => Promise<{ id: string; name: string }>;
   update: (id: number, name: string) => Promise<{ id: string; name: string }>;
@@ -39,7 +40,7 @@ function makeNamedRouter(opts: {
 }) {
   const router = Router();
   router.use(requireAuth);
-  router.use(requireModuleWrite('/tanimlamalar'));
+  router.use(requireModuleWrite(opts.modulePrefix));
 
   router.get('/', async (_req, res) => {
     try {
@@ -104,6 +105,7 @@ function makeNamedRouter(opts: {
 }
 
 export const cardTypesRouter = makeNamedRouter({
+  modulePrefix: '/tanimlamalar/pos-kart/tipler',
   label: 'Kart tipi',
   list: listCardTypes,
   create: createCardType,
@@ -112,6 +114,7 @@ export const cardTypesRouter = makeNamedRouter({
 });
 
 export const cardKindsRouter = makeNamedRouter({
+  modulePrefix: '/tanimlamalar/pos-kart/turler',
   label: 'Kart türü',
   list: listCardKinds,
   create: createCardKind,
@@ -121,7 +124,7 @@ export const cardKindsRouter = makeNamedRouter({
 
 export const cardBrandsRouter = Router();
 cardBrandsRouter.use(requireAuth);
-cardBrandsRouter.use(requireModuleWrite('/tanimlamalar'));
+cardBrandsRouter.use(requireModuleWrite('/tanimlamalar/pos-kart/markalar'));
 
 cardBrandsRouter.get('/', async (_req, res) => {
   try {

@@ -14,7 +14,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const commonVirtualPosRouter = Router();
 commonVirtualPosRouter.use(requireAuth);
-commonVirtualPosRouter.use(requireModuleWrite('/tanimlamalar'));
+commonVirtualPosRouter.use(requireModuleWrite('/tanimlamalar/pos-kart/ortak-sanal-pos'));
 
 const upsertSchema = z.object({
   bankId: z.string().min(1),

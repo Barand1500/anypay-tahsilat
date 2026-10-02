@@ -16,7 +16,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const currenciesRouter = Router();
 currenciesRouter.use(requireAuth);
-currenciesRouter.use(requireModuleWrite('/tanimlamalar'));
+currenciesRouter.use(requireModuleWrite('/tanimlamalar/para-birimleri'));
 
 const rateTypeSchema = z.enum(['Döviz Alış', 'Döviz Satış', 'Efektif Alış', 'Efektif Satış']);
 

@@ -39,6 +39,8 @@ type PathViewResult =
   | { allowed: true }
   | { allowed: false; pageName: string; moduleId: string };
 
+export type NavPermissionState = 'none' | 'partial' | 'full';
+
 type PermissionContextValue = {
   roles: AppRole[];
   setRoles: Dispatch<SetStateAction<AppRole[]>>;
@@ -56,6 +58,8 @@ type PermissionContextValue = {
   canViewPath: (pathname: string) => PathViewResult;
   /** Sidebar / profil menü — yetkisiz öğeyi hiç gösterme */
   canViewNavItem: (pathname: string) => boolean;
+  /** Çoklu sekme üst düğmesi için: hiçbiri / bazıları / tamamı açık. */
+  navPermissionState: (pathname: string) => NavPermissionState;
 };
 
 const PermissionContext = createContext<PermissionContextValue | null>(null);
@@ -276,6 +280,25 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     [sessionRole, user?.roles, permPages],
   );
 
+  const navPermissionState = useCallback(
+    (pathname: string): NavPermissionState => {
+      if (isAlwaysAllowedPath(pathname) || elevatedSession(sessionRole, user?.roles)) return 'full';
+      const path = normalizePath(pathname);
+      const isContainer = path === '/raporlar'
+        || path === '/tanimlamalar'
+        || path === '/tanimlamalar/pos-kart'
+        || path === '/ayarlar';
+      const modules = isContainer
+        ? relatedModules(path, permPages)
+        : exactModules(path, permPages);
+      if (modules.length === 0) return 'none';
+      const visible = modules.filter((module) => getPermForModule(sessionRole, module.id).view).length;
+      if (visible === 0) return 'none';
+      return visible === modules.length ? 'full' : 'partial';
+    },
+    [sessionRole, user?.roles, permPages],
+  );
+
   const guard = useCallback(
     (moduleId: string, action: PermAction, pageName?: string) => {
       if (can(moduleId, action)) return true;
@@ -304,6 +327,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       canRemovePath,
       canViewPath,
       canViewNavItem,
+      navPermissionState,
     }),
     [
       roles,
@@ -317,6 +341,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       canRemovePath,
       canViewPath,
       canViewNavItem,
+      navPermissionState,
     ],
   );
 

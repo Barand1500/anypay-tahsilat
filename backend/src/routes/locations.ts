@@ -16,7 +16,7 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const locationsRouter = Router();
 locationsRouter.use(requireAuth);
-locationsRouter.use(requireModuleWrite('/tanimlamalar'));
+locationsRouter.use(requireModuleWrite('/tanimlamalar/lokasyonlar'));
 
 const levelEnum = z.enum(['Ülke', 'İl', 'İlçe', 'Mahalle']);
 
