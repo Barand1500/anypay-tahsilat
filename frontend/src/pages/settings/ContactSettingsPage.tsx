@@ -98,7 +98,7 @@ export default function ContactSettingsPage() {
         { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.06, ease: 'power3.out' },
       );
     },
-    { scope: rootRef, dependencies: [draft] },
+    { scope: rootRef, dependencies: [] },
   );
 
   useGSAP(
