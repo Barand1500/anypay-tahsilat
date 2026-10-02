@@ -20,6 +20,8 @@ type Errors = Partial<{
 type Props = {
   holder: string;
   tc: string;
+  tcOk?: boolean;
+  tcFaulty?: boolean;
   phone: string;
   card: string;
   expiry: string;
@@ -34,6 +36,7 @@ type Props = {
   cvcFaulty?: boolean;
   onHolder: (v: string) => void;
   onTc: (v: string) => void;
+  onTcBlur?: () => void;
   onPhone: (v: string) => void;
   onCard: (v: string) => void;
   onExpiry: (v: string) => void;
@@ -116,8 +119,11 @@ export function PaymentCardFields(props: Props) {
             value={props.tc}
             error={props.errors.tc}
             onChange={(e) => props.onTc(e.target.value)}
+            onBlur={props.onTcBlur}
             inputMode="numeric"
-            className="!h-10 !pb-1 !pt-3.5 font-mono text-xs tabular-nums"
+            maxLength={11}
+            className="!h-10 !pb-1 !pt-3.5 !pr-16 font-mono text-xs tabular-nums"
+            endAdornment={props.tcFaulty ? <FaultBadge /> : props.tcOk ? <OkBadge /> : null}
           />
           <TextInput
             data-km-jump
@@ -186,8 +192,11 @@ export function PaymentCardFields(props: Props) {
         value={props.tc}
         error={props.errors.tc}
         onChange={(e) => props.onTc(e.target.value)}
+        onBlur={props.onTcBlur}
         inputMode="numeric"
-        className="font-mono tabular-nums"
+        maxLength={11}
+        className="!pr-16 font-mono tabular-nums"
+        endAdornment={props.tcFaulty ? <FaultBadge /> : props.tcOk ? <OkBadge /> : null}
       />
       <TextInput
         data-km-jump

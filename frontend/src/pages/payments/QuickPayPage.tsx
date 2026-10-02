@@ -24,6 +24,7 @@ import {
   formatMoneyTr, formatMoneyDisplay,
   getCardExpiryError,
   isValidLuhn,
+  isValidTurkishIdentityNo,
   maskMoneyInput,
   parseTrMoney,
   type BankInfo,
@@ -95,6 +96,7 @@ export default function QuickPayPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [cardChecked, setCardChecked] = useState(false);
+  const [tcChecked, setTcChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
   const [cvcChecked, setCvcChecked] = useState(false);
   const binsRev = useBinsRevision();
@@ -122,6 +124,8 @@ export default function QuickPayPage() {
   const cardFaulty =
     cardChecked &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
+  const tcFaulty = tcChecked && tc.length > 0 && !isValidTurkishIdentityNo(tc);
+  const tcOk = tcChecked && isValidTurkishIdentityNo(tc);
   const expiryFaulty =
     expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
   const expiryOk =
@@ -234,7 +238,7 @@ export default function QuickPayPage() {
     if (!currencyId) next.currency = 'Para birimi seçin';
     if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
-    if (tc && digitsOnly(tc).length !== 11) next.tc = 'TC 11 hane olmalı';
+    if (tc && !isValidTurkishIdentityNo(digitsOnly(tc))) next.tc = 'Geçerli bir T.C. kimlik numarası girin';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
     if (cardDigits.length < 15) next.card = 'Kart numarası eksik';
     else if (!isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
@@ -244,6 +248,7 @@ export default function QuickPayPage() {
     if (!pickedInstall) next.install = 'Taksit seçin';
     if (!contractOk) next.contract = 'Sözleşmeyi kabul edin';
     setCardChecked(true);
+    setTcChecked(true);
     setExpiryChecked(true);
     setCvcChecked(true);
     setErrors(next);
@@ -387,6 +392,7 @@ export default function QuickPayPage() {
                   id="quick-pay-amount"
                   value={amountText}
                   onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                  onBlur={() => setAmountText(amount > 0 ? formatMoneyTr(amount) : '0,00')}
                   inputMode="numeric"
                   placeholder=" "
                   className="peer w-full rounded-l-xl bg-transparent px-3.5 pb-2.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
@@ -495,6 +501,8 @@ export default function QuickPayPage() {
               cvc={cvc}
               errors={errors}
               bank={bank}
+              tcFaulty={tcFaulty || Boolean(errors.tc)}
+              tcOk={tcOk && !errors.tc}
               cardFaulty={cardFaulty}
               cardOk={cardChecked && !cardFaulty && cardDigits.length >= 15}
               expiryOk={expiryOk}
@@ -502,7 +510,16 @@ export default function QuickPayPage() {
               cvcOk={cvcOk}
               cvcFaulty={cvcFaulty}
               onHolder={setHolder}
-              onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
+              onTc={(v) => {
+                setTc(digitsOnly(v).slice(0, 11));
+                setTcChecked(false);
+                setErrors((prev) => {
+                  if (!prev.tc) return prev;
+                  const { tc: _, ...rest } = prev;
+                  return rest;
+                });
+              }}
+              onTcBlur={() => setTcChecked(true)}
               onPhone={(v) => {
                 setPhone(normalizePhoneInput(v));
                 setErrors((prev) => {

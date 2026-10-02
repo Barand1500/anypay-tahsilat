@@ -91,6 +91,17 @@ export function isValidLuhn(cardDigits: string): boolean {
   return sum % 10 === 0;
 }
 
+/** T.C. kimlik numarasının 10. ve 11. hane kontrol basamaklarını doğrular. */
+export function isValidTurkishIdentityNo(value: string): boolean {
+  if (!/^\d{11}$/.test(value) || value[0] === '0') return false;
+  const digits = [...value].map(Number);
+  const oddSum = digits[0]! + digits[2]! + digits[4]! + digits[6]! + digits[8]!;
+  const evenSum = digits[1]! + digits[3]! + digits[5]! + digits[7]!;
+  const tenth = ((oddSum * 7 - evenSum) % 10 + 10) % 10;
+  const eleventh = digits.slice(0, 10).reduce((sum, digit) => sum + digit, 0) % 10;
+  return digits[9] === tenth && digits[10] === eleventh;
+}
+
 /** SKT girişi — ay 01–12’ye sıkıştırır, AA/YY formatlar */
 export function formatExpiryInput(raw: string): string {
   let d = digitsOnly(raw).slice(0, 4);
@@ -124,7 +135,6 @@ export function getCardExpiryError(expiry: string): string | null {
 }
 
 export { formatMoneyAmount as formatMoneyTr, formatMoneyDisplay } from '../settings/personalPrefs';
-import { formatMoneyAmount } from '../settings/personalPrefs';
 
 /** TR para metnini sayıya çevir (1.234,56 → 1234.56) */
 export function parseTrMoney(raw: string): number {
@@ -138,10 +148,14 @@ export function parseTrMoney(raw: string): number {
  * Örn. 1 → 0,01 · 100 → 1,00 · 100000 → 1.000,00
  */
 export function maskMoneyInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '').replace(/^0+/, '') || '';
-  if (!digits) return '';
-  const capped = digits.slice(0, 14);
-  return formatMoneyAmount(Number(capped) / 100);
+  const hasComma = raw.includes(',');
+  const source = raw.replace(/\s/g, '').replace(/\./g, hasComma ? '' : '.');
+  const comma = source.indexOf(',');
+  const integerRaw = (comma >= 0 ? source.slice(0, comma) : source).replace(/\D/g, '').slice(0, 14);
+  const decimalRaw = comma >= 0 ? source.slice(comma + 1).replace(/\D/g, '').slice(0, 2) : '';
+  if (!integerRaw && !decimalRaw) return '';
+  const integer = integerRaw.replace(/^0+(?=\d)/, '') || '0';
+  return comma >= 0 ? `${integer},${decimalRaw}` : integer;
 }
 
 /** İsim veya id ile logo bul — özet kartları / API sonrası */
