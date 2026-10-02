@@ -67,18 +67,44 @@ export function NestedDefSubnav({ items, activeClass = 'is-nested-def-tab-active
       top,
       width: a.width,
       height: a.height,
-      duration: 0.45,
-      ease: 'power3.inOut',
+      duration: 0.36,
+      ease: 'power2.out',
       overwrite: 'auto',
     });
   }
 
   useLayoutEffect(() => {
-    const instant = firstPill.current;
+    // Alt grup ilk açıldığında seçili sekmeyi bir anda çizmek yerine
+    // soldan kısa bir geçişle göster; sonraki sekmelerde pill mevcut konumundan akar.
+    const wasFirst = firstPill.current;
     firstPill.current = false;
     requestAnimationFrame(() => {
-      placePill(instant);
-      if (!instant) {
+      if (wasFirst) {
+        const track = trackRef.current;
+        const pill = pillRef.current;
+        const active = track?.querySelector<HTMLElement>(`a.${activeClass}`);
+        if (track && pill && active) {
+          const trackBox = track.getBoundingClientRect();
+          const activeBox = active.getBoundingClientRect();
+          const target = {
+            left: activeBox.left - trackBox.left + track.scrollLeft,
+            top: activeBox.top - trackBox.top,
+            width: activeBox.width,
+            height: activeBox.height,
+          };
+          gsap.set(pill, { ...target, left: Math.max(0, target.left - 10), autoAlpha: 0 });
+          gsap.to(pill, {
+            ...target,
+            autoAlpha: 1,
+            duration: 0.34,
+            ease: 'power2.out',
+            overwrite: 'auto',
+          });
+        } else {
+          placePill(true);
+        }
+      } else {
+        placePill(false);
         const track = trackRef.current;
         const active = track?.querySelector<HTMLElement>(`a.${activeClass}`);
         active?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });

@@ -97,9 +97,9 @@ export function resolveContractVars(text: string, vars: ContractVarMap): string 
 }
 
 /** Footer için şirket değişkenleri (iletişim ayarlarından) */
-export function getCompanyContractVars(contact: Partial<{ title: string; taxNo: string; taxOffice: string; identityNo: string; address: string; email: string; phone: string; gsm: string; fax: string }>): ContractVarMap {
+export function getCompanyContractVars(contact: Partial<{ title: string; taxNo: string; taxOffice: string; identityNo: string; address: string; email: string; phone: string; gsm: string; website: string; fax: string }>): ContractVarMap {
   return {
-    webSitesi: '',
+    webSitesi: contact.website || contact.fax || '',
     unvan: contact.title || '',
     vergiTCNo: contact.taxNo || contact.identityNo || '',
     vergiDairesi: contact.taxOffice || '',

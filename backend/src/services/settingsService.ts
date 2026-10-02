@@ -227,6 +227,8 @@ export type PublicContactSettings = {
   email: string;
   phone: string;
   gsm: string;
+  website: string;
+  /** @deprecated Legacy API alias. The stored value is now the website URL. */
   fax: string;
   taxOffices: { value: string; label: string }[];
 };
@@ -241,6 +243,8 @@ export type UpdateContactInput = {
   email: string;
   phone: string;
   gsm: string;
+  website?: string;
+  /** @deprecated Legacy API alias accepted for old clients. */
   fax: string;
 };
 
@@ -286,6 +290,7 @@ export async function getContactSettings(): Promise<PublicContactSettings> {
       email: '',
       phone: '',
       gsm: '',
+      website: '',
       fax: '',
       taxOffices,
     };
@@ -316,7 +321,8 @@ export async function getContactSettings(): Promise<PublicContactSettings> {
     email: (row.eposta || '').trim().toLowerCase(),
     phone: digitsOnly(row.telefon, 10),
     gsm: digitsOnly(row.gsm, 10),
-    fax: digitsOnly(row.fax, 10),
+    website: (row.fax || '').trim(),
+    fax: (row.fax || '').trim(),
     taxOffices,
   };
 }
@@ -329,6 +335,7 @@ export async function updateContactSettings(
   const address = input.address.trim();
   const email = input.email.trim().toLowerCase();
   const phone = digitsOnly(input.phone, 10);
+  const website = (input.website ?? input.fax ?? '').trim();
 
   if (!title) throw new SettingsError(input.kind === 'tuzel' ? 'Ünvan gerekli' : 'Ad soyad gerekli');
   if (!address) throw new SettingsError('Adres gerekli');
@@ -372,7 +379,7 @@ export async function updateContactSettings(
     eposta: email.slice(0, 255),
     telefon: phone,
     gsm: digitsOnly(input.gsm, 10) || null,
-    fax: digitsOnly(input.fax, 10) || null,
+    fax: website.slice(0, 255) || null,
   };
   if (row) {
     await prisma.iletisimBilgileri.update({ where: { id: row.id }, data });

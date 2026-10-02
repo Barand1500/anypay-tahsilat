@@ -158,7 +158,8 @@ const contactPatchSchema = z.object({
   email: z.string().email('Geçerli e-posta girin').max(255),
   phone: z.string().min(10, 'Telefon gerekli').max(20),
   gsm: z.string().max(20).optional().default(''),
-  fax: z.string().max(20).optional().default(''),
+  website: z.string().max(255).optional().default(''),
+  fax: z.string().max(255).optional().default(''),
 });
 
 settingsRouter.get('/contact', async (_req, res) => {
@@ -189,6 +190,7 @@ settingsRouter.patch('/contact', async (req: AuthedRequest, res) => {
       email: parsed.data.email,
       phone: parsed.data.phone,
       gsm: parsed.data.gsm,
+      website: parsed.data.website || parsed.data.fax,
       fax: parsed.data.fax,
     });
     await writePanelLog(req.auth!.sub, 'Ayarlar - İletişim bilgileri güncellendi.');

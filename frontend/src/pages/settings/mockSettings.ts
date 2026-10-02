@@ -43,7 +43,7 @@ export type ContactSettings = {
   email: string;
   phone: string;
   gsm: string;
-  fax: string;
+  website: string;
 };
 
 export const CONTACT_KIND_OPTIONS = [

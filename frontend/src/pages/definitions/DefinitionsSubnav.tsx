@@ -60,8 +60,8 @@ export function DefinitionsSubnav() {
       top,
       width,
       height,
-      duration: 0.45,
-      ease: 'power3.inOut',
+      duration: 0.36,
+      ease: 'power2.out',
       overwrite: 'auto',
     });
   }

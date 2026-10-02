@@ -78,7 +78,7 @@ export default function ContactSettingsPage() {
       draft.email !== baseline.email ||
       draft.phone !== baseline.phone ||
       draft.gsm !== baseline.gsm ||
-      draft.fax !== baseline.fax);
+      draft.website !== baseline.website);
 
   const suggestions = useMemo(
     () => (draft ? emailSuggestions(draft.email) : []),
@@ -150,7 +150,7 @@ export default function ContactSettingsPage() {
           email: draft.email,
           phone: draft.phone,
           gsm: draft.gsm,
-          fax: draft.fax,
+          website: draft.website,
         },
         token,
       );
@@ -301,43 +301,42 @@ export default function ContactSettingsPage() {
           className="min-h-[5.5rem]"
         />
 
-        <div className="relative">
-          <TextInput
-            data-km-jump
-            label="E-Posta *"
-            type="email"
-            value={draft.email}
-            onChange={(e) => {
-              patch('email', e.target.value.toLowerCase());
-              setEmailOpen(true);
-            }}
-            onFocus={() => setEmailOpen(true)}
-            onBlur={() => window.setTimeout(() => setEmailOpen(false), 120)}
-            autoComplete="off"
-            required
-          />
-          {emailOpen && suggestions.length > 0 ? (
-            <ul className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
-              {suggestions.map((s) => (
-                <li key={s}>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      patch('email', s);
-                      setEmailOpen(false);
-                    }}
-                  >
-                    {s}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="relative">
+            <TextInput
+              data-km-jump
+              label="E-Posta *"
+              type="email"
+              value={draft.email}
+              onChange={(e) => {
+                patch('email', e.target.value.toLowerCase());
+                setEmailOpen(true);
+              }}
+              onFocus={() => setEmailOpen(true)}
+              onBlur={() => window.setTimeout(() => setEmailOpen(false), 120)}
+              autoComplete="off"
+              required
+            />
+            {emailOpen && suggestions.length > 0 ? (
+              <ul className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
+                {suggestions.map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 text-left text-sm text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        patch('email', s);
+                        setEmailOpen(false);
+                      }}
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           <TextInput
             data-km-jump
             label="Telefon *"
@@ -357,11 +356,12 @@ export default function ContactSettingsPage() {
           />
           <TextInput
             data-km-jump
-            label="Fax"
-            inputMode="numeric"
-            value={formatContactPhone(draft.fax)}
-            onChange={(e) => patch('fax', normalizeContactPhone(e.target.value))}
-            className="font-mono tabular-nums"
+            label="Web Sitesi"
+            type="url"
+            value={draft.website}
+            onChange={(e) => patch('website', e.target.value)}
+            placeholder="https://ornek.com"
+            autoComplete="url"
           />
         </section>
 
