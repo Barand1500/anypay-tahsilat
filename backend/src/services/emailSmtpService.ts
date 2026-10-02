@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { SettingsError } from './settingsService.js';
+import { getOrCreateAyarlarRow, SettingsError } from './settingsService.js';
 
 export type SmtpConfig = {
   host: string;
@@ -89,9 +89,7 @@ function parseStored(raw: string | null | undefined): StoredSmtp | null {
 }
 
 async function getRow() {
-  const row = await prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } });
-  if (!row) throw new SettingsError('Ayarlar kaydı bulunamadı');
-  return row;
+  return getOrCreateAyarlarRow();
 }
 
 /** Gönderim için tam config — DB, yoksa .env */

@@ -114,10 +114,30 @@ async function saveBrandAsset(kind: 'logo' | 'favicon', dataUrl: string): Promis
   return `sistem/${filename}`;
 }
 
-async function getRow() {
-  const row = await prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } });
-  if (!row) throw new SettingsError('Ayarlar kaydı bulunamadı');
+export async function getOrCreateAyarlarRow() {
+  let row = await prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } });
+  if (!row) {
+    try {
+      row = await prisma.ayarlar.create({
+        data: {
+          sistemAdi: '',
+          sistemYolu: '',
+          logo: '',
+          favicon: '',
+          sistemPosta: '',
+        },
+      });
+    } catch {
+      // Aynı anda açılan ayar isteklerinden biri kaydı oluşturmuş olabilir.
+      row = await prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } });
+      if (!row) throw new SettingsError('Ayarlar kaydı oluşturulamadı');
+    }
+  }
   return row;
+}
+
+async function getRow() {
+  return getOrCreateAyarlarRow();
 }
 
 export async function getQuickAccessSettings(): Promise<QuickAccessSettings> {
@@ -249,14 +269,27 @@ async function listTaxOffices() {
   return rows.map((r) => ({ value: String(r.id), label: r.adi }));
 }
 
-async function getContactRow() {
-  const row = await prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } });
-  if (!row) throw new SettingsError('İletişim kaydı bulunamadı');
-  return row;
-}
-
 export async function getContactSettings(): Promise<PublicContactSettings> {
-  const [row, taxOffices] = await Promise.all([getContactRow(), listTaxOffices()]);
+  const [row, taxOffices] = await Promise.all([
+    prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } }),
+    listTaxOffices(),
+  ]);
+  if (!row) {
+    return {
+      title: '',
+      kind: 'gercek',
+      taxNo: '',
+      taxOfficeId: null,
+      taxOffice: '',
+      identityNo: '',
+      address: '',
+      email: '',
+      phone: '',
+      gsm: '',
+      fax: '',
+      taxOffices,
+    };
+  }
   const kind = kindFromTip(row.tip);
   const vn = (row.vn || '').trim();
   let taxOffice = '';
@@ -291,7 +324,7 @@ export async function getContactSettings(): Promise<PublicContactSettings> {
 export async function updateContactSettings(
   input: UpdateContactInput,
 ): Promise<PublicContactSettings> {
-  const row = await getContactRow();
+  const row = await prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } });
   const title = input.title.trim();
   const address = input.address.trim();
   const email = input.email.trim().toLowerCase();
@@ -330,20 +363,22 @@ export async function updateContactSettings(
     vn = identity.slice(0, 20) || null;
   }
 
-  await prisma.iletisimBilgileri.update({
-    where: { id: row.id },
-    data: {
-      unvan: title.slice(0, 255),
-      tip: tipFromKind(input.kind),
-      vn,
-      vdId,
-      adres: address,
-      eposta: email.slice(0, 255),
-      telefon: phone,
-      gsm: digitsOnly(input.gsm, 10) || null,
-      fax: digitsOnly(input.fax, 10) || null,
-    },
-  });
+  const data = {
+    unvan: title.slice(0, 255),
+    tip: tipFromKind(input.kind),
+    vn,
+    vdId,
+    adres: address,
+    eposta: email.slice(0, 255),
+    telefon: phone,
+    gsm: digitsOnly(input.gsm, 10) || null,
+    fax: digitsOnly(input.fax, 10) || null,
+  };
+  if (row) {
+    await prisma.iletisimBilgileri.update({ where: { id: row.id }, data });
+  } else {
+    await prisma.iletisimBilgileri.create({ data });
+  }
 
   return getContactSettings();
 }

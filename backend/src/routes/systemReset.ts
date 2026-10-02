@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { requireModulePerm } from '../middleware/permissions.js';
@@ -7,11 +8,16 @@ import {
   buildBackupSql,
   clearResetTable,
   listResetTables,
+  restoreBackupSql,
 } from '../services/systemResetService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const systemResetRouter = Router();
+const backupUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+});
 
 systemResetRouter.use(requireAuth);
 systemResetRouter.use(requireModulePerm('/sistem-sifirlama'));
@@ -38,6 +44,23 @@ systemResetRouter.post('/backup', async (req: AuthedRequest, res) => {
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'Yedek oluşturulamadı');
+  }
+});
+
+systemResetRouter.post('/restore', backupUpload.single('backup'), async (req: AuthedRequest, res) => {
+  const file = req.file;
+  if (!file) return sendError(res, 400, 'Geri yüklenecek .sql yedek dosyasını seçin');
+  if (!file.originalname.toLocaleLowerCase('tr').endsWith('.sql')) {
+    return sendError(res, 400, 'Yalnızca .sql yedek dosyaları yüklenebilir');
+  }
+
+  try {
+    const result = await restoreBackupSql(req.auth!.sub, file.buffer.toString('utf8'));
+    return sendSuccess(res, result, 'Veritabanı yedeği geri yüklendi');
+  } catch (err) {
+    if (err instanceof SystemResetError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Veritabanı yedeği geri yüklenemedi');
   }
 });
 

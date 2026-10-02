@@ -21,6 +21,7 @@ export default function SystemResetPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [pageSizeText, setPageSizeText] = useState('10');
@@ -30,10 +31,14 @@ export default function SystemResetPage() {
   const [backingUp, setBackingUp] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ResetTable | null>(null);
   const [needBackupHint, setNeedBackupHint] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const unlocked = !!backedUpAt && !!unlockToken;
@@ -259,6 +264,37 @@ export default function SystemResetPage() {
     }
   }
 
+  async function confirmRestore() {
+    if (!restoreFile || !token || restoring) return;
+    if (!guard('m-sistem', 'save', 'Sistem Sıfırlama')) {
+      setRestoreOpen(false);
+      return;
+    }
+    const form = new FormData();
+    form.append('backup', restoreFile);
+    setRestoring(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const result = await api.postForm<{ tables: number; rows: number }>(
+        '/api/system-reset/restore',
+        form,
+        token,
+      );
+      setRestoreOpen(false);
+      setRestoreFile(null);
+      setUnlockToken(null);
+      setBackedUpAt(null);
+      setActionError(null);
+      await load();
+      setActionSuccess(`Yedek geri yüklendi: ${result.tables} tablo, ${result.rows} kayıt.`);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Yedek geri yüklenemedi');
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   function exportCsv() {
     const header = 'Modül;Tablo;MySQL;Kayıt\n';
     const body = filtered
@@ -362,6 +398,11 @@ export default function SystemResetPage() {
           {actionError}
         </div>
       ) : null}
+      {actionSuccess ? (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">
+          {actionSuccess}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 shadow-[var(--panel-shadow)] sm:gap-3 sm:px-4">
         <label className="flex shrink-0 items-center gap-2 text-sm text-[var(--panel-muted)]">
@@ -400,6 +441,44 @@ export default function SystemResetPage() {
           <span className="sm:hidden">
             {backingUp ? '…' : unlocked || unlocking ? 'Yedekle' : 'Yedekle'}
           </span>
+        </button>
+
+        <input
+          ref={restoreInputRef}
+          type="file"
+          accept=".sql,application/sql,text/plain"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0] || null;
+            event.currentTarget.value = '';
+            if (!file) return;
+            if (!guard('m-sistem', 'save', 'Sistem Sıfırlama')) return;
+            if (!file.name.toLocaleLowerCase('tr').endsWith('.sql')) {
+              setActionError('Yalnızca AnyPay .sql yedek dosyası yükleyebilirsiniz.');
+              return;
+            }
+            if (file.size > 50 * 1024 * 1024) {
+              setActionError('Yedek dosyası 50 MB sınırını aşıyor.');
+              return;
+            }
+            setActionError(null);
+            setActionSuccess(null);
+            setRestoreFile(file);
+            setRestoreOpen(true);
+          }}
+        />
+        <button
+          type="button"
+          data-km-jump
+          disabled={restoring || backingUp || unlocking}
+          onClick={() => {
+            if (!guard('m-sistem', 'save', 'Sistem Sıfırlama')) return;
+            restoreInputRef.current?.click();
+          }}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:opacity-60"
+        >
+          <RestoreIcon />
+          <span>{restoring ? 'Geri yükleniyor…' : 'Yedeği içe aktar'}</span>
         </button>
 
         <div ref={exportRef} className="relative">
@@ -577,6 +656,18 @@ export default function SystemResetPage() {
           onConfirm={() => void confirmDelete()}
         />
       ) : null}
+      {restoreOpen && restoreFile ? (
+        <ConfirmRestoreModal
+          fileName={restoreFile.name}
+          busy={restoring}
+          onCancel={() => {
+            if (restoring) return;
+            setRestoreOpen(false);
+            setRestoreFile(null);
+          }}
+          onConfirm={() => void confirmRestore()}
+        />
+      ) : null}
     </div>
   );
 }
@@ -696,11 +787,104 @@ function ConfirmDeleteModal({
   );
 }
 
+function ConfirmRestoreModal({
+  fileName,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  fileName: string;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    gsap.fromTo(el, { autoAlpha: 0, y: 12, scale: 0.96 }, {
+      autoAlpha: 1, y: 0, scale: 1, duration: 0.28, ease: 'power3.out',
+    });
+  }, []);
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !busy) {
+        event.preventDefault();
+        onCancel();
+      }
+    }
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [busy, onCancel]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Kapat"
+        disabled={busy}
+        onClick={onCancel}
+        className="absolute inset-0 cursor-default bg-black/50 backdrop-blur-[3px] disabled:cursor-wait"
+      />
+      <div
+        ref={panelRef}
+        role="alertdialog"
+        aria-modal="true"
+        className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-xl"
+      >
+        <h2 className="text-lg font-bold text-[var(--panel-ink)]">Yedek geri yüklensin mi?</h2>
+        <p className="mt-2 break-all rounded-lg bg-[var(--panel-hover)] px-3 py-2 text-sm font-medium text-[var(--panel-ink)]">
+          {fileName}
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-rose-600">
+          Yedekte bulunan tabloların mevcut kayıtları silinip yedekteki kayıtlarla değiştirilecek. Yedek tarihinden sonra eklenen veriler bu tablolarda kaybolabilir. Bu işlem geri alınamaz.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-[var(--panel-muted)]">
+          Yalnızca Sistem Sıfırlama sayfasından alınmış AnyPay .sql yedekleri kabul edilir.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="rounded-xl border border-[var(--panel-line)] px-4 py-2.5 text-sm font-semibold text-[var(--panel-ink)] disabled:opacity-40"
+          >
+            Vazgeç
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? 'Geri yükleniyor…' : 'Yedeği geri yükle'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function BackupIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M12 3v10m0 0 3.5-3.5M12 13 8.5 9.5M5 17.5V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function RestoreIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 21V11m0 0 3.5 3.5M12 11l-3.5 3.5M5 6.5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1.5"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"

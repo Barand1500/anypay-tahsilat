@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { getOrCreateAyarlarRow } from './settingsService.js';
 import { getAccountTypeInstallments } from './accountTypesService.js';
 import { getBranchInstallments } from './branchesService.js';
 import { getUserAllowedInstallments } from './usersService.js';
@@ -39,8 +40,7 @@ export async function updateInstallmentPriority(
   order: InstallmentSource[],
 ): Promise<InstallmentPriority> {
   const cleaned = parseOrder(order.join(','));
-  const row = await prisma.ayarlar.findFirst({ orderBy: { id: 'asc' }, select: { id: true } });
-  if (!row) throw new Error('Ayarlar kaydı bulunamadı');
+  const row = await getOrCreateAyarlarRow();
   await prisma.ayarlar.update({
     where: { id: row.id },
     data: { taksitSiralama: cleaned.join(',') },

@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { SettingsError } from './settingsService.js';
+import { getOrCreateAyarlarRow, SettingsError } from './settingsService.js';
 
 export type PublicAppDefaults = {
   loginTheme: 'classic' | 'globe';
@@ -106,9 +106,7 @@ export function normalizeDefaults(raw: unknown): PublicAppDefaults {
 }
 
 async function getRow() {
-  const row = await prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } });
-  if (!row) throw new SettingsError('Ayarlar kaydı bulunamadı');
-  return row;
+  return getOrCreateAyarlarRow();
 }
 
 export async function getAppDefaultsSettings(): Promise<PublicAppDefaults> {

@@ -238,6 +238,193 @@ export async function buildBackupSql(userId: number): Promise<{
   };
 }
 
+function splitBackupStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let quote: "'" | '`' | null = null;
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i]!;
+    if (quote === "'") {
+      current += char;
+      if (char === '\\' && i + 1 < sql.length) {
+        current += sql[++i]!;
+      } else if (char === "'" && sql[i + 1] === "'") {
+        current += sql[++i]!;
+      } else if (char === "'") {
+        quote = null;
+      }
+      continue;
+    }
+    if (quote === '`') {
+      current += char;
+      if (char === '`' && sql[i + 1] === '`') current += sql[++i]!;
+      else if (char === '`') quote = null;
+      continue;
+    }
+    if (!current.trim() && char === '-' && sql[i + 1] === '-') {
+      while (i < sql.length && sql[i] !== '\n') i++;
+      continue;
+    }
+    if (char === "'") quote = "'";
+    else if (char === '`') quote = '`';
+    if (char === ';') {
+      if (current.trim()) statements.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (quote) throw new SystemResetError('Yedek dosyasındaki SQL metni tamamlanmamış');
+  if (current.trim()) statements.push(current.trim());
+  return statements;
+}
+
+function splitSqlValues(raw: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let quote = false;
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i]!;
+    current += char;
+    if (quote) {
+      if (char === '\\' && i + 1 < raw.length) current += raw[++i]!;
+      else if (char === "'" && raw[i + 1] === "'") current += raw[++i]!;
+      else if (char === "'") quote = false;
+    } else if (char === "'") {
+      quote = true;
+    } else if (char === ',') {
+      values.push(current.slice(0, -1).trim());
+      current = '';
+    }
+  }
+  if (quote) throw new SystemResetError('Yedek dosyasında geçersiz metin değeri');
+  if (current.trim()) values.push(current.trim());
+  return values;
+}
+
+function parseSqlValue(rawValue: string): string | null | Buffer {
+  const value = rawValue.trim();
+  if (/^NULL$/i.test(value)) return null;
+  const binary = /^X'([\da-f]*)'$/i.exec(value);
+  if (binary) return Buffer.from(binary[1]!, 'hex');
+  if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value)) return value;
+  if (!value.startsWith("'") || !value.endsWith("'")) {
+    throw new SystemResetError('Yedek dosyasında desteklenmeyen SQL değeri var');
+  }
+
+  let decoded = '';
+  for (let i = 1; i < value.length - 1; i++) {
+    const char = value[i]!;
+    if (char === '\\') {
+      const next = value[++i];
+      if (next !== '\\' && next !== "'") {
+        throw new SystemResetError('Yedek dosyasında geçersiz kaçış karakteri var');
+      }
+      decoded += next;
+    } else if (char === "'" && value[i + 1] === "'") {
+      decoded += "'";
+      i++;
+    } else if (char === "'") {
+      throw new SystemResetError('Yedek dosyasında geçersiz metin değeri');
+    } else {
+      decoded += char;
+    }
+  }
+  return decoded;
+}
+
+type RestoreInsert = { table: string; columns: string[]; values: (string | null | Buffer)[] };
+
+/** Yalnızca panelin ürettiği yedek biçimindeki DELETE/INSERT verilerini geri yükler. */
+export async function restoreBackupSql(userId: number, sql: string): Promise<{ tables: number; rows: number }> {
+  if (Buffer.byteLength(sql, 'utf8') > 50 * 1024 * 1024) {
+    throw new SystemResetError('Yedek dosyası 50 MB sınırını aşıyor');
+  }
+  sql = sql.replace(/^\uFEFF/, '');
+  if (!sql.trimStart().startsWith('-- AnyPay Tahsilat yedek')) {
+    throw new SystemResetError('Bu dosya AnyPay veritabanı yedeği olarak tanınmadı');
+  }
+
+  const allowedTables = new Set((await listResetTables()).map((table) => table.mysqlTable));
+  const deletes = new Set<string>();
+  const inserts: RestoreInsert[] = [];
+  for (const statement of splitBackupStatements(sql)) {
+    if (/^SET\s+NAMES\s+utf8mb4$/i.test(statement)) continue;
+    if (/^SET\s+FOREIGN_KEY_CHECKS\s*=\s*[01]$/i.test(statement)) continue;
+
+    const deletion = /^DELETE\s+FROM\s+`([A-Za-z0-9_]+)`$/i.exec(statement);
+    if (deletion) {
+      const table = deletion[1]!;
+      if (!allowedTables.has(table) || DENY_ENTITIES.has(table.toLowerCase())) {
+        throw new SystemResetError(`Yedekte izin verilmeyen tablo var: ${table}`);
+      }
+      if (deletes.has(table)) throw new SystemResetError(`Yedekte yinelenen tablo var: ${table}`);
+      deletes.add(table);
+      continue;
+    }
+
+    const insertion = /^INSERT\s+INTO\s+`([A-Za-z0-9_]+)`\s*\(([^)]+)\)\s+VALUES\s*\((.*)\)$/is.exec(statement);
+    if (!insertion) throw new SystemResetError('Yedek dosyasında desteklenmeyen SQL komutu var');
+    const table = insertion[1]!;
+    if (!allowedTables.has(table) || DENY_ENTITIES.has(table.toLowerCase())) {
+      throw new SystemResetError(`Yedekte izin verilmeyen tablo var: ${table}`);
+    }
+    const columns = insertion[2]!
+      .split(',')
+      .map((column) => /^\s*`([A-Za-z0-9_]+)`\s*$/.exec(column)?.[1] || '');
+    if (!columns.length || columns.some((column) => !column) || new Set(columns).size !== columns.length) {
+      throw new SystemResetError(`Yedekte geçersiz sütun listesi var: ${table}`);
+    }
+    const rawValues = splitSqlValues(insertion[3]!);
+    if (rawValues.length !== columns.length) {
+      throw new SystemResetError(`Yedekte sütun ve değer sayısı uyuşmuyor: ${table}`);
+    }
+    inserts.push({ table, columns, values: rawValues.map(parseSqlValue) });
+  }
+
+  if (deletes.size === 0) throw new SystemResetError('Yedek dosyasında geri yüklenecek tablo bulunamadı');
+  for (const row of inserts) {
+    if (!deletes.has(row.table)) throw new SystemResetError(`Yedekte ${row.table} tablosunun boşaltma kaydı yok`);
+  }
+
+  const tableColumns = new Map<string, Set<string>>();
+  for (const table of deletes) {
+    const columns = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = ${table}
+    `;
+    tableColumns.set(table, new Set(columns.map((column) => column.COLUMN_NAME)));
+  }
+  for (const row of inserts) {
+    const actual = tableColumns.get(row.table)!;
+    if (row.columns.some((column) => !actual.has(column))) {
+      throw new SystemResetError(`Yedek ${row.table} tablosunda artık bulunmayan bir sütun içeriyor`);
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=0');
+    try {
+      for (const table of deletes) {
+        await tx.$executeRawUnsafe(`DELETE FROM \`${table}\``);
+      }
+      for (const row of inserts) {
+        const columns = row.columns.map((column) => `\`${column}\``).join(', ');
+        const placeholders = row.values.map(() => '?').join(', ');
+        await tx.$executeRawUnsafe(
+          `INSERT INTO \`${row.table}\` (${columns}) VALUES (${placeholders})`,
+          ...row.values,
+        );
+      }
+    } finally {
+      await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=1');
+    }
+  });
+
+  await writePanelLog(userId, `Sistem Sıfırlama - Veritabanı yedeği geri yüklendi (${deletes.size} tablo, ${inserts.length} satır).`);
+  return { tables: deletes.size, rows: inserts.length };
+}
+
 export async function clearResetTable(
   userId: number,
   moduleId: number,
