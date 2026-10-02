@@ -163,6 +163,24 @@ export async function sendLoginOtpMail(to: string, adsoyad: string | null, code:
   return sendMail({ to, subject, html, text });
 }
 
+/** Şifreyle girişten sonraki ikinci doğrulama adımı. */
+export async function sendTwoFactorCodeMail(to: string, adsoyad: string | null, code: string) {
+  const name = adsoyad?.trim() || 'Kullanıcı';
+  const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:28px;border-radius:16px;background:#f1f5f9;color:#0f172a">
+    <h1 style="font-size:22px">İki aşamalı giriş kodu</h1>
+    <p>Merhaba ${escapeHtml(name)},</p>
+    <p>Şifrenizle giriş yaptıktan sonra bu tek kullanımlık kodu girin:</p>
+    <p style="font-size:36px;font-weight:800;letter-spacing:8px;text-align:center;padding:18px;background:white;border-radius:12px">${escapeHtml(code)}</p>
+    <p>Kod 1 dakika 30 saniye geçerlidir. Bu girişi siz başlatmadıysanız kodu paylaşmayın.</p>
+  </div>`;
+  return sendMail({
+    to,
+    subject: `${code} — İki aşamalı giriş kodunuz`,
+    html,
+    text: `Merhaba ${name},\nİki aşamalı giriş kodunuz: ${code}\nKod 1 dakika 30 saniye geçerlidir. Bu girişi siz başlatmadıysanız kodu paylaşmayın.`,
+  });
+}
+
 /** Şifremi unuttum — OTP */
 export async function sendPasswordResetOtpMail(
   to: string,

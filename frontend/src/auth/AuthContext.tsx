@@ -33,11 +33,20 @@ export type ProfileUpdatePayload = {
   resimDataUrl?: string | null;
 };
 
+export type TwoFactorChallenge = {
+  requiresTwoFactor: true;
+  challengeToken: string;
+  expiresInSeconds: number;
+};
+
+type LoginResponse = TwoFactorChallenge | { requiresTwoFactor: false; token: string; user: AuthUser };
+
 type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
   booting: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<TwoFactorChallenge | null>;
+  verifyTwoFactor: (challengeToken: string, code: string) => Promise<void>;
   /** Hızlı giriş — önce mail ile kod iste */
   requestOtp: (email: string) => Promise<void>;
   loginWithOtp: (email: string, code: string) => Promise<void>;
@@ -119,9 +128,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const result = await api.post<{ token: string; user: AuthUser }>('/api/auth/login', {
+    const result = await api.post<LoginResponse>('/api/auth/login', {
       email,
       password,
+    });
+    if (result.requiresTwoFactor) return result;
+    localStorage.setItem(TOKEN_KEY, result.token);
+    setToken(result.token);
+    setUser(normalizeUser(result.user));
+    return null;
+  }, []);
+
+  const verifyTwoFactor = useCallback(async (challengeToken: string, code: string) => {
+    const result = await api.post<{ token: string; user: AuthUser }>('/api/auth/login/mfa/verify', {
+      challengeToken,
+      code,
     });
     localStorage.setItem(TOKEN_KEY, result.token);
     setToken(result.token);
@@ -186,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       booting,
       login,
+      verifyTwoFactor,
       requestOtp,
       loginWithOtp,
       requestPasswordReset,
@@ -199,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       booting,
       login,
+      verifyTwoFactor,
       requestOtp,
       loginWithOtp,
       requestPasswordReset,

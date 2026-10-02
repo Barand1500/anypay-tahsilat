@@ -70,8 +70,10 @@ export async function verifyOtp(
   const ok = await bcrypt.compare(code.trim(), entry.codeHash);
 
   if (ok) {
-    await prisma.otpChallenge.delete({ where: { id: entry.id } }).catch(() => undefined);
-    return true;
+    const consumed = await prisma.otpChallenge.deleteMany({
+      where: { id: entry.id, codeHash: entry.codeHash, expiresAt: { gt: new Date() } },
+    });
+    return consumed.count === 1;
   }
 
   if (attempts >= MAX_ATTEMPTS) {

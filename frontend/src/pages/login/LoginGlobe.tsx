@@ -5,10 +5,11 @@ import { BrandSideScroll } from './BrandSideScroll';
 import Globe from './globe/Globe';
 import { getLoginBrandWords, type LoginBrandWords } from './loginTheme';
 import { LoginModeActions, useLoginModeFlow } from './useLoginModeFlow';
+import { TwoFactorStep } from './TwoFactorStep';
 
 /** Dünya temalı giriş — Variant 2 (solid yeşil kara / cyan okyanus) */
 export function LoginGlobe() {
-  const { login, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
+  const { login, verifyTwoFactor, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
     useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -17,8 +18,9 @@ export function LoginGlobe() {
 
   const flow = useLoginModeFlow({
     onPasswordLogin: async (email, password) => {
-      await login(email, password);
+      return login(email, password);
     },
+    onVerifyTwoFactor: verifyTwoFactor,
     onRequestOtp: async (email) => {
       await requestOtp(email);
     },
@@ -226,6 +228,12 @@ export function LoginGlobe() {
             </div>
           ) : (
             <div ref={flow.loginStageRef} className="space-y-4">
+              {flow.mode === 'two-factor' ? (
+                <div>
+                  <h1 className="text-xl font-bold">İki aşamalı doğrulama</h1>
+                  <p className="mt-1 text-xs text-white/65">Girişinizi tamamlamak için e-postanıza gelen kodu girin.</p>
+                </div>
+              ) : null}
               <fieldset disabled={busy} className="min-w-0 space-y-4 border-0 p-0">
                 <div>
                   <label htmlFor="globe-email" className="sr-only">
@@ -238,6 +246,7 @@ export function LoginGlobe() {
                     autoComplete="username"
                     required
                     value={flow.email}
+                    readOnly={flow.mode === 'two-factor'}
                     onChange={(e) => flow.setEmail(e.target.value)}
                     placeholder="E-posta"
                     className={inputClass}
@@ -262,6 +271,10 @@ export function LoginGlobe() {
                       className={inputClass}
                     />
                   </div>
+                ) : null}
+
+                {flow.mode === 'two-factor' ? (
+                  <TwoFactorStep variant="globe" value={flow.twoFactorCode} onChange={flow.setTwoFactorCode} remainingSeconds={flow.remainingSeconds} panelRef={flow.twoFactorPanelRef} />
                 ) : null}
 
                 {flow.mode === 'password' ? (
@@ -344,13 +357,13 @@ export function LoginGlobe() {
                   <div className="overflow-visible py-2">
                     <Button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || (flow.mode === 'two-factor' && flow.remainingSeconds === 0)}
                       onClick={() => {
                         if (busy) return;
                         formRef.current?.requestSubmit();
                       }}
                     >
-                      GİRİŞ YAP
+                      {flow.mode === 'two-factor' ? 'KODU DOĞRULA' : 'GİRİŞ YAP'}
                     </Button>
                   </div>
                 </div>

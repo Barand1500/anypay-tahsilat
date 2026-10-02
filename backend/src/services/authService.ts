@@ -3,14 +3,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
-import { sendLoginOtpMail, sendPasswordResetOtpMail } from '../lib/mail.js';
-import { generateOtpCode, saveOtp, verifyOtp } from '../lib/otpStore.js';
+import { sendLoginOtpMail, sendPasswordResetOtpMail, sendTwoFactorCodeMail } from '../lib/mail.js';
+import { clearOtp, generateOtpCode, saveOtp, verifyOtp } from '../lib/otpStore.js';
 import { signToken } from '../middleware/auth.js';
 import { UPLOADS_ROOT } from './settingsService.js';
 import { writePanelLog } from './logsService.js';
 
 const RESET_OTP_SCOPE = 'password-reset';
 const RESET_TOKEN_TTL = '15m';
+const MFA_OTP_SCOPE = 'password-mfa';
+const MFA_TTL_MS = 90_000;
 
 function jwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -172,6 +174,24 @@ export async function loginWithPassword(email: string, password: string) {
   const ok = await passwordMatches(password, user.password);
   if (!ok) throw new AuthError('E-posta veya şifre hatalı');
 
+  if (user.twoFactor) {
+    const code = generateOtpCode();
+    await saveOtp(user.email, code, MFA_OTP_SCOPE, MFA_TTL_MS);
+    try {
+      await sendTwoFactorCodeMail(user.email, user.adsoyad, code);
+    } catch (err) {
+      await clearOtp(user.email, MFA_OTP_SCOPE);
+      console.error('İki aşamalı doğrulama e-postası gönderilemedi', err);
+      throw new AuthError('Doğrulama kodu gönderilemedi. Lütfen daha sonra tekrar deneyin.');
+    }
+    const challengeToken = jwt.sign(
+      { sub: user.id, email: user.email, purpose: MFA_OTP_SCOPE },
+      jwtSecret(),
+      { expiresIn: '90s' },
+    );
+    return { requiresTwoFactor: true as const, challengeToken, expiresInSeconds: 90 };
+  }
+
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLogin: new Date() },
@@ -184,7 +204,35 @@ export async function loginWithPassword(email: string, password: string) {
 
   const publicUser = toPublicUser(user, await roleCodeForUser(user.rolId));
   const token = signToken({ sub: user.id, email: user.email });
-  return { token, user: publicUser };
+  return { requiresTwoFactor: false as const, token, user: publicUser };
+}
+
+export async function verifyPasswordMfa(challengeToken: string, code: string) {
+  let userId: number;
+  let email: string;
+  try {
+    const decoded = jwt.verify(challengeToken, jwtSecret());
+    if (typeof decoded === 'string' || decoded.purpose !== MFA_OTP_SCOPE || typeof decoded.email !== 'string') {
+      throw new Error('Invalid challenge');
+    }
+    userId = Number(decoded.sub);
+    email = decoded.email;
+    if (!Number.isSafeInteger(userId)) throw new Error('Invalid user');
+  } catch {
+    throw new AuthError('Doğrulama süresi doldu. Şifrenizle yeniden giriş yapın.');
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { id: userId, email, isVerified: true, twoFactor: true, OR: [{ remove: null }, { remove: false }] },
+  });
+  if (!user || !(await verifyOtp(user.email, code, MFA_OTP_SCOPE))) {
+    throw new AuthError('Kod hatalı veya süresi dolmuş');
+  }
+
+  await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
+  await writePanelLog(user.id, `Giriş - ${user.email} e-posta adresine sahip kullanıcı iki aşamalı doğrulamayla giriş yaptı.`);
+  const publicUser = toPublicUser(user, await roleCodeForUser(user.rolId));
+  return { token: signToken({ sub: user.id, email: user.email }), user: publicUser };
 }
 
 /** Hızlı giriş — kayıtlı kullanıcıya OTP maili */
@@ -194,6 +242,7 @@ export async function requestLoginOtp(email: string) {
   if (!user || !user.isVerified) {
     return { sent: true as const };
   }
+  if (user.twoFactor) throw new AuthError('İki aşamalı doğrulama açık. Şifrenizle giriş yapın.');
 
   const code = generateOtpCode();
   await saveOtp(user.email, code);
@@ -213,6 +262,7 @@ export async function loginWithOtp(email: string, code: string) {
   if (!user || !user.isVerified) {
     throw new AuthError('Geçersiz veya süresi dolmuş kod');
   }
+  if (user.twoFactor) throw new AuthError('İki aşamalı doğrulama açık. Şifrenizle giriş yapın.');
 
   const ok = await verifyOtp(user.email, code);
   if (!ok) throw new AuthError('Geçersiz veya süresi dolmuş kod');

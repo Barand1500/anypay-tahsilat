@@ -6,10 +6,11 @@ import { TextInput } from '../../components/ui/TextInput';
 import { LoginMascot, type MascotFocus } from './LoginMascot';
 import { LoginSky } from './LoginSky';
 import { LoginModeActions, useLoginModeFlow } from './useLoginModeFlow';
+import { TwoFactorStep } from './TwoFactorStep';
 
 /** Klasik maskotlu giriş ekranı */
 export function LoginClassic() {
-  const { login, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
+  const { login, verifyTwoFactor, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
     useAuth();
   const { logoUrl, systemName } = useBrand();
   const cardRef = useRef<HTMLElement | null>(null);
@@ -22,7 +23,17 @@ export function LoginClassic() {
     onPasswordLogin: async (email, password) => {
       setOutcome('idle');
       try {
-        await login(email, password);
+        const result = await login(email, password);
+        if (!result) setOutcome('success');
+        return result;
+      } catch (err) {
+        setOutcome('fail');
+        throw err;
+      }
+    },
+    onVerifyTwoFactor: async (challengeToken, code) => {
+      try {
+        await verifyTwoFactor(challengeToken, code);
         setOutcome('success');
       } catch (err) {
         setOutcome('fail');
@@ -56,6 +67,8 @@ export function LoginClassic() {
   const subtitle =
     flow.mode === 'forgot'
       ? 'E-postanıza gelen kodu doğrulayıp yeni şifrenizi belirleyin.'
+      : flow.mode === 'two-factor'
+        ? 'Girişinizi tamamlamak için e-postanıza gönderilen kodu girin.'
       : flow.mode === 'otp'
         ? 'Geçici kodu girerek giriş yapın.'
         : flow.mode === 'password'
@@ -88,7 +101,7 @@ export function LoginClassic() {
                 className="mb-6 h-[4.5rem] w-auto max-w-[280px] object-contain sm:h-20 sm:max-w-[320px]"
               />
               <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[1.85rem]">
-                {flow.mode === 'forgot' ? 'Şifre Yenile' : 'Hoş geldin!'}
+                {flow.mode === 'forgot' ? 'Şifre Yenile' : flow.mode === 'two-factor' ? 'İki aşamalı doğrulama' : 'Hoş geldin!'}
               </h1>
               <p className="mt-2 max-w-[340px] text-sm leading-relaxed text-muted">{subtitle}</p>
             </div>
@@ -176,6 +189,7 @@ export function LoginClassic() {
                     autoComplete="username"
                     required
                     value={flow.email}
+                    readOnly={flow.mode === 'two-factor'}
                     onChange={(e) => flow.setEmail(e.target.value)}
                     onFocus={() => setFocus('email')}
                     onBlur={() => setFocus((f) => (f === 'email' ? 'none' : f))}
@@ -195,6 +209,10 @@ export function LoginClassic() {
                         onBlur={() => setFocus((f) => (f === 'email' ? 'none' : f))}
                       />
                     </div>
+                  ) : null}
+
+                  {flow.mode === 'two-factor' ? (
+                    <TwoFactorStep variant="classic" value={flow.twoFactorCode} onChange={flow.setTwoFactorCode} remainingSeconds={flow.remainingSeconds} panelRef={flow.twoFactorPanelRef} />
                   ) : null}
 
                   {flow.mode === 'password' ? (
@@ -257,11 +275,12 @@ export function LoginClassic() {
                   {flow.mode !== 'choose' ? (
                     <Button
                       type="submit"
+                      disabled={flow.mode === 'two-factor' && flow.remainingSeconds === 0}
                       loading={flow.loading}
                       loadingLabel="Giriş yapılıyor…"
                       className="mt-1"
                     >
-                      Giriş Yap
+                      {flow.mode === 'two-factor' ? 'Kodu Doğrula' : 'Giriş Yap'}
                     </Button>
                   ) : null}
                 </div>

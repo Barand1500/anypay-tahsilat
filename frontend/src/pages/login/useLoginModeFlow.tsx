@@ -1,14 +1,16 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/Button';
+import type { TwoFactorChallenge } from '../../auth/AuthContext';
 
 gsap.registerPlugin(useGSAP);
 
-export type LoginMode = 'choose' | 'password' | 'otp' | 'forgot';
+export type LoginMode = 'choose' | 'password' | 'otp' | 'forgot' | 'two-factor';
 
 type UseLoginModeOpts = {
-  onPasswordLogin: (email: string, password: string) => Promise<void>;
+  onPasswordLogin: (email: string, password: string) => Promise<TwoFactorChallenge | null>;
+  onVerifyTwoFactor: (challengeToken: string, code: string) => Promise<void>;
   onRequestOtp: (email: string) => Promise<void>;
   onOtpLogin: (email: string, code: string) => Promise<void>;
   onRequestPasswordReset: (email: string) => Promise<void>;
@@ -19,6 +21,7 @@ type UseLoginModeOpts = {
 /** Ortak giriş adımları — e-posta → hızlı/şifre + şifremi unuttum */
 export function useLoginModeFlow({
   onPasswordLogin,
+  onVerifyTwoFactor,
   onRequestOtp,
   onOtpLogin,
   onRequestPasswordReset,
@@ -29,6 +32,10 @@ export function useLoginModeFlow({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [challengeDeadline, setChallengeDeadline] = useState<number | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +48,7 @@ export function useLoginModeFlow({
 
   const passwordPanelRef = useRef<HTMLDivElement>(null);
   const otpPanelRef = useRef<HTMLDivElement>(null);
+  const twoFactorPanelRef = useRef<HTMLDivElement>(null);
   const loginStageRef = useRef<HTMLDivElement>(null);
   const forgotStageRef = useRef<HTMLDivElement>(null);
   const prevMode = useRef<LoginMode>('choose');
@@ -60,6 +68,9 @@ export function useLoginModeFlow({
           { autoAlpha: 0, y: -12 },
           { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power3.out' },
         );
+      }
+      if (mode === 'two-factor' && twoFactorPanelRef.current) {
+        gsap.fromTo(twoFactorPanelRef.current, { autoAlpha: 0, y: -12 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power3.out' });
       }
       if (mode === 'forgot' && forgotStageRef.current) {
         gsap.fromTo(
@@ -83,6 +94,14 @@ export function useLoginModeFlow({
     },
     { dependencies: [mode] },
   );
+
+  useEffect(() => {
+    if (mode !== 'two-factor' || challengeDeadline == null) return;
+    const update = () => setRemainingSeconds(Math.max(0, Math.ceil((challengeDeadline - Date.now()) / 1000)));
+    update();
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, [mode, challengeDeadline]);
 
   function requireEmail() {
     const e = email.trim();
@@ -132,7 +151,10 @@ export function useLoginModeFlow({
     setError(null);
     setPassword('');
     setOtp('');
-    setMode('choose');
+    setTwoFactorCode('');
+    setChallengeToken(null);
+    setChallengeDeadline(null);
+    setMode(mode === 'two-factor' ? 'password' : 'choose');
   }
 
   async function goForgot() {
@@ -255,7 +277,28 @@ export function useLoginModeFlow({
           setLoading(false);
           return;
         }
-        await onPasswordLogin(mail, password);
+        const challenge = await onPasswordLogin(mail, password);
+        if (challenge?.requiresTwoFactor) {
+          setPassword('');
+          setTwoFactorCode('');
+          setChallengeToken(challenge.challengeToken);
+          setChallengeDeadline(Date.now() + challenge.expiresInSeconds * 1000);
+          setRemainingSeconds(challenge.expiresInSeconds);
+          setMode('two-factor');
+          setLoading(false);
+        }
+      } else if (mode === 'two-factor') {
+        if (!challengeToken || remainingSeconds <= 0) {
+          setError('Kodun süresi doldu. Şifrenizle yeniden giriş yapın.');
+          setLoading(false);
+          return;
+        }
+        if (!/^\d{6}$/.test(twoFactorCode)) {
+          setError('6 haneli kodu girin');
+          setLoading(false);
+          return;
+        }
+        await onVerifyTwoFactor(challengeToken, twoFactorCode);
       } else {
         if (!otp.trim()) {
           setError('Geçici kodu giriniz');
@@ -278,6 +321,10 @@ export function useLoginModeFlow({
     setPassword,
     otp,
     setOtp,
+    twoFactorCode,
+    setTwoFactorCode,
+    twoFactorPanelRef,
+    remainingSeconds,
     error,
     setError,
     loading,

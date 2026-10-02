@@ -11,6 +11,7 @@ import {
   resetPasswordWithToken,
   updateOwnProfile,
   verifyPasswordResetCode,
+  verifyPasswordMfa,
 } from '../services/authService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
@@ -20,6 +21,11 @@ export const authRouter = Router();
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta girin'),
   password: z.string().min(1, 'Şifre gerekli'),
+});
+
+const mfaVerifySchema = z.object({
+  challengeToken: z.string().min(10),
+  code: z.string().regex(/^\d{6}$/, '6 haneli kodu girin'),
 });
 
 const emailSchema = z.object({
@@ -65,6 +71,19 @@ authRouter.post('/login', async (req, res) => {
     }
     console.error(err);
     return sendError(res, 500, 'Giriş sırasında hata oluştu');
+  }
+});
+
+authRouter.post('/login/mfa/verify', async (req, res) => {
+  const parsed = mfaVerifySchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  try {
+    const result = await verifyPasswordMfa(parsed.data.challengeToken, parsed.data.code);
+    return sendSuccess(res, result, 'Giriş başarılı');
+  } catch (err) {
+    if (err instanceof AuthError) return sendError(res, 401, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Kod doğrulanamadı');
   }
 });
 
