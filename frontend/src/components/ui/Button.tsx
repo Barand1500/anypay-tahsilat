@@ -10,7 +10,7 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
 };
 
 /**
- * Site birincil butonu — Liquid Carve (beyaz + kırmızı oyuk).
+ * Site birincil butonu — Liquid Carve, panel vurgu renginde takip efekti.
  * success → yeşil + successLabel (Kaydedildi vb.).
  */
 export function Button({
@@ -61,7 +61,7 @@ export function Button({
         blob={
           success
             ? { size: 72, color: '#059669', smoothness: 45 }
-            : { size: 76, color: '#FF3737', smoothness: 45 }
+            : { size: 76, color: 'var(--color-brand-500, #2f80ed)', smoothness: 45 }
         }
         rounded={40}
         padding="14px 28px"

@@ -392,8 +392,6 @@ export default function QuickPayPage() {
                   id="quick-pay-amount"
                   value={amountText}
                   onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
-                  onFocus={() => setAmountText(maskMoneyInput(amountText))}
-                  onBlur={() => setAmountText(amount > 0 ? formatMoneyTr(amount) : '0,00')}
                   inputMode="numeric"
                   placeholder=" "
                   className="peer w-full rounded-l-xl bg-transparent px-3.5 pb-2.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"

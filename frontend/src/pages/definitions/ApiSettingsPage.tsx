@@ -235,7 +235,15 @@ export default function ApiSettingsPage() {
       const response = await fetch(url.toString(), { headers: { 'X-API-Key': key, Accept: 'application/json' } });
       const json = await response.json();
       if (!response.ok || json.success === false) throw new Error(json.message || `API isteği başarısız (${response.status})`);
-      const rows = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : Array.isArray(json.records) ? json.records : [];
+      const rawRows: unknown[] = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : Array.isArray(json.records) ? json.records : [];
+      // Accept APIs that wrap each record's fields in `data` as well as flat rows.
+      const rows = rawRows.map((row) => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+        const record = row as Record<string, unknown>;
+        return record.data && typeof record.data === 'object' && !Array.isArray(record.data)
+          ? { ...record, ...(record.data as Record<string, unknown>) }
+          : record;
+      });
       if (!rows.length) {
         setToast({ kind: 'ok', text: 'Bağlantı başarılı; API geçerli JSON döndürdü ancak aktarılacak satır bulunamadı.' });
         return;

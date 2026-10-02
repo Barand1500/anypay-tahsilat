@@ -23,8 +23,14 @@ const WHITE: RGBA = { r: 255, g: 255, b: 255, a: 1 };
 function parseColor(input?: string): RGBA {
   if (!input) return WHITE;
   let c = String(input).trim();
-  const token = c.match(/^var\([^,]+,\s*(.+)\)$/i);
-  if (token) c = token[1].trim();
+  const token = c.match(/^var\(\s*(--[\w-]+)\s*(?:,\s*(.+))?\)$/i);
+  if (token) {
+    const resolved =
+      typeof window !== 'undefined'
+        ? getComputedStyle(document.documentElement).getPropertyValue(token[1]).trim()
+        : '';
+    c = resolved || token[2]?.trim() || '';
+  }
   if (c[0] === '#') {
     let h = c.slice(1);
     if (h.length === 3 || h.length === 4)
@@ -113,7 +119,7 @@ export default function LiquidCarveButton({
   padding = '14px 28px',
   rounded = 40,
   colors = { fill: '#FFFFFF', textColor: '#000000', border: '#D1D5DB' },
-  blob: blobGroup = { size: 72, color: '#FF3737', smoothness: 50 },
+  blob: blobGroup = { size: 72, color: 'var(--color-brand-500, #2f80ed)', smoothness: 50 },
   style,
   className,
   disabled = false,
@@ -146,7 +152,7 @@ export default function LiquidCarveButton({
   }, []);
 
   const rad = Math.max(0, Math.floor(radiusFromPercent(box.w, box.h, rounded)));
-  const { color: blobColor = '#FF3737', size: blobSize = 72, smoothness = 50 } = blobGroup;
+  const { color: blobColor = 'var(--color-brand-500, #2f80ed)', size: blobSize = 72, smoothness = 50 } = blobGroup;
   const blob = Math.max(1, Math.floor(blobSize));
 
   const fillRGB = parseColor(colors?.fill ?? '#FFFFFF');

@@ -1,5 +1,7 @@
 /** Banka kataloğu ve BIN eşlemesi. Taksit oranları API anlaşmalarından gelir. */
 
+import { formatMoneyAmount, formatMoneyDisplay } from '../settings/personalPrefs';
+
 export type BankInfo = {
   id: string;
   name: string;
@@ -134,7 +136,7 @@ export function getCardExpiryError(expiry: string): string | null {
   return null;
 }
 
-export { formatMoneyAmount as formatMoneyTr, formatMoneyDisplay } from '../settings/personalPrefs';
+export { formatMoneyAmount as formatMoneyTr, formatMoneyDisplay };
 
 /** TR para metnini sayıya çevir (1.234,56 → 1234.56) */
 export function parseTrMoney(raw: string): number {
@@ -148,14 +150,10 @@ export function parseTrMoney(raw: string): number {
  * Örn. 1 → 0,01 · 100 → 1,00 · 100000 → 1.000,00
  */
 export function maskMoneyInput(raw: string): string {
-  const hasComma = raw.includes(',');
-  const source = raw.replace(/\s/g, '').replace(/\./g, hasComma ? '' : '.');
-  const comma = source.indexOf(',');
-  const integerRaw = (comma >= 0 ? source.slice(0, comma) : source).replace(/\D/g, '').slice(0, 14);
-  const decimalRaw = comma >= 0 ? source.slice(comma + 1).replace(/\D/g, '').slice(0, 2) : '';
-  if (!integerRaw && !decimalRaw) return '';
-  const integer = integerRaw.replace(/^0+(?=\d)/, '') || '0';
-  return comma >= 0 ? `${integer},${decimalRaw}` : integer;
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '') || '';
+  if (!digits) return '';
+  const capped = digits.slice(0, 14);
+  return formatMoneyAmount(Number(capped) / 100);
 }
 
 /** İsim veya id ile logo bul — özet kartları / API sonrası */
