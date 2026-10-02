@@ -18,7 +18,7 @@ export function TextArea({ label, error, id, className = '', rows = 4, ...rest }
           rows={rows}
           placeholder=" "
           className={[
-            'peer w-full resize-y rounded-xl border bg-[var(--input-bg)] px-3.5 pb-2.5 pt-5 text-sm outline-none transition-colors',
+            'peer w-full resize-none rounded-xl border bg-[var(--input-bg)] px-3.5 pb-2.5 pt-5 text-sm outline-none transition-colors',
             'border-[var(--input-border)] text-[var(--panel-ink)]',
             'focus:border-[var(--input-border-focus)] focus:ring-0',
             error ? '!border-red-400 focus:!border-red-400' : '',
