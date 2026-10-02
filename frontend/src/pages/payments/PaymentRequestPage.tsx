@@ -639,6 +639,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                       id="req-amount"
                       value={amountText}
                       onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                      onFocus={() => setAmountText(maskMoneyInput(amountText))}
                       onBlur={() => setAmountText(amount > 0 ? formatMoneyTr(amount) : '0,00')}
                       inputMode="numeric"
                       placeholder=" "

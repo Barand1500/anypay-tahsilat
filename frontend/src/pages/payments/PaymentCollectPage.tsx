@@ -408,6 +408,7 @@ export default function PaymentCollectPage() {
                       id="pay-amount"
                       value={amountText}
                       onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                      onFocus={() => setAmountText(maskMoneyInput(amountText))}
                       onBlur={() => setAmountText(amount > 0 ? formatMoneyTr(amount) : '0,00')}
                       inputMode="numeric"
                       placeholder=" "
@@ -507,7 +508,7 @@ export default function PaymentCollectPage() {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={4}
-                className="min-h-[7.5rem]"
+                className="min-h-[7.5rem] resize-none"
               />
             </div>
 
