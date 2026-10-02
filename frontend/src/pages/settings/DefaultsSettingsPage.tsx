@@ -78,7 +78,8 @@ export default function DefaultsSettingsPage() {
       };
       setDraft(next);
       setBaseline({ ...next, filterOpen: { ...next.filterOpen } });
-      setAppDefaults(next);
+      // Sayfayı yalnızca açmak mevcut giriş ekranı tercihini değiştirmemeli.
+      setAppDefaults(next, { syncLoginTheme: false });
 
       setAccountOptions([
         { value: '', label: 'Belirtilmemiş' },

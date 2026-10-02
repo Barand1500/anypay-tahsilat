@@ -15,14 +15,18 @@ export const DEFAULT_BRAND_WORDS: LoginBrandWords = {
   word2: 'TEKNOLOJİ',
 };
 
-export function getLoginTheme(): LoginTheme {
+/** Tarayıcıda açıkça kaydedilmiş bir giriş teması var mı? */
+export function getStoredLoginTheme(): LoginTheme | null {
   try {
-    const v = localStorage.getItem(THEME_KEY);
-    if (v === 'globe' || v === 'classic') return v;
+    const value = localStorage.getItem(THEME_KEY);
+    return value === 'globe' || value === 'classic' ? value : null;
   } catch {
-    /* ignore */
+    return null;
   }
-  return 'classic';
+}
+
+export function getLoginTheme(): LoginTheme {
+  return getStoredLoginTheme() ?? 'classic';
 }
 
 export function setLoginTheme(theme: LoginTheme) {

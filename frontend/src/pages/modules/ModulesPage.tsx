@@ -7,15 +7,13 @@ import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import { api } from '../../lib/api';
 import { usePermission } from '../../permissions/PermissionContext';
-import {
-  DB_TABLE_OPTIONS,
-  formatModuleDate,
-  type AppModule,
-} from './mockModules';
+import { formatModuleDate, type AppModule } from './mockModules';
 import { ModulesDblClickHint } from './ModulesDblClickHint';
+import { exportModulesXlsx } from './moduleExports';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
+const MODULE_ROUTE_PATTERN = /^(?:\/|\/[a-z0-9][a-z0-9._~-]*(?:\/[a-z0-9][a-z0-9._~-]*)*)$/i;
 
 type ModalMode = { type: 'create' } | { type: 'edit'; module: AppModule } | null;
 
@@ -33,7 +31,7 @@ export default function ModulesPage() {
   const { token } = useAuth();
   const { guard, can } = usePermission();
   const [modules, setModules] = useState<AppModule[]>([]);
-  const [tableOptions, setTableOptions] = useState<string[]>([...DB_TABLE_OPTIONS]);
+  const [tableOptions, setTableOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -59,10 +57,7 @@ export default function ModulesPage() {
         api.get<string[]>('/api/modules/table-options', token).catch(() => [] as string[]),
       ]);
       setModules(list);
-      const merged = Array.from(new Set([...DB_TABLE_OPTIONS, ...tables])).sort((a, b) =>
-        a.localeCompare(b, 'tr'),
-      );
-      setTableOptions(merged);
+      setTableOptions(Array.from(new Set(tables)).sort((a, b) => a.localeCompare(b, 'tr')));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Modüller yüklenemedi');
       setModules([]);
@@ -90,6 +85,7 @@ export default function ModulesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const slice = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const canSave = can('m-moduller', 'save');
 
   useEffect(() => {
     setPage(1);
@@ -180,6 +176,31 @@ export default function ModulesPage() {
     setExportOpen(false);
   }
 
+  async function exportPdf() {
+    if (!token) return;
+    setActionError(null);
+    try {
+      const response = await fetch(`/api/modules/export/pdf?q=${encodeURIComponent(query.trim())}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(payload?.message || 'PDF oluşturulamadı');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'moduller.pdf';
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'PDF oluşturulamadı');
+    } finally {
+      setExportOpen(false);
+    }
+  }
+
   function copyList() {
     const text = filtered.map((m) => `${m.name}\t${m.urlPrefix}\t${m.roles.join(', ')}`).join('\n');
     void navigator.clipboard.writeText(text);
@@ -220,8 +241,8 @@ export default function ModulesPage() {
                 {[
                   { label: 'Yazdır', fn: () => window.print() },
                   { label: 'Csv', fn: exportCsv },
-                  { label: 'Excel', fn: exportCsv },
-                  { label: 'Pdf', fn: () => window.print() },
+                  { label: 'Excel', fn: () => exportModulesXlsx(filtered) },
+                  { label: 'Pdf', fn: () => void exportPdf() },
                   { label: 'Kopyala', fn: copyList },
                 ].map((item) => (
                   <button
@@ -240,7 +261,7 @@ export default function ModulesPage() {
             ) : null}
           </div>
 
-          <button
+          {canSave ? <button
             type="button"
             data-km-jump
             onClick={() => {
@@ -252,7 +273,7 @@ export default function ModulesPage() {
           >
             <span className="text-lg leading-none">+</span>
             Ekle
-          </button>
+          </button> : null}
         </div>
       </div>
 
@@ -325,20 +346,18 @@ export default function ModulesPage() {
                 data-km-row
                 tabIndex={-1}
                 style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}
-                title="Çift tıkla veya klavye Enter: düzenle"
-                onDoubleClick={() => {
-                  if (!guard('m-moduller', 'save', 'Modüller')) return;
+                title={canSave ? 'Çift tıkla veya klavye Enter: düzenle' : undefined}
+                onDoubleClick={canSave ? () => {
                   setActionError(null);
                   setModal({ type: 'edit', module: m });
-                }}
-                onClick={(e) => {
+                } : undefined}
+                onClick={canSave ? (e) => {
                   if (e.detail === 0) {
-                    if (!guard('m-moduller', 'save', 'Modüller')) return;
                     setActionError(null);
                     setModal({ type: 'edit', module: m });
                   }
-                }}
-                className="panel-card-in group flex cursor-pointer flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] hover:shadow-[0_14px_36px_color-mix(in_srgb,var(--color-brand-500)_14%,transparent)]"
+                } : undefined}
+                className={`panel-card-in group flex flex-col rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] transition ${canSave ? 'cursor-pointer hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] hover:shadow-[0_14px_36px_color-mix(in_srgb,var(--color-brand-500)_14%,transparent)]' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -435,7 +454,7 @@ export default function ModulesPage() {
         />
       ) : null}
 
-      <ModulesDblClickHint targetRef={firstCardRef} />
+      {canSave ? <ModulesDblClickHint targetRef={firstCardRef} /> : null}
     </div>
   );
 }
@@ -526,6 +545,10 @@ function ModuleModal({
     e.preventDefault();
     if (!name.trim() || !urlPrefix.trim() || !dbTable.trim()) {
       setFormError('Ad, URL ve DB tablo gerekli');
+      return;
+    }
+    if (!MODULE_ROUTE_PATTERN.test(urlPrefix.trim())) {
+      setFormError('URL ön eki / ile başlamalı; boşluk, ?, # veya art arda / içermemelidir');
       return;
     }
     setSaving(true);

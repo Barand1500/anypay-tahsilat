@@ -15,34 +15,6 @@ export type AppModule = {
   createdAt: string | null;
 };
 
-export const ROLE_OPTIONS: ModuleRole[] = ['Yönetici', 'Tahsilat', 'Muhasebe', 'Satış'];
-
-export const DB_TABLE_OPTIONS = [
-  'Adresler',
-  'Ayarlar',
-  'Bankalar',
-  'BildirimGecmisi',
-  'BinKayitlari',
-  'CariTipleri',
-  'EpostaSablonlari',
-  'ErpEntegrasyonBilgileri',
-  'Izinler',
-  'Kullanicilar',
-  'Log',
-  'LogKayitlari',
-  'Moduller',
-  'Musteriler',
-  'Odemeler',
-  'OdemeIstekleri',
-  'Ozet',
-  'Raporlar',
-  'Rol',
-  'Roller',
-  'TaksitSecenekleri',
-  'Tanimlamalar',
-  'User',
-] as const;
-
 /** PermissionContext / Roller mock — API modül listesinden bağımsız */
 export const INITIAL_MODULES: Array<{
   id: string;

@@ -1,6 +1,11 @@
 /** Panel varsayılanları — localStorage; sayfalar buradan okur */
 
-import { getLoginTheme, setLoginTheme, type LoginTheme } from '../login/loginTheme';
+import {
+  getLoginTheme,
+  getStoredLoginTheme,
+  setLoginTheme,
+  type LoginTheme,
+} from '../login/loginTheme';
 import type { ThemeMode } from '../../theme/ThemeProvider';
 
 const KEY = 'anypay_tahsilat_defaults';
@@ -162,19 +167,23 @@ export function getAppDefaults(): AppDefaults {
   }
 }
 
-export function setAppDefaults(next: AppDefaults) {
+export function setAppDefaults(
+  next: AppDefaults,
+  options: { syncLoginTheme?: boolean } = {},
+) {
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
   } catch {
     /* ignore */
   }
-  setLoginTheme(next.loginTheme);
+  if (options.syncLoginTheme !== false) setLoginTheme(next.loginTheme);
   window.dispatchEvent(new CustomEvent('anypay:defaults', { detail: next }));
 }
 
 /** Sunucudan çekip local cache’e yazar — AppShell açılışında */
 export async function hydrateAppDefaults(token: string): Promise<AppDefaults | null> {
   try {
+    const hasLocalLoginTheme = getStoredLoginTheme() !== null;
     const { api } = await import('../../lib/api');
     const saved = await api.get<AppDefaults>('/api/settings/defaults', token);
     const next: AppDefaults = {
@@ -185,7 +194,9 @@ export async function hydrateAppDefaults(token: string): Promise<AppDefaults | n
         ...(saved.filterOpen ?? {}),
       },
     };
-    setAppDefaults(next);
+    // Profilde seçilen tarayıcı tercihi, sunucu varsayılanı yüklenirken ezilmez.
+    // Henüz yerel seçim yoksa sunucu varsayılanı ilk değeri belirler.
+    setAppDefaults(next, { syncLoginTheme: !hasLocalLoginTheme });
     return next;
   } catch {
     return null;
