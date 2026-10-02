@@ -1,6 +1,7 @@
 /** Tanımlamalar › API kategori ve kayıt tipleri */
 
 const API_URL_KEY = 'anypay_api_base_url';
+const API_KEY_KEY = 'anypay_api_access_key';
 
 export type ApiCategoryId = 'locations' | 'tax-offices' | 'banks' | 'bin';
 
@@ -45,6 +46,22 @@ export function getApiBaseUrl() {
 
 export function setApiBaseUrl(url: string) {
   localStorage.setItem(API_URL_KEY, url.trim());
+}
+
+export function getApiAccessKey() {
+  return localStorage.getItem(API_KEY_KEY) || '';
+}
+
+export function setApiAccessKey(key: string) {
+  localStorage.setItem(API_KEY_KEY, key.trim());
+}
+
+export function getApiEndpoint(category: ApiCategoryId, fallback: string) {
+  return localStorage.getItem(`anypay_api_endpoint_${category}`) || fallback;
+}
+
+export function setApiEndpoint(category: ApiCategoryId, endpoint: string) {
+  localStorage.setItem(`anypay_api_endpoint_${category}`, endpoint.trim());
 }
 
 export type LocationLevel = 'Ülke' | 'İl' | 'İlçe' | 'Mahalle';

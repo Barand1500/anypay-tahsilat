@@ -17,6 +17,10 @@ import {
   API_CATEGORIES,
   categoryMeta,
   getApiBaseUrl,
+  getApiAccessKey,
+  getApiEndpoint,
+  setApiAccessKey,
+  setApiEndpoint,
   locationAncestors,
   locationDuplicate,
   locationParentName,
@@ -44,6 +48,7 @@ export default function ApiSettingsPage() {
   const tableRef = useRef<HTMLDivElement>(null);
 
   const [baseUrl, setBaseUrl] = useState(() => getApiBaseUrl());
+  const [apiAccessKey, setApiAccessKeyDraft] = useState(() => getApiAccessKey());
   const [category, setCategory] = useState<ApiCategoryId | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [apiBusy, setApiBusy] = useState(false);
@@ -164,7 +169,7 @@ export default function ApiSettingsPage() {
 
   useEffect(() => {
     if (!category) return;
-    setEndpointDraft(`${baseUrl.replace(/\/$/, '')}${categoryMeta(category).path}`);
+    setEndpointDraft(getApiEndpoint(category, `${baseUrl.replace(/\/$/, '')}${categoryMeta(category).path}`));
     setQuery('');
     setPage(1);
     setFilterCountryId(null);
@@ -210,32 +215,68 @@ export default function ApiSettingsPage() {
 
   async function retryApi() {
     if (!category) return;
-    if (category === 'bin') {
-      setApiBusy(true);
-      const n = await loadBins();
-      setApiBusy(false);
-      setToast({
-        kind: 'ok',
-        text: `BIN listesi yenilendi — ${n ?? 0} kayıt`,
-      });
+    const key = apiAccessKey.trim();
+    if (!key) {
+      setToast({ kind: 'err', text: 'API Keys ekranından bu API için oluşturduğunuz anahtarı girin.' });
       return;
     }
-    if (category === 'locations') {
-      setApiBusy(true);
-      const n = await loadLocations();
-      setApiBusy(false);
-      setToast({ kind: 'ok', text: `Lokasyonlar yenilendi — ${n} kayıt` });
+    let url: URL;
+    try { url = new URL(endpointDraft.trim()); } catch {
+      setToast({ kind: 'err', text: 'API yolu geçerli bir https:// adresi olmalı.' });
       return;
     }
-    if (category === 'tax-offices') {
-      setApiBusy(true);
-      const n = await loadTaxOffices();
-      setApiBusy(false);
-      setToast({ kind: 'ok', text: `Vergi daireleri yenilendi — ${n} kayıt` });
+    if (url.protocol !== 'https:' && url.hostname !== 'localhost') {
+      setToast({ kind: 'err', text: 'API yolu güvenli https:// bağlantısı kullanmalı.' });
       return;
     }
-    setApiBusy(false);
-    setToast({ kind: 'err', text: 'Bu kategori için canlı API bağlantısı bulunamadı.' });
+    setApiBusy(true);
+    setApiAccessKey(key);
+    try {
+      const response = await fetch(url.toString(), { headers: { 'X-API-Key': key, Accept: 'application/json' } });
+      const json = await response.json();
+      if (!response.ok || json.success === false) throw new Error(json.message || `API isteği başarısız (${response.status})`);
+      const rows = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : Array.isArray(json.records) ? json.records : [];
+      if (!rows.length) {
+        setToast({ kind: 'ok', text: 'Bağlantı başarılı; API geçerli JSON döndürdü ancak aktarılacak satır bulunamadı.' });
+        return;
+      }
+      const read = (row: Record<string, unknown>, aliases: string[]) => {
+        const keyFor = (s: string) => s.toLocaleLowerCase('tr').replace(/[\s_\-]/g, '');
+        const found = Object.entries(row).find(([name]) => aliases.some(a => keyFor(a) === keyFor(name)));
+        return found?.[1] == null ? '' : String(found[1]).trim();
+      };
+      let added = 0;
+      if (category === 'locations') {
+        for (const value of rows as Record<string, unknown>[]) {
+          const country = read(value, ['country', 'countryName', 'ülke']);
+          const city = read(value, ['city', 'cityName', 'il', 'şehir', 'şehri']);
+          const district = read(value, ['district', 'districtName', 'ilçe']);
+          const neighborhood = read(value, ['neighborhood', 'mahalle']);
+          const name = read(value, ['name', 'ad', 'isim', 'location', 'lokasyon']);
+          const level = read(value, ['level', 'seviye']).toLocaleLowerCase('tr');
+          const countryValue = country || (level.includes('ülke') || level === 'country' || (!city && !district && !neighborhood) ? name : '');
+          if (!countryValue && !city && !district && !neighborhood) continue;
+          await api.post('/api/locations/ensure-path', { country: countryValue || undefined, city: city || (level === 'il' || level === 'city' ? name : undefined), district: district || (level.includes('ilçe') || level === 'district' ? name : undefined), neighborhood: neighborhood || (level.includes('mahalle') || level === 'neighborhood' ? name : undefined) }, token);
+          added++;
+        }
+        await loadLocations();
+      } else if (category === 'tax-offices') {
+        for (const value of rows as Record<string, unknown>[]) {
+          const name = read(value, ['name', 'ad', 'isim', 'taxOffice', 'vergiDairesi']);
+          const city = read(value, ['city', 'il', 'şehir']);
+          if (!name || !city) continue;
+          await api.post('/api/tax-offices', { city, district: read(value, ['district', 'ilçe']) || '—', name }, token);
+          added++;
+        }
+        await loadTaxOffices();
+      } else if (category === 'bin') {
+        const payload = (rows as Record<string, unknown>[]).map(value => ({ bank: read(value, ['bank', 'banka']), bin: read(value, ['bin', 'iin']).replace(/\D/g, '').slice(0, 8), type: read(value, ['type', 'tip']) || 'Credit', brand: read(value, ['brand', 'marka']) || 'Visa', kind: read(value, ['kind', 'tür', 'tur']) || 'Bireysel' })).filter(value => value.bank && value.bin.length >= 4);
+        if (payload.length) { const created = await api.post<BinRow[]>('/api/bins/bulk', payload, token); setBins(current => [...current, ...created]); syncRuntimeBins([...bins, ...created]); added = created.length; }
+      }
+      setToast({ kind: added ? 'ok' : 'err', text: added ? `API bağlantısı başarılı; ${added} kayıt içe aktarıldı.` : 'Bağlantı başarılı fakat kayıtlar beklenen alanlarla eşleşmedi. API alan adlarını kontrol edin.' });
+    } catch (err) {
+      setToast({ kind: 'err', text: err instanceof Error ? err.message : 'API bağlantısı kurulamadı.' });
+    } finally { setApiBusy(false); }
   }
 
   // ——— filtre / sayfalama ———
@@ -729,7 +770,24 @@ export default function ApiSettingsPage() {
               data-km-jump
               label="API Yolu"
               value={endpointDraft}
-              onChange={(e) => setEndpointDraft(e.target.value)}
+              onChange={(e) => {
+                setEndpointDraft(e.target.value);
+                if (category) setApiEndpoint(category, e.target.value);
+              }}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <TextInput
+              data-km-jump
+              label="API Key"
+              type="password"
+              autoComplete="off"
+              value={apiAccessKey}
+              onChange={(e) => {
+                setApiAccessKeyDraft(e.target.value);
+                setApiAccessKey(e.target.value);
+              }}
+              placeholder="API Keys ekranındaki anahtarı girin"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 xl:pb-0.5">
