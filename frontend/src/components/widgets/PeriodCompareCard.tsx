@@ -81,10 +81,9 @@ export function PeriodCompareCard({ title, current, previous, changePct, banks, 
           {title}
         </h3>
         <span
-          className={`rounded-lg px-2 py-0.5 text-xs font-semibold transition group-hover:scale-105 ${up ? 'bg-emerald-500/15 text-emerald-600' : 'bg-rose-500/15 text-rose-600'}`}
+          className={`rounded-lg border border-slate-950/70 px-2 py-0.5 text-xs font-semibold tabular-nums transition group-hover:scale-105 dark:border-slate-100/70 ${up ? 'bg-emerald-500/15 text-emerald-600' : 'bg-rose-500/15 text-rose-600'}`}
         >
-          {up ? '+' : ''}
-          {displayPct.toFixed(2)}%
+          {Math.abs(displayPct).toFixed(2)}%
         </span>
       </div>
       <p className="mt-2 text-[1.85rem] font-extrabold leading-tight tabular-nums text-[var(--panel-ink)]">
@@ -123,7 +122,7 @@ function TrendArrow({ up }: { up: boolean }) {
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"
-      className={`pointer-events-none absolute right-1 top-1 h-20 w-20 opacity-20 ${up ? 'text-emerald-600' : 'text-rose-600'}`}
+      className={`pointer-events-none absolute right-1 top-3 h-20 w-20 opacity-20 ${up ? 'text-emerald-600' : 'text-rose-600'}`}
     >
       <path
         d={up ? 'M3 18 9 12l4 3 8-9M15 6h6v6' : 'M3 6l6 6 4-3 8 9m-6 0h6v-6'}
