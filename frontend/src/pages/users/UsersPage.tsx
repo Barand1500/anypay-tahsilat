@@ -208,7 +208,7 @@ export default function UsersPage() {
         setLiveUsers(list);
         return list;
       });
-      if (next.sendPasswordEmail && created.passwordEmailSent === false) {
+      if (created.passwordEmailSent === false) {
         setActionError('Kullanıcı eklendi ancak giriş bilgileri e-posta ile gönderilemedi. E-posta ayarlarını kontrol edin.');
       }
     }

@@ -78,11 +78,19 @@ usersRouter.post('/', async (req: AuthedRequest, res) => {
 
   try {
     const { sendPasswordEmail, ...userInput } = parsed.data;
-    const data = await createPanelUser(userInput);
+    const created = await createPanelUser(userInput);
+    const data = created.user;
     let passwordEmailSent: boolean | undefined;
-    if (sendPasswordEmail && userInput.password) {
+    const passwordToEmail = created.temporaryPassword ?? (sendPasswordEmail ? userInput.password : undefined);
+    if (passwordToEmail) {
       try {
-        await sendCustomerCredentialsMail(data.email, data.name, data.email, userInput.password);
+        await sendCustomerCredentialsMail(
+          data.email,
+          data.name,
+          data.email,
+          passwordToEmail,
+          Boolean(created.temporaryPassword),
+        );
         passwordEmailSent = true;
       } catch (mailError) {
         console.error('Kullanıcı giriş bilgileri e-postası gönderilemedi', mailError);

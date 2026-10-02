@@ -14,6 +14,7 @@ model User {
   email            String    @unique @db.VarChar(180)
   isVerified       Boolean   @map("is_verified")
   isPassword       Boolean   @map("is_password")
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   roles            Json
   password         String    @db.VarChar(255)
   adsoyad          String?   @db.VarChar(255)

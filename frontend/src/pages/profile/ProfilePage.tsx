@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
@@ -47,8 +48,11 @@ function draftFromUser(user: {
  */
 export default function ProfilePage() {
   const { user, updateProfile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFromUser(user));
   const [baseline, setBaseline] = useState(() => draftFromUser(user));
@@ -62,6 +66,7 @@ export default function ProfilePage() {
   const [loginThemeBase, setLoginThemeBase] = useState<LoginTheme>(() => getLoginTheme());
   const [brandWords, setBrandWordsDraft] = useState<LoginBrandWords>(() => getLoginBrandWords());
   const [brandWordsBase, setBrandWordsBase] = useState<LoginBrandWords>(() => getLoginBrandWords());
+  const forcePasswordFocus = new URLSearchParams(location.search).get('changePassword') === '1';
 
   // /me veya login sonrası user gelince formu doldur
   useEffect(() => {
@@ -70,6 +75,15 @@ export default function ProfilePage() {
     setDraft((d) => ({ ...next, sifre: d.sifre }));
     setBaseline(next);
   }, [user]);
+
+  useEffect(() => {
+    if (!forcePasswordFocus) return;
+    const timer = window.setTimeout(() => {
+      passwordInputRef.current?.focus();
+      passwordInputRef.current?.select();
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [forcePasswordFocus]);
 
   const dirty =
     draft.adsoyad !== baseline.adsoyad ||
@@ -112,6 +126,12 @@ export default function ProfilePage() {
   async function save() {
     setSaveError(null);
 
+    if (forcePasswordFocus && draft.sifre.length < 6) {
+      setSaveError('Geçici şifreyi değiştirmek için en az 6 karakterli yeni bir şifre girin.');
+      passwordInputRef.current?.focus();
+      return;
+    }
+
     if (draft.telefon && (draft.telefon.length !== 10 || !draft.telefon.startsWith('5'))) {
       setSaveError('Telefon 5 ile başlayan 10 haneli olmalıdır');
       return;
@@ -131,6 +151,9 @@ export default function ProfilePage() {
       setBaseline(next);
       setDraft({ ...next, sifre: '' });
       setEditing(null);
+      if (forcePasswordFocus && !updated.mustChangePassword) {
+        navigate('/profil', { replace: true });
+      }
 
       setLoginTheme(loginTheme);
       setLoginThemeBase(loginTheme);
@@ -293,24 +316,32 @@ export default function ProfilePage() {
         >
           <h2 className="mb-4 text-sm font-semibold text-[var(--panel-ink)]">Güvenlik</h2>
           <div className="space-y-4">
-            <TextInput
-              label="Yeni şifre"
-              type={showPass ? 'text' : 'password'}
-              value={draft.sifre}
-              onChange={(e) => setDraft((d) => ({ ...d, sifre: e.target.value }))}
-              autoComplete="new-password"
-              data-km-jump
-              endAdornment={
-                <button
-                  type="button"
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-[var(--panel-muted)] hover:text-[var(--panel-ink)]"
-                  onClick={() => setShowPass((v) => !v)}
-                >
-                  {showPass ? 'Gizle' : 'Göster'}
-                </button>
-              }
-            />
-            <p className="text-xs text-[var(--panel-muted)]">Değiştirmek istemiyorsanız boş bırakın.</p>
+            <div className={forcePasswordFocus ? 'field-focus-pulse rounded-xl' : ''}>
+              <TextInput
+                ref={passwordInputRef}
+                label={forcePasswordFocus ? 'Yeni şifre *' : 'Yeni şifre'}
+                type={showPass ? 'text' : 'password'}
+                value={draft.sifre}
+                onChange={(e) => setDraft((d) => ({ ...d, sifre: e.target.value }))}
+                autoComplete="new-password"
+                data-km-jump
+                required={forcePasswordFocus}
+                endAdornment={
+                  <button
+                    type="button"
+                    className="rounded-lg px-2 py-1 text-xs font-medium text-[var(--panel-muted)] hover:text-[var(--panel-ink)]"
+                    onClick={() => setShowPass((v) => !v)}
+                  >
+                    {showPass ? 'Gizle' : 'Göster'}
+                  </button>
+                }
+              />
+            </div>
+            <p className="text-xs text-[var(--panel-muted)]">
+              {forcePasswordFocus
+                ? 'İlk giriş için geçici şifrenizi değiştirmeniz gerekiyor.'
+                : 'Değiştirmek istemiyorsanız boş bırakın.'}
+            </p>
 
             <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--panel-surface)] px-3 py-3">
               <div>

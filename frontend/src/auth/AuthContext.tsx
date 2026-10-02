@@ -16,6 +16,7 @@ export type AuthUser = {
   telefon: string;
   roles: string[];
   twoFactor: boolean;
+  mustChangePassword: boolean;
   /** Profil fotoğrafı URL (/uploads/...) */
   resimUrl: string | null;
   /** Boş = kısıt yok; dolu = yalnızca bu taksitler */
@@ -71,6 +72,7 @@ function normalizeUser(raw: AuthUser): AuthUser {
     telefon: raw.telefon || '',
     roles: Array.isArray(raw.roles) ? raw.roles : [],
     twoFactor: Boolean(raw.twoFactor),
+    mustChangePassword: Boolean(raw.mustChangePassword),
     resimUrl: raw.resimUrl || null,
     installments: Array.isArray(raw.installments)
       ? raw.installments.filter((n) => n >= 1 && n <= 12)

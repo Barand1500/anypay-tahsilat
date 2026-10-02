@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 
 export type UserStatus = 'Aktif' | 'Pasif';
@@ -111,6 +112,7 @@ function toPublic(
     subeDepartmanId: number | null;
     subeDepartmanIds: string | null;
     izinliTaksitler: string | null;
+    mustChangePassword?: boolean | null;
   },
   roleName: string,
   branchNames: string[],
@@ -262,7 +264,7 @@ export async function createPanelUser(input: {
   status?: UserStatus;
   installments?: number[];
   password?: string;
-} & UpsertBranches): Promise<PublicPanelUser> {
+} & UpsertBranches): Promise<{ user: PublicPanelUser; temporaryPassword: string | null }> {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   const phone = digitsPhone(input.phone);
@@ -281,7 +283,9 @@ export async function createPanelUser(input: {
   if (clash && !clash.remove) throw new UsersError('Bu e-posta zaten kayıtlı');
 
   const subeIds = await resolveBranchIds(input);
-  const plain = (input.password || '').trim() || randomPassword();
+  const suppliedPassword = (input.password || '').trim();
+  const temporaryPassword = suppliedPassword ? null : randomPassword();
+  const plain = suppliedPassword || temporaryPassword!;
   if (plain.length < 6) throw new UsersError('Şifre en az 6 karakter olmalı');
   const hash = await bcrypt.hash(plain, 13);
   const status: UserStatus = input.status === 'Pasif' ? 'Pasif' : 'Aktif';
@@ -297,6 +301,7 @@ export async function createPanelUser(input: {
         password: hash,
         isVerified: status === 'Aktif',
         isPassword: true,
+        mustChangePassword: Boolean(temporaryPassword),
         roles: [role.code],
         rolId,
         subeDepartmanId: subeIds[0] ?? null,
@@ -305,7 +310,10 @@ export async function createPanelUser(input: {
         remove: null,
       },
     });
-    return toPublic(row, role.name, await branchNamesFor(subeIds));
+    return {
+      user: toPublic(row, role.name, await branchNamesFor(subeIds)),
+      temporaryPassword,
+    };
   }
 
   const row = await prisma.user.create({
@@ -316,6 +324,7 @@ export async function createPanelUser(input: {
       password: hash,
       isVerified: status === 'Aktif',
       isPassword: true,
+      mustChangePassword: Boolean(temporaryPassword),
       roles: [role.code],
       rolId,
       subeDepartmanId: subeIds[0] ?? null,
@@ -325,7 +334,10 @@ export async function createPanelUser(input: {
     },
   });
 
-  return toPublic(row, role.name, await branchNamesFor(subeIds));
+  return {
+    user: toPublic(row, role.name, await branchNamesFor(subeIds)),
+    temporaryPassword,
+  };
 }
 
 export async function updatePanelUser(
@@ -357,6 +369,7 @@ export async function updatePanelUser(
     izinliTaksitler?: string;
     password?: string;
     isPassword?: boolean;
+    mustChangePassword?: boolean;
   } = {};
 
   if (input.name !== undefined) {
@@ -417,6 +430,7 @@ export async function updatePanelUser(
     }
     data.password = await bcrypt.hash(input.password.trim(), 13);
     data.isPassword = true;
+    data.mustChangePassword = false;
   }
 
   const row = await prisma.user.update({ where: { id }, data });
@@ -443,8 +457,15 @@ export async function deletePanelUser(id: number): Promise<void> {
 }
 
 function randomPassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  let out = '';
-  for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+  const chars = [
+    String.fromCharCode(97 + randomInt(26)),
+    String.fromCharCode(97 + randomInt(26)),
+    String.fromCharCode(65 + randomInt(26)),
+    ...Array.from({ length: 4 }, () => String(randomInt(10))),
+  ];
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
+  }
+  return chars.join('');
 }

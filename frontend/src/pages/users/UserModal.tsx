@@ -138,10 +138,6 @@ export function UserModal({
       setFormError('Geçerli bir e-posta adresi girin.');
       return;
     }
-    if (!isEdit && password.trim().length < 6) {
-      setFormError('Yeni kullanıcı için şifre en az 6 karakter');
-      return;
-    }
     const role = roleOptions.find((r) => r.value === roleId);
     setSaving(true);
     setFormError(null);
@@ -304,17 +300,19 @@ export function UserModal({
               <div>
                 <TextInput
                   data-km-jump
-                  label="Şifre *"
+                  label="Şifre (isteğe bağlı)"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
-                  required
                 />
+                <p className="mt-1.5 text-xs text-[var(--panel-muted)]">
+                  Boş bırakırsanız güvenli, geçici bir şifre üretilip e-posta ile gönderilir.
+                </p>
                 <button
                   type="button"
                   data-km-jump
-                  disabled={saving || !email.trim() || password.trim().length < 6}
+                  disabled={saving || !email.trim()}
                   onClick={() => void submitUser(true)}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-sm font-semibold text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >

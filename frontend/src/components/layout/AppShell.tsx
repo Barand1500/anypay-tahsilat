@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { useLoadBins } from '../../hooks/useLoadBins';
 import { KeyboardModeProvider } from '../../keyboard/KeyboardModeContext';
@@ -48,7 +48,9 @@ export function AppShell() {
 }
 
 function AppShellInner() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   useLoadBins();
   const { applyTheme } = useTheme();
   const { enabled: dockOn, animating } = useDockMode();
@@ -59,6 +61,8 @@ function AppShellInner() {
   const [footerAutoHide, setFooterAutoHide] = useState(false);
   const [footerPeek, setFooterPeek] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const changingTemporaryPassword =
+    location.pathname === '/profil' && new URLSearchParams(location.search).get('changePassword') === '1';
 
   // Dock / kur şeridi açıkken footer görünür
   const headerOpen = dockOn ? false : !headerAutoHide || headerPeek;
@@ -235,6 +239,42 @@ function AppShellInner() {
       <GestureWindListener onOpenSearch={() => setSearchOpen(true)} />
       <GestureWindSettingsModal />
       <VaultHost />
+      {user?.mustChangePassword && !changingTemporaryPassword ? (
+        <div className="fixed inset-0 z-[10080] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="temporary-password-title"
+            className="w-full max-w-md rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-6 shadow-2xl"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-600">
+              <PasswordLockIcon />
+            </div>
+            <h2 id="temporary-password-title" className="text-lg font-bold text-[var(--panel-ink)]">
+              Lütfen şifrenizi değiştirin
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--panel-muted)]">
+              Hesabınıza geçici şifreyle giriş yaptınız. Devam etmeden önce profilinizden yeni bir şifre belirleyin.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/profil?changePassword=1')}
+              className="mt-6 w-full rounded-xl bg-[var(--color-brand-600)] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+            >
+              Profile git
+            </button>
+          </section>
+        </div>
+      ) : null}
     </>
+  );
+}
+
+function PasswordLockIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="4.5" y="10" width="15" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   );
 }

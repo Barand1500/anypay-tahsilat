@@ -74,6 +74,27 @@ export async function ensureUserBranchIdsColumn(): Promise<void> {
   }
 }
 
+/** İlk girişte geçici parola değişikliğini kalıcı olarak işaretle. */
+export async function ensureUserMustChangePasswordColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'user'
+        AND COLUMN_NAME = 'must_change_password'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `user` ADD COLUMN `must_change_password` TINYINT(1) NOT NULL DEFAULT 0',
+    );
+    console.log('[schema] user.must_change_password eklendi');
+  } catch (err) {
+    console.warn('[schema] must_change_password kontrolü atlandı:', err);
+  }
+}
+
 /** cari_tipleri.izinli_taksitler */
 export async function ensureCariTipiInstallmentsColumn(): Promise<void> {
   try {
@@ -222,6 +243,7 @@ export async function ensureSchema(): Promise<void> {
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
   await ensureUserBranchIdsColumn();
+  await ensureUserMustChangePasswordColumn();
   await ensureCariTipiInstallmentsColumn();
   await ensureSubeInstallmentsColumn();
   await ensureTaksitSiralamaColumn();

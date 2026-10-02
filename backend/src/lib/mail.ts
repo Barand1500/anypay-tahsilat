@@ -290,12 +290,16 @@ export async function sendCustomerCredentialsMail(
   adsoyad: string | null,
   loginEmail: string,
   password: string,
+  mustChangePassword = false,
 ) {
   const name = adsoyad?.trim() || 'Kullanıcı';
   const subject = 'AnyPay Tahsilat — Giriş bilgileriniz';
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(loginEmail);
   const safePass = escapeHtml(password);
+  const firstLoginNote = mustChangePassword
+    ? 'Bu geçici şifreyle ilk girişinizden sonra panel sizden yeni bir şifre belirlemenizi isteyecektir.'
+    : 'Güvenliğiniz için şifrenizi kimseyle paylaşmayın.';
   const loginUrl = 'https://tahsilat.anypay.com.tr/';
 
   const html = `<!DOCTYPE html>
@@ -327,7 +331,6 @@ export async function sendCustomerCredentialsMail(
               </p>
               <p style="margin:0 0 22px;font-size:14px;line-height:1.55;color:#9ca3af;">
                 AnyPay Tahsilat paneline giriş bilgileriniz aşağıdadır.
-                İlk girişten sonra şifrenizi değiştirmenizi öneririz.
               </p>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
@@ -342,6 +345,10 @@ export async function sendCustomerCredentialsMail(
                   </td>
                 </tr>
               </table>
+
+              <p style="margin:0 0 18px;font-size:13px;line-height:1.55;color:#cbd5e1;">
+                ${escapeHtml(firstLoginNote)}
+              </p>
 
               <p style="margin:0 0 18px;text-align:center;">
                 <a href="${loginUrl}" style="display:inline-block;padding:12px 22px;border-radius:12px;background:#0284c7;color:#fff;font-size:14px;font-weight:700;text-decoration:none;">
@@ -378,7 +385,7 @@ export async function sendCustomerCredentialsMail(
     '',
     `Giriş: ${loginUrl}`,
     '',
-    'İlk girişten sonra şifrenizi değiştirmenizi öneririz.',
+    firstLoginNote,
   ].join('\n');
 
   return sendMail({ to, subject, html, text });

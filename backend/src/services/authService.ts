@@ -95,6 +95,7 @@ function toPublicUser(
     roles: unknown;
     twoFactor: boolean | null;
     resim?: string | null;
+    mustChangePassword?: boolean | null;
     izinliTaksitler?: string | null;
     subeDepartmanId?: number | null;
     subeDepartmanIds?: string | null;
@@ -120,6 +121,7 @@ function toPublicUser(
     telefon: normalizeStoredPhone(user.telefon),
     roles,
     twoFactor: Boolean(user.twoFactor),
+    mustChangePassword: Boolean(user.mustChangePassword),
     resimUrl,
     /** Boş = kısıt yok (tümü); dolu = yalnızca bunlar */
     installments: parseInstallments(user.izinliTaksitler),
@@ -340,7 +342,7 @@ export async function resetPasswordWithToken(resetToken: string, password: strin
   const hash = await bcrypt.hash(trimmed, 13);
   await prisma.user.update({
     where: { id: user.id },
-    data: { password: hash, isPassword: true },
+    data: { password: hash, isPassword: true, mustChangePassword: false },
   });
 
   await writePanelLog(
@@ -382,6 +384,7 @@ export async function updateOwnProfile(userId: number, input: ProfileUpdateInput
     telefon?: string;
     password?: string;
     isPassword?: boolean;
+    mustChangePassword?: boolean;
     twoFactor?: boolean;
     resim?: string | null;
   } = {};
@@ -422,6 +425,7 @@ export async function updateOwnProfile(userId: number, input: ProfileUpdateInput
     }
     data.password = await bcrypt.hash(input.password, 13);
     data.isPassword = true;
+    data.mustChangePassword = false;
   }
 
   if (input.twoFactor !== undefined) {
