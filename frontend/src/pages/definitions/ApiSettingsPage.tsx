@@ -249,18 +249,23 @@ export default function ApiSettingsPage() {
         return;
       }
       const read = (row: Record<string, unknown>, aliases: string[]) => {
-        const keyFor = (s: string) => s.toLocaleLowerCase('tr').replace(/[\s_\-]/g, '');
+        const keyFor = (value: string) => value
+          .toLocaleLowerCase('tr-TR')
+          .replace(/ı/g, 'i')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, '');
         const found = Object.entries(row).find(([name]) => aliases.some(a => keyFor(a) === keyFor(name)));
         return found?.[1] == null ? '' : String(found[1]).trim();
       };
       let added = 0;
       if (category === 'locations') {
         for (const value of rows as Record<string, unknown>[]) {
-          const country = read(value, ['country', 'countryName', 'ülke']);
-          const city = read(value, ['city', 'cityName', 'il', 'şehir', 'şehri']);
-          const district = read(value, ['district', 'districtName', 'ilçe']);
-          const neighborhood = read(value, ['neighborhood', 'mahalle']);
-          const name = read(value, ['name', 'ad', 'isim', 'location', 'lokasyon']);
+          const country = read(value, ['country', 'countryName', 'ülke', 'ülke adı', 'ülkeler']);
+          const city = read(value, ['city', 'cityName', 'il', 'şehir', 'şehri', 'il adı', 'şehir adı']);
+          const district = read(value, ['district', 'districtName', 'ilçe', 'ilçe adı']);
+          const neighborhood = read(value, ['neighborhood', 'mahalle', 'mahalle adı']);
+          const name = read(value, ['name', 'ad', 'adı', 'isim', 'location', 'lokasyon', 'ülke adı', 'ülkeler', 'il adı', 'şehir adı', 'ilçe adı', 'mahalle adı']);
           const level = read(value, ['level', 'seviye']).toLocaleLowerCase('tr');
           const countryValue = country || (level.includes('ülke') || level === 'country' || (!city && !district && !neighborhood) ? name : '');
           if (!countryValue && !city && !district && !neighborhood) continue;
@@ -270,8 +275,8 @@ export default function ApiSettingsPage() {
         await loadLocations();
       } else if (category === 'tax-offices') {
         for (const value of rows as Record<string, unknown>[]) {
-          const name = read(value, ['name', 'ad', 'isim', 'taxOffice', 'vergiDairesi']);
-          const city = read(value, ['city', 'il', 'şehir']);
+          const name = read(value, ['name', 'ad', 'adı', 'isim', 'taxOffice', 'vergiDairesi', 'vergi dairesi', 'vergi dairesi adı']);
+          const city = read(value, ['city', 'il', 'şehir', 'il adı', 'şehir adı']);
           if (!name || !city) continue;
           await api.post('/api/tax-offices', { city, district: read(value, ['district', 'ilçe']) || '—', name }, token);
           added++;
