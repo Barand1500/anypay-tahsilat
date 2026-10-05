@@ -2,6 +2,7 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
+import { TextInput } from '../../components/ui/TextInput';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useLoadBins } from '../../hooks/useLoadBins';
 import { api } from '../../lib/api';
@@ -271,18 +272,16 @@ export default function PublicPayPage() {
             <form onSubmit={(e) => void onSubmit(e)} className="space-y-3.5">
               {variableAmount ? (
                 <div>
-                  <label htmlFor="public-pay-amount" className="mb-1 block text-xs font-semibold text-[var(--panel-muted)]">Tutar ({view.currencySymbol || '₺'})</label>
-                  <input
+                  <TextInput
                     id="public-pay-amount"
+                    label={`Tutar (${view.currencySymbol || '₺'})`}
                     value={amountText}
                     onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
                     inputMode="decimal"
                     autoComplete="off"
-                    placeholder="0,00"
-                    aria-invalid={Boolean(errors.amount)}
-                    className="w-full rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-3 text-right text-lg font-bold tabular-nums text-[var(--panel-ink)] outline-none transition focus:border-[var(--input-border-focus)]"
+                    error={errors.amount}
+                    className="text-right text-lg font-bold tabular-nums"
                   />
-                  {errors.amount ? <p className="mt-1 text-xs text-rose-500">{errors.amount}</p> : null}
                 </div>
               ) : null}
               <PaymentCardFields

@@ -635,10 +635,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                         : 'border-[var(--input-border)] focus-within:border-[var(--input-border-focus)]',
                   ].join(' ')}
                 >
-                  <div className="relative min-w-0 overflow-hidden transition-[flex-basis,opacity] duration-300 ease-in-out" style={{ flex: payType === 'serbest' ? '0 0 0%' : '1 1 0%', opacity: payType === 'serbest' ? 0 : 1 }} aria-hidden={payType === 'serbest'}>
-                    <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-orange-500">
-                      <CoinsIcon />
-                    </span>
+                  <div className={`relative min-w-0 transition-[flex-basis,opacity] duration-300 ease-in-out ${payType === 'serbest' ? 'overflow-hidden' : 'overflow-visible'}`} style={{ flex: payType === 'serbest' ? '0 0 0%' : '1 1 0%', opacity: payType === 'serbest' ? 0 : 1 }} aria-hidden={payType === 'serbest'}>
                     <input
                       data-km-jump
                       id="req-amount"
@@ -647,12 +644,12 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                       onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
                       inputMode="numeric"
                       placeholder=" "
-                      className="peer w-full rounded-l-xl bg-transparent py-2.5 pl-10 pr-3.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
+                      className="peer w-full rounded-l-xl bg-transparent px-3.5 pb-2.5 pt-5 text-right text-sm font-semibold tabular-nums text-[var(--panel-ink)] outline-none"
                     />
                     <label
                       htmlFor="req-amount"
                       className={[
-                        'input-label-gap pointer-events-none absolute left-9 top-1/2 z-10 origin-left -translate-y-1/2',
+                        'input-label-gap pointer-events-none absolute left-3 top-1/2 z-10 origin-left -translate-y-1/2',
                         'px-1.5 text-sm text-[var(--panel-muted)] transition-all duration-200',
                         'peer-focus:top-0 peer-focus:translate-y-[-50%] peer-focus:text-xs peer-focus:font-medium peer-focus:text-[var(--input-label)]',
                         'peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:translate-y-[-50%] peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:font-medium peer-[:not(:placeholder-shown)]:peer-focus:text-[var(--input-label)]',
@@ -1072,16 +1069,6 @@ function DocIcon() {
         strokeLinejoin="round"
       />
       <path d="M14 3v4h4M9 12h6M9 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CoinsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <ellipse cx="12" cy="6" rx="7" ry="3" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M5 6v4c0 1.7 3.1 3 7 3s7-1.3 7-3V6" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M5 10v4c0 1.7 3.1 3 7 3s7-1.3 7-3v-4" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
 }

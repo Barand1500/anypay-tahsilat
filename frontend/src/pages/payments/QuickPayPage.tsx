@@ -126,6 +126,9 @@ export default function QuickPayPage() {
     },
     [amount, bankInstallmentRows, allowedInstallments],
   );
+  const selectedRate = pickedInstall && pickedInstall.bank.id === bank?.id
+    ? availableBankRows.find((row) => row.n === pickedInstall.n)
+    : null;
   const cardFaulty =
     cardChecked &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
@@ -308,18 +311,24 @@ export default function QuickPayPage() {
         <span className="font-semibold text-[var(--panel-ink)]">Hızlı Ödeme</span>
       </nav>
 
-      <h1
-        data-anim
-        className="mb-5 text-center text-base font-bold uppercase tracking-wide text-[var(--panel-ink)] sm:text-lg"
-      >
-        {merchant.title}
-      </h1>
+      <div data-anim className="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold uppercase tracking-wide text-[var(--panel-ink)] sm:text-2xl">
+            {merchant.title}
+          </h1>
+          <p className="mt-0.5 text-sm text-[var(--panel-muted)]">Hızlı ödeme</p>
+        </div>
+        <Link to="/hareketler" className="shrink-0 rounded-xl border border-[var(--panel-line)] px-3.5 py-2 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]">
+          Vazgeç
+        </Link>
+      </div>
 
       <form onSubmit={onSubmit} className="space-y-5">
-        <div data-anim className="grid gap-4 lg:grid-cols-3">
+        <section data-anim className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
+        <div className="grid lg:grid-cols-3">
           {/* Ödeme */}
-          <section className="flex flex-col gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
-            <SectionHead>Ödeme Bilgileri</SectionHead>
+          <div className="flex flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
+            <SectionHead>Ödeme bilgileri</SectionHead>
 
             <div className="flex items-stretch gap-2">
               <div ref={payTypeRef} className="relative min-w-0 flex-1">
@@ -489,12 +498,12 @@ export default function QuickPayPage() {
               rows={4}
               className="min-h-[7.5rem] resize-none"
             />
-          </section>
+          </div>
 
           {/* Kart */}
-          <section className="flex flex-col gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
+          <div className="flex flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
             <PaymentCardFields
-              heading="Kredi Kartı Bilgileri"
+              heading="Kredi kartı"
               SectionHead={SectionHead}
               holder={holder}
               tc={tc}
@@ -538,15 +547,15 @@ export default function QuickPayPage() {
               onExpiryBlur={() => setExpiryChecked(true)}
               onCvcBlur={() => setCvcChecked(true)}
             />
-          </section>
+          </div>
 
           {/* Banka */}
-          <section className="flex flex-col gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
+          <div className="flex flex-col gap-4 p-5">
             <SectionHead>Banka & taksit</SectionHead>
-            <div className="flex min-h-[220px] flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 p-4">
+            <div className="flex min-h-[220px] flex-1 flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 p-4">
               {bank?.logo ? (
-                <div className="mb-4 flex flex-1 items-center justify-center py-2">
-                  <img src={bank.logo} alt={bank.name} className="h-14 w-auto max-w-[180px] object-contain" />
+                <div className="mb-4 flex flex-col items-center justify-center py-2">
+                  <img src={bank.logo} alt="" title={bank.name} className="h-14 w-auto max-w-[180px] object-contain" />
                 </div>
               ) : bank ? (
                 <p className="mb-4 flex flex-1 items-center justify-center text-lg font-bold text-[var(--panel-ink)]">{bank.name}</p>
@@ -556,47 +565,74 @@ export default function QuickPayPage() {
               <button type="button" data-km-jump disabled={!amount || amount <= 0} onClick={() => setInstallOpen(true)} className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45">
                 Taksit Seçenekleri
               </button>
-              {pickedInstall ? (
+              {pickedInstall && bank ? (
                 <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Seçili</p>
                   <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">{pickedInstall.n === 1 ? 'Tek çekim' : `${pickedInstall.n} taksit`}</p>
-                  <p className="text-sm text-[var(--panel-muted)]">{pickedInstall.bank.name}</p>
+                  <p className="text-sm tabular-nums text-[var(--panel-muted)]">
+                    {selectedRate
+                      ? pickedInstall.n > 1
+                        ? `${pickedInstall.n} × ${formatMoneyDisplay(selectedRate.installmentAmount)}`
+                        : formatMoneyDisplay(selectedRate.totalAmount)
+                      : pickedInstall.bank.name}
+                  </p>
+                  {selectedRate ? (
+                    selectedRate.commissionPct > 0
+                      ? <p className="mt-1 text-[11px] font-semibold text-rose-500">Vade farkı %{formatMoneyTr(selectedRate.commissionPct)}</p>
+                      : <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Komisyon yok</p>
+                  ) : null}
                 </div>
               ) : errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
             </div>
-          </section>
+          </div>
+        </div>
+        </section>
           {bank && amount > 0 ? <section data-anim>
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
               <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
             </div>
-            <div className="space-y-2">
-                {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
-                {!ratesLoading && availableBankRows.length ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {availableBankRows.map((row) => (
-                      <button
-                        key={row.n}
-                        type="button"
-                        data-km-jump
-                        onClick={() => bank && setPickedInstall({ n: row.n, bank })}
-                        className={`relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left transition ${pickedInstall?.n === row.n && pickedInstall.bank.id === bank?.id ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md' : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md'}`}
-                      >
-                        {row.commissionPct === 0 ? <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-2 py-1 text-[9px] font-bold uppercase">Komisyon yok</span> : null}
-                        <span className="block text-right text-xs font-bold uppercase text-[var(--panel-muted)]">{row.n === 1 ? 'Tek çekim' : `${row.n} taksit`}</span>
-                        <span className="mt-2 block text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">{formatMoneyDisplay(row.n > 1 ? row.installmentAmount : row.totalAmount)}{row.n > 1 ? ' / ay' : ''}</span>
-                        {row.n > 1 ? <span className="mt-1 block text-right text-[11px] text-[var(--panel-muted)]">Toplam {formatMoneyDisplay(row.totalAmount)}</span> : null}
-                        <span className="pointer-events-none absolute -bottom-3 left-3 text-7xl font-black leading-none text-[var(--panel-muted)]/15">{row.n}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {!ratesLoading && bank && !availableBankRows.length ? (
-                  <p className="text-xs text-[var(--panel-muted)]">Bu banka için taksit anlaşması bulunamadı.</p>
-                ) : null}
-            </div>
+            {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
+            {!ratesLoading && availableBankRows.length ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {availableBankRows.map((r) => {
+                  const active = pickedInstall?.n === r.n && pickedInstall.bank.id === bank.id;
+                  const ok = !allowedInstallments || allowedInstallments.includes(r.n);
+                  return (
+                    <button
+                      key={r.n}
+                      type="button"
+                      data-km-jump={ok || undefined}
+                      title={ok ? undefined : 'Size atanmadı'}
+                      disabled={!ok}
+                      onClick={() => ok && setPickedInstall({ n: r.n, bank })}
+                      className={[
+                        'relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left text-white transition',
+                        !ok
+                          ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
+                          : active
+                            ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
+                            : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
+                      ].join(' ')}
+                    >
+                      {r.commissionPct === 0 ? (
+                        <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Komisyon yok</span>
+                      ) : null}
+                      <span className="pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]">{r.n}</span>
+                      <p className={['relative text-sm font-semibold', r.n === 1 ? 'text-right' : 'text-left', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
+                        {r.n === 1 ? 'Tek çekim' : `${r.n} taksit`}
+                      </p>
+                      <p className={['relative mt-2 text-xl font-bold tabular-nums', r.n === 1 ? 'text-right' : 'text-left', 'text-[var(--panel-ink)]'].join(' ')}>
+                        {r.n === 1 ? formatMoneyTr(r.totalAmount) : `${r.n} × ${formatMoneyTr(r.installmentAmount)}`}
+                      </p>
+                      {r.n > 1 ? <p className="relative mt-0.5 text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">Toplam {formatMoneyTr(r.totalAmount)}</p> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {!ratesLoading && !availableBankRows.length ? <p className="text-xs text-[var(--panel-muted)]">Bu banka için taksit anlaşması bulunamadı.</p> : null}
           </section> : null}
-        </div>
 
         <div data-anim className="flex flex-col items-center gap-4 pt-2">
           <label className="flex items-start gap-2.5 text-sm text-[var(--panel-ink)]">
