@@ -106,6 +106,15 @@ settingsRouter.get('/brand', async (_req, res) => {
 });
 
 settingsRouter.use(requireAuth);
+settingsRouter.get('/erp-status', async (_req, res) => {
+  try {
+    const settings = await getErpSettings();
+    return sendSuccess(res, { active: settings.active });
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'ERP durumu yüklenemedi');
+  }
+});
 settingsRouter.get('/quick-access', async (_req, res) => {
   try {
     return sendSuccess(res, await getQuickAccessSettings());

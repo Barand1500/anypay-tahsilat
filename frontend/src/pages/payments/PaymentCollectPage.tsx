@@ -8,6 +8,7 @@ import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
+import { useErpActive } from '../../hooks/useErpActive';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
@@ -29,7 +30,7 @@ import {
   isValidTurkishIdentityNo,
 } from './mockBanks';
 
-type PayType = '' | 'ch' | 'fatura' | 'serbest';
+type PayType = '' | 'ch' | 'fatura' | 'sabit';
 
 /**
  * Ödeme Al — ortak inputlar; taksit yalnızca modal / seçili özet.
@@ -37,6 +38,7 @@ type PayType = '' | 'ch' | 'fatura' | 'serbest';
 export default function PaymentCollectPage() {
   const { id } = useParams();
   const { token } = useAuth();
+  const erpActive = useErpActive();
   const navigate = useNavigate();
   const { customer, loading: customerLoading, error: customerError } = useCustomer(id);
   const { allowed: allowedInstallments } = useEffectiveInstallments(
@@ -48,6 +50,9 @@ export default function PaymentCollectPage() {
   const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
+  useEffect(() => {
+    if (erpActive === false && (payType === 'ch' || payType === 'fatura')) setPayType('sabit');
+  }, [erpActive, payType]);
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState(() => formatMoneyTr(0));
@@ -134,7 +139,7 @@ export default function PaymentCollectPage() {
     bankId: bank?.id || null,
     musteriId: customer?.id ? Number(customer.id) : null,
     agreementCode: customer?.cardAgreementCode ?? null,
-    segment: payType === 'serbest' ? 'serbest' : 'bireysel',
+    segment: payType === 'sabit' ? 'serbest' : 'bireysel',
   });
   const installmentRows = useMemo(() => {
     if (amount <= 0) return [];
@@ -230,7 +235,7 @@ export default function PaymentCollectPage() {
         '/api/payments',
         {
           musteriId: Number(customer.id),
-          payType,
+          payType: payType === 'sabit' ? 'serbest' : payType,
           amount,
           commissionIncluded,
           holder: holder.trim(),
@@ -256,7 +261,7 @@ export default function PaymentCollectPage() {
   }
 
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'serbest' ? 'SERBEST ÖDEME' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'sabit' ? 'SABİT TUTAR' : 'Ödeme Tipi Seçiniz';
 
   if (customerLoading) {
     return (
@@ -350,9 +355,8 @@ export default function PaymentCollectPage() {
                       {(
                         [
                           ['', 'Ödeme Tipi Seçiniz'],
-                          ['ch', 'C/H BAKİYESİ'],
-                          ['fatura', 'FATURA'],
-                          ['serbest', 'SERBEST ÖDEME'],
+                          ...(erpActive ? [['ch', 'C/H BAKİYESİ'], ['fatura', 'FATURA']] as const : []),
+                          ['sabit', 'SABİT TUTAR'],
                         ] as const
                       ).map(([val, label]) => (
                         <li key={label}>
@@ -380,14 +384,14 @@ export default function PaymentCollectPage() {
                     <p className="mt-1 text-xs text-rose-500">{errors.payType}</p>
                   ) : null}
                 </div>
-                <button
+                {erpActive ? <button
                   type="button"
                   data-km-jump
                   onClick={queryBalance}
                   className="h-[46px] shrink-0 rounded-xl border border-[var(--color-brand-500)]/50 bg-[var(--brand-soft-bg)] px-3.5 text-sm font-bold text-[var(--color-brand-600)] transition hover:bg-[var(--color-brand-600)] hover:text-white"
                 >
                   Sorgula
-                </button>
+                </button> : null}
               </div>
 
               {/* Tutar + para birimi iç içe */}

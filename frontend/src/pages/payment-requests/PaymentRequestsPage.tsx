@@ -312,7 +312,7 @@ export default function PaymentRequestsPage() {
       PAY_REQ_TYPE_LABEL[r.type],
       PAY_REQ_STATUS_LABEL[r.status],
       r.customerTitle,
-      formatMoneyTr(r.amount),
+      r.type === 'serbest' && r.amount <= 0 ? 'Serbest Tutar' : formatMoneyTr(r.amount),
       r.commissionIncluded ? 'Dahil' : 'Hariç',
       formatDt(r.createdAt),
       r.paidAt ? formatDt(r.paidAt) : '',
@@ -336,7 +336,7 @@ export default function PaymentRequestsPage() {
     const text = filtered
       .map(
         (r) =>
-          `${PAY_REQ_TYPE_LABEL[r.type]}\t${r.customerTitle}\t${formatMoneyTr(r.amount)}\t${payLinkOf(r.token)}`,
+          `${PAY_REQ_TYPE_LABEL[r.type]}\t${r.customerTitle}\t${r.type === 'serbest' && r.amount <= 0 ? 'Serbest Tutar' : formatMoneyTr(r.amount)}\t${payLinkOf(r.token)}`,
       )
       .join('\n');
     void navigator.clipboard.writeText(text);
@@ -778,7 +778,7 @@ export default function PaymentRequestsPage() {
 
                   <div className="min-w-0 self-center">
                     <p className="text-sm font-bold tabular-nums text-[var(--panel-ink)]">
-                      {formatMoneyDisplay(r.amount, r.currencySymbol || '₺')}
+                      {r.type === 'serbest' && r.amount <= 0 ? 'Serbest Tutar' : formatMoneyDisplay(r.amount, r.currencySymbol || '₺')}
                     </p>
                     <p className="text-[11px] text-[var(--panel-muted)]">
                       {r.commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}

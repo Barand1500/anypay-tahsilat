@@ -409,10 +409,11 @@ export async function sendPaymentRequestMail(opts: {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const subject = `Ödeme isteği — ${amountStr} ${sym}`;
+  const amountLabel = opts.amount > 0 ? `${amountStr} ${sym}` : 'Serbest Tutar';
+  const subject = `Ödeme isteği — ${amountLabel}`;
   const safeName = escapeHtml(name);
-  const safeAmount = escapeHtml(amountStr);
-  const safeSym = escapeHtml(sym);
+  const safeAmount = escapeHtml(opts.amount > 0 ? amountStr : 'Ödeme sırasında belirlenecek');
+  const safeSym = opts.amount > 0 ? escapeHtml(sym) : '';
   const safeUrl = escapeHtml(opts.payUrl);
   const safeDesc = escapeHtml((opts.description || '').slice(0, 400));
   const komisyon = opts.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç';
@@ -512,7 +513,7 @@ export async function sendPaymentRequestMail(opts: {
     '',
     `Sayın ${name},`,
     '',
-    `Tutar: ${amountStr} ${sym} (${komisyon})`,
+    `Tutar: ${amountLabel} (${komisyon})`,
     opts.description ? `Açıklama: ${opts.description.slice(0, 200)}` : '',
     '',
     `Ödeme linki: ${opts.payUrl}`,

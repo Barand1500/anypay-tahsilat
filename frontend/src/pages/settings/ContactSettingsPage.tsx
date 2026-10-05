@@ -302,6 +302,23 @@ export default function ContactSettingsPage() {
         />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <TextInput
+            data-km-jump
+            label="Telefon *"
+            inputMode="numeric"
+            value={formatContactPhone(draft.phone)}
+            onChange={(e) => patch('phone', normalizeContactPhone(e.target.value))}
+            required
+            className="font-mono tabular-nums"
+          />
+          <TextInput
+            data-km-jump
+            label="Gsm"
+            inputMode="numeric"
+            value={formatContactPhone(draft.gsm)}
+            onChange={(e) => patch('gsm', normalizeContactPhone(e.target.value))}
+            className="font-mono tabular-nums"
+          />
           <div className="relative">
             <TextInput
               data-km-jump
@@ -337,23 +354,6 @@ export default function ContactSettingsPage() {
               </ul>
             ) : null}
           </div>
-          <TextInput
-            data-km-jump
-            label="Telefon *"
-            inputMode="numeric"
-            value={formatContactPhone(draft.phone)}
-            onChange={(e) => patch('phone', normalizeContactPhone(e.target.value))}
-            required
-            className="font-mono tabular-nums"
-          />
-          <TextInput
-            data-km-jump
-            label="Gsm"
-            inputMode="numeric"
-            value={formatContactPhone(draft.gsm)}
-            onChange={(e) => patch('gsm', normalizeContactPhone(e.target.value))}
-            className="font-mono tabular-nums"
-          />
           <TextInput
             data-km-jump
             label="Web Sitesi"

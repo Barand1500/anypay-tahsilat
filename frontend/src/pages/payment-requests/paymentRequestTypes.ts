@@ -12,7 +12,7 @@ export {
 
 export type PayRequestStatus = 'pending' | 'paid' | 'cancelled' | 'expired';
 
-export type PayRequestType = 'ch' | 'fatura' | 'serbest' | 'taksit' | 'diger';
+export type PayRequestType = 'ch' | 'fatura' | 'sabit' | 'serbest' | 'taksit' | 'diger';
 
 export type PaymentRequest = {
   id: string;
@@ -55,7 +55,8 @@ export const PAY_REQ_STATUS_FILTER: { value: 'pending' | 'paid'; label: string }
 export const PAY_REQ_TYPE_LABEL: Record<PayRequestType, string> = {
   ch: 'C/H İSTİNADEN',
   fatura: 'FATURA',
-  serbest: 'SERBEST ÖDEME',
+  sabit: 'SABİT TUTAR',
+  serbest: 'SERBEST TUTAR',
   taksit: 'TAKSİTLİ',
   diger: 'DİĞER',
 };
@@ -90,7 +91,7 @@ export function payShareMessage(opts: {
   const lines = [
     opts.greeting ?? 'Merhaba, ödeme isteğiniz hazır:',
     link,
-    `Tutar: ${formatMoneyDisplay(opts.amount, sym)}`,
+    opts.amount > 0 ? `Tutar: ${formatMoneyDisplay(opts.amount, sym)}` : 'Tutar: Ödeme sırasında belirlenecek',
   ];
   const files = opts.files?.filter((f) => f?.name && f?.url) ?? [];
   if (files.length) {

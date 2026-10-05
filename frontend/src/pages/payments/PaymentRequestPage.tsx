@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
+import { useErpActive } from '../../hooks/useErpActive';
 import { api } from '../../lib/api';
 import { useCustomer } from '../customers/useCustomer';
 import { useCustomersList } from '../customers/useCustomersList';
@@ -14,7 +15,7 @@ import { InstallmentPaintGrid } from './InstallmentPaintGrid';
 import { loadReadyDescriptions } from './mockReadyDescriptions';
 import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
 
-type PayType = '' | 'ch' | 'fatura' | 'serbest';
+type PayType = '' | 'ch' | 'fatura' | 'sabit' | 'serbest';
 
 type AttachedFile = { name: string; path: string; url: string };
 
@@ -32,6 +33,7 @@ function isPdfFile(f: AttachedFile) {
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id, reqId } = useParams();
   const { token } = useAuth();
+  const erpActive = useErpActive();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
@@ -154,7 +156,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
       try {
         const data = await api.get<{
           id: number;
-          type: 'ch' | 'fatura' | 'serbest' | 'diger';
+          type: 'ch' | 'fatura' | 'sabit' | 'serbest' | 'diger';
           status: 'pending' | 'paid';
           customerId: string | null;
           customerTitle: string;
@@ -183,7 +185,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           code: '',
           accountTypeId: data.accountTypeId ?? null,
         });
-        setPayType(data.type === 'fatura' ? 'fatura' : data.type === 'serbest' ? 'serbest' : 'ch');
+        setPayType(data.type === 'fatura' ? 'fatura' : data.type === 'serbest' ? 'serbest' : data.type === 'sabit' ? 'sabit' : 'ch');
         setAmountText(formatMoneyTr(data.amount));
         if (data.currencyId) setCurrencyId(data.currencyId);
         setCommissionIncluded(data.commissionIncluded);
@@ -223,8 +225,11 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   }, []);
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
+  useEffect(() => {
+    if (erpActive === false && (payType === 'ch' || payType === 'fatura')) setPayType('sabit');
+  }, [erpActive, payType]);
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'serbest' ? 'SERBEST ÖDEME' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'sabit' ? 'SABİT TUTAR' : payType === 'serbest' ? 'SERBEST TUTAR' : 'Ödeme Tipi Seçiniz';
 
   function flash(msg: string) {
     setToast(msg);
@@ -350,7 +355,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     if (forPanel && !customer) next.customer = 'Müşteri seçin';
     if (!payType) next.payType = 'Ödeme tipi seçin';
     if (!currencyId) next.currency = 'Para birimi seçin';
-    if (!amount || amount <= 0) next.amount = 'Geçerli tutar girin';
+    if (payType !== 'serbest' && (!amount || amount <= 0)) next.amount = 'Geçerli tutar girin';
     if (installments.length === 0) next.installments = 'En az bir taksit seçin';
     else if (
       allowedInstallments?.length &&
@@ -376,7 +381,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
           : null;
       const body = {
         payType,
-        amount,
+        amount: payType === 'serbest' ? 0 : amount,
         commissionIncluded,
         installments,
         description: descHtml,
@@ -579,9 +584,9 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                       {(
                         [
                           ['', 'Ödeme Tipi Seçiniz'],
-                          ['ch', 'C/H BAKİYESİ'],
-                          ['fatura', 'FATURA'],
-                          ['serbest', 'SERBEST ÖDEME'],
+                          ...(erpActive ? [['ch', 'C/H BAKİYESİ'], ['fatura', 'FATURA']] as const : []),
+                          ['sabit', 'SABİT TUTAR'],
+                          ['serbest', 'SERBEST TUTAR'],
                         ] as const
                       ).map(([val, label]) => (
                         <li key={label}>
@@ -609,14 +614,14 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                     <p className="mt-1 text-xs text-rose-500">{errors.payType}</p>
                   ) : null}
                 </div>
-                <button
+                {erpActive ? <button
                   type="button"
                   data-km-jump
                   onClick={queryBalance}
                   className="h-[46px] shrink-0 rounded-xl border border-[var(--color-brand-500)]/50 bg-[var(--brand-soft-bg)] px-3.5 text-sm font-bold text-[var(--color-brand-600)] transition hover:bg-[var(--color-brand-600)] hover:text-white"
                 >
                   Sorgula
-                </button>
+                </button> : null}
               </div>
 
               <div>
@@ -630,13 +635,14 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                         : 'border-[var(--input-border)] focus-within:border-[var(--input-border-focus)]',
                   ].join(' ')}
                 >
-                  <div className="relative min-w-0 flex-1">
+                  <div className="relative min-w-0 overflow-hidden transition-[flex-basis,opacity] duration-300 ease-in-out" style={{ flex: payType === 'serbest' ? '0 0 0%' : '1 1 0%', opacity: payType === 'serbest' ? 0 : 1 }} aria-hidden={payType === 'serbest'}>
                     <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-orange-500">
                       <CoinsIcon />
                     </span>
                     <input
                       data-km-jump
                       id="req-amount"
+                      tabIndex={payType === 'serbest' ? -1 : 0}
                       value={amountText}
                       onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
                       inputMode="numeric"
@@ -654,6 +660,9 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                     >
                       Tutar
                     </label>
+                  </div>
+                  <div className="flex min-w-0 items-center overflow-hidden whitespace-nowrap text-xs font-medium text-[var(--panel-muted)] transition-[flex-basis,opacity,padding] duration-300 ease-in-out" style={{ flex: payType === 'serbest' ? '1 1 0%' : '0 0 0%', opacity: payType === 'serbest' ? 1 : 0, paddingLeft: payType === 'serbest' ? 14 : 0 }} aria-hidden={payType !== 'serbest'}>
+                    Tutar ödeme sayfasında girilecek
                   </div>
                   <div
                     ref={currencyRef}

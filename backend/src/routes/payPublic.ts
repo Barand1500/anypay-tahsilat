@@ -19,6 +19,7 @@ const paySchema = z.object({
   expiry: z.string().min(4).max(7),
   cvc: z.string().min(3).max(4),
   installment: z.number().int().min(1).max(12),
+  amount: z.number().positive().finite().optional(),
   note: z.string().max(2000).optional().default(''),
 });
 
@@ -51,6 +52,7 @@ payPublicRouter.post('/:token', async (req, res) => {
       expiry: parsed.data.expiry,
       cvc: parsed.data.cvc,
       installment: parsed.data.installment,
+      amount: parsed.data.amount,
       note: parsed.data.note,
     });
     return sendSuccess(

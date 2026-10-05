@@ -18,7 +18,7 @@ export class PaymentRequestsError extends Error {
 
 export type CreatePaymentRequestInput = {
   musteriId: number;
-  payType: 'ch' | 'fatura' | 'serbest';
+  payType: 'ch' | 'fatura' | 'sabit' | 'serbest';
   amount: number;
   commissionIncluded: boolean;
   installments: number[];
@@ -31,7 +31,7 @@ export type CreatePaymentRequestInput = {
 
 export type PublicPayView = {
   token: string;
-  type: 'ch' | 'fatura' | 'serbest' | 'diger';
+  type: 'ch' | 'fatura' | 'sabit' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerTitle: string;
   amount: number;
@@ -54,13 +54,14 @@ export type PayByTokenInput = {
   expiry: string;
   cvc: string;
   installment: number;
+  amount?: number;
   note?: string;
 };
 
 export type PublicPaymentRequest = {
   id: number;
   token: string;
-  type: 'ch' | 'fatura' | 'serbest' | 'diger';
+  type: 'ch' | 'fatura' | 'sabit' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerId: string | null;
   customerTitle: string;
@@ -83,11 +84,12 @@ export type PublicPaymentRequest = {
   accountTypeId: number | null;
 };
 
-function tipFromPayType(payType: 'ch' | 'fatura' | 'serbest'): number {
-  return payType === 'fatura' ? 2 : payType === 'serbest' ? 1 : 0;
+function tipFromPayType(payType: 'ch' | 'fatura' | 'sabit' | 'serbest'): number {
+  return payType === 'fatura' ? 2 : payType === 'sabit' ? 3 : payType === 'serbest' ? 1 : 0;
 }
 
-function payTypeFromTip(tip: number): 'ch' | 'fatura' | 'serbest' | 'diger' {
+function payTypeFromTip(tip: number): 'ch' | 'fatura' | 'sabit' | 'serbest' | 'diger' {
+  if (tip === 3) return 'sabit';
   if (tip === 2) return 'fatura';
   if (tip === 1) return 'serbest';
   if (tip === 0) return 'ch';
@@ -222,7 +224,7 @@ async function merchantTitle(): Promise<string> {
 export async function createPaymentRequest(
   input: CreatePaymentRequestInput,
 ): Promise<PublicPaymentRequest> {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+  if (!Number.isFinite(input.amount) || (input.payType === 'serbest' ? input.amount < 0 : input.amount <= 0)) {
     throw new PaymentRequestsError('Geçerli tutar gerekli');
   }
   if (!input.installments.length) {
@@ -350,7 +352,12 @@ export async function payPaymentRequestByToken(
   }
 
   const tip = payTypeFromTip(row.odemeTipi);
-  const payType = tip === 'fatura' ? 'fatura' : tip === 'serbest' ? 'serbest' : 'ch';
+  const payType = tip === 'fatura' ? 'fatura' : tip === 'serbest' || tip === 'sabit' ? 'serbest' : 'ch';
+  const variableAmount = tip === 'serbest' && row.tutar <= 0;
+  const amount = variableAmount ? input.amount : row.tutar;
+  if (!Number.isFinite(amount) || amount == null || amount <= 0 || amount > 999999999.99 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) {
+    throw new PaymentRequestsError('Geçerli bir tutar girin');
+  }
   const kullaniciId = row.kullaniciId ?? 0;
   if (!kullaniciId) throw new PaymentRequestsError('Ödeme isteği kullanıcı bilgisi eksik');
 
@@ -359,7 +366,7 @@ export async function payPaymentRequestByToken(
     payment = await createPayment({
       musteriId: row.musteriId,
       payType,
-      amount: row.tutar,
+      amount,
       commissionIncluded: row.komisyonDahil,
       holder: input.holder,
       tc: input.tc,
@@ -382,8 +389,10 @@ export async function payPaymentRequestByToken(
     const now = new Date();
     await prisma.odemeIstegi.update({
       where: { id: row.id },
-      data: { durum: true, odemeZamani: now },
+      data: { durum: true, odemeZamani: now, tutar: amount },
     });
+  } else if (variableAmount) {
+    await prisma.odemeIstegi.update({ where: { id: row.id }, data: { tutar: amount } });
   }
 
   return {
@@ -416,7 +425,7 @@ export async function getPaymentRequest(id: number): Promise<PublicPaymentReques
 }
 
 export type UpdatePaymentRequestInput = {
-  payType: 'ch' | 'fatura' | 'serbest';
+  payType: 'ch' | 'fatura' | 'sabit' | 'serbest';
   amount: number;
   commissionIncluded: boolean;
   installments: number[];
@@ -430,7 +439,7 @@ export async function updatePaymentRequest(
   id: number,
   input: UpdatePaymentRequestInput,
 ): Promise<PublicPaymentRequest> {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+  if (!Number.isFinite(input.amount) || (input.payType === 'serbest' ? input.amount < 0 : input.amount <= 0)) {
     throw new PaymentRequestsError('Geçerli tutar gerekli');
   }
   if (!input.installments.length) {
@@ -530,7 +539,7 @@ export async function emailPaymentRequest(
       maximumFractionDigits: 2,
     });
     const contentLines = [
-      `Ödeme isteği — ${amountStr} ${pub.currencySymbol}`,
+      pub.amount > 0 ? `Ödeme isteği — ${amountStr} ${pub.currencySymbol}` : 'Ödeme isteği — Serbest Tutar',
       pub.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç',
       pub.description ? `Açıklama: ${pub.description.slice(0, 200)}` : '',
       `Link: ${payUrl}`,
@@ -576,7 +585,7 @@ export async function smsPaymentRequest(
   const lines = [
     'Guzel Teknoloji',
     'Odeme isteginiz hazir.',
-    `Tutar: ${amountStr} ${currencyCode}`,
+    pub.amount > 0 ? `Tutar: ${amountStr} ${currencyCode}` : 'Tutar: Odeme sirasinda belirlenecek',
     pub.commissionIncluded ? 'Komisyon dahil' : null,
     desc || null,
     `Odeme: ${payUrl}`,

@@ -7,6 +7,7 @@ import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useLoadBins } from '../../hooks/useLoadBins';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
+import { useErpActive } from '../../hooks/useErpActive';
 import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
@@ -30,7 +31,7 @@ import {
   type BankInfo,
 } from './mockBanks';
 
-type PayType = '' | 'ch' | 'fatura' | 'serbest';
+type PayType = '' | 'ch' | 'fatura' | 'sabit';
 
 type ContactApi = {
   title: string;
@@ -63,6 +64,7 @@ const DEFAULT_MERCHANT: Customer = {
  */
 export default function QuickPayPage() {
   const { token } = useAuth();
+  const erpActive = useErpActive();
   useLoadBins();
   const navigate = useNavigate();
   const { allowed: allowedInstallments } = useEffectiveInstallments(null);
@@ -73,6 +75,9 @@ export default function QuickPayPage() {
   const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
 
   const [payType, setPayType] = useState<PayType>(() => getDefaultPayType());
+  useEffect(() => {
+    if (erpActive === false && (payType === 'ch' || payType === 'fatura')) setPayType('sabit');
+  }, [erpActive, payType]);
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState(() => formatMoneyTr(0));
@@ -108,7 +113,7 @@ export default function QuickPayPage() {
     amount,
     bankName: bank?.fullName || bank?.name,
     bankId: bank?.id,
-    segment: payType === 'serbest' ? 'serbest' : 'bireysel',
+    segment: payType === 'sabit' ? 'serbest' : 'bireysel',
     scope: 'pos',
   });
   const availableBankRows = useMemo(
@@ -133,7 +138,7 @@ export default function QuickPayPage() {
   const cvcFaulty = cvcChecked && digitsOnly(cvc).length < 3;
   const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
   const payTypeLabel =
-    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'serbest' ? 'SERBEST ÖDEME' : 'Ödeme Tipi Seçiniz';
+    payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'sabit' ? 'SABİT TUTAR' : 'Ödeme Tipi Seçiniz';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -264,7 +269,7 @@ export default function QuickPayPage() {
         '/api/payments',
         {
           musteriId: null,
-          payType,
+          payType: payType === 'sabit' ? 'serbest' : payType,
           amount,
           commissionIncluded,
           holder: holder.trim(),
@@ -339,9 +344,8 @@ export default function QuickPayPage() {
                   <ul className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-lg">
                     {(
                       [
-                        ['ch', 'C/H BAKİYESİ'],
-                        ['fatura', 'FATURA'],
-                        ['serbest', 'SERBEST ÖDEME'],
+                        ...(erpActive ? [['ch', 'C/H BAKİYESİ'], ['fatura', 'FATURA']] as const : []),
+                        ['sabit', 'SABİT TUTAR'],
                       ] as const
                     ).map(([val, label]) => (
                       <li key={val}>
@@ -361,14 +365,14 @@ export default function QuickPayPage() {
                   </ul>
                 ) : null}
               </div>
-              <button
+              {erpActive ? <button
                 type="button"
                 data-km-jump
                 onClick={queryBalance}
                 className="h-[46px] shrink-0 rounded-xl border border-[var(--color-brand-500)]/50 px-3.5 text-sm font-bold text-[var(--color-brand-600)] transition hover:bg-[var(--color-brand-600)] hover:text-white"
               >
                 Sorgula
-              </button>
+              </button> : null}
             </div>
             {balance != null ? (
               <p className="text-xs font-semibold text-[var(--color-brand-600)]">
@@ -538,40 +542,45 @@ export default function QuickPayPage() {
 
           {/* Banka */}
           <section className="flex flex-col gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]">
-            <SectionHead>Banka Bilgileri</SectionHead>
-            <button
-              type="button"
-              data-km-jump
-              disabled={!amount || amount <= 0}
-              onClick={() => setInstallOpen(true)}
-              className="w-full rounded-xl bg-orange-500 px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Taksit Seçenekleri
-            </button>
-            {bank?.logo ? (
-              <div className="flex min-h-32 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white p-5">
-                <img src={bank.logo} alt={bank.name} className="max-h-24 w-full object-contain" />
-              </div>
-            ) : bank ? (
-              <div className="flex min-h-24 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 text-center text-lg font-bold text-[var(--panel-ink)]">
-                {bank.name}
-              </div>
-            ) : (
-              <p className="text-xs text-[var(--panel-muted)]">Banka bilgisi için kart numarasını girin.</p>
-            )}
-            {bank && amount > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Bankaya göre taksit seçenekleri</p>
+            <SectionHead>Banka & taksit</SectionHead>
+            <div className="flex min-h-[220px] flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 p-4">
+              {bank?.logo ? (
+                <div className="mb-4 flex flex-1 items-center justify-center py-2">
+                  <img src={bank.logo} alt={bank.name} className="h-14 w-auto max-w-[180px] object-contain" />
+                </div>
+              ) : bank ? (
+                <p className="mb-4 flex flex-1 items-center justify-center text-lg font-bold text-[var(--panel-ink)]">{bank.name}</p>
+              ) : (
+                <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">Kart numarasını yazınca banka logosu burada belirir.</p>
+              )}
+              <button type="button" data-km-jump disabled={!amount || amount <= 0} onClick={() => setInstallOpen(true)} className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45">
+                Taksit Seçenekleri
+              </button>
+              {pickedInstall ? (
+                <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Seçili</p>
+                  <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">{pickedInstall.n === 1 ? 'Tek çekim' : `${pickedInstall.n} taksit`}</p>
+                  <p className="text-sm text-[var(--panel-muted)]">{pickedInstall.bank.name}</p>
+                </div>
+              ) : errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
+            </div>
+          </section>
+          {bank && amount > 0 ? <section data-anim>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
+              <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
+            </div>
+            <div className="space-y-2">
                 {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
                 {!ratesLoading && availableBankRows.length ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {availableBankRows.map((row) => (
                       <button
                         key={row.n}
                         type="button"
                         data-km-jump
                         onClick={() => bank && setPickedInstall({ n: row.n, bank })}
-                        className={`relative min-h-40 max-w-[320px] overflow-hidden rounded-xl border p-4 text-left transition ${pickedInstall?.n === row.n && pickedInstall.bank.id === bank?.id ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md' : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md'}`}
+                        className={`relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left transition ${pickedInstall?.n === row.n && pickedInstall.bank.id === bank?.id ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md' : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md'}`}
                       >
                         {row.commissionPct === 0 ? <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-2 py-1 text-[9px] font-bold uppercase">Komisyon yok</span> : null}
                         <span className="block text-right text-xs font-bold uppercase text-[var(--panel-muted)]">{row.n === 1 ? 'Tek çekim' : `${row.n} taksit`}</span>
@@ -585,16 +594,8 @@ export default function QuickPayPage() {
                 {!ratesLoading && bank && !availableBankRows.length ? (
                   <p className="text-xs text-[var(--panel-muted)]">Bu banka için taksit anlaşması bulunamadı.</p>
                 ) : null}
-              </div>
-            ) : null}
-            {pickedInstall ? (
-              <p className="text-sm text-[var(--panel-ink)]">
-                <span className="font-semibold">{pickedInstall.n} taksit</span>
-                <span className="text-[var(--panel-muted)]"> · {pickedInstall.bank.name}</span>
-              </p>
-            ) : errors.install ? (
-              <p className="text-xs text-rose-500">{errors.install}</p>
-            ) : null}          </section>
+            </div>
+          </section> : null}
         </div>
 
         <div data-anim className="flex flex-col items-center gap-4 pt-2">

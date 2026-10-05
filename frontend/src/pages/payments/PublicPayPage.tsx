@@ -13,13 +13,15 @@ import {
   formatCardNumber,
   formatExpiryInput,
   formatMoneyDisplay,
+  maskMoneyInput,
+  parseTrMoney,
   getCardExpiryError,
   isValidLuhn,
 } from './mockBanks';
 
 type PublicPayView = {
   token: string;
-  type: 'ch' | 'fatura' | 'serbest' | 'diger';
+  type: 'ch' | 'fatura' | 'sabit' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerTitle: string;
   amount: number;
@@ -53,6 +55,7 @@ export default function PublicPayPage() {
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [installment, setInstallment] = useState(1);
+  const [amountText, setAmountText] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<{ odemeNo: string; amount: number } | null>(null);
@@ -115,6 +118,8 @@ export default function PublicPayPage() {
     if (!view?.installments.length) return [1];
     return view.installments;
   }, [view]);
+  const variableAmount = view?.type === 'serbest' && view.amount <= 0;
+  const payableAmount = variableAmount ? parseTrMoney(amountText) : view?.amount ?? 0;
 
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
@@ -127,6 +132,7 @@ export default function PublicPayPage() {
 
   function validate(): boolean {
     const next: Record<string, string> = {};
+    if (variableAmount && (!Number.isFinite(payableAmount) || payableAmount <= 0 || payableAmount > 999999999.99)) next.amount = 'Geçerli bir tutar girin';
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
     if (digitsOnly(tc).length && digitsOnly(tc).length !== 11) next.tc = '11 haneli T.C. girin';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
@@ -155,6 +161,7 @@ export default function PublicPayPage() {
           expiry: digitsOnly(expiry).slice(0, 4),
           cvc: digitsOnly(cvc),
           installment,
+          ...(variableAmount ? { amount: payableAmount } : {}),
           note: view.description,
         },
       );
@@ -210,9 +217,13 @@ export default function PublicPayPage() {
         >
           <div className="mb-5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3.5">
             <p className="text-sm font-semibold text-[var(--panel-ink)]">{view.customerTitle}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-brand-600)]">
-              {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
-            </p>
+            {variableAmount ? (
+              <p className="mt-1 text-sm font-medium text-[var(--panel-muted)]">Ödenecek tutarı aşağıya girin</p>
+            ) : (
+              <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-brand-600)]">
+                {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
+              </p>
+            )}
             <p className="mt-1 text-xs text-[var(--panel-muted)]">
               {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
               {view.description ? ` · ${view.description.replace(/<[^>]+>/g, '').slice(0, 120)}` : ''}
@@ -258,6 +269,22 @@ export default function PublicPayPage() {
             </div>
           ) : (
             <form onSubmit={(e) => void onSubmit(e)} className="space-y-3.5">
+              {variableAmount ? (
+                <div>
+                  <label htmlFor="public-pay-amount" className="mb-1 block text-xs font-semibold text-[var(--panel-muted)]">Tutar ({view.currencySymbol || '₺'})</label>
+                  <input
+                    id="public-pay-amount"
+                    value={amountText}
+                    onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="0,00"
+                    aria-invalid={Boolean(errors.amount)}
+                    className="w-full rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-3 text-right text-lg font-bold tabular-nums text-[var(--panel-ink)] outline-none transition focus:border-[var(--input-border-focus)]"
+                  />
+                  {errors.amount ? <p className="mt-1 text-xs text-rose-500">{errors.amount}</p> : null}
+                </div>
+              ) : null}
               <PaymentCardFields
                 holder={holder}
                 tc={tc}
@@ -318,7 +345,7 @@ export default function PublicPayPage() {
               >
                 {saving
                   ? 'İşleniyor…'
-                  : `Öde — ${formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}`}
+                  : `Öde — ${formatMoneyDisplay(payableAmount, view.currencySymbol || '₺')}`}
               </button>
               <p className="text-center text-[11px] text-[var(--panel-muted)]">
                 Banka 3D Secure doğrulamasına yönlendirileceksiniz.
