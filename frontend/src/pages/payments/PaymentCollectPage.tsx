@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
@@ -9,6 +9,7 @@ import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { useErpActive } from '../../hooks/useErpActive';
+import { useInitialAmountFocus } from '../../hooks/useInitialAmountFocus';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
@@ -57,6 +58,10 @@ export default function PaymentCollectPage() {
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
+  const captureFirstAmountDigit = useCallback((digit: string) => {
+    setAmountText((current) => maskMoneyInput(current + digit));
+  }, []);
+  useInitialAmountFocus({ inputRef: amountInputRef, enabled: !customerLoading && Boolean(customer), onFirstDigit: captureFirstAmountDigit });
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);

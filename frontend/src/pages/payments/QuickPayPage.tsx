@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { TextArea } from '../../components/ui/TextArea';
@@ -8,6 +8,7 @@ import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useLoadBins } from '../../hooks/useLoadBins';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { useErpActive } from '../../hooks/useErpActive';
+import { useInitialAmountFocus } from '../../hooks/useInitialAmountFocus';
 import { useAgreementRates } from '../../hooks/useAgreementRates';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
@@ -82,6 +83,10 @@ export default function QuickPayPage() {
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
+  const captureFirstAmountDigit = useCallback((digit: string) => {
+    setAmountText((current) => maskMoneyInput(current + digit));
+  }, []);
+  useInitialAmountFocus({ inputRef: amountInputRef, enabled: true, onFirstDigit: captureFirstAmountDigit });
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);

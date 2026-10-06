@@ -1,11 +1,12 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { useErpActive } from '../../hooks/useErpActive';
+import { useInitialAmountFocus } from '../../hooks/useInitialAmountFocus';
 import { api } from '../../lib/api';
 import { useCustomer } from '../customers/useCustomer';
 import { useCustomersList } from '../customers/useCustomersList';
@@ -104,6 +105,10 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [amountText, setAmountText] = useState('');
+  const captureFirstAmountDigit = useCallback((digit: string) => {
+    setAmountText((current) => maskMoneyInput(current + digit));
+  }, []);
+  useInitialAmountFocus({ inputRef: amountInputRef, enabled: !isEdit && !editLoading && payType !== 'serbest', onFirstDigit: captureFirstAmountDigit });
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
