@@ -45,6 +45,7 @@ export default function PaymentCollectPage() {
     customer?.accountTypeId ?? null,
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
   const { currencies, defaultId: defaultCurrencyId } = useActiveCurrencies();
@@ -92,6 +93,17 @@ export default function PaymentCollectPage() {
   useEffect(() => {
     if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
   }, [currencyId, defaultCurrencyId]);
+
+  useEffect(() => {
+    if (customerLoading || !customer) return;
+    const input = amountInputRef.current;
+    if (!input) return;
+    const frame = window.requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [customerLoading, customer?.id]);
 
   const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
   const currencySymbol = selectedCurrency?.symbol || '₺';
@@ -408,6 +420,7 @@ export default function PaymentCollectPage() {
                 >
                   <div className="relative min-w-0 flex-1">
                     <input
+                      ref={amountInputRef}
                       data-km-jump
                       id="pay-amount"
                       value={amountText}

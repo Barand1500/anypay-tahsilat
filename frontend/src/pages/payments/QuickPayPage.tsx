@@ -69,6 +69,7 @@ export default function QuickPayPage() {
   const navigate = useNavigate();
   const { allowed: allowedInstallments } = useEffectiveInstallments(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
   const [merchant, setMerchant] = useState<Customer>(DEFAULT_MERCHANT);
@@ -107,6 +108,15 @@ export default function QuickPayPage() {
   const binsRev = useBinsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
+  useEffect(() => {
+    const input = amountInputRef.current;
+    if (!input) return;
+    const frame = window.requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
@@ -401,6 +411,7 @@ export default function QuickPayPage() {
             >
               <div className="relative min-w-0 flex-1">
                 <input
+                  ref={amountInputRef}
                   data-km-jump
                   id="quick-pay-amount"
                   value={amountText}

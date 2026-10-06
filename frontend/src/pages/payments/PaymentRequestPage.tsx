@@ -39,6 +39,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const editHydrated = useRef(false);
 
@@ -225,6 +226,16 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   }, []);
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
+  useEffect(() => {
+    if (isEdit || editLoading || payType === 'serbest') return;
+    const input = amountInputRef.current;
+    if (!input) return;
+    const frame = window.requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isEdit, editLoading, payType]);
   useEffect(() => {
     if (erpActive === false && (payType === 'ch' || payType === 'fatura')) setPayType('sabit');
   }, [erpActive, payType]);
@@ -637,6 +648,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                 >
                   <div className={`relative min-w-0 transition-[flex-basis,opacity] duration-300 ease-in-out ${payType === 'serbest' ? 'overflow-hidden' : 'overflow-visible'}`} style={{ flex: payType === 'serbest' ? '0 0 0%' : '1 1 0%', opacity: payType === 'serbest' ? 0 : 1 }} aria-hidden={payType === 'serbest'}>
                     <input
+                      ref={amountInputRef}
                       data-km-jump
                       id="req-amount"
                       tabIndex={payType === 'serbest' ? -1 : 0}
