@@ -81,7 +81,7 @@ export default function QuickPayPage() {
   }, [erpActive, payType]);
   const [payTypeOpen, setPayTypeOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
-  const [amountText, setAmountText] = useState(() => formatMoneyTr(0));
+  const [amountText, setAmountText] = useState('');
   const [currencyId, setCurrencyId] = useState('');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [commissionIncluded, setCommissionIncluded] = useState(false);
@@ -108,16 +108,6 @@ export default function QuickPayPage() {
   const binsRev = useBinsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const input = amountInputRef.current;
-      const active = document.activeElement;
-      if (!input?.isConnected || (active !== document.body && active !== input && !(active instanceof HTMLAnchorElement))) return;
-      input.focus({ preventScroll: true });
-      input.setSelectionRange(input.value.length, input.value.length);
-    }, 750);
-    return () => window.clearTimeout(timer);
-  }, []);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({

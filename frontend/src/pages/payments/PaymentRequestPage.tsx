@@ -227,17 +227,6 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   useEffect(() => {
-    if (isEdit || editLoading || payType === 'serbest') return;
-    const timer = window.setTimeout(() => {
-      const input = amountInputRef.current;
-      const active = document.activeElement;
-      if (!input?.isConnected || (active !== document.body && active !== input && !(active instanceof HTMLAnchorElement))) return;
-      input.focus({ preventScroll: true });
-      input.setSelectionRange(input.value.length, input.value.length);
-    }, 750);
-    return () => window.clearTimeout(timer);
-  }, [isEdit, editLoading, payType]);
-  useEffect(() => {
     if (erpActive === false && (payType === 'ch' || payType === 'fatura')) setPayType('sabit');
   }, [erpActive, payType]);
   const payTypeLabel =
