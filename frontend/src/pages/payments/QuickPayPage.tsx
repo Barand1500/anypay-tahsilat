@@ -109,13 +109,14 @@ export default function QuickPayPage() {
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   useEffect(() => {
-    const input = amountInputRef.current;
-    if (!input) return;
-    const frame = window.requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
+      const input = amountInputRef.current;
+      const active = document.activeElement;
+      if (!input?.isConnected || (active !== document.body && active !== input && !(active instanceof HTMLAnchorElement))) return;
       input.focus({ preventScroll: true });
       input.setSelectionRange(input.value.length, input.value.length);
-    });
-    return () => window.cancelAnimationFrame(frame);
+    }, 750);
+    return () => window.clearTimeout(timer);
   }, []);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
@@ -412,6 +413,7 @@ export default function QuickPayPage() {
               <div className="relative min-w-0 flex-1">
                 <input
                   ref={amountInputRef}
+                  autoFocus
                   data-km-jump
                   id="quick-pay-amount"
                   value={amountText}

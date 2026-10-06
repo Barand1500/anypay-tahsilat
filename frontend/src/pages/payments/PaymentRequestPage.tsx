@@ -228,13 +228,14 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   useEffect(() => {
     if (isEdit || editLoading || payType === 'serbest') return;
-    const input = amountInputRef.current;
-    if (!input) return;
-    const frame = window.requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
+      const input = amountInputRef.current;
+      const active = document.activeElement;
+      if (!input?.isConnected || (active !== document.body && active !== input && !(active instanceof HTMLAnchorElement))) return;
       input.focus({ preventScroll: true });
       input.setSelectionRange(input.value.length, input.value.length);
-    });
-    return () => window.cancelAnimationFrame(frame);
+    }, 750);
+    return () => window.clearTimeout(timer);
   }, [isEdit, editLoading, payType]);
   useEffect(() => {
     if (erpActive === false && (payType === 'ch' || payType === 'fatura')) setPayType('sabit');
@@ -649,6 +650,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                   <div className={`relative min-w-0 transition-[flex-basis,opacity] duration-300 ease-in-out ${payType === 'serbest' ? 'overflow-hidden' : 'overflow-visible'}`} style={{ flex: payType === 'serbest' ? '0 0 0%' : '1 1 0%', opacity: payType === 'serbest' ? 0 : 1 }} aria-hidden={payType === 'serbest'}>
                     <input
                       ref={amountInputRef}
+                      autoFocus={!isEdit && payType !== 'serbest'}
                       data-km-jump
                       id="req-amount"
                       tabIndex={payType === 'serbest' ? -1 : 0}

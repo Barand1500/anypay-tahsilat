@@ -96,13 +96,14 @@ export default function PaymentCollectPage() {
 
   useEffect(() => {
     if (customerLoading || !customer) return;
-    const input = amountInputRef.current;
-    if (!input) return;
-    const frame = window.requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
+      const input = amountInputRef.current;
+      const active = document.activeElement;
+      if (!input?.isConnected || (active !== document.body && active !== input && !(active instanceof HTMLAnchorElement))) return;
       input.focus({ preventScroll: true });
       input.setSelectionRange(input.value.length, input.value.length);
-    });
-    return () => window.cancelAnimationFrame(frame);
+    }, 750);
+    return () => window.clearTimeout(timer);
   }, [customerLoading, customer?.id]);
 
   const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
@@ -421,6 +422,7 @@ export default function PaymentCollectPage() {
                   <div className="relative min-w-0 flex-1">
                     <input
                       ref={amountInputRef}
+                      autoFocus
                       data-km-jump
                       id="pay-amount"
                       value={amountText}
