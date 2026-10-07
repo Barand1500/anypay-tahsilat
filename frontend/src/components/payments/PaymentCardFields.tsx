@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { TextInput } from '../ui/TextInput';
 import { AnimatedPayCard } from './AnimatedPayCard';
-import { formatCardHolderName, type BankInfo } from '../../pages/payments/mockBanks';
+import { formatCardHolderName, isValidTurkishIdentityNo, type BankInfo } from '../../pages/payments/mockBanks';
 import {
   getStoredCardDesign,
   type CardDesignId,
@@ -87,6 +87,14 @@ function OkBadge() {
   );
 }
 
+function NoBadge() {
+  return (
+    <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-500">
+      NO
+    </span>
+  );
+}
+
 /**
  * Ödeme kart alanları — kişisel tercihe göre sade form veya 3D kart.
  * Ana grid genişliğini bozmaz.
@@ -94,9 +102,13 @@ function OkBadge() {
 export function PaymentCardFields(props: Props) {
   const design = useSyncExternalStore(subscribeCardDesign, readCardDesign, () => 'plain');
   const [phoneTouched, setPhoneTouched] = useState(false);
+  const [tcTouched, setTcTouched] = useState(false);
   const phoneDigits = normalizePhoneInput(props.phone);
   const phoneFaulty = (phoneTouched || Boolean(props.errors.phone)) && phoneDigits.length !== 10;
   const phoneOk = phoneDigits.length === 10 && !props.errors.phone;
+  const tcValid = isValidTurkishIdentityNo(props.tc);
+  const tcFaulty = props.tcFaulty ?? ((tcTouched || Boolean(props.errors.tc)) && props.tc.length > 0 && !tcValid);
+  const tcOk = props.tcOk ?? (tcValid && !props.errors.tc);
   const Head = props.SectionHead;
 
   function onPhoneChange(value: string) {
@@ -118,12 +130,12 @@ export function PaymentCardFields(props: Props) {
             label="T.C. Kimlik"
             value={props.tc}
             error={props.errors.tc}
-            onChange={(e) => props.onTc(e.target.value)}
-            onBlur={props.onTcBlur}
+            onChange={(e) => { setTcTouched(true); props.onTc(e.target.value); }}
+            onBlur={() => { setTcTouched(true); props.onTcBlur?.(); }}
             inputMode="numeric"
             maxLength={11}
             className="!h-10 !pb-1 !pt-3.5 !pr-16 font-mono text-xs tabular-nums"
-            endAdornment={props.tcFaulty ? <FaultBadge /> : props.tcOk ? <OkBadge /> : null}
+            endAdornment={tcFaulty ? <NoBadge /> : tcOk ? <OkBadge /> : null}
           />
           <TextInput
             data-km-jump
@@ -134,7 +146,7 @@ export function PaymentCardFields(props: Props) {
             onBlur={() => setPhoneTouched(true)}
             inputMode="tel"
             className="!h-10 !pb-1 !pt-3.5 !pr-16 font-mono text-xs tabular-nums"
-            endAdornment={phoneFaulty ? <FaultBadge /> : phoneOk ? <OkBadge /> : null}
+            endAdornment={phoneFaulty ? <NoBadge /> : phoneOk ? <OkBadge /> : null}
           />
         </div>
 
@@ -191,12 +203,12 @@ export function PaymentCardFields(props: Props) {
         label="T.C. Kimlik No"
         value={props.tc}
         error={props.errors.tc}
-        onChange={(e) => props.onTc(e.target.value)}
-        onBlur={props.onTcBlur}
+        onChange={(e) => { setTcTouched(true); props.onTc(e.target.value); }}
+        onBlur={() => { setTcTouched(true); props.onTcBlur?.(); }}
         inputMode="numeric"
         maxLength={11}
         className="!pr-16 font-mono tabular-nums"
-        endAdornment={props.tcFaulty ? <FaultBadge /> : props.tcOk ? <OkBadge /> : null}
+        endAdornment={tcFaulty ? <NoBadge /> : tcOk ? <OkBadge /> : null}
       />
       <TextInput
         data-km-jump
@@ -207,7 +219,7 @@ export function PaymentCardFields(props: Props) {
         onBlur={() => setPhoneTouched(true)}
         inputMode="tel"
         className="!pr-20 font-mono tabular-nums"
-        endAdornment={phoneFaulty ? <FaultBadge /> : phoneOk ? <OkBadge /> : null}
+        endAdornment={phoneFaulty ? <NoBadge /> : phoneOk ? <OkBadge /> : null}
       />
       <div>
         <TextInput

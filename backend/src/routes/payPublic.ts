@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   getPaymentRequestByToken,
+  getPaymentRequestInstallmentRates,
   payPaymentRequestByToken,
   PaymentRequestsError,
 } from '../services/paymentRequestsService.js';
@@ -34,6 +35,11 @@ const legalLinkSchema = z.enum([
   'uyelik',
 ]);
 
+const installmentRatesSchema = z.object({
+  bin: z.string().regex(/^\d{6,8}$/),
+  amount: z.coerce.number().positive().finite().optional(),
+});
+
 payPublicRouter.get('/legal/:link', async (req, res) => {
   const parsed = legalLinkSchema.safeParse(req.params.link);
   if (!parsed.success) return sendError(res, 400, 'Geçersiz sözleşme bağlantısı');
@@ -44,6 +50,21 @@ payPublicRouter.get('/legal/:link', async (req, res) => {
   } catch (err) {
     console.error('[public-legal]', err);
     return sendError(res, 500, 'Sözleşme yüklenemedi');
+  }
+});
+
+payPublicRouter.get('/:token/installments', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!token || token.length > 64) return sendError(res, 400, 'Geçersiz link');
+  const parsed = installmentRatesSchema.safeParse(req.query);
+  if (!parsed.success) return sendError(res, 400, 'Geçersiz taksit sorgusu');
+  try {
+    const data = await getPaymentRequestInstallmentRates(token, parsed.data);
+    return sendSuccess(res, data);
+  } catch (err) {
+    if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
+    console.error('[public-installment-rates]', err);
+    return sendError(res, 500, 'Taksit seçenekleri yüklenemedi');
   }
 });
 

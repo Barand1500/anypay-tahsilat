@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
 import { createPayment, PaymentsError } from './paymentsService.js';
+import { PosResolveError, resolvePosForPayment } from '../gateways/index.js';
+import { getCustomerAgreementCode, resolveAgreementRates, type AgreementRateRow } from './cardAgreementsService.js';
 import { resolveAllowedInstallments } from './installmentPriorityService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 import {
@@ -325,6 +327,50 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     currencySymbol: currency?.sembol || '₺',
     currencyShortName: currency?.kisaAdi || 'TL',
   };
+}
+
+/** Public payment link: return only the installment quote rows allowed for this request. */
+export async function getPaymentRequestInstallmentRates(
+  token: string,
+  input: { bin: string; amount?: number },
+): Promise<AgreementRateRow[]> {
+  const row = await prisma.odemeIstegi.findFirst({
+    where: { istekNo: token, ...notRemoved() },
+  });
+  if (!row) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
+  if (row.durum) throw new PaymentRequestsError('Bu ödeme isteği zaten ödendi');
+  if (row.musteriId == null) throw new PaymentRequestsError('Ödeme isteğine müşteri bağlı değil');
+
+  const tip = payTypeFromTip(row.odemeTipi);
+  const variableAmount = tip === 'serbest' && row.tutar <= 0;
+  const amount = variableAmount ? input.amount : row.tutar;
+  if (!Number.isFinite(amount) || amount == null || amount <= 0 || amount > 999999999.99 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) {
+    throw new PaymentRequestsError('Geçerli bir tutar girin');
+  }
+
+  let pos;
+  try {
+    pos = await resolvePosForPayment({ cardDigits: input.bin });
+  } catch (err) {
+    if (err instanceof PosResolveError) throw new PaymentRequestsError(err.message);
+    throw err;
+  }
+  const agreementCode = await getCustomerAgreementCode(row.musteriId);
+  const rates = await resolveAgreementRates({
+    agreementCode,
+    bankId: pos.bankId,
+    bankName: pos.bankName,
+    segment: tip === 'serbest' || tip === 'sabit' ? 'serbest' : 'bireysel',
+    amount,
+  });
+
+  const configured = parseTaksitler(row.taksitler);
+  const allowed = configured.length ? configured : [1];
+  const rows = rates.rows.filter((rate) => allowed.includes(rate.n));
+  if (allowed.includes(1) && !rows.some((rate) => rate.n === 1)) {
+    rows.unshift({ n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 });
+  }
+  return rows;
 }
 
 export async function payPaymentRequestByToken(

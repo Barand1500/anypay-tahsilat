@@ -23,6 +23,9 @@ import {
   parseTrMoney,
   getCardExpiryError,
   isValidLuhn,
+  isValidTurkishIdentityNo,
+  formatMoneyTr,
+  type InstallmentRow,
 } from './mockBanks';
 
 type PublicPayView = {
@@ -63,6 +66,9 @@ export default function PublicPayPage() {
   const [cvc, setCvc] = useState('');
   const [installment, setInstallment] = useState(1);
   const [installmentsOpen, setInstallmentsOpen] = useState(false);
+  const [installmentRates, setInstallmentRates] = useState<InstallmentRow[]>([]);
+  const [ratesLoading, setRatesLoading] = useState(false);
+  const [ratesError, setRatesError] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDoc | null>(null);
   const [agree, setAgree] = useState(false);
   const [amountText, setAmountText] = useState('');
@@ -133,6 +139,7 @@ export default function PublicPayPage() {
 
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const rateBin = cardDigits.length >= 8 ? cardDigits.slice(0, 8) : cardDigits.length >= 6 ? cardDigits.slice(0, 6) : '';
   const cardFaulty =
     cardDigits.length > 0 &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
@@ -140,11 +147,49 @@ export default function PublicPayPage() {
   const expiryOk = !expiryErr && digitsOnly(expiry).length === 4;
   const expiryFaulty = digitsOnly(expiry).length === 4 && Boolean(expiryErr);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!payToken || !view || view.status !== 'pending' || !bank || !rateBin || payableAmount <= 0) {
+      setInstallmentRates([]);
+      setRatesLoading(false);
+      setRatesError(false);
+      return;
+    }
+
+    setInstallmentRates([]);
+    setRatesLoading(true);
+    setRatesError(false);
+    const query = new URLSearchParams({ bin: rateBin, amount: String(payableAmount) });
+    const timer = window.setTimeout(() => {
+      void api.get<InstallmentRow[]>(`/api/pay/${encodeURIComponent(payToken)}/installments?${query.toString()}`)
+        .then((rows) => { if (!cancelled) setInstallmentRates(rows); })
+        .catch(() => { if (!cancelled) { setInstallmentRates([]); setRatesError(true); } })
+        .finally(() => { if (!cancelled) setRatesLoading(false); });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [payToken, view?.status, bank?.id, rateBin, payableAmount]);
+
+  const pricedInstallments = useMemo(() => installmentOpts.map((n) => {
+    const configured = installmentRates.find((rate) => rate.n === n);
+    return configured ?? {
+      n,
+      plusN: 0,
+      commissionPct: 0,
+      installmentAmount: payableAmount / n,
+      totalAmount: payableAmount,
+      minLimit: 0,
+    };
+  }), [installmentOpts, installmentRates, payableAmount]);
+
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (variableAmount && (!Number.isFinite(payableAmount) || payableAmount <= 0 || payableAmount > 999999999.99)) next.amount = 'Geçerli bir tutar girin';
     if (!holder.trim()) next.holder = 'Ad soyad gerekli';
-    if (digitsOnly(tc).length && digitsOnly(tc).length !== 11) next.tc = '11 haneli T.C. girin';
+    if (digitsOnly(tc).length && !isValidTurkishIdentityNo(digitsOnly(tc))) next.tc = 'Geçerli bir T.C. kimlik numarası girin';
     if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
     const cardDigits = digitsOnly(card);
     if (cardDigits.length < 15 || !isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
@@ -343,6 +388,21 @@ export default function PublicPayPage() {
 
                   <div className="flex min-w-0 flex-col gap-4 p-5">
                     <SectionHead>Banka ve taksit</SectionHead>
+                    {!payableAmount ? (
+                      <p className="flex min-h-10 items-center justify-center text-center text-xs text-[var(--panel-muted)]">Taksit seçenekleri için önce ödenecek tutarı girin.</p>
+                    ) : !bank || !rateBin ? (
+                      <p className="flex min-h-10 items-center justify-center text-center text-xs text-[var(--panel-muted)]">Taksit seçeneklerini görmek için kart numaranızı girin; banka tanımlandığında açılır.</p>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-expanded={installmentsOpen}
+                        onClick={() => setInstallmentsOpen((open) => !open)}
+                        className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg bg-amber-500 px-3 py-2 text-left text-xs font-bold text-white transition hover:bg-amber-400"
+                      >
+                        <span>Taksit Seçenekleri</span>
+                        <ChevronIcon open={installmentsOpen} />
+                      </button>
+                    )}
                     <div className="flex min-h-28 items-center justify-center rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-5">
                       {bank?.logo ? (
                         <img src={bank.logo} alt={bank.name} title={bank.name} className="max-h-14 max-w-[190px] object-contain" />
@@ -352,57 +412,62 @@ export default function PublicPayPage() {
                         <p className="max-w-xs text-center text-xs leading-relaxed text-[var(--panel-muted)]">Kart numarasını girdiğinizde banka bilgisi burada görünür.</p>
                       )}
                     </div>
-                    <div>
-                      <p className="mb-2 text-xs font-bold text-[var(--panel-ink)]">Taksit seçenekleri</p>
-                      {!payableAmount ? (
-                        <p className="text-xs leading-relaxed text-[var(--panel-muted)]">Taksitleri görüntülemek için önce ödenecek tutarı girin.</p>
-                      ) : !bank ? (
-                        <p className="text-xs leading-relaxed text-[var(--panel-muted)]">Taksit seçeneklerini görmek için kart numaranızı girin; banka tanımlandığında seçenekler açılır.</p>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            aria-expanded={installmentsOpen}
-                            onClick={() => setInstallmentsOpen((open) => !open)}
-                            className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg bg-amber-500 px-3 py-2 text-left text-xs font-bold text-white transition hover:bg-amber-400"
-                          >
-                            <span>{installmentsOpen ? 'Taksit seçeneklerini gizle' : 'Taksit seçeneklerini görüntüle'}</span>
-                            <ChevronIcon open={installmentsOpen} />
-                          </button>
-                          {installmentsOpen ? (
-                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
-                              {installmentOpts.map((n) => (
-                                <button
-                                  key={n}
-                                  type="button"
-                                  aria-pressed={installment === n}
-                                  onClick={() => setInstallment(n)}
-                                  className={[
-                                    'flex min-h-[62px] items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition',
-                                    installment === n
-                                      ? 'border-[var(--color-brand-500)] bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)] shadow-sm'
-                                      : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--panel-hover)]',
-                                  ].join(' ')}
-                                >
-                                  <span className={[
-                                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black tabular-nums',
-                                    installment === n ? 'bg-[var(--color-brand-600)] text-white' : 'bg-[var(--panel-surface)] text-[var(--panel-muted)]',
-                                  ].join(' ')}>{n === 1 ? '1×' : n}</span>
-                                  <span className="min-w-0">
-                                    <span className="block text-xs font-bold">{n === 1 ? 'Tek çekim' : `${n} taksit`}</span>
-                                    <span className="mt-0.5 block text-[10px] text-[var(--panel-muted)]">{n === 1 ? 'Peşin ödeme' : 'Eşit taksit'}</span>
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                          {errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
-                        </>
-                      )}
-                    </div>
                   </div>
                 </div>
               </section>
+
+              {installmentsOpen && payableAmount > 0 && bank && rateBin ? (
+                <section data-anim>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
+                    <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
+                  </div>
+                  {ratesLoading ? <p className="mb-3 text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
+                  {!ratesLoading && ratesError ? <p className="mb-3 text-xs text-rose-500">Taksit fiyatları şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.</p> : null}
+                  {!ratesLoading && !ratesError && installmentRates.length === 0 ? <p className="mb-3 text-xs text-[var(--panel-muted)]">Banka için kayıtlı vade farkı bulunamadı; izin verilen taksitler komisyonsuz gösteriliyor.</p> : null}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                  {!ratesLoading && !ratesError ? pricedInstallments.map((rate) => {
+                    const n = rate.n;
+                    const active = installment === n;
+                    const chargedTotal = view.commissionIncluded ? rate.totalAmount : payableAmount;
+                    const paymentCount = Math.max(1, rate.n + rate.plusN);
+                    const perPayment = chargedTotal / paymentCount;
+                    return (
+                    <button
+                      key={n}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setInstallment(n)}
+                      className={[
+                        'relative min-h-[176px] overflow-hidden rounded-lg border p-3 text-right transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                        active
+                          ? 'border-[var(--color-brand-600)] bg-[var(--color-brand-600)] text-white shadow-sm'
+                          : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/60 hover:bg-[var(--panel-hover)]',
+                      ].join(' ')}
+                    >
+                      {rate.commissionPct === 0 ? (
+                        <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Komisyon yok</span>
+                      ) : null}
+                      <span className={['pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none sm:text-[5rem]', active ? 'text-white/20' : 'text-[var(--panel-muted)]/15'].join(' ')}>{n}</span>
+                      <p className={['relative text-sm font-semibold text-right', active ? 'text-white/90' : 'text-[var(--panel-muted)]'].join(' ')}>
+                        {n === 1 ? 'TEK ÇEKİM' : `${n} × ${formatMoneyTr(perPayment)}`}
+                      </p>
+                      <p className={['relative mt-2 text-xl font-bold tabular-nums', active ? 'text-white' : 'text-[var(--panel-ink)]'].join(' ')}>
+                        {formatMoneyTr(chargedTotal)}
+                      </p>
+                      {n > 1 && rate.commissionPct > 0 ? (
+                        <div className="relative mt-3 text-[10px] font-semibold leading-relaxed text-rose-500">
+                          <p>VADE FARKI{!view.commissionIncluded ? ' · SATICI KARŞILAR' : ''}</p>
+                          <p>%{formatMoneyTr(rate.commissionPct)} = {formatMoneyTr(Math.max(0, rate.totalAmount - payableAmount))}</p>
+                        </div>
+                      ) : null}
+                    </button>
+                    );
+                  }) : null}
+                  {errors.install ? <p className="col-span-full text-xs text-rose-500">{errors.install}</p> : null}
+                  </div>
+                </section>
+              ) : null}
 
               <section data-anim className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5">
                 <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--panel-ink)]">
