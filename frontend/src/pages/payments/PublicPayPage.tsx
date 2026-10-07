@@ -3,7 +3,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { useParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { PAYMENT_BADGES } from '../../components/layout/Footer';
+import { LegalDocModal } from '../../components/layout/LegalDocModal';
+import type { LegalDoc } from '../../components/layout/legalDocs';
 import { TextInput } from '../../components/ui/TextInput';
+import { useBrand } from '../../brand/BrandContext';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useLoadBins } from '../../hooks/useLoadBins';
 import { api } from '../../lib/api';
@@ -44,6 +47,7 @@ type PublicPayView = {
  */
 export default function PublicPayPage() {
   const { token: payToken } = useParams();
+  const { logoUrl } = useBrand();
   const rootRef = useRef<HTMLDivElement>(null);
   useLoadBins();
   const binsRev = useBinsRevision();
@@ -58,6 +62,8 @@ export default function PublicPayPage() {
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [installment, setInstallment] = useState(1);
+  const [installmentsOpen, setInstallmentsOpen] = useState(false);
+  const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDoc | null>(null);
   const [amountText, setAmountText] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -126,6 +132,7 @@ export default function PublicPayPage() {
 
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const installmentReady = payableAmount > 0 && Boolean(bank);
   const cardFaulty =
     cardDigits.length > 0 &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
@@ -215,7 +222,10 @@ export default function PublicPayPage() {
         <div className="mx-auto w-full max-w-screen-2xl">
           <header data-anim className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
-              <img src="/brand/logo-full.png" alt="Güzel Teknoloji" className="h-10 w-auto max-w-[190px] object-contain" />
+              <div className="flex shrink-0 items-center gap-3 rounded-xl bg-slate-900 px-3 py-2.5 text-white shadow-sm">
+                <img src={logoUrl} alt="Firma logosu" className="h-8 w-auto max-w-[150px] object-contain" />
+                <span className="border-l border-white/20 pl-3 text-sm font-black tracking-[0.12em]">IQ POS</span>
+              </div>
               <span className="hidden h-9 w-px bg-[var(--panel-line)] sm:block" />
               <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--color-brand-600)]">Güvenli ödeme</p>
@@ -361,45 +371,63 @@ export default function PublicPayPage() {
                         <p className="max-w-xs text-center text-xs leading-relaxed text-[var(--panel-muted)]">Kart numarasını girdiğinizde banka bilgisi burada görünür.</p>
                       )}
                     </div>
-                    <div>
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-xs font-bold text-[var(--panel-ink)]">Taksit seçimi</p>
-                        <span className="text-[10px] text-[var(--panel-muted)]">Ödeme isteğine göre</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
-                        {installmentOpts.map((n) => (
+                    <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-3.5">
+                      <p className="mb-2 text-xs font-bold text-[var(--panel-ink)]">Taksit seçenekleri</p>
+                      {!payableAmount ? (
+                        <p className="text-xs leading-relaxed text-[var(--panel-muted)]">Taksitleri görüntülemek için önce ödenecek tutarı girin.</p>
+                      ) : !bank ? (
+                        <p className="text-xs leading-relaxed text-[var(--panel-muted)]">Taksit seçeneklerini görmek için kart numaranızı girin; banka tanımlandığında seçenekler açılır.</p>
+                      ) : (
+                        <>
                           <button
-                            key={n}
                             type="button"
-                            aria-pressed={installment === n}
-                            onClick={() => setInstallment(n)}
-                            className={[
-                              'flex min-h-[68px] items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition',
-                              installment === n
-                                ? 'border-[var(--color-brand-500)] bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)] shadow-sm'
-                                : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--panel-hover)]',
-                            ].join(' ')}
+                            aria-expanded={installmentsOpen}
+                            onClick={() => setInstallmentsOpen((open) => !open)}
+                            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl bg-amber-500 px-3.5 py-2.5 text-left text-sm font-bold text-white shadow-sm transition hover:bg-amber-400"
                           >
-                            <span className={[
-                              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black tabular-nums',
-                              installment === n ? 'bg-[var(--color-brand-600)] text-white' : 'bg-[var(--panel-surface)] text-[var(--panel-muted)]',
-                            ].join(' ')}>{n === 1 ? '1×' : n}</span>
-                            <span className="min-w-0">
-                              <span className="block text-xs font-bold">{n === 1 ? 'Tek çekim' : `${n} taksit`}</span>
-                              <span className="mt-0.5 block text-[10px] text-[var(--panel-muted)]">{n === 1 ? 'Peşin ödeme' : 'Eşit taksitler'}</span>
-                            </span>
+                            <span>{installmentsOpen ? 'Taksit seçeneklerini gizle' : 'Taksit seçeneklerini görüntüle'}</span>
+                            <ChevronIcon open={installmentsOpen} />
                           </button>
-                        ))}
-                      </div>
-                      {errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
+                          {installmentsOpen ? (
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
+                              {installmentOpts.map((n) => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  aria-pressed={installment === n}
+                                  onClick={() => setInstallment(n)}
+                                  className={[
+                                    'flex min-h-[62px] items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition',
+                                    installment === n
+                                      ? 'border-[var(--color-brand-500)] bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)] shadow-sm'
+                                      : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--panel-hover)]',
+                                  ].join(' ')}
+                                >
+                                  <span className={[
+                                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black tabular-nums',
+                                    installment === n ? 'bg-[var(--color-brand-600)] text-white' : 'bg-[var(--panel-surface)] text-[var(--panel-muted)]',
+                                  ].join(' ')}>{n === 1 ? '1×' : n}</span>
+                                  <span className="min-w-0">
+                                    <span className="block text-xs font-bold">{n === 1 ? 'Tek çekim' : `${n} taksit`}</span>
+                                    <span className="mt-0.5 block text-[10px] text-[var(--panel-muted)]">{n === 1 ? 'Peşin ödeme' : 'Eşit taksit'}</span>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                          {errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
+                        </>
+                      )}
                     </div>
-                    <div className="mt-auto rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Ödeme özeti</p>
-                      <div className="mt-1.5 flex items-end justify-between gap-3">
-                        <span className="text-xs text-[var(--panel-muted)]">{installment === 1 ? 'Tek çekim' : `${installment} taksit`}</span>
-                        <span className="text-lg font-bold tabular-nums text-[var(--panel-ink)]">{formatMoneyDisplay(payableAmount, view.currencySymbol || '₺')}</span>
+                    {installmentReady && installmentsOpen ? (
+                      <div className="mt-auto rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Ödeme özeti</p>
+                        <div className="mt-1.5 flex items-end justify-between gap-3">
+                          <span className="text-xs text-[var(--panel-muted)]">{installment === 1 ? 'Tek çekim' : `${installment} taksit`}</span>
+                          <span className="text-lg font-bold tabular-nums text-[var(--panel-ink)]">{formatMoneyDisplay(payableAmount, view.currencySymbol || '₺')}</span>
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               </section>
@@ -455,9 +483,15 @@ export default function PublicPayPage() {
               {LEGAL_DOCS.map((doc) => (
                 <li
                   key={doc.id}
-                  className="flex min-h-11 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-2 text-center text-xs font-semibold leading-snug text-[var(--panel-ink)]"
+                  className="min-w-0"
                 >
-                  {doc.title}
+                  <button
+                    type="button"
+                    onClick={() => setActiveLegalDoc(doc)}
+                    className="flex min-h-11 w-full items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-2 text-center text-xs font-semibold leading-snug text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]"
+                  >
+                    {doc.title}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -465,6 +499,14 @@ export default function PublicPayPage() {
           <p className="text-center text-[11px] text-[var(--panel-muted)]">Güzel Teknoloji® · Güvenli ödeme</p>
         </div>
       </footer>
+
+      {activeLegalDoc ? (
+        <LegalDocModal
+          doc={activeLegalDoc}
+          publicView
+          onClose={() => setActiveLegalDoc(null)}
+        />
+      ) : null}
 
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[10040] -translate-x-1/2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5 text-sm font-medium text-[var(--panel-ink)] shadow-[var(--panel-shadow)]">
@@ -496,6 +538,21 @@ function CheckIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="m5 12.5 4.5 4.5L19 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      className={['shrink-0 transition-transform', open ? 'rotate-180' : ''].join(' ')}
+      aria-hidden
+    >
+      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

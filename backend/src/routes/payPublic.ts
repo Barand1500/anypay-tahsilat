@@ -5,6 +5,7 @@ import {
   payPaymentRequestByToken,
   PaymentRequestsError,
 } from '../services/paymentRequestsService.js';
+import { getContractByLink } from '../services/contractsService.js';
 import { PaymentsError } from '../services/paymentsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -21,6 +22,29 @@ const paySchema = z.object({
   installment: z.number().int().min(1).max(12),
   amount: z.number().positive().finite().optional(),
   note: z.string().max(2000).optional().default(''),
+});
+
+const legalLinkSchema = z.enum([
+  'kvkk',
+  'hizmet',
+  'guvenlik',
+  'tahsilat',
+  'iptal-iade',
+  'iletisim',
+  'uyelik',
+]);
+
+payPublicRouter.get('/legal/:link', async (req, res) => {
+  const parsed = legalLinkSchema.safeParse(req.params.link);
+  if (!parsed.success) return sendError(res, 400, 'Geçersiz sözleşme bağlantısı');
+  try {
+    const contract = await getContractByLink(parsed.data);
+    if (!contract) return sendError(res, 404, 'Sözleşme bulunamadı');
+    return sendSuccess(res, contract);
+  } catch (err) {
+    console.error('[public-legal]', err);
+    return sendError(res, 500, 'Sözleşme yüklenemedi');
+  }
 });
 
 payPublicRouter.get('/:token', async (req, res) => {

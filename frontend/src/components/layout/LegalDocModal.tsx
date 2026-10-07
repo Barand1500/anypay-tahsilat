@@ -13,13 +13,14 @@ import type { LegalDoc } from './legalDocs';
 type Props = {
   doc: LegalDoc;
   onClose: () => void;
+  publicView?: boolean;
 };
 
 /**
  * Footer sözleşme modalı — Esc / X; overlay tıklanınca kapanmaz.
  * Metin API’den + #degisken# çözümü.
  */
-export function LegalDocModal({ doc, onClose }: Props) {
+export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(doc.title);
@@ -31,6 +32,22 @@ export function LegalDocModal({ doc, onClose }: Props) {
     setLoading(true);
     void (async () => {
       if (!token) {
+        if (publicView) {
+          try {
+            const result = await api.get<ContractDef>(
+              `/api/pay/legal/${encodeURIComponent(doc.id)}`,
+            );
+            if (cancelled) return;
+            setTitle(result.name || doc.title);
+            setBody(result.body?.trim() || '');
+          } catch {
+            if (!cancelled) {
+              setTitle(doc.title);
+              setBody('');
+            }
+          }
+          return;
+        }
         if (!cancelled) {
           setTitle(doc.title);
           setBody('');
@@ -69,7 +86,7 @@ export function LegalDocModal({ doc, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [doc.id, doc.title, token]);
+  }, [doc.id, doc.title, publicView, token]);
 
   useEffect(() => {
     const el = panelRef.current;
