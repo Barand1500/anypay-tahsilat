@@ -344,16 +344,11 @@ export default function PaymentRequestsPage() {
   }
 
   async function copyLink(r: PaymentRequest) {
-    const text = payShareMessage({
-      amount: r.amount,
-      token: r.token,
-      files: r.files,
-      currencySymbol: r.currencySymbol,
-    });
+    const text = payLinkOf(r.token);
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(r.id);
-      flash(r.files?.length ? 'Link ve ekler kopyalandı' : 'Kopyalandı');
+      flash('Ödeme linki kopyalandı');
     } catch {
       flash('Kopyalanamadı');
     }

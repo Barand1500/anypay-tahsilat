@@ -2,12 +2,14 @@ import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
+import { PAYMENT_BADGES } from '../../components/layout/Footer';
 import { TextInput } from '../../components/ui/TextInput';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useLoadBins } from '../../hooks/useLoadBins';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
+import { LEGAL_DOCS } from '../../components/layout/legalDocs';
 import {
   detectBank,
   digitsOnly,
@@ -199,10 +201,11 @@ export default function PublicPayPage() {
   return (
     <div
       ref={rootRef}
-      className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),_var(--panel-bg)_55%)] px-4 py-10"
+      className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),_var(--panel-bg)_55%)]"
     >
-      <div className="mx-auto w-full max-w-lg">
-        <header data-anim className="mb-6 text-center">
+      <main className="flex flex-1 justify-center px-4 py-10">
+        <div className="w-full max-w-lg">
+          <header data-anim className="mb-6 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--color-brand-600)]">
             Güzel Teknoloji
           </p>
@@ -210,7 +213,7 @@ export default function PublicPayPage() {
             {view.merchantTitle}
           </h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">Güvenli ödeme</p>
-        </header>
+          </header>
 
         <section
           data-anim
@@ -352,7 +355,49 @@ export default function PublicPayPage() {
             </form>
           )}
         </section>
-      </div>
+        </div>
+      </main>
+
+      <footer className="w-full border-t border-[var(--panel-line)] bg-[var(--panel-elevated)]/90 px-4 py-6 shadow-[0_-8px_30px_rgba(15,23,42,0.04)] sm:px-6">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-5">
+          <div
+            className="flex flex-wrap items-center justify-center gap-3"
+            aria-label="Kabul edilen ödeme yöntemleri"
+          >
+            {PAYMENT_BADGES.map((badge) => (
+              <span
+                key={badge.src}
+                title={badge.alt}
+                className="flex h-11 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-3 shadow-sm"
+              >
+                <img
+                  src={badge.src}
+                  alt={badge.alt}
+                  className={`object-contain ${badge.className}`}
+                  draggable={false}
+                />
+              </span>
+            ))}
+          </div>
+
+          <div className="w-full">
+            <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
+              Sözleşmeler ve bilgilendirme
+            </p>
+            <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+              {LEGAL_DOCS.map((doc) => (
+                <li
+                  key={doc.id}
+                  className="flex min-h-11 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-2 text-center text-xs font-semibold leading-snug text-[var(--panel-ink)]"
+                >
+                  {doc.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="text-center text-[11px] text-[var(--panel-muted)]">Güzel Teknoloji® · Güvenli ödeme</p>
+        </div>
+      </footer>
 
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[10040] -translate-x-1/2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5 text-sm font-medium text-[var(--panel-ink)] shadow-[var(--panel-shadow)]">
