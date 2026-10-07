@@ -360,7 +360,6 @@ export default function PaymentCollectPage() {
                     <ul className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
                       {(
                         [
-                          ['', 'Ödeme Tipi Seçiniz'],
                           ...(erpActive ? [['ch', 'C/H BAKİYESİ'], ['fatura', 'FATURA']] as const : []),
                           ['sabit', 'SABİT TUTAR'],
                         ] as const

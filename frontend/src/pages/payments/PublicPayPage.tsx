@@ -64,6 +64,7 @@ export default function PublicPayPage() {
   const [installment, setInstallment] = useState(1);
   const [installmentsOpen, setInstallmentsOpen] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDoc | null>(null);
+  const [agree, setAgree] = useState(false);
   const [amountText, setAmountText] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -151,6 +152,7 @@ export default function PublicPayPage() {
     if (expErr) next.expiry = expErr;
     if (digitsOnly(cvc).length < 3) next.cvc = 'CVC';
     if (!installmentOpts.includes(installment)) next.install = 'Taksit seçin';
+    if (!agree) next.agree = 'Sözleşmeyi kabul edin';
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -217,16 +219,10 @@ export default function PublicPayPage() {
       ref={rootRef}
       className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),var(--panel-bg)_52%)]"
     >
-      <main className="w-full flex-1 px-4 py-5 sm:px-5 lg:px-6 lg:py-6">
+      <main className="w-full flex-1 px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
         <div className="mx-auto w-full max-w-[1400px]">
-          <header data-anim className="mb-5 flex flex-wrap items-center gap-4 border-b border-[var(--panel-line)]/70 pb-4">
-            <div className="flex min-w-0 items-center gap-3.5">
-              <div className="flex shrink-0 items-center gap-2.5 rounded-lg border border-white/10 bg-[var(--color-brand-700)] px-3 py-2 text-white">
-                <img src={logoUrl} alt="Firma logosu" className="h-7 w-auto max-w-[140px] object-contain" />
-                <span className="border-l border-white/25 pl-2.5 text-xs font-black tracking-[0.12em]">IQ POS</span>
-              </div>
-              <h1 className="min-w-0 truncate text-base font-bold tracking-tight text-[var(--panel-ink)] sm:text-lg">{view.merchantTitle}</h1>
-            </div>
+          <header data-anim className="mb-3 flex min-h-8 items-center">
+            <img src={logoUrl} alt="Firma logosu" className="h-7 w-auto max-w-[160px] object-contain object-left" />
           </header>
 
           {alreadyPaid ? (
@@ -240,10 +236,10 @@ export default function PublicPayPage() {
               </p>
             </section>
           ) : (
-            <form onSubmit={(e) => void onSubmit(e)} className="space-y-3.5">
+            <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
               <section data-anim className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
-                <div className="grid lg:grid-cols-2 xl:grid-cols-[0.95fr_1.1fr_0.95fr]">
-                  <div className="flex min-w-0 flex-col gap-3.5 border-b border-[var(--panel-line)] p-4 sm:p-5 xl:border-b-0 xl:border-r">
+                <div className="grid lg:grid-cols-3">
+                  <div className="flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
                     <SectionHead>Ödeme bilgileri</SectionHead>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -314,7 +310,7 @@ export default function PublicPayPage() {
                     ) : null}
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-3.5 border-b border-[var(--panel-line)] p-4 sm:p-5 lg:border-b-0 lg:border-r xl:border-b-0">
+                  <div className="flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
                     <PaymentCardFields
                       heading="Kredi kartı"
                       SectionHead={SectionHead}
@@ -345,7 +341,7 @@ export default function PublicPayPage() {
                     />
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-3.5 p-4 sm:p-5 lg:col-span-2 xl:col-span-1">
+                  <div className="flex min-w-0 flex-col gap-4 p-5">
                     <SectionHead>Banka ve taksit</SectionHead>
                     <div className="flex min-h-28 items-center justify-center rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-5">
                       {bank?.logo ? (
@@ -408,16 +404,18 @@ export default function PublicPayPage() {
                 </div>
               </section>
 
-              <section data-anim className="flex flex-col items-center justify-between gap-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-3.5 sm:flex-row sm:px-5">
-                <p className="text-center text-[11px] text-[var(--panel-muted)] sm:text-left">
-                  Banka 3D Secure doğrulamasına yönlendirileceksiniz.
-                </p>
+              <section data-anim className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5">
+                <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--panel-ink)]">
+                  <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[var(--input-border)] accent-[var(--color-brand-600)]" />
+                  <span><button type="button" onClick={() => setActiveLegalDoc(LEGAL_DOCS.find((doc) => doc.id === 'tahsilat') ?? null)} className="font-semibold text-[var(--color-brand-600)] hover:underline">Tahsilat Sözleşmesi</button>'ni okudum ve kabul ediyorum.</span>
+                </label>
+                {errors.agree ? <p className="text-xs text-rose-500">{errors.agree}</p> : null}
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex h-11 w-full items-center justify-center rounded-lg bg-[var(--color-brand-600)] px-7 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)] disabled:cursor-wait disabled:opacity-60 sm:w-auto sm:min-w-52"
+                  className="flex h-12 w-full max-w-[220px] items-center justify-center rounded-xl bg-[var(--color-brand-600)] px-8 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:cursor-wait disabled:opacity-60"
                 >
-                  {saving ? 'İşleniyor…' : `Ödemeyi tamamla · ${formatMoneyDisplay(payableAmount, view.currencySymbol || '₺')}`}
+                  {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
                 </button>
               </section>
             </form>
