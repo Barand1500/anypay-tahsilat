@@ -134,18 +134,18 @@ export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
           </p>
           <h2
             id="legal-doc-title"
-            className="mt-1 pr-16 text-xl font-bold tracking-tight text-[var(--panel-ink)]"
+            className="mt-1 min-w-0 break-words pr-16 text-xl font-bold tracking-tight text-[var(--panel-ink)] [overflow-wrap:anywhere]"
           >
             {title}
           </h2>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">{doc.subtitle}</p>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <div className="min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-6">
           {loading ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
           ) : body ? (
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--panel-ink)]/90">
+            <div className="w-full whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--panel-ink)]/90 [overflow-wrap:anywhere]">
               {body}
             </div>
           ) : (

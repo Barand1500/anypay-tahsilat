@@ -171,8 +171,8 @@ export default function PaymentCollectPage() {
   const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
   const selected = useMemo(() => {
     if (!amount || amount <= 0) return null;
-    return agreementRows.find((r) => r.n === installment) ?? agreementRows[0] ?? null;
-  }, [amount, agreementRows, installment]);
+    return installmentRows.find((r) => r.n === installment) ?? installmentRows[0] ?? null;
+  }, [amount, installmentRows, installment]);
 
   function flash(msg: string) {
     setToast(msg);
@@ -609,12 +609,12 @@ export default function PaymentCollectPage() {
                     </p>
                     <p className="text-sm tabular-nums text-[var(--panel-muted)]">
                       {selected.n > 1
-                        ? `${selected.n} × ${formatMoneyDisplay(selected.installmentAmount)}`
-                        : `${formatMoneyDisplay(selected.totalAmount)}`}
+                        ? `${selected.n} × ${formatMoneyDisplay(commissionIncluded ? selected.installmentAmount : amount / (selected.n + selected.plusN))}`
+                        : `${formatMoneyDisplay(commissionIncluded ? selected.totalAmount : amount)}`}
                     </p>
                     {selected.commissionPct > 0 ? (
                       <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                        Vade farkı %{formatMoneyTr(selected.commissionPct)}
+                        Vade farkı %{formatMoneyTr(selected.commissionPct)}{commissionIncluded ? '' : ' · Satıcı karşılar'}
                       </p>
                     ) : (
                       <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -638,6 +638,8 @@ export default function PaymentCollectPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {installmentRows.map((r) => {
                 const active = installment === r.n;
+                const chargedTotal = commissionIncluded ? r.totalAmount : amount;
+                const perPayment = commissionIncluded ? r.installmentAmount : amount / (r.n + r.plusN);
                 const ok =
                   !allowedInstallments || allowedInstallments.includes(r.n);
                 return (
@@ -691,8 +693,8 @@ export default function PaymentCollectPage() {
                       ].join(' ')}
                     >
                       {r.n === 1
-                        ? formatMoneyTr(r.totalAmount)
-                        : `${r.n} × ${formatMoneyTr(r.installmentAmount)}`}
+                        ? formatMoneyTr(chargedTotal)
+                        : `${r.n} × ${formatMoneyTr(perPayment)}`}
                     </p>
                     {r.n > 1 ? (
                       <p
@@ -701,7 +703,13 @@ export default function PaymentCollectPage() {
                           'text-[var(--panel-muted)]',
                         ].join(' ')}
                       >
-                        Toplam {formatMoneyTr(r.totalAmount)}
+                        Toplam {formatMoneyTr(chargedTotal)}
+                      </p>
+                    ) : null}
+                    {r.n > 1 && r.commissionPct > 0 ? (
+                      <p className="relative mt-1 text-[10px] font-semibold leading-relaxed text-rose-500">
+                        Vade farkı %{formatMoneyTr(r.commissionPct)} = {formatMoneyTr(Math.max(0, r.totalAmount - amount))}
+                        {!commissionIncluded ? ' · Satıcı karşılar' : ''}
                       </p>
                     ) : null}
                   </button>

@@ -266,8 +266,8 @@ export default function PublicPayPage() {
     >
       <main className="w-full flex-1 px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
         <div className="mx-auto w-full max-w-[1400px]">
-          <header data-anim className="mb-3 flex min-h-8 items-center">
-            <img src={logoUrl} alt="Firma logosu" className="h-7 w-auto max-w-[160px] object-contain object-left" />
+          <header data-anim className="mb-3 flex min-h-10 items-center">
+            <img src={logoUrl} alt="Firma logosu" className="h-10 w-auto max-w-[200px] object-contain object-left" />
           </header>
 
           {alreadyPaid ? (
@@ -514,7 +514,7 @@ export default function PublicPayPage() {
             <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
               Sözleşmeler ve bilgilendirme
             </p>
-            <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+            <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
               {LEGAL_DOCS.map((doc) => (
                 <li
                   key={doc.id}
@@ -523,7 +523,7 @@ export default function PublicPayPage() {
                   <button
                     type="button"
                     onClick={() => setActiveLegalDoc(doc)}
-                    className="flex min-h-10 w-full items-center justify-center rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]"
+                    className="flex min-h-11 w-full items-center justify-center whitespace-normal break-words rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]"
                   >
                     {doc.title}
                   </button>

@@ -164,10 +164,10 @@ export function LegalDocsMenu() {
                       <DocSmIcon />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-semibold leading-snug text-[var(--panel-ink)]">
+                      <span className="block whitespace-normal break-words text-[13px] font-semibold leading-snug text-[var(--panel-ink)] [overflow-wrap:anywhere]">
                         {doc.title}
                       </span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-[var(--panel-muted)]">
+                      <span className="mt-0.5 block whitespace-normal break-words text-[11px] leading-snug text-[var(--panel-muted)] [overflow-wrap:anywhere]">
                         {doc.subtitle}
                       </span>
                     </span>
