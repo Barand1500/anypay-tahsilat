@@ -132,7 +132,6 @@ export default function PublicPayPage() {
 
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
-  const installmentReady = payableAmount > 0 && Boolean(bank);
   const cardFaulty =
     cardDigits.length > 0 &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));
@@ -216,25 +215,17 @@ export default function PublicPayPage() {
   return (
     <div
       ref={rootRef}
-      className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),var(--panel-bg)_58%)]"
+      className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),var(--panel-bg)_52%)]"
     >
-      <main className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto w-full max-w-screen-2xl">
-          <header data-anim className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-4">
-              <div className="flex shrink-0 items-center gap-3 rounded-xl bg-slate-900 px-3 py-2.5 text-white shadow-sm">
-                <img src={logoUrl} alt="Firma logosu" className="h-8 w-auto max-w-[150px] object-contain" />
-                <span className="border-l border-white/20 pl-3 text-sm font-black tracking-[0.12em]">IQ POS</span>
+      <main className="w-full flex-1 px-4 py-5 sm:px-5 lg:px-6 lg:py-6">
+        <div className="mx-auto w-full max-w-[1400px]">
+          <header data-anim className="mb-5 flex flex-wrap items-center gap-4 border-b border-[var(--panel-line)]/70 pb-4">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <div className="flex shrink-0 items-center gap-2.5 rounded-lg border border-white/10 bg-[var(--color-brand-700)] px-3 py-2 text-white">
+                <img src={logoUrl} alt="Firma logosu" className="h-7 w-auto max-w-[140px] object-contain" />
+                <span className="border-l border-white/25 pl-2.5 text-xs font-black tracking-[0.12em]">IQ POS</span>
               </div>
-              <span className="hidden h-9 w-px bg-[var(--panel-line)] sm:block" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--color-brand-600)]">Güvenli ödeme</p>
-                <h1 className="mt-0.5 truncate text-lg font-bold tracking-tight text-[var(--panel-ink)] sm:text-xl">{view.merchantTitle}</h1>
-              </div>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-              <ShieldIcon />
-              3D Secure korumalı ödeme
+              <h1 className="min-w-0 truncate text-base font-bold tracking-tight text-[var(--panel-ink)] sm:text-lg">{view.merchantTitle}</h1>
             </div>
           </header>
 
@@ -249,50 +240,48 @@ export default function PublicPayPage() {
               </p>
             </section>
           ) : (
-            <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
+            <form onSubmit={(e) => void onSubmit(e)} className="space-y-3.5">
               <section data-anim className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
                 <div className="grid lg:grid-cols-2 xl:grid-cols-[0.95fr_1.1fr_0.95fr]">
-                  <div className="flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] p-5 sm:p-6 xl:border-b-0 xl:border-r">
+                  <div className="flex min-w-0 flex-col gap-3.5 border-b border-[var(--panel-line)] p-4 sm:p-5 xl:border-b-0 xl:border-r">
                     <SectionHead>Ödeme bilgileri</SectionHead>
-                    <div className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-base font-bold text-[var(--panel-ink)]">{view.customerTitle}</p>
-                          <p className="mt-1 text-xs text-[var(--panel-muted)]">{paymentTypeLabel[view.type]}</p>
-                        </div>
-                        <span className="shrink-0 rounded-lg border border-[var(--color-brand-500)]/20 bg-[var(--brand-soft-bg)] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--color-brand-700)]">
-                          {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
-                        </span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-[var(--panel-ink)]">{view.customerTitle}</p>
+                        <p className="mt-0.5 text-[11px] text-[var(--panel-muted)]">{paymentTypeLabel[view.type]}</p>
                       </div>
-                      <div className="mt-4 border-t border-[var(--panel-line)] pt-3">
-                        {variableAmount ? (
-                          <TextInput
-                            id="public-pay-amount"
-                            label={`Ödenecek tutar (${view.currencySymbol || '₺'})`}
-                            value={amountText}
-                            onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
-                            inputMode="decimal"
-                            autoComplete="off"
-                            error={errors.amount}
-                            className="text-right text-lg font-bold tabular-nums"
-                          />
-                        ) : (
-                          <div>
-                            <p className="text-xs font-medium text-[var(--panel-muted)]">Ödenecek tutar</p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-[var(--color-brand-600)]">
-                              {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
-                            </p>
-                            <p className="mt-1 text-[11px] text-[var(--panel-muted)]">Bu ödeme isteği için belirlenmiştir.</p>
-                          </div>
-                        )}
-                      </div>
+                      <span className="shrink-0 rounded-md bg-[var(--brand-soft-bg)] px-2 py-1 text-[10px] font-bold text-[var(--color-brand-700)]">
+                        {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
+                      </span>
                     </div>
 
-                    <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3.5 py-3">
-                      <p className="text-xs font-semibold text-[var(--panel-ink)]">
+                    <div className="border-y border-[var(--panel-line)]/70 py-3">
+                      {variableAmount ? (
+                        <TextInput
+                          id="public-pay-amount"
+                          label={`Ödenecek tutar (${view.currencySymbol || '₺'})`}
+                          value={amountText}
+                          onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
+                          inputMode="decimal"
+                          autoComplete="off"
+                          error={errors.amount}
+                          className="text-right text-lg font-bold tabular-nums"
+                        />
+                      ) : (
+                        <>
+                          <p className="text-[11px] font-medium text-[var(--panel-muted)]">Ödenecek tutar</p>
+                          <p className="mt-0.5 text-xl font-bold tabular-nums tracking-tight text-[var(--color-brand-600)]">
+                            {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-semibold text-[var(--panel-ink)]">
                         {view.commissionIncluded ? 'Komisyon ödeme tutarına eklenir.' : 'Komisyon ödeme tutarına eklenmez.'}
                       </p>
-                      <p className="mt-1 text-[11px] leading-relaxed text-[var(--panel-muted)]">
+                      <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--panel-muted)]">
                         {view.commissionIncluded
                           ? 'Seçilen taksite ait banka komisyonu ödeme sırasında hesaplanır.'
                           : 'Kartınızdan ödeme isteğinde görünen tutar tahsil edilir.'}
@@ -300,21 +289,21 @@ export default function PublicPayPage() {
                     </div>
 
                     {view.description ? (
-                      <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3">
+                      <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Açıklama</p>
-                        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-[var(--panel-ink)]">
+                        <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-[var(--panel-ink)]">
                           {view.description.replace(/<[^>]+>/g, '').slice(0, 1200)}
                         </p>
                       </div>
                     ) : null}
 
                     {view.files?.length ? (
-                      <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Ödeme belgeleri</p>
+                      <div className="border-t border-[var(--panel-line)]/70 pt-3">
+                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Ödeme belgeleri</p>
                         <ul className="space-y-1.5">
                           {view.files.map((f) => (
                             <li key={f.path || f.url}>
-                              <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2 text-xs font-medium text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)] hover:text-[var(--color-brand-600)]">
+                              <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-medium text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--color-brand-600)]">
                                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
                                 <span className="shrink-0 text-[10px] font-bold text-[var(--color-brand-600)]">Görüntüle</span>
                               </a>
@@ -325,7 +314,7 @@ export default function PublicPayPage() {
                     ) : null}
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] p-5 sm:p-6 lg:border-b-0 lg:border-r xl:border-b-0">
+                  <div className="flex min-w-0 flex-col gap-3.5 border-b border-[var(--panel-line)] p-4 sm:p-5 lg:border-b-0 lg:border-r xl:border-b-0">
                     <PaymentCardFields
                       heading="Kredi kartı"
                       SectionHead={SectionHead}
@@ -354,13 +343,9 @@ export default function PublicPayPage() {
                       onExpiry={(v) => setExpiry(formatExpiryInput(v))}
                       onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
                     />
-                    <div className="flex items-start gap-2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3 text-[11px] leading-relaxed text-[var(--panel-muted)]">
-                      <ShieldIcon />
-                      Kart bilgileriniz banka doğrulaması için güvenli ödeme altyapısına iletilir.
-                    </div>
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-4 p-5 sm:p-6 lg:col-span-2 xl:col-span-1">
+                  <div className="flex min-w-0 flex-col gap-3.5 p-4 sm:p-5 lg:col-span-2 xl:col-span-1">
                     <SectionHead>Banka ve taksit</SectionHead>
                     <div className="flex min-h-28 items-center justify-center rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-5">
                       {bank?.logo ? (
@@ -371,7 +356,7 @@ export default function PublicPayPage() {
                         <p className="max-w-xs text-center text-xs leading-relaxed text-[var(--panel-muted)]">Kart numarasını girdiğinizde banka bilgisi burada görünür.</p>
                       )}
                     </div>
-                    <div className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-3.5">
+                    <div>
                       <p className="mb-2 text-xs font-bold text-[var(--panel-ink)]">Taksit seçenekleri</p>
                       {!payableAmount ? (
                         <p className="text-xs leading-relaxed text-[var(--panel-muted)]">Taksitleri görüntülemek için önce ödenecek tutarı girin.</p>
@@ -383,7 +368,7 @@ export default function PublicPayPage() {
                             type="button"
                             aria-expanded={installmentsOpen}
                             onClick={() => setInstallmentsOpen((open) => !open)}
-                            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl bg-amber-500 px-3.5 py-2.5 text-left text-sm font-bold text-white shadow-sm transition hover:bg-amber-400"
+                            className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg bg-amber-500 px-3 py-2 text-left text-xs font-bold text-white transition hover:bg-amber-400"
                           >
                             <span>{installmentsOpen ? 'Taksit seçeneklerini gizle' : 'Taksit seçeneklerini görüntüle'}</span>
                             <ChevronIcon open={installmentsOpen} />
@@ -419,31 +404,18 @@ export default function PublicPayPage() {
                         </>
                       )}
                     </div>
-                    {installmentReady && installmentsOpen ? (
-                      <div className="mt-auto rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3.5 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Ödeme özeti</p>
-                        <div className="mt-1.5 flex items-end justify-between gap-3">
-                          <span className="text-xs text-[var(--panel-muted)]">{installment === 1 ? 'Tek çekim' : `${installment} taksit`}</span>
-                          <span className="text-lg font-bold tabular-nums text-[var(--panel-ink)]">{formatMoneyDisplay(payableAmount, view.currencySymbol || '₺')}</span>
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </section>
 
-              <section data-anim className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5 shadow-[var(--panel-shadow)] sm:flex-row sm:px-7">
-                <div className="flex items-start gap-3 text-center sm:text-left">
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand-soft-bg)] text-[var(--color-brand-600)]"><ShieldIcon /></span>
-                  <span>
-                    <span className="block text-sm font-bold text-[var(--panel-ink)]">Güvenli ödeme</span>
-                    <span className="mt-0.5 block text-xs text-[var(--panel-muted)]">Ödeme sonrası banka 3D Secure doğrulamasına yönlendirileceksiniz.</span>
-                  </span>
-                </div>
+              <section data-anim className="flex flex-col items-center justify-between gap-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-3.5 sm:flex-row sm:px-5">
+                <p className="text-center text-[11px] text-[var(--panel-muted)] sm:text-left">
+                  Banka 3D Secure doğrulamasına yönlendirileceksiniz.
+                </p>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-8 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:cursor-wait disabled:opacity-60 sm:w-auto sm:min-w-56"
+                  className="flex h-11 w-full items-center justify-center rounded-lg bg-[var(--color-brand-600)] px-7 text-sm font-bold text-white transition hover:bg-[var(--color-brand-500)] disabled:cursor-wait disabled:opacity-60 sm:w-auto sm:min-w-52"
                 >
                   {saving ? 'İşleniyor…' : `Ödemeyi tamamla · ${formatMoneyDisplay(payableAmount, view.currencySymbol || '₺')}`}
                 </button>
@@ -453,8 +425,8 @@ export default function PublicPayPage() {
         </div>
       </main>
 
-      <footer className="w-full border-t border-[var(--panel-line)] bg-[var(--panel-elevated)]/90 px-4 py-6 shadow-[0_-8px_30px_rgba(15,23,42,0.04)] sm:px-6">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-5">
+      <footer className="w-full border-t border-[var(--panel-line)] bg-[var(--panel-elevated)]/90 px-4 py-4 sm:px-5">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col items-center gap-3.5">
           <div
             className="flex flex-wrap items-center justify-center gap-3"
             aria-label="Kabul edilen ödeme yöntemleri"
@@ -463,7 +435,7 @@ export default function PublicPayPage() {
               <span
                 key={badge.src}
                 title={badge.alt}
-                className="flex h-11 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-3 shadow-sm"
+                className="flex h-9 items-center justify-center rounded-lg border border-[var(--panel-line)] bg-white px-2.5"
               >
                 <img
                   src={badge.src}
@@ -476,7 +448,7 @@ export default function PublicPayPage() {
           </div>
 
           <div className="w-full">
-            <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
+            <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
               Sözleşmeler ve bilgilendirme
             </p>
             <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
@@ -488,7 +460,7 @@ export default function PublicPayPage() {
                   <button
                     type="button"
                     onClick={() => setActiveLegalDoc(doc)}
-                    className="flex min-h-11 w-full items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-2 text-center text-xs font-semibold leading-snug text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]"
+                    className="flex min-h-10 w-full items-center justify-center rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]"
                   >
                     {doc.title}
                   </button>
@@ -496,7 +468,6 @@ export default function PublicPayPage() {
               ))}
             </ul>
           </div>
-          <p className="text-center text-[11px] text-[var(--panel-muted)]">Güzel Teknoloji® · Güvenli ödeme</p>
         </div>
       </footer>
 
@@ -522,15 +493,6 @@ function SectionHead({ children }: { children: ReactNode }) {
     <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">
       {children}
     </h2>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 3 20 6v5.5c0 4.6-3.2 7.8-8 9.5-4.8-1.7-8-4.9-8-9.5V6l8-3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-      <path d="m8.5 12 2.2 2.2 4.8-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
