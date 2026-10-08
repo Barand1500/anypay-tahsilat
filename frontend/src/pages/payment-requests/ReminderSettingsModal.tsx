@@ -1,5 +1,14 @@
 import gsap from 'gsap';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -89,6 +98,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [menu, setMenu] = useState<{ id: number; top: number; left: number } | null>(null);
 
   const customerOptions = useMemo(
     () =>
@@ -135,11 +145,16 @@ export function ReminderSettingsModal({ onClose }: Props) {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
       if (scheduleOpen) return;
+      if (menu) {
+        e.preventDefault();
+        setMenu(null);
+        return;
+      }
       onClose();
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose, scheduleOpen]);
+  }, [onClose, scheduleOpen, menu]);
 
   const active = activeId === 'new' ? null : list.find((r) => r.id === activeId) ?? null;
 
@@ -227,19 +242,48 @@ export function ReminderSettingsModal({ onClose }: Props) {
     }
   }
 
-  async function removeActive() {
-    if (!token || activeId === 'new' || saving) return;
+  useEffect(() => {
+    if (!menu) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (t.closest('[data-reminder-menu]') || t.closest('[data-reminder-menu-btn]')) return;
+      setMenu(null);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [menu]);
+
+  function openMenu(e: ReactMouseEvent, id: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const w = 160;
+    setMenu({
+      id,
+      top: rect.bottom + 4,
+      left: Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8)),
+    });
+  }
+
+  async function removeById(id: number) {
+    if (!token || saving) return;
     setSaving(true);
+    setError(null);
     try {
-      await api.delete(`/api/payment-requests/reminders/${activeId}`, token);
-      setList((prev) => prev.filter((x) => x.id !== activeId));
-      startNew();
-      setOkMsg('Hatırlatma iptal edildi');
+      await api.delete(`/api/payment-requests/reminders/${id}`, token);
+      setList((prev) => prev.filter((x) => x.id !== id));
+      if (activeId === id) startNew();
+      setOkMsg('Hatırlatma silindi');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Silinemedi');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function removeActive() {
+    if (activeId === 'new') return;
+    await removeById(activeId);
   }
 
   const previewRemaining = useMemo(() => {
@@ -481,27 +525,47 @@ export function ReminderSettingsModal({ onClose }: Props) {
                 const remain = Math.max(0, +new Date(r.scheduledAt) - nowMs);
                 const selected = activeId === r.id;
                 return (
-                  <button
+                  <div
                     key={r.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     data-km-jump
                     onClick={() => setActiveId(r.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setActiveId(r.id);
+                      }
+                    }}
                     className={[
-                      'w-full rounded-2xl border px-3.5 py-3 text-left transition',
+                      'w-full cursor-pointer rounded-2xl border px-3.5 py-3 text-left transition',
                       selected
                         ? 'border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_12%,var(--panel-elevated))] shadow-sm'
                         : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-[var(--color-brand-500)]/55',
                     ].join(' ')}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="truncate text-sm font-bold text-[var(--panel-ink)]">
+                      <p className="min-w-0 flex-1 truncate text-sm font-bold text-[var(--panel-ink)]">
                         {r.customerTitle}
                       </p>
-                      {r.status === 'sent' ? (
-                        <span className="shrink-0 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
-                          Gönderildi
-                        </span>
-                      ) : null}
+                      <div className="flex shrink-0 items-center gap-1">
+                        {r.status === 'sent' ? (
+                          <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                            Gönderildi
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          data-reminder-menu-btn
+                          data-km-jump
+                          aria-label="İşlemler"
+                          title="İşlemler"
+                          onClick={(e) => openMenu(e, r.id)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+                        >
+                          <DotsIcon />
+                        </button>
+                      </div>
                     </div>
                     <p
                       className={[
@@ -518,7 +582,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
                       {r.sms ? <Chip>SMS</Chip> : null}
                       {r.whatsapp ? <Chip>WhatsApp</Chip> : null}
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -541,8 +605,51 @@ export function ReminderSettingsModal({ onClose }: Props) {
         setScheduleOpen(false);
       }}
     />
+    {menu
+      ? createPortal(
+          <div
+            data-reminder-menu
+            className="fixed z-[12500] min-w-[160px] overflow-hidden rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] py-1 shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
+            style={{ top: menu.top, left: menu.left }}
+          >
+            <button
+              type="button"
+              className="flex w-full px-3 py-2 text-left text-sm text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+              onClick={() => {
+                setActiveId(menu.id);
+                setMenu(null);
+              }}
+            >
+              Düzenle
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              className="flex w-full px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-500/10 disabled:opacity-50"
+              onClick={() => {
+                const id = menu.id;
+                setMenu(null);
+                void removeById(id);
+              }}
+            >
+              Sil
+            </button>
+          </div>,
+          document.body,
+        )
+      : null}
     </>,
     document.body,
+  );
+}
+
+function DotsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="5" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="12" cy="19" r="1.75" />
+    </svg>
   );
 }
 
