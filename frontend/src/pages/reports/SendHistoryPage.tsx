@@ -323,16 +323,14 @@ export default function SendHistoryPage() {
 }
 
 function TypeBadge({ type }: { type: SendType }) {
-  const email = type === 'email';
+  const tone =
+    type === 'email'
+      ? 'bg-sky-500/15 text-sky-700 dark:text-sky-400'
+      : type === 'whatsapp'
+        ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400'
+        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
   return (
-    <span
-      className={[
-        'inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold',
-        email
-          ? 'bg-sky-500/15 text-sky-700 dark:text-sky-400'
-          : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
-      ].join(' ')}
-    >
+    <span className={['inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold', tone].join(' ')}>
       {SEND_TYPE_LABEL[type]}
     </span>
   );

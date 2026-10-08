@@ -457,6 +457,8 @@ model Ayarlar {
   varsayilanlar          String?   @map("varsayilanlar") @db.LongText
   /** SMTP ayarları — JSON (host, port, email, password, ssl, tls) */
   smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
+  /** Meta WhatsApp Cloud API — JSON */
+  whatsappAyarlar        String?   @map("whatsapp_ayarlar") @db.LongText
   /** Header hızlı erişim görünürlüğü ve yuva sayısı — JSON */
   hizliErisimAyarlari     String?   @map("hizli_erisim_ayarlari") @db.LongText
 

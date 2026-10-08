@@ -1,6 +1,6 @@
 /** Gönderim Geçmişi — tipler */
 
-export type SendType = 'email' | 'sms';
+export type SendType = 'email' | 'sms' | 'whatsapp';
 
 export type SendHistoryRow = {
   id: number;
@@ -15,11 +15,13 @@ export type SendHistoryRow = {
 export const SEND_TYPE_OPTIONS = [
   { value: 'email', label: 'E-Posta' },
   { value: 'sms', label: 'Sms' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ] as const;
 
 export const SEND_TYPE_LABEL: Record<SendType, string> = {
   email: 'E-Posta',
   sms: 'Sms',
+  whatsapp: 'WhatsApp',
 };
 
 export function formatSendDate(iso: string): string {

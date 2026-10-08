@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 
-export type SendType = 'email' | 'sms';
+export type SendType = 'email' | 'sms' | 'whatsapp';
 
 export type RecordSendInput = {
   musteriId?: number | null;
@@ -83,7 +83,7 @@ export async function getSendHistory(q: SendHistoryQuery): Promise<SendHistoryPa
   const to = toDay ? endOfDay(toDay) : null;
 
   const where: Record<string, unknown> = { basarili: true };
-  if (q.type === 'email' || q.type === 'sms') where.tip = q.type;
+  if (q.type === 'email' || q.type === 'sms' || q.type === 'whatsapp') where.tip = q.type;
   if (q.customerId != null) where.musteriId = q.customerId;
   if (from || to) {
     where.tarih = {
@@ -113,7 +113,8 @@ export async function getSendHistory(q: SendHistoryQuery): Promise<SendHistoryPa
   );
 
   let mapped: SendHistoryRow[] = rows.map((r) => {
-    const type: SendType = r.tip === 'sms' ? 'sms' : 'email';
+    const type: SendType =
+      r.tip === 'sms' ? 'sms' : r.tip === 'whatsapp' ? 'whatsapp' : 'email';
     const title =
       r.musteriId != null
         ? customerMap.get(r.musteriId) || `Müşteri #${r.musteriId}`

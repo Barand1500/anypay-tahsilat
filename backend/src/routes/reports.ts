@@ -126,7 +126,7 @@ reportsRouter.get('/bank-collection', async (req, res) => {
 const sendHistorySchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
-  type: z.enum(['email', 'sms']).optional(),
+  type: z.enum(['email', 'sms', 'whatsapp']).optional(),
   customerId: idOpt,
   q: z.string().optional(),
 });

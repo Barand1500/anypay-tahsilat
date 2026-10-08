@@ -12,6 +12,7 @@ import {
   smsPaymentRequest,
   softDeletePaymentRequest,
   updatePaymentRequest,
+  whatsappPaymentRequest,
 } from '../services/paymentRequestsService.js';
 import {
   mergePayRequestPdfs,
@@ -234,6 +235,32 @@ paymentRequestsRouter.post('/:id/sms', async (req: AuthedRequest, res) => {
     if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'SMS gönderilemedi');
+  }
+});
+
+paymentRequestsRouter.post('/:id/whatsapp', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz istek');
+  try {
+    const data = await whatsappPaymentRequest(id);
+    if (data.method === 'wa.me') {
+      return sendSuccess(res, data, 'WhatsApp istemci açılacak');
+    }
+    await writePanelLog(
+      req.auth!.sub,
+      data.whatsappSent
+        ? `Ödeme isteği WhatsApp gönderildi — #${id} → ${data.to}`
+        : `Ödeme isteği WhatsApp başarısız — #${id} → ${data.to}${data.error ? ` (${data.error})` : ''}`,
+    );
+    return sendSuccess(
+      res,
+      data,
+      data.whatsappSent ? 'WhatsApp gönderildi' : data.error || 'WhatsApp gönderilemedi',
+    );
+  } catch (err) {
+    if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'WhatsApp gönderilemedi');
   }
 });
 

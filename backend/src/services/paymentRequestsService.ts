@@ -609,6 +609,85 @@ export async function emailPaymentRequest(
   }
 }
 
+/**
+ * Ödeme isteği WhatsApp.
+ * Entegrasyon aktifse Meta Cloud API; değilse istemci wa.me açar (method: 'wa.me').
+ */
+export async function whatsappPaymentRequest(id: number): Promise<{
+  method: 'api' | 'wa.me';
+  to: string;
+  text?: string;
+  whatsappSent: boolean;
+  error?: string;
+}> {
+  const pub = await getPaymentRequest(id);
+  const to = (pub.whatsapp || pub.phone || '').trim();
+  if (!to) throw new PaymentRequestsError('Müşteri WhatsApp / telefonu yok');
+  if (pub.status === 'paid') throw new PaymentRequestsError('Bu istek zaten ödenmiş');
+
+  const base =
+    process.env.PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://tahsilat.anypay.com.tr';
+  const payUrl = `${base}/pay/${encodeURIComponent(pub.token)}`;
+  const amountStr = pub.amount.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const lines = [
+    'Merhaba, ödeme isteğiniz hazır:',
+    payUrl,
+    pub.amount > 0
+      ? `Tutar: ${amountStr} ${pub.currencySymbol || '₺'}`
+      : 'Tutar: Ödeme sırasında belirlenecek',
+  ];
+  if (pub.files?.length) {
+    lines.push('', 'Ekler:');
+    for (const f of pub.files) {
+      const url = f.url.startsWith('http')
+        ? f.url
+        : `${base}${f.url.startsWith('/') ? '' : '/'}${f.url}`;
+      lines.push(`• ${f.name}`, `  ${url}`);
+    }
+  }
+  const text = lines.join('\n');
+
+  const { isWhatsappIntegrationActive, sendWhatsappText, normalizeWhatsappTo } =
+    await import('./whatsappSettingsService.js');
+
+  if (!(await isWhatsappIntegrationActive())) {
+    return { method: 'wa.me', to, text, whatsappSent: false };
+  }
+
+  try {
+    const result = await sendWhatsappText(to, text);
+    const { recordSendHistory } = await import('./sendHistoryService.js');
+    await recordSendHistory({
+      musteriId: pub.customerId ? Number(pub.customerId) : null,
+      type: 'whatsapp',
+      recipient: result.to,
+      content: text,
+      kaynak: 'odeme_istegi',
+      refId: id,
+      basarili: true,
+    });
+    return { method: 'api', to: result.to, whatsappSent: true };
+  } catch (err) {
+    const { SettingsError } = await import('./settingsService.js');
+    const msg =
+      err instanceof SettingsError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'WhatsApp gönderilemedi';
+    console.error('[payment-request-whatsapp]', err);
+    return {
+      method: 'api',
+      to: normalizeWhatsappTo(to),
+      whatsappSent: false,
+      error: msg,
+    };
+  }
+}
+
 /** Ödeme isteği SMS (NetGSM / MutluCell) */
 export async function smsPaymentRequest(
   id: number,

@@ -200,6 +200,53 @@ export async function ensureSmtpAyarlarColumn(): Promise<void> {
   }
 }
 
+/** ayarlar.whatsapp_ayarlar — Meta WhatsApp JSON */
+export async function ensureWhatsappAyarlarColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'whatsapp_ayarlar'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `whatsapp_ayarlar` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.whatsapp_ayarlar eklendi');
+  } catch (err) {
+    console.warn('[schema] whatsapp_ayarlar atlandı:', err);
+  }
+}
+
+/** Modüller › WhatsApp Ayarları — izinler kaydı yoksa ekle */
+export async function ensureWhatsappModule(): Promise<void> {
+  try {
+    const existing = await prisma.izinler.findFirst({
+      where: {
+        route: '/ayarlar/whatsapp',
+        OR: [{ remove: null }, { remove: false }],
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+    await prisma.izinler.create({
+      data: {
+        adi: 'WhatsApp Ayarları',
+        tablo: 'ayarlar',
+        route: '/ayarlar/whatsapp',
+        olusturmaTarihi: new Date(),
+        remove: null,
+      },
+    });
+    console.log('[schema] izinler: WhatsApp Ayarları eklendi');
+  } catch (err) {
+    console.warn('[schema] WhatsApp modülü atlandı:', err);
+  }
+}
+
 /** eposta_sablonlari — gerçek dump şeması (self-heal gerekmez) */
 export async function ensureEpostaSablonlariTable(): Promise<void> {
   /* no-op */
@@ -249,6 +296,8 @@ export async function ensureSchema(): Promise<void> {
   await ensureTaksitSiralamaColumn();
   await ensureVarsayilanlarColumn();
   await ensureSmtpAyarlarColumn();
+  await ensureWhatsappAyarlarColumn();
+  await ensureWhatsappModule();
   await ensureQuickAccessSettingsColumn();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();

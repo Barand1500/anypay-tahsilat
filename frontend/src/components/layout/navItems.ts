@@ -28,6 +28,7 @@ export const EXTRA_QUICK_ITEMS: NavItem[] = [
   { to: '/ayarlar/varsayilanlar', label: 'Varsayılanlar', icon: 'gear' },
   { to: '/ayarlar/e-posta', label: 'E-Posta Ayarları', icon: 'gear' },
   { to: '/ayarlar/sms', label: 'SMS Ayarları', icon: 'gear' },
+  { to: '/ayarlar/whatsapp', label: 'WhatsApp Ayarları', icon: 'gear' },
   { to: '/ayarlar/sablon-degiskenleri', label: 'Şablon Değişkenleri', icon: 'gear' },
   { to: '/ayarlar/erp', label: 'ERP Entegrasyon', icon: 'gear' },
   { to: '/raporlar/istatistikler', label: 'İstatistikler', icon: 'chart' },

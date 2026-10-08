@@ -354,18 +354,57 @@ export default function PaymentRequestsPage() {
     }
   }
 
-  function sendWhatsApp(r: PaymentRequest) {
-    if (!r.whatsapp) return;
-    const text = encodeURIComponent(
-      payShareMessage({
-        amount: r.amount,
-        token: r.token,
-        files: r.files,
-        currencySymbol: r.currencySymbol,
-      }),
-    );
-    const phone = r.whatsapp.replace(/\D/g, '');
-    window.open(`https://wa.me/90${phone}?text=${text}`, '_blank', 'noopener,noreferrer');
+  async function sendWhatsApp(r: PaymentRequest) {
+    if (!r.whatsapp || !token) return;
+    if (sendingLock.current) return;
+    sendingLock.current = true;
+    setSendingBusy(true);
+
+    const openWaMe = (phoneRaw: string, message: string) => {
+      const phone = phoneRaw.replace(/\D/g, '');
+      const digits = phone.startsWith('90') ? phone : `90${phone}`;
+      window.open(
+        `https://wa.me/${digits}?text=${encodeURIComponent(message)}`,
+        '_blank',
+        'noopener,noreferrer',
+      );
+    };
+
+    try {
+      const data = await api.post<{
+        method: 'api' | 'wa.me';
+        to: string;
+        text?: string;
+        whatsappSent: boolean;
+        error?: string;
+      }>(`/api/payment-requests/${encodeURIComponent(r.id)}/whatsapp`, {}, token);
+
+      if (data.method === 'wa.me') {
+        const message =
+          data.text ||
+          payShareMessage({
+            amount: r.amount,
+            token: r.token,
+            files: r.files,
+            currencySymbol: r.currencySymbol,
+          });
+        openWaMe(data.to || r.whatsapp, message);
+        sendingLock.current = false;
+        setSendingBusy(false);
+        return;
+      }
+
+      if (data.whatsappSent) {
+        flash(`Ödeme isteği WhatsApp ile gönderildi → ${data.to}`);
+      } else {
+        flash(data.error || `WhatsApp gönderilemedi → ${data.to}`);
+      }
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'WhatsApp gönderilemedi');
+    } finally {
+      sendingLock.current = false;
+      setSendingBusy(false);
+    }
   }
 
   async function sendEmail(r: PaymentRequest) {

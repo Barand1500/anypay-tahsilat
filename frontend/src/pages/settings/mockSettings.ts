@@ -13,6 +13,7 @@ export const SETTINGS_SUBNAV: SettingsSubnavItem[] = [
   { to: '/ayarlar/varsayilanlar', label: 'Varsayılanlar', ready: true },
   { to: '/ayarlar/e-posta', label: 'E-Posta Ayarları', ready: true },
   { to: '/ayarlar/sms', label: 'SMS Ayarları', ready: true },
+  { to: '/ayarlar/whatsapp', label: 'WhatsApp Ayarları', ready: true },
   { to: '/ayarlar/sablon-degiskenleri', label: 'Şablon Değişkenleri', ready: true },
   { to: '/ayarlar/erp', label: 'ERP Entegrasyon', ready: true },
 ];

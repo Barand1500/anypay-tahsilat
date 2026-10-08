@@ -193,6 +193,14 @@ export const INITIAL_MODULES: Array<{
     createdAt: '2025-08-12T16:00:00',
   },
   {
+    id: 'm-whatsapp',
+    name: 'WhatsApp Ayarları',
+    dbTable: 'Ayarlar',
+    urlPrefix: '/ayarlar/whatsapp',
+    roles: [],
+    createdAt: '2026-04-08T09:00:00',
+  },
+  {
     id: 'm-genel',
     name: 'Genel Ayarlar',
     dbTable: 'Ayarlar',

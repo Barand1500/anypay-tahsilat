@@ -54,6 +54,11 @@ import {
   getErpSettings,
   updateErpSettings,
 } from '../services/erpSettingsService.js';
+import {
+  clearWhatsappSettings,
+  getWhatsappSettings,
+  updateWhatsappSettings,
+} from '../services/whatsappSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
 import {
   getInstallmentPriority,
@@ -760,5 +765,52 @@ settingsRouter.delete('/erp', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'ERP sıfırlanamadı');
+  }
+});
+
+const whatsappSchema = z.object({
+  active: z.boolean(),
+  appId: z.string().max(64),
+  appSecret: z.string().max(512).optional().default(''),
+  phoneNumberId: z.string().max(64),
+  accessToken: z.string().max(4096).optional().default(''),
+  verifyToken: z.string().max(255).optional().default(''),
+});
+
+settingsRouter.get('/whatsapp', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getWhatsappSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'WhatsApp ayarları yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/whatsapp', async (req: AuthedRequest, res) => {
+  const parsed = whatsappSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateWhatsappSettings(parsed.data);
+    await writePanelLog(req.auth!.sub, 'Ayarlar - WhatsApp ayarları güncellendi.');
+    return sendSuccess(res, data, 'WhatsApp ayarları kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'WhatsApp ayarları kaydedilemedi');
+  }
+});
+
+settingsRouter.delete('/whatsapp', async (req: AuthedRequest, res) => {
+  try {
+    const data = await clearWhatsappSettings();
+    await writePanelLog(req.auth!.sub, 'Ayarlar - WhatsApp ayarları sıfırlandı.');
+    return sendSuccess(res, data, 'WhatsApp ayarları sıfırlandı');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'WhatsApp sıfırlanamadı');
   }
 });
