@@ -307,12 +307,16 @@ export async function processPaymentReminders(): Promise<ReminderRunSummary> {
         sms: row.sms,
         whatsapp: row.whatsapp,
       });
-      await prisma.odemeHatirlatma.update({
-        where: { id: row.id },
-        data: { durum: 'sent', gonderimTarihi: new Date() },
-      });
-      if (ok) summary.sent += 1;
-      else summary.errors += 1;
+      if (ok) {
+        await prisma.odemeHatirlatma.update({
+          where: { id: row.id },
+          data: { durum: 'sent', gonderimTarihi: new Date() },
+        });
+        summary.sent += 1;
+      } else {
+        // Kanallar başarısız — pending kalsın, sonraki tick tekrar dener
+        summary.errors += 1;
+      }
     } catch (err) {
       console.warn('[reminder]', row.id, err);
       summary.errors += 1;

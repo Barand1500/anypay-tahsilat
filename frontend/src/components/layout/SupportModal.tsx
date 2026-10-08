@@ -154,7 +154,7 @@ export function SupportModal({ onClose }: Props) {
         aria-labelledby="support-modal-title"
         className="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
       >
-        <header className="relative shrink-0 border-b border-[var(--panel-line)] bg-gradient-to-br from-rose-500/14 via-rose-500/5 to-transparent px-5 pb-4 pt-5">
+        <header className="relative shrink-0 border-b border-[var(--panel-line)] bg-gradient-to-br from-[var(--color-brand-500)]/14 via-[var(--color-brand-500)]/5 to-transparent px-5 pb-4 pt-5">
           <button
             type="button"
             onClick={onClose}
@@ -165,7 +165,7 @@ export function SupportModal({ onClose }: Props) {
             <span>ESC</span>
           </button>
           <div className="flex items-start gap-3 pr-16">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-rose-300/35 bg-rose-500/10 text-rose-500 dark:text-rose-400">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[color-mix(in_srgb,var(--color-brand-500)_35%,var(--panel-line))] bg-[var(--brand-soft-bg)] text-[var(--color-brand-600)]">
               <SupportHeadsetIcon className="h-6 w-6" />
             </span>
             <div>
@@ -269,8 +269,8 @@ export function SupportModal({ onClose }: Props) {
                         className={[
                           'flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition',
                           selected
-                            ? 'border-rose-400/55 bg-rose-500/10 shadow-sm'
-                            : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-rose-300/40',
+                            ? 'border-[color-mix(in_srgb,var(--color-brand-500)_55%,var(--panel-line))] bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-surface))] shadow-sm'
+                            : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-[color-mix(in_srgb,var(--color-brand-500)_40%,var(--panel-line))]',
                         ].join(' ')}
                       >
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--panel-elevated)] text-[var(--panel-ink)]">
@@ -414,16 +414,20 @@ function Phase({
       className={[
         'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold',
         active
-          ? 'bg-rose-500 text-white'
+          ? 'bg-[var(--color-brand-600)] text-white'
           : done
-            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+            ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_15%,transparent)] text-[var(--color-brand-600)]'
             : 'bg-[var(--panel-surface)] text-[var(--panel-muted)]',
       ].join(' ')}
     >
       <span
         className={[
           'flex h-4 w-4 items-center justify-center rounded-full text-[9px]',
-          active ? 'bg-white/25' : done ? 'bg-rose-500 text-white' : 'bg-[var(--panel-line)]',
+          active
+            ? 'bg-white/25'
+            : done
+              ? 'bg-[var(--color-brand-600)] text-white'
+              : 'bg-[var(--panel-line)]',
         ].join(' ')}
       >
         {done ? '✓' : n}
@@ -437,7 +441,7 @@ function StepBlock({ n, title, children }: { n: number; title: string; children:
   return (
     <section className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-3.5">
       <div className="mb-2 flex items-center gap-2.5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-600)] text-xs font-bold text-white">
           {n}
         </span>
         <h3 className="text-sm font-bold text-[var(--panel-ink)]">{title}</h3>
