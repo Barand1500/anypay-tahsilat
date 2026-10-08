@@ -178,6 +178,26 @@ export function normalizeWhatsappTo(raw: string): string {
   return d;
 }
 
+/** Ayarlar sayfası — kayıtlı Meta ile sınama mesajı */
+export async function sendWhatsappTest(phoneRaw: string): Promise<{ sent: true; to: string }> {
+  const message = `AnyPay Tahsilat WhatsApp sinama. ${new Date().toLocaleString('tr-TR')}`;
+  const result = await sendWhatsappText(phoneRaw, message);
+  try {
+    const { recordSendHistory } = await import('./sendHistoryService.js');
+    await recordSendHistory({
+      musteriId: null,
+      type: 'whatsapp',
+      recipient: result.to,
+      content: message,
+      kaynak: 'whatsapp-test',
+      basarili: true,
+    });
+  } catch {
+    /* opsiyonel */
+  }
+  return { sent: true, to: result.to };
+}
+
 /**
  * Meta Cloud API — metin mesajı.
  * Not: işletme başlatımlı sohbetlerde şablon gerekebilir; Meta hata dönerse yüzeye çıkarılır.

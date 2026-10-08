@@ -57,6 +57,7 @@ import {
 import {
   clearWhatsappSettings,
   getWhatsappSettings,
+  sendWhatsappTest,
   updateWhatsappSettings,
 } from '../services/whatsappSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
@@ -812,5 +813,24 @@ settingsRouter.delete('/whatsapp', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'WhatsApp sıfırlanamadı');
+  }
+});
+
+settingsRouter.post('/whatsapp/test', async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({ phone: z.string().min(10).max(20) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz telefon');
+  }
+  try {
+    const data = await sendWhatsappTest(parsed.data.phone);
+    await writePanelLog(req.auth!.sub, `WhatsApp sınama gönderildi → ${data.to}`);
+    return sendSuccess(res, data, 'Sınama WhatsApp gönderildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    const msg = err instanceof Error ? err.message : 'Sınama gönderilemedi';
+    return sendError(res, 500, msg);
   }
 });

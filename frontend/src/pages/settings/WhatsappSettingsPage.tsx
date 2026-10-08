@@ -32,6 +32,10 @@ export default function WhatsappSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
+  const [testPhone, setTestPhone] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [testOk, setTestOk] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -168,6 +172,34 @@ export default function WhatsappSettingsPage() {
     }
   }
 
+  async function sendTest(e: FormEvent) {
+    e.preventDefault();
+    if (!token || testBusy) return;
+    const digits = testPhone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setTestMsg('Geçerli bir telefon numarası girin');
+      setTestOk(false);
+      return;
+    }
+    setTestBusy(true);
+    setTestMsg(null);
+    setTestOk(false);
+    try {
+      const data = await api.post<{ sent: true; to: string }>(
+        '/api/settings/whatsapp/test',
+        { phone: testPhone },
+        token,
+      );
+      setTestMsg(`Sınama WhatsApp gönderildi → ${data.to}`);
+      setTestOk(true);
+    } catch (err) {
+      setTestMsg(err instanceof Error ? err.message : 'Sınama gönderilemedi');
+      setTestOk(false);
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
   return (
     <div ref={rootRef} className="w-full">
       <div data-anim className="mb-5">
@@ -186,6 +218,7 @@ export default function WhatsappSettingsPage() {
         </p>
       ) : null}
 
+      <div className="space-y-5">
       <form
         data-anim
         onSubmit={(e) => void save(e)}
@@ -386,7 +419,76 @@ export default function WhatsappSettingsPage() {
           </CanRemove>
         </div>
       </form>
+
+      <form
+        data-anim
+        onSubmit={(e) => void sendTest(e)}
+        className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6 [--input-notch:var(--panel-elevated)]"
+      >
+        <div className="mb-4">
+          <h2 className="text-base font-bold text-[var(--panel-ink)]">WhatsApp Gönderim Sınama</h2>
+          <p className="mt-0.5 text-xs text-[var(--panel-muted)]">
+            Kayıtlı Meta ayarlarıyla gerçek sınama mesajı gönderir. Entegrasyonun açık olması gerekir.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <TextInput
+              data-km-jump
+              label="Telefon Numarası"
+              inputMode="tel"
+              value={testPhone}
+              onChange={(e) => {
+                setTestPhone(formatPhone(e.target.value));
+                setTestMsg(null);
+              }}
+              autoComplete="tel"
+            />
+          </div>
+          <button
+            type="submit"
+            data-km-jump
+            disabled={testBusy || loading}
+            className="inline-flex h-[3.25rem] shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
+          >
+            <SendIcon />
+            {testBusy ? 'Gönderiliyor…' : 'Gönder'}
+          </button>
+        </div>
+        {testMsg ? (
+          <p
+            className={[
+              'mt-2 text-xs font-medium',
+              testOk ? 'text-emerald-600' : 'text-rose-600',
+            ].join(' ')}
+          >
+            {testMsg}
+          </p>
+        ) : null}
+      </form>
+      </div>
     </div>
+  );
+}
+
+function formatPhone(raw: string) {
+  const d = raw.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 4) return d;
+  if (d.length <= 7) return `${d.slice(0, 4)} ${d.slice(4)}`;
+  if (d.length <= 9) return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
+  return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7, 9)} ${d.slice(9)}`;
+}
+
+function SendIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 12 20 4l-7 16-2-7-7-1Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
