@@ -219,7 +219,6 @@ async function notifyUser(opts: {
   });
   if (!user) return false;
 
-  const subject = `Hatırlatma: ${opts.customerTitle} — ödeme isteği`;
   const text = [
     `Merhaba${user.adsoyad ? ` ${user.adsoyad}` : ''},`,
     '',
@@ -235,12 +234,13 @@ async function notifyUser(opts: {
 
   if (opts.email && user.email) {
     try {
-      const { sendMail } = await import('../lib/mail.js');
-      await sendMail({
+      const { sendPaymentReminderMail } = await import('../lib/mail.js');
+      await sendPaymentReminderMail({
         to: user.email,
-        subject,
-        text,
-        html: `<p>${text.replace(/\n/g, '<br/>')}</p>`,
+        staffName: user.adsoyad,
+        customerTitle: opts.customerTitle,
+        description: opts.description,
+        link: opts.link,
       });
       ok = true;
     } catch (err) {

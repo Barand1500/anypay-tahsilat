@@ -259,26 +259,40 @@ export function ReminderSettingsModal({ onClose }: Props) {
         {/* Ana form */}
         <form
           onSubmit={(e) => void save(e)}
-          className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl sm:w-[38rem] [--input-notch:var(--panel-elevated)]"
+          className="flex w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.22)] sm:w-[40rem] [--input-notch:var(--panel-elevated)]"
         >
-          <header className="relative shrink-0 border-b border-[var(--panel-line)] bg-gradient-to-br from-[var(--color-brand-500)]/14 via-transparent to-transparent px-5 pb-4 pt-5">
+          <header className="relative shrink-0 overflow-hidden border-b border-[var(--panel-line)] px-6 pb-5 pt-6">
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--color-brand-500)]/20 via-[var(--color-brand-500)]/5 to-transparent"
+              aria-hidden
+            />
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+              className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
               aria-label="Kapat"
             >
               ✕ ESC
             </button>
-            <h2 className="pr-16 text-lg font-bold text-[var(--panel-ink)]">
-              {activeId === 'new' ? 'Ödeme hatırlatması oluştur' : 'Hatırlatmayı düzenle'}
-            </h2>
-            <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
-              Zamanı gelince size bildirim gider; link ödeme isteği oluşturma sayfasını açar.
-            </p>
+            <div className="relative flex items-start gap-3.5 pr-14">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-brand-600)] text-white shadow-lg shadow-[color-mix(in_srgb,var(--color-brand-600)_35%,transparent)]">
+                <BellGlyph />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-brand-600)]">
+                  AnyPay · Hatırlatma
+                </p>
+                <h2 className="mt-0.5 text-xl font-bold tracking-tight text-[var(--panel-ink)]">
+                  {activeId === 'new' ? 'Ödeme hatırlatması oluştur' : 'Hatırlatmayı düzenle'}
+                </h2>
+                <p className="mt-1 text-sm leading-snug text-[var(--panel-muted)]">
+                  Zamanı gelince size bildirim gider; link ödeme isteği sayfasını açar.
+                </p>
+              </div>
+            </div>
           </header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
             <FloatingSearchSelect
               label="Müşteri"
               options={customerOptions}
@@ -292,17 +306,17 @@ export function ReminderSettingsModal({ onClose }: Props) {
             />
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
                 Ne zaman sonra?
               </p>
-              <div className="mb-2 flex flex-wrap gap-1.5">
+              <div className="mb-3 flex flex-wrap gap-2">
                 {QUICK_OFFSETS.map((q) => (
                   <button
                     key={q.label}
                     type="button"
                     data-km-jump
                     onClick={() => applyQuick(q.ms)}
-                    className="rounded-full border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)] hover:text-[var(--color-brand-600)]"
+                    className="rounded-full border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-1.5 text-[11px] font-semibold text-[var(--panel-ink)] shadow-sm transition hover:border-[var(--color-brand-500)] hover:bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-surface))] hover:text-[var(--color-brand-600)]"
                   >
                     {q.label}
                   </button>
@@ -312,43 +326,31 @@ export function ReminderSettingsModal({ onClose }: Props) {
                 type="button"
                 data-km-jump
                 onClick={() => setScheduleOpen(true)}
-                className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-gradient-to-br from-[var(--color-brand-500)]/10 via-[var(--panel-surface)] to-[var(--panel-surface)] px-4 py-3.5 text-left transition hover:border-[var(--color-brand-500)] hover:shadow-md"
+                className="group flex w-full items-center gap-3.5 rounded-2xl border border-[var(--panel-line)] bg-gradient-to-br from-[var(--color-brand-500)]/12 via-[var(--panel-surface)] to-[var(--panel-surface)] px-4 py-4 text-left shadow-sm transition hover:border-[var(--color-brand-500)] hover:shadow-md"
               >
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--color-brand-600)] text-white shadow-sm">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <rect
-                      x="3"
-                      y="5"
-                      width="18"
-                      height="16"
-                      rx="2.5"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                    />
-                    <path
-                      d="M3 10h18M8 3v4M16 3v4"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="12" cy="15.5" r="1.25" fill="currentColor" />
-                  </svg>
+                  <CalendarGlyph />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
                     Tarih / saat
                   </span>
-                  <span className="mt-0.5 block truncate text-base font-bold tabular-nums text-[var(--panel-ink)]">
+                  <span className="mt-0.5 block truncate text-lg font-bold tabular-nums tracking-tight text-[var(--panel-ink)]">
                     {formatScheduleDisplay(whenLocal)}
                   </span>
                 </span>
-                <span className="shrink-0 rounded-full bg-[var(--panel-elevated)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-600)] ring-1 ring-[var(--panel-line)] transition group-hover:ring-[var(--color-brand-500)]">
+                <span className="shrink-0 rounded-full bg-[var(--panel-elevated)] px-3.5 py-1.5 text-[11px] font-bold text-[var(--color-brand-600)] ring-1 ring-[var(--panel-line)] transition group-hover:ring-[var(--color-brand-500)]">
                   Değiştir
                 </span>
               </button>
-              <p className="mt-2 rounded-xl bg-[var(--panel-surface)] px-3 py-2.5 text-center text-sm font-bold tabular-nums text-[var(--color-brand-600)]">
-                Geri sayım: {formatCountdown(previewRemaining)}
-              </p>
+              <div className="mt-3 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--color-brand-500)_28%,var(--panel-line))] bg-gradient-to-r from-[color-mix(in_srgb,var(--color-brand-500)_14%,transparent)] to-transparent px-4 py-3.5">
+                <p className="text-center text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--color-brand-600)]/80">
+                  Canlı geri sayım
+                </p>
+                <p className="mt-1 text-center text-2xl font-bold tabular-nums tracking-tight text-[var(--color-brand-600)]">
+                  {formatCountdown(previewRemaining)}
+                </p>
+              </div>
             </div>
 
             <TextArea
@@ -361,16 +363,17 @@ export function ReminderSettingsModal({ onClose }: Props) {
             />
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
                 Bildirim kanalları
               </p>
-              <div className="grid gap-2">
+              <div className="grid gap-2.5">
                 <ChannelCard
                   title="E-posta bildirimi"
                   hint="Hesabınızdaki e-postaya"
                   checked={email}
                   onChange={setEmail}
                   tone="sky"
+                  icon={<MailGlyph />}
                 />
                 <ChannelCard
                   title="SMS bildirimi"
@@ -378,6 +381,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
                   checked={sms}
                   onChange={setSms}
                   tone="emerald"
+                  icon={<SmsGlyph />}
                 />
                 <ChannelCard
                   title="WhatsApp bildirimi"
@@ -385,6 +389,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
                   checked={whatsapp}
                   onChange={setWhatsapp}
                   tone="teal"
+                  icon={<WaGlyph />}
                 />
               </div>
             </div>
@@ -401,7 +406,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
             ) : null}
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--panel-line)] px-5 py-4">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--panel-line)] bg-[var(--panel-surface)]/40 px-6 py-4">
             {activeId !== 'new' ? (
               <button
                 type="button"
@@ -434,30 +439,43 @@ export function ReminderSettingsModal({ onClose }: Props) {
         </form>
 
         {/* Sağ liste */}
-        <aside className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl sm:w-80">
-          <div className="flex items-center justify-between border-b border-[var(--panel-line)] px-4 py-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
-                Hatırlatmalarım
-              </p>
-              <p className="text-[11px] text-[var(--panel-muted)]">Geri sayım canlı</p>
+        <aside className="flex w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.22)] sm:w-[22rem]">
+          <div className="relative overflow-hidden border-b border-[var(--panel-line)] px-4 py-4">
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--color-brand-500)]/16 to-transparent"
+              aria-hidden
+            />
+            <div className="relative flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
+                  Hatırlatmalarım
+                </p>
+                <p className="mt-0.5 text-[11px] text-[var(--panel-muted)]">
+                  {list.length} kayıt · geri sayım canlı
+                </p>
+              </div>
+              <button
+                type="button"
+                data-km-jump
+                onClick={startNew}
+                className="rounded-xl bg-[var(--color-brand-600)] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
+              >
+                + Yeni
+              </button>
             </div>
-            <button
-              type="button"
-              data-km-jump
-              onClick={startNew}
-              className="rounded-xl bg-[var(--color-brand-600)] px-2.5 py-1.5 text-xs font-bold text-white transition hover:brightness-110"
-            >
-              + Yeni
-            </button>
           </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3">
+          <div className="flex-1 space-y-2.5 overflow-y-auto p-3.5">
             {loading ? (
-              <p className="px-1 py-6 text-center text-xs text-[var(--panel-muted)]">Yükleniyor…</p>
+              <p className="px-1 py-8 text-center text-xs text-[var(--panel-muted)]">Yükleniyor…</p>
             ) : list.length === 0 ? (
-              <p className="px-1 py-6 text-center text-xs text-[var(--panel-muted)]">
-                Henüz hatırlatma yok. Soldan oluşturun.
-              </p>
+              <div className="rounded-2xl border border-dashed border-[var(--panel-line)] px-4 py-10 text-center">
+                <p className="text-xs font-semibold text-[var(--panel-muted)]">
+                  Henüz hatırlatma yok
+                </p>
+                <p className="mt-1 text-[11px] text-[var(--panel-muted)]">
+                  Soldan yeni bir kayıt oluşturun.
+                </p>
+              </div>
             ) : (
               list.map((r) => {
                 const remain = Math.max(0, +new Date(r.scheduledAt) - nowMs);
@@ -469,19 +487,33 @@ export function ReminderSettingsModal({ onClose }: Props) {
                     data-km-jump
                     onClick={() => setActiveId(r.id)}
                     className={[
-                      'w-full rounded-xl border px-3 py-2.5 text-left transition',
+                      'w-full rounded-2xl border px-3.5 py-3 text-left transition',
                       selected
-                        ? 'border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-elevated))]'
-                        : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-[var(--color-brand-500)]/50',
+                        ? 'border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_12%,var(--panel-elevated))] shadow-sm'
+                        : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-[var(--color-brand-500)]/55',
                     ].join(' ')}
                   >
-                    <p className="truncate text-sm font-bold text-[var(--panel-ink)]">
-                      {r.customerTitle}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate text-sm font-bold text-[var(--panel-ink)]">
+                        {r.customerTitle}
+                      </p>
+                      {r.status === 'sent' ? (
+                        <span className="shrink-0 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                          Gönderildi
+                        </span>
+                      ) : null}
+                    </div>
+                    <p
+                      className={[
+                        'mt-1.5 text-sm font-bold tabular-nums',
+                        r.status === 'sent'
+                          ? 'text-[var(--panel-muted)]'
+                          : 'text-[var(--color-brand-600)]',
+                      ].join(' ')}
+                    >
+                      {r.status === 'sent' ? 'Tamamlandı' : formatCountdown(remain)}
                     </p>
-                    <p className="mt-0.5 text-[11px] tabular-nums text-[var(--panel-muted)]">
-                      {r.status === 'sent' ? 'Gönderildi' : formatCountdown(remain)}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {r.email ? <Chip>E-posta</Chip> : null}
                       {r.sms ? <Chip>SMS</Chip> : null}
                       {r.whatsapp ? <Chip>WhatsApp</Chip> : null}
@@ -491,7 +523,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
               })
             )}
             {activeId === 'new' ? (
-              <div className="rounded-xl border border-dashed border-[var(--color-brand-500)]/45 bg-[color-mix(in_srgb,var(--color-brand-500)_6%,transparent)] px-3 py-2.5 text-xs font-semibold text-[var(--color-brand-600)]">
+              <div className="rounded-2xl border border-dashed border-[var(--color-brand-500)]/45 bg-[color-mix(in_srgb,var(--color-brand-500)_8%,transparent)] px-3.5 py-3 text-xs font-semibold text-[var(--color-brand-600)]">
                 Yeni taslak düzenleniyor…
               </div>
             ) : null}
@@ -516,7 +548,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
 
 function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-md bg-[var(--panel-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)]">
+    <span className="rounded-md bg-[var(--panel-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--panel-muted)] ring-1 ring-[var(--panel-line)]">
       {children}
     </span>
   );
@@ -528,12 +560,14 @@ function ChannelCard({
   checked,
   onChange,
   tone,
+  icon,
 }: {
   title: string;
   hint: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   tone: 'sky' | 'emerald' | 'teal';
+  icon: ReactNode;
 }) {
   const toneCls =
     tone === 'sky'
@@ -541,6 +575,12 @@ function ChannelCard({
       : tone === 'emerald'
         ? 'border-emerald-400/50 bg-emerald-500/10'
         : 'border-teal-400/50 bg-teal-500/10';
+  const iconTone =
+    tone === 'sky'
+      ? 'bg-sky-500/20 text-sky-600'
+      : tone === 'emerald'
+        ? 'bg-emerald-500/20 text-emerald-600'
+        : 'bg-teal-500/20 text-teal-600';
   return (
     <button
       type="button"
@@ -549,13 +589,23 @@ function ChannelCard({
       data-km-jump
       onClick={() => onChange(!checked)}
       className={[
-        'flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition',
+        'flex w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3.5 text-left transition',
         checked ? toneCls : 'border-[var(--panel-line)] bg-[var(--panel-surface)]',
       ].join(' ')}
     >
-      <span>
-        <span className="block text-sm font-bold text-[var(--panel-ink)]">{title}</span>
-        <span className="block text-[11px] text-[var(--panel-muted)]">{hint}</span>
+      <span className="flex min-w-0 items-center gap-3">
+        <span
+          className={[
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            checked ? iconTone : 'bg-[var(--panel-elevated)] text-[var(--panel-muted)]',
+          ].join(' ')}
+        >
+          {icon}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-bold text-[var(--panel-ink)]">{title}</span>
+          <span className="block text-[11px] text-[var(--panel-muted)]">{hint}</span>
+        </span>
       </span>
       <span
         className={[
@@ -571,5 +621,64 @@ function ChannelCard({
         />
       </span>
     </button>
+  );
+}
+
+function BellGlyph() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 9a6 6 0 1 1 12 0c0 3.5 1.2 5 2 6H4c.8-1 2-2.5 2-6Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CalendarGlyph() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <circle cx="12" cy="15.5" r="1.25" fill="currentColor" />
+    </svg>
+  );
+}
+
+function MailGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.75" />
+      <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SmsGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="6" y="2.5" width="12" height="19" rx="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="12" cy="17.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function WaGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3.5a8 8 0 0 0-6.9 12.1L4 20.5l5.1-1.3A8 8 0 1 0 12 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.2 9.8c.3-.5.6-.5.8-.5h.3c.1 0 .3 0 .4.3l.5 1.2c.1.2 0 .4-.1.5l-.3.4c-.1.1-.1.3 0 .4.4.6 1 1.2 1.6 1.6.2.1.3.1.4 0l.4-.3c.2-.1.3-.1.5 0l1.2.5c.2.1.3.3.3.4v.3c0 .2 0 .5-.5.8-.4.2-1 .3-1.7 0A7 7 0 0 1 9.5 11c-.2-.7-.1-1.3.0-1.7.1-.1.2-.3.2-.5Z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }
