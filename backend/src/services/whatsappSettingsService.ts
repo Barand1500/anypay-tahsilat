@@ -214,7 +214,17 @@ export async function sendWhatsappText(
   });
 
   const raw = await res.text();
-  let parsed: { error?: { message?: string }; messages?: unknown[] } = {};
+  let parsed: {
+    error?: {
+      message?: string;
+      type?: string;
+      code?: number;
+      error_user_msg?: string;
+      error_data?: { details?: string };
+      fbtrace_id?: string;
+    };
+    messages?: unknown[];
+  } = {};
   try {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch {
@@ -222,11 +232,73 @@ export async function sendWhatsappText(
   }
 
   if (!res.ok) {
-    const msg =
-      parsed.error?.message ||
-      (raw.trim().slice(0, 240) || `Meta API hatası (${res.status})`);
-    throw new SettingsError(msg);
+    console.error('[whatsapp-meta]', res.status, raw.slice(0, 800));
+    throw new SettingsError(formatMetaSendError(parsed.error, raw, res.status));
   }
 
   return { to };
+}
+
+/** Meta hata gövdesini kullanıcıya okunur Türkçe metne çevir */
+function formatMetaSendError(
+  err:
+    | {
+        message?: string;
+        type?: string;
+        code?: number;
+        error_user_msg?: string;
+        error_data?: { details?: string };
+        fbtrace_id?: string;
+      }
+    | undefined,
+  raw: string,
+  status: number,
+): string {
+  const metaMsg = (err?.error_user_msg || err?.message || '').trim();
+  const details = (err?.error_data?.details || '').trim();
+  const lower = metaMsg.toLowerCase();
+
+  if (lower.includes('api access blocked')) {
+    return [
+      'Meta API erişimi engellenmiş (API access blocked).',
+      'Panel ayarları doğru olsa da Meta hesabı / uygulama / iş doğrulaması tarafında kısıt var.',
+      'Gelen WhatsApp kurulumu gönderim için gerekli değil.',
+      'Kontrol: Business Verification, Access Token izinleri (whatsapp_business_messaging), Security Center.',
+      err?.fbtrace_id ? `fbtrace: ${err.fbtrace_id}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  if (
+    lower.includes('not in allowed list') ||
+    lower.includes('not a valid whatsapp user') ||
+    details.toLowerCase().includes('allowed list')
+  ) {
+    return [
+      'Alıcı numarası Meta test listesinde değil (uygulama Development modunda olabilir).',
+      'WhatsApp › API Setup › To listesine numarayı ekleyin veya uygulamayı Live’a alın.',
+    ].join(' ');
+  }
+
+  if (
+    lower.includes('template') ||
+    lower.includes('24 hour') ||
+    lower.includes('re-engagement') ||
+    (err?.code === 131047 || err?.code === 131026)
+  ) {
+    return [
+      'Serbest metin bu alıcıya şu an gönderilemiyor (24 saat penceresi / şablon kuralı).',
+      'Müşteri önce size yazmış olmalı veya onaylı bir Meta şablonu gerekir.',
+      metaMsg || details,
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  const parts = [
+    metaMsg || details || raw.trim().slice(0, 200) || `Meta API hatası (${status})`,
+    err?.code != null ? `(kod ${err.code})` : '',
+  ].filter(Boolean);
+  return parts.join(' ');
 }
