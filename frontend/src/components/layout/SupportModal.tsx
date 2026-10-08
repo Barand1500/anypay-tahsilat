@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { TextArea } from '../ui/TextArea';
 import { TextInput } from '../ui/TextInput';
 import { api } from '../../lib/api';
+import { SupportHeadsetIcon } from './SupportHeadsetIcon';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
 type Step = 'details' | 'channel' | 'confirm' | 'done';
@@ -164,13 +165,8 @@ export function SupportModal({ onClose }: Props) {
             <span>ESC</span>
           </button>
           <div className="flex items-start gap-3 pr-16">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-rose-300/35 bg-rose-500/10 p-1.5">
-              <img
-                src="/brand/support-headset.jpg"
-                alt=""
-                className="h-full w-full object-contain mix-blend-multiply dark:brightness-110 dark:mix-blend-lighten"
-                draggable={false}
-              />
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-rose-300/35 bg-rose-500/10 text-rose-500 dark:text-rose-400">
+              <SupportHeadsetIcon className="h-6 w-6" />
             </span>
             <div>
               <h2
