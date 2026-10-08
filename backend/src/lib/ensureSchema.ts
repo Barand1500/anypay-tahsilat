@@ -221,6 +221,48 @@ export async function ensureWhatsappAyarlarColumn(): Promise<void> {
   }
 }
 
+/** ayarlar.odeme_hatirlatma — otomatik hatırlatma JSON */
+export async function ensureOdemeHatirlatmaColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'odeme_hatirlatma'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `odeme_hatirlatma` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.odeme_hatirlatma eklendi');
+  } catch (err) {
+    console.warn('[schema] odeme_hatirlatma atlandı:', err);
+  }
+}
+
+/** odeme_istekleri.hatirlatma_durum */
+export async function ensurePayRequestReminderColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'odeme_istekleri'
+        AND COLUMN_NAME = 'hatirlatma_durum'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `odeme_istekleri` ADD COLUMN `hatirlatma_durum` LONGTEXT NULL',
+    );
+    console.log('[schema] odeme_istekleri.hatirlatma_durum eklendi');
+  } catch (err) {
+    console.warn('[schema] hatirlatma_durum atlandı:', err);
+  }
+}
+
 /** Modüller › WhatsApp Ayarları — izinler kaydı yoksa ekle */
 export async function ensureWhatsappModule(): Promise<void> {
   try {
@@ -298,6 +340,8 @@ export async function ensureSchema(): Promise<void> {
   await ensureSmtpAyarlarColumn();
   await ensureWhatsappAyarlarColumn();
   await ensureWhatsappModule();
+  await ensureOdemeHatirlatmaColumn();
+  await ensurePayRequestReminderColumn();
   await ensureQuickAccessSettingsColumn();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();

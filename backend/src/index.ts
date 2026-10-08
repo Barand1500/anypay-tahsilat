@@ -108,4 +108,7 @@ void ensureSchema()
     app.listen(port, () => {
       console.log(`API dinleniyor: http://127.0.0.1:${port}`);
     });
+    void import('./services/paymentReminderService.js')
+      .then(({ startPaymentReminderScheduler }) => startPaymentReminderScheduler())
+      .catch((err) => console.warn('[reminder] scheduler start failed', err));
   });

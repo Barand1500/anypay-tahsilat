@@ -24,6 +24,7 @@ import {
   type PaymentRequest,
   type PayRequestType,
 } from './paymentRequestTypes';
+import { ReminderSettingsModal } from './ReminderSettingsModal';
 
 const PAGE_MIN = 5;
 const PAGE_MAX = 50;
@@ -101,6 +102,7 @@ export default function PaymentRequestsPage() {
   const [filtersOpen, setFiltersOpen] = useState(() => getDefaultFiltersOpen('odeme-istekleri'));
   const [deleteTarget, setDeleteTarget] = useState<PaymentRequest | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -689,6 +691,16 @@ export default function PaymentRequestsPage() {
                 className="w-44 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2 pl-9 pr-3 text-sm text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)] sm:w-52"
               />
             </div>
+            <button
+              type="button"
+              data-km-jump
+              title="Otomatik hatırlatma"
+              onClick={() => setReminderOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-2.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)] hover:text-[var(--color-brand-600)]"
+            >
+              <BellIcon />
+              Hatırlatma
+            </button>
             <ExportDropdown onCsv={exportCsv} onCopy={copyList} />
             <button
               type="button"
@@ -894,6 +906,8 @@ export default function PaymentRequestsPage() {
         />
       ) : null}
 
+      {reminderOpen ? <ReminderSettingsModal onClose={() => setReminderOpen(false)} /> : null}
+
       {toast ? (
         <div className="fixed bottom-6 left-1/2 z-[10050] -translate-x-1/2 rounded-xl bg-[var(--panel-ink)] px-4 py-2.5 text-sm font-medium text-[var(--panel-elevated)] shadow-lg">
           {toast}
@@ -1069,6 +1083,20 @@ function PagerBtn({
     >
       {children}
     </button>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 9.5a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13.5 6 9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M10 18.5a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
   );
 }
 

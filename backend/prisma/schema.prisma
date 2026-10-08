@@ -431,6 +431,8 @@ model OdemeIstegi {
   subeDepartmanId Int?      @map("sube_departman_id")
   remove          Boolean?
   qr              String?   @db.VarChar(255)
+  /** Otomatik hatırlatma gün işaretleri — JSON { "1": "iso", "3": "iso" } */
+  hatirlatmaDurum String?   @map("hatirlatma_durum") @db.LongText
 
   @@map("odeme_istekleri")
 }
@@ -459,6 +461,8 @@ model Ayarlar {
   smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
   /** Meta WhatsApp Cloud API — JSON */
   whatsappAyarlar        String?   @map("whatsapp_ayarlar") @db.LongText
+  /** Ödeme isteği otomatik hatırlatma — JSON */
+  odemeHatirlatma        String?   @map("odeme_hatirlatma") @db.LongText
   /** Header hızlı erişim görünürlüğü ve yuva sayısı — JSON */
   hizliErisimAyarlari     String?   @map("hizli_erisim_ayarlari") @db.LongText
 

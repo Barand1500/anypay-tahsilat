@@ -19,6 +19,12 @@ import {
   PayRequestFilesError,
   savePayRequestUploads,
 } from '../services/payRequestFilesService.js';
+import {
+  getReminderSettings,
+  processPaymentReminders,
+  updateReminderSettings,
+} from '../services/paymentReminderService.js';
+import { SettingsError } from '../services/settingsService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -65,6 +71,53 @@ paymentRequestsRouter.get('/', async (_req, res) => {
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'Ödeme istekleri yüklenemedi');
+  }
+});
+
+const reminderSchema = z.object({
+  active: z.boolean(),
+  days: z.array(z.number().int().min(1).max(90)).min(1).max(8),
+  email: z.boolean(),
+  sms: z.boolean(),
+  whatsapp: z.boolean(),
+});
+
+paymentRequestsRouter.get('/reminders/settings', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getReminderSettings());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Hatırlatma ayarları yüklenemedi');
+  }
+});
+
+paymentRequestsRouter.patch('/reminders/settings', async (req: AuthedRequest, res) => {
+  const parsed = reminderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateReminderSettings(parsed.data);
+    await writePanelLog(req.auth!.sub, 'Ödeme isteği hatırlatma ayarları güncellendi.');
+    return sendSuccess(res, data, 'Hatırlatma ayarları kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Hatırlatma ayarları kaydedilemedi');
+  }
+});
+
+paymentRequestsRouter.post('/reminders/run', async (req: AuthedRequest, res) => {
+  try {
+    const data = await processPaymentReminders();
+    await writePanelLog(
+      req.auth!.sub,
+      `Ödeme hatırlatma tarandı — gönderilen ${data.sent}, kontrol ${data.checked}`,
+    );
+    return sendSuccess(res, data, 'Hatırlatma tarandı');
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Hatırlatma çalıştırılamadı');
   }
 });
 
