@@ -4,6 +4,10 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import {
+  formatScheduleDisplay,
+  ScheduleDateTimeModal,
+} from '../../components/ui/ScheduleDateTimeModal';
 import { TextArea } from '../../components/ui/TextArea';
 import { api } from '../../lib/api';
 import { useCustomersList } from '../customers/useCustomersList';
@@ -84,6 +88,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const customerOptions = useMemo(
     () =>
@@ -128,11 +133,13 @@ export function ReminderSettingsModal({ onClose }: Props) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (scheduleOpen) return;
+      onClose();
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  }, [onClose, scheduleOpen]);
 
   const active = activeId === 'new' ? null : list.find((r) => r.id === activeId) ?? null;
 
@@ -242,16 +249,17 @@ export function ReminderSettingsModal({ onClose }: Props) {
   }, [whenLocal, nowMs]);
 
   return createPortal(
+    <>
     <div className="fixed inset-0 z-[11000] flex items-center justify-center overflow-y-auto p-4">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden />
       <div
         ref={wrapRef}
-        className="relative z-10 flex w-full max-w-3xl flex-col items-stretch gap-3 sm:max-w-none sm:w-auto sm:flex-row sm:items-stretch"
+        className="relative z-10 flex w-full max-w-5xl flex-col items-stretch gap-4 sm:max-w-none sm:w-auto sm:flex-row sm:items-stretch"
       >
         {/* Ana form */}
         <form
           onSubmit={(e) => void save(e)}
-          className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl sm:w-[28rem] [--input-notch:var(--panel-elevated)]"
+          className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl sm:w-[38rem] [--input-notch:var(--panel-elevated)]"
         >
           <header className="relative shrink-0 border-b border-[var(--panel-line)] bg-gradient-to-br from-[var(--color-brand-500)]/14 via-transparent to-transparent px-5 pb-4 pt-5">
             <button
@@ -300,22 +308,45 @@ export function ReminderSettingsModal({ onClose }: Props) {
                   </button>
                 ))}
               </div>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[var(--panel-muted)]">
-                  Tarih / saat
+              <button
+                type="button"
+                data-km-jump
+                onClick={() => setScheduleOpen(true)}
+                className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-gradient-to-br from-[var(--color-brand-500)]/10 via-[var(--panel-surface)] to-[var(--panel-surface)] px-4 py-3.5 text-left transition hover:border-[var(--color-brand-500)] hover:shadow-md"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--color-brand-600)] text-white shadow-sm">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <rect
+                      x="3"
+                      y="5"
+                      width="18"
+                      height="16"
+                      rx="2.5"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                    />
+                    <path
+                      d="M3 10h18M8 3v4M16 3v4"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="12" cy="15.5" r="1.25" fill="currentColor" />
+                  </svg>
                 </span>
-                <input
-                  type="datetime-local"
-                  data-km-jump
-                  value={whenLocal}
-                  onChange={(e) => {
-                    setWhenLocal(e.target.value);
-                    setOkMsg(null);
-                  }}
-                  className="h-[3.25rem] w-full rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 text-sm text-[var(--panel-ink)] outline-none focus:border-[var(--input-border-focus)]"
-                />
-              </label>
-              <p className="mt-2 rounded-xl bg-[var(--panel-surface)] px-3 py-2 text-center text-sm font-bold tabular-nums text-[var(--color-brand-600)]">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+                    Tarih / saat
+                  </span>
+                  <span className="mt-0.5 block truncate text-base font-bold tabular-nums text-[var(--panel-ink)]">
+                    {formatScheduleDisplay(whenLocal)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-full bg-[var(--panel-elevated)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-600)] ring-1 ring-[var(--panel-line)] transition group-hover:ring-[var(--color-brand-500)]">
+                  Değiştir
+                </span>
+              </button>
+              <p className="mt-2 rounded-xl bg-[var(--panel-surface)] px-3 py-2.5 text-center text-sm font-bold tabular-nums text-[var(--color-brand-600)]">
                 Geri sayım: {formatCountdown(previewRemaining)}
               </p>
             </div>
@@ -403,7 +434,7 @@ export function ReminderSettingsModal({ onClose }: Props) {
         </form>
 
         {/* Sağ liste */}
-        <aside className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl sm:w-72">
+        <aside className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl sm:w-80">
           <div className="flex items-center justify-between border-b border-[var(--panel-line)] px-4 py-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
@@ -467,7 +498,18 @@ export function ReminderSettingsModal({ onClose }: Props) {
           </div>
         </aside>
       </div>
-    </div>,
+    </div>
+    <ScheduleDateTimeModal
+      open={scheduleOpen}
+      valueIso={fromLocalInputValue(whenLocal) || new Date().toISOString()}
+      onClose={() => setScheduleOpen(false)}
+      onConfirm={(iso) => {
+        setWhenLocal(toLocalInputValue(iso));
+        setOkMsg(null);
+        setScheduleOpen(false);
+      }}
+    />
+    </>,
     document.body,
   );
 }
