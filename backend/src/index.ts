@@ -33,6 +33,7 @@ import { paymentsCallbackRouter } from './routes/paymentsCallback.js';
 import { paymentRequestsRouter } from './routes/paymentRequests.js';
 import { payPublicRouter } from './routes/payPublic.js';
 import { webhooksWhatsappRouter } from './routes/webhooksWhatsapp.js';
+import { supportRouter } from './routes/support.js';
 import { sendError } from './utils/response.js';
 import { UPLOADS_ROOT } from './services/settingsService.js';
 import { ensureSchema } from './lib/ensureSchema.js';
@@ -87,6 +88,7 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/payment-requests', paymentRequestsRouter);
 app.use('/api/pay', payPublicRouter);
 app.use('/api/webhooks/whatsapp', webhooksWhatsappRouter);
+app.use('/api/support', supportRouter);
 
 // SPA fallback (API dışı yollar)
 app.get(/^(?!\/api).*/, (_req, res) => {

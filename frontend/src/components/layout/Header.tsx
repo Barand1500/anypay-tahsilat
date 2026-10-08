@@ -5,6 +5,7 @@ import { ProfileMenu } from './ProfileMenu';
 import { QuickAccessSlots } from './QuickAccessSlots';
 import { useQuickAccess } from './QuickAccessContext';
 import { SearchTrigger } from './SearchTrigger';
+import { SupportBugButton } from './SupportBugButton';
 import { ThemeBurstToggle } from './ThemeBurstToggle';
 import { VaultDockChip } from './VaultWidget';
 
@@ -45,6 +46,7 @@ export function Header({ autoHide = false, onHeaderDoubleClick, onOpenSearch }: 
             Otomatik gizle
           </span>
         ) : null}
+        <SupportBugButton />
         <div data-dock-source="theme">
           <ThemeBurstToggle />
         </div>

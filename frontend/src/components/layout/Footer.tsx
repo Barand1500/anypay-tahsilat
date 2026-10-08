@@ -15,6 +15,7 @@ import { QuickAccessSlots } from './QuickAccessSlots';
 import { useQuickAccess } from './QuickAccessContext';
 import { RatesFooterStage } from './RatesFooterStage';
 import { SearchTrigger } from './SearchTrigger';
+import { SupportBugButton } from './SupportBugButton';
 import { ThemeBurstToggle } from './ThemeBurstToggle';
 import { VaultDockChip } from './VaultWidget';
 
@@ -138,7 +139,12 @@ export function Footer({ autoHide = false, onFooterDoubleClick, onOpenSearch }: 
         {id === 'quick' ? <QuickAccessSlots /> : null}
         {id === 'badges' ? <PaymentBadges compact /> : null}
         {id === 'legal' ? <LegalDocsMenu /> : null}
-        {id === 'theme' ? <ThemeBurstToggle /> : null}
+        {id === 'theme' ? (
+          <span className="inline-flex items-center gap-2">
+            <SupportBugButton />
+            <ThemeBurstToggle />
+          </span>
+        ) : null}
         {id === 'profile' ? <ProfileMenu /> : null}
       </DockChip>
     );
