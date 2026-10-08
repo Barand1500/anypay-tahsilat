@@ -168,7 +168,7 @@ export function SupportModal({ onClose }: Props) {
               <img
                 src="/brand/support-headset.jpg"
                 alt=""
-                className="h-full w-full object-contain"
+                className="h-full w-full object-contain mix-blend-multiply dark:brightness-110 dark:mix-blend-lighten"
                 draggable={false}
               />
             </span>

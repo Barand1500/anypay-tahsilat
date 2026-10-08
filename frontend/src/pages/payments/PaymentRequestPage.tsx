@@ -1,6 +1,6 @@
 import gsap from 'gsap';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { useActiveCurrencies } from '../../hooks/useActiveCurrencies';
@@ -33,10 +33,12 @@ function isPdfFile(f: AttachedFile) {
  */
 export default function PaymentRequestPage({ forPanel = false }: { forPanel?: boolean }) {
   const { id, reqId } = useParams();
+  const [searchParams] = useSearchParams();
   const { token } = useAuth();
   const erpActive = useErpActive();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
+  const reminderCustomerPrefill = searchParams.get('musteri');
   const payTypeRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -49,7 +51,14 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
     enabled: forPanel && !isEdit,
     parentId: 'all',
   });
-  const [panelCustomerId, setPanelCustomerId] = useState<string | null>(null);
+  const [panelCustomerId, setPanelCustomerId] = useState<string | null>(
+    () => (forPanel && !isEdit ? reminderCustomerPrefill : null),
+  );
+
+  useEffect(() => {
+    if (!forPanel || isEdit || !reminderCustomerPrefill) return;
+    setPanelCustomerId(reminderCustomerPrefill);
+  }, [forPanel, isEdit, reminderCustomerPrefill]);
   const panelCustomer = useMemo(
     () => (forPanel && !isEdit ? panelCustomers.find((c) => c.id === panelCustomerId) ?? null : null),
     [forPanel, isEdit, panelCustomers, panelCustomerId],

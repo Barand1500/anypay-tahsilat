@@ -221,45 +221,32 @@ export async function ensureWhatsappAyarlarColumn(): Promise<void> {
   }
 }
 
-/** ayarlar.odeme_hatirlatma — otomatik hatırlatma JSON */
-export async function ensureOdemeHatirlatmaColumn(): Promise<void> {
+/** odeme_hatirlatmalari — zamanlanmış personel hatırlatmaları */
+export async function ensureOdemeHatirlatmalariTable(): Promise<void> {
   try {
-    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
-      SELECT COLUMN_NAME
-      FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'ayarlar'
-        AND COLUMN_NAME = 'odeme_hatirlatma'
-      LIMIT 1
-    `;
-    if (rows[0]) return;
-    await prisma.$executeRawUnsafe(
-      'ALTER TABLE `ayarlar` ADD COLUMN `odeme_hatirlatma` LONGTEXT NULL',
-    );
-    console.log('[schema] ayarlar.odeme_hatirlatma eklendi');
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`odeme_hatirlatmalari\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`musteri_id\` INT NOT NULL,
+        \`kullanici_id\` INT NOT NULL,
+        \`planlanan_tarih\` DATETIME(3) NOT NULL,
+        \`aciklama\` LONGTEXT NULL,
+        \`email\` TINYINT(1) NOT NULL DEFAULT 1,
+        \`sms\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`whatsapp\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`durum\` VARCHAR(32) NOT NULL,
+        \`token\` VARCHAR(64) NOT NULL,
+        \`olusturma_tarihi\` DATETIME(3) NOT NULL,
+        \`gonderim_tarihi\` DATETIME(3) NULL,
+        \`remove\` TINYINT(1) NULL,
+        PRIMARY KEY (\`id\`),
+        UNIQUE INDEX \`odeme_hatirlatmalari_token_key\` (\`token\`),
+        INDEX \`odeme_hatirlatmalari_planlanan_tarih_idx\` (\`planlanan_tarih\`),
+        INDEX \`odeme_hatirlatmalari_kullanici_id_idx\` (\`kullanici_id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
   } catch (err) {
-    console.warn('[schema] odeme_hatirlatma atlandı:', err);
-  }
-}
-
-/** odeme_istekleri.hatirlatma_durum */
-export async function ensurePayRequestReminderColumn(): Promise<void> {
-  try {
-    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
-      SELECT COLUMN_NAME
-      FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'odeme_istekleri'
-        AND COLUMN_NAME = 'hatirlatma_durum'
-      LIMIT 1
-    `;
-    if (rows[0]) return;
-    await prisma.$executeRawUnsafe(
-      'ALTER TABLE `odeme_istekleri` ADD COLUMN `hatirlatma_durum` LONGTEXT NULL',
-    );
-    console.log('[schema] odeme_istekleri.hatirlatma_durum eklendi');
-  } catch (err) {
-    console.warn('[schema] hatirlatma_durum atlandı:', err);
+    console.warn('[schema] odeme_hatirlatmalari atlandı:', err);
   }
 }
 
@@ -340,8 +327,7 @@ export async function ensureSchema(): Promise<void> {
   await ensureSmtpAyarlarColumn();
   await ensureWhatsappAyarlarColumn();
   await ensureWhatsappModule();
-  await ensureOdemeHatirlatmaColumn();
-  await ensurePayRequestReminderColumn();
+  await ensureOdemeHatirlatmalariTable();
   await ensureQuickAccessSettingsColumn();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();

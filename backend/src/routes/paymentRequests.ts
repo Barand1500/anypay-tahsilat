@@ -20,9 +20,11 @@ import {
   savePayRequestUploads,
 } from '../services/payRequestFilesService.js';
 import {
-  getReminderSettings,
+  cancelReminder,
+  createReminder,
+  listReminders,
   processPaymentReminders,
-  updateReminderSettings,
+  updateReminder,
 } from '../services/paymentReminderService.js';
 import { SettingsError } from '../services/settingsService.js';
 import { writePanelLog } from '../services/logsService.js';
@@ -74,36 +76,87 @@ paymentRequestsRouter.get('/', async (_req, res) => {
   }
 });
 
-const reminderSchema = z.object({
-  active: z.boolean(),
-  days: z.array(z.number().int().min(1).max(90)).min(1).max(8),
+const reminderCreateSchema = z.object({
+  customerId: z.number().int().positive(),
+  scheduledAt: z.string().min(1),
+  description: z.string().max(2000).optional().default(''),
   email: z.boolean(),
   sms: z.boolean(),
   whatsapp: z.boolean(),
 });
 
-paymentRequestsRouter.get('/reminders/settings', async (_req, res) => {
+const reminderPatchSchema = z.object({
+  scheduledAt: z.string().min(1).optional(),
+  description: z.string().max(2000).optional(),
+  email: z.boolean().optional(),
+  sms: z.boolean().optional(),
+  whatsapp: z.boolean().optional(),
+});
+
+paymentRequestsRouter.get('/reminders', async (req: AuthedRequest, res) => {
   try {
-    return sendSuccess(res, await getReminderSettings());
+    return sendSuccess(res, await listReminders(req.auth!.sub));
   } catch (err) {
     console.error(err);
-    return sendError(res, 500, 'Hatırlatma ayarları yüklenemedi');
+    return sendError(res, 500, 'Hatırlatmalar yüklenemedi');
   }
 });
 
-paymentRequestsRouter.patch('/reminders/settings', async (req: AuthedRequest, res) => {
-  const parsed = reminderSchema.safeParse(req.body);
+paymentRequestsRouter.post('/reminders', async (req: AuthedRequest, res) => {
+  const parsed = reminderCreateSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   }
   try {
-    const data = await updateReminderSettings(parsed.data);
-    await writePanelLog(req.auth!.sub, 'Ödeme isteği hatırlatma ayarları güncellendi.');
-    return sendSuccess(res, data, 'Hatırlatma ayarları kaydedildi');
+    const data = await createReminder({
+      userId: req.auth!.sub,
+      customerId: parsed.data.customerId,
+      scheduledAt: parsed.data.scheduledAt,
+      description: parsed.data.description,
+      email: parsed.data.email,
+      sms: parsed.data.sms,
+      whatsapp: parsed.data.whatsapp,
+    });
+    await writePanelLog(
+      req.auth!.sub,
+      `Ödeme hatırlatması oluşturuldu — müşteri #${parsed.data.customerId}`,
+    );
+    return sendSuccess(res, data, 'Hatırlatma kaydedildi', 201);
   } catch (err) {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
-    return sendError(res, 500, 'Hatırlatma ayarları kaydedilemedi');
+    return sendError(res, 500, 'Hatırlatma kaydedilemedi');
+  }
+});
+
+paymentRequestsRouter.patch('/reminders/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz istek');
+  const parsed = reminderPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateReminder(id, req.auth!.sub, parsed.data);
+    return sendSuccess(res, data, 'Hatırlatma güncellendi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Hatırlatma güncellenemedi');
+  }
+});
+
+paymentRequestsRouter.delete('/reminders/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz istek');
+  try {
+    await cancelReminder(id, req.auth!.sub);
+    await writePanelLog(req.auth!.sub, `Ödeme hatırlatması iptal — #${id}`);
+    return sendSuccess(res, { ok: true }, 'Hatırlatma iptal edildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Hatırlatma silinemedi');
   }
 });
 

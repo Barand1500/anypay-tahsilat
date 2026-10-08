@@ -1,199 +1,337 @@
+import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
-import { getOrCreateAyarlarRow, SettingsError } from './settingsService.js';
+import { SettingsError } from './settingsService.js';
 
-export type ReminderSettings = {
-  active: boolean;
-  /** Oluşturulduktan kaç gün sonra hatırlat (örn. 1, 3, 7) */
-  days: number[];
+export type PublicReminder = {
+  id: number;
+  customerId: string;
+  customerTitle: string;
+  scheduledAt: string;
+  description: string;
   email: boolean;
   sms: boolean;
   whatsapp: boolean;
+  status: 'pending' | 'sent' | 'cancelled';
+  token: string;
+  /** Panel derin link — ödeme isteği oluştur */
+  deepLink: string;
+  remainingMs: number;
+  createdAt: string;
+  sentAt: string | null;
 };
 
 export type ReminderRunSummary = {
   checked: number;
   sent: number;
-  skipped: number;
   errors: number;
 };
 
-type SentMap = Record<string, string>;
-
-const DEFAULT: ReminderSettings = {
-  active: false,
-  days: [1, 3, 7],
-  email: true,
-  sms: true,
-  whatsapp: false,
-};
-
-function parseSettings(raw: string | null | undefined): ReminderSettings {
-  if (!raw?.trim()) return { ...DEFAULT, days: [...DEFAULT.days] };
-  try {
-    const p = JSON.parse(raw) as Partial<ReminderSettings>;
-    const days = Array.isArray(p.days)
-      ? [...new Set(p.days.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 1 && d <= 90))]
-          .sort((a, b) => a - b)
-          .slice(0, 8)
-      : [...DEFAULT.days];
-    return {
-      active: Boolean(p.active),
-      days: days.length ? days : [...DEFAULT.days],
-      email: p.email !== false,
-      sms: Boolean(p.sms),
-      whatsapp: Boolean(p.whatsapp),
-    };
-  } catch {
-    return { ...DEFAULT, days: [...DEFAULT.days] };
-  }
+function appBase(): string {
+  return (
+    process.env.PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://tahsilat.anypay.com.tr'
+  );
 }
 
-function parseSent(raw: string | null | undefined): SentMap {
-  if (!raw?.trim()) return {};
-  try {
-    const p = JSON.parse(raw) as SentMap;
-    return p && typeof p === 'object' ? p : {};
-  } catch {
-    return {};
-  }
+function deepLinkOf(customerId: number, token: string): string {
+  return `${appBase()}/odeme-istekleri/yeni?musteri=${customerId}&hatirlatma=${encodeURIComponent(token)}`;
 }
 
-function ageDays(from: Date, now: Date): number {
-  const ms = now.getTime() - from.getTime();
-  return Math.floor(ms / 86_400_000);
+function makeToken(): string {
+  return randomBytes(16).toString('hex');
 }
 
-export async function getReminderSettings(): Promise<ReminderSettings> {
-  const row = await getOrCreateAyarlarRow();
-  return parseSettings(row.odemeHatirlatma);
-}
-
-export async function updateReminderSettings(input: ReminderSettings): Promise<ReminderSettings> {
-  const days = [...new Set(input.days.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 1 && d <= 90))]
-    .sort((a, b) => a - b)
-    .slice(0, 8);
-  if (!days.length) throw new SettingsError('En az bir gün seçin (1–90)');
-  if (!input.email && !input.sms && !input.whatsapp) {
-    throw new SettingsError('En az bir kanal seçin');
-  }
-  const next: ReminderSettings = {
-    active: Boolean(input.active),
-    days,
-    email: Boolean(input.email),
-    sms: Boolean(input.sms),
-    whatsapp: Boolean(input.whatsapp),
+function toPublic(
+  row: {
+    id: number;
+    musteriId: number;
+    planlananTarih: Date;
+    aciklama: string | null;
+    email: boolean;
+    sms: boolean;
+    whatsapp: boolean;
+    durum: string;
+    token: string;
+    olusturmaTarihi: Date;
+    gonderimTarihi: Date | null;
+  },
+  customerTitle: string,
+  now = Date.now(),
+): PublicReminder {
+  const status =
+    row.durum === 'sent' || row.durum === 'cancelled' ? row.durum : 'pending';
+  return {
+    id: row.id,
+    customerId: String(row.musteriId),
+    customerTitle,
+    scheduledAt: row.planlananTarih.toISOString(),
+    description: (row.aciklama || '').trim(),
+    email: Boolean(row.email),
+    sms: Boolean(row.sms),
+    whatsapp: Boolean(row.whatsapp),
+    status,
+    token: row.token,
+    deepLink: deepLinkOf(row.musteriId, row.token),
+    remainingMs: Math.max(0, row.planlananTarih.getTime() - now),
+    createdAt: row.olusturmaTarihi.toISOString(),
+    sentAt: row.gonderimTarihi ? row.gonderimTarihi.toISOString() : null,
   };
-  const row = await getOrCreateAyarlarRow();
-  await prisma.ayarlar.update({
-    where: { id: row.id },
-    data: { odemeHatirlatma: JSON.stringify(next) },
-  });
-  return next;
 }
 
-/** Bekleyen isteklere gün bazlı otomatik hatırlatma */
-export async function processPaymentReminders(): Promise<ReminderRunSummary> {
-  const settings = await getReminderSettings();
-  const summary: ReminderRunSummary = { checked: 0, sent: 0, skipped: 0, errors: 0 };
-  if (!settings.active || !settings.days.length) return summary;
-
-  const now = new Date();
-  const rows = await prisma.odemeIstegi.findMany({
+export async function listReminders(userId?: number): Promise<PublicReminder[]> {
+  const rows = await prisma.odemeHatirlatma.findMany({
     where: {
-      durum: false,
+      OR: [{ remove: null }, { remove: false }],
+      ...(userId != null ? { kullaniciId: userId } : {}),
+      durum: { in: ['pending', 'sent'] },
+    },
+    orderBy: [{ planlananTarih: 'asc' }, { id: 'desc' }],
+    take: 200,
+  });
+  const ids = [...new Set(rows.map((r) => r.musteriId))];
+  const customers = ids.length
+    ? await prisma.musteri.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, unvan: true },
+      })
+    : [];
+  const titles = new Map(customers.map((c) => [c.id, (c.unvan || '').trim() || `Müşteri #${c.id}`]));
+  const now = Date.now();
+  return rows.map((r) => toPublic(r, titles.get(r.musteriId) || `Müşteri #${r.musteriId}`, now));
+}
+
+export async function createReminder(input: {
+  userId: number;
+  customerId: number;
+  scheduledAt: string;
+  description?: string;
+  email: boolean;
+  sms: boolean;
+  whatsapp: boolean;
+}): Promise<PublicReminder> {
+  if (!input.email && !input.sms && !input.whatsapp) {
+    throw new SettingsError('En az bir bildirim kanalı seçin');
+  }
+  const when = new Date(input.scheduledAt);
+  if (Number.isNaN(+when)) throw new SettingsError('Geçerli bir zaman seçin');
+  if (when.getTime() < Date.now() - 30_000) {
+    throw new SettingsError('Zaman geçmiş olamaz');
+  }
+  const musteri = await prisma.musteri.findFirst({
+    where: { id: input.customerId, OR: [{ remove: null }, { remove: false }] },
+    select: { id: true, unvan: true },
+  });
+  if (!musteri) throw new SettingsError('Müşteri bulunamadı');
+
+  const token = makeToken();
+  const row = await prisma.odemeHatirlatma.create({
+    data: {
+      musteriId: musteri.id,
+      kullaniciId: input.userId,
+      planlananTarih: when,
+      aciklama: (input.description || '').trim().slice(0, 2000) || null,
+      email: Boolean(input.email),
+      sms: Boolean(input.sms),
+      whatsapp: Boolean(input.whatsapp),
+      durum: 'pending',
+      token,
+      olusturmaTarihi: new Date(),
+      remove: null,
+    },
+  });
+  return toPublic(row, (musteri.unvan || '').trim() || `Müşteri #${musteri.id}`);
+}
+
+export async function updateReminder(
+  id: number,
+  userId: number,
+  input: {
+    scheduledAt?: string;
+    description?: string;
+    email?: boolean;
+    sms?: boolean;
+    whatsapp?: boolean;
+  },
+): Promise<PublicReminder> {
+  const existing = await prisma.odemeHatirlatma.findFirst({
+    where: {
+      id,
+      kullaniciId: userId,
       OR: [{ remove: null }, { remove: false }],
     },
-    select: {
-      id: true,
-      tarih: true,
-      istekNo: true,
-      tutar: true,
-      hatirlatmaDurum: true,
-      musteriId: true,
-    },
-    take: 400,
-    orderBy: { tarih: 'asc' },
   });
+  if (!existing) throw new SettingsError('Hatırlatma bulunamadı');
+  if (existing.durum !== 'pending') throw new SettingsError('Yalnızca bekleyen hatırlatma düzenlenir');
 
-  const { emailPaymentRequest, smsPaymentRequest, whatsappPaymentRequest } =
-    await import('./paymentRequestsService.js');
+  const data: Record<string, unknown> = {};
+  if (input.scheduledAt != null) {
+    const when = new Date(input.scheduledAt);
+    if (Number.isNaN(+when)) throw new SettingsError('Geçerli bir zaman seçin');
+    if (when.getTime() < Date.now() - 30_000) throw new SettingsError('Zaman geçmiş olamaz');
+    data.planlananTarih = when;
+  }
+  if (input.description !== undefined) {
+    data.aciklama = input.description.trim().slice(0, 2000) || null;
+  }
+  if (input.email !== undefined) data.email = Boolean(input.email);
+  if (input.sms !== undefined) data.sms = Boolean(input.sms);
+  if (input.whatsapp !== undefined) data.whatsapp = Boolean(input.whatsapp);
 
-  for (const row of rows) {
-    summary.checked += 1;
-    const age = ageDays(row.tarih, now);
-    const sent = parseSent(row.hatirlatmaDurum);
-    const due = settings.days.filter((d) => age >= d && !sent[String(d)]);
-    if (!due.length) {
-      summary.skipped += 1;
-      continue;
-    }
+  const email = (data.email as boolean | undefined) ?? existing.email;
+  const sms = (data.sms as boolean | undefined) ?? existing.sms;
+  const whatsapp = (data.whatsapp as boolean | undefined) ?? existing.whatsapp;
+  if (!email && !sms && !whatsapp) throw new SettingsError('En az bir bildirim kanalı seçin');
 
-    // En küçük gecikmiş günü bir kez işle (spam olmasın)
-    const day = Math.min(...due);
-    let anyOk = false;
+  const row = await prisma.odemeHatirlatma.update({ where: { id }, data });
+  const m = await prisma.musteri.findUnique({
+    where: { id: row.musteriId },
+    select: { unvan: true },
+  });
+  return toPublic(row, (m?.unvan || '').trim() || `Müşteri #${row.musteriId}`);
+}
 
-    if (settings.email) {
-      try {
-        const r = await emailPaymentRequest(row.id);
-        if (r.emailSent) anyOk = true;
-      } catch (err) {
-        console.warn('[reminder-email]', row.id, err);
-        summary.errors += 1;
-      }
-    }
-    if (settings.sms) {
-      try {
-        const r = await smsPaymentRequest(row.id);
-        if (r.smsSent) anyOk = true;
-      } catch (err) {
-        console.warn('[reminder-sms]', row.id, err);
-        summary.errors += 1;
-      }
-    }
-    if (settings.whatsapp) {
-      try {
-        const r = await whatsappPaymentRequest(row.id);
-        if (r.method === 'api' && r.whatsappSent) anyOk = true;
-        // wa.me istemci — otomatik job’da kullanılamaz
-      } catch (err) {
-        console.warn('[reminder-whatsapp]', row.id, err);
-        summary.errors += 1;
-      }
-    }
+export async function cancelReminder(id: number, userId: number): Promise<void> {
+  const existing = await prisma.odemeHatirlatma.findFirst({
+    where: {
+      id,
+      kullaniciId: userId,
+      OR: [{ remove: null }, { remove: false }],
+    },
+  });
+  if (!existing) throw new SettingsError('Hatırlatma bulunamadı');
+  await prisma.odemeHatirlatma.update({
+    where: { id },
+    data: { durum: 'cancelled', remove: true },
+  });
+}
 
-    // Gün işaretlenir (tekrar denemek için hata olsa da — sonsuz döngüyü kes)
-    sent[String(day)] = now.toISOString();
+async function notifyUser(opts: {
+  userId: number;
+  customerTitle: string;
+  description: string;
+  link: string;
+  email: boolean;
+  sms: boolean;
+  whatsapp: boolean;
+}): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: { email: true, telefon: true, adsoyad: true },
+  });
+  if (!user) return false;
+
+  const subject = `Hatırlatma: ${opts.customerTitle} — ödeme isteği`;
+  const text = [
+    `Merhaba${user.adsoyad ? ` ${user.adsoyad}` : ''},`,
+    '',
+    `"${opts.customerTitle}" müşterisi için ödeme isteği oluşturma zamanı geldi.`,
+    opts.description ? `Not: ${opts.description}` : '',
+    '',
+    `Ödeme isteği oluştur: ${opts.link}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  let ok = false;
+
+  if (opts.email && user.email) {
     try {
-      await prisma.odemeIstegi.update({
-        where: { id: row.id },
-        data: { hatirlatmaDurum: JSON.stringify(sent) },
+      const { sendMail } = await import('../lib/mail.js');
+      await sendMail({
+        to: user.email,
+        subject,
+        text,
+        html: `<p>${text.replace(/\n/g, '<br/>')}</p>`,
       });
+      ok = true;
     } catch (err) {
-      console.warn('[reminder-mark]', row.id, err);
+      console.warn('[reminder-notify-email]', err);
     }
-
-    if (anyOk) summary.sent += 1;
-    else summary.skipped += 1;
   }
 
+  const phone = (user.telefon || '').replace(/\D/g, '');
+  if (opts.sms && phone.length >= 10) {
+    try {
+      const { dispatchSms } = await import('./smsSettingsService.js');
+      await dispatchSms(phone, text.slice(0, 900));
+      ok = true;
+    } catch (err) {
+      console.warn('[reminder-notify-sms]', err);
+    }
+  }
+
+  if (opts.whatsapp && phone.length >= 10) {
+    try {
+      const { sendWhatsappText, isWhatsappIntegrationActive } =
+        await import('./whatsappSettingsService.js');
+      if (await isWhatsappIntegrationActive()) {
+        await sendWhatsappText(phone, text.slice(0, 4096));
+        ok = true;
+      }
+    } catch (err) {
+      console.warn('[reminder-notify-whatsapp]', err);
+    }
+  }
+
+  return ok;
+}
+
+/** Zamanı gelen bekleyen hatırlatmaları gönder */
+export async function processPaymentReminders(): Promise<ReminderRunSummary> {
+  const summary: ReminderRunSummary = { checked: 0, sent: 0, errors: 0 };
+  const now = new Date();
+  const due = await prisma.odemeHatirlatma.findMany({
+    where: {
+      durum: 'pending',
+      planlananTarih: { lte: now },
+      OR: [{ remove: null }, { remove: false }],
+    },
+    take: 100,
+    orderBy: { planlananTarih: 'asc' },
+  });
+
+  for (const row of due) {
+    summary.checked += 1;
+    const m = await prisma.musteri.findUnique({
+      where: { id: row.musteriId },
+      select: { unvan: true },
+    });
+    const title = (m?.unvan || '').trim() || `Müşteri #${row.musteriId}`;
+    const link = deepLinkOf(row.musteriId, row.token);
+    try {
+      const ok = await notifyUser({
+        userId: row.kullaniciId,
+        customerTitle: title,
+        description: (row.aciklama || '').trim(),
+        link,
+        email: row.email,
+        sms: row.sms,
+        whatsapp: row.whatsapp,
+      });
+      await prisma.odemeHatirlatma.update({
+        where: { id: row.id },
+        data: { durum: 'sent', gonderimTarihi: new Date() },
+      });
+      if (ok) summary.sent += 1;
+      else summary.errors += 1;
+    } catch (err) {
+      console.warn('[reminder]', row.id, err);
+      summary.errors += 1;
+    }
+  }
   return summary;
 }
 
 let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
-/** Uygulama açılışında saatlik tarama */
 export function startPaymentReminderScheduler(): void {
   if (reminderTimer) return;
   const tick = () => {
     void processPaymentReminders()
       .then((s) => {
-        if (s.sent > 0 || s.errors > 0) {
-          console.log('[reminder]', s);
-        }
+        if (s.sent > 0 || s.errors > 0) console.log('[reminder]', s);
       })
       .catch((err) => console.warn('[reminder] tick failed', err));
   };
-  // İlk tarama 45 sn sonra, sonra her saat
-  setTimeout(tick, 45_000);
-  reminderTimer = setInterval(tick, 60 * 60 * 1000);
+  setTimeout(tick, 20_000);
+  reminderTimer = setInterval(tick, 60_000); // dakikada bir
 }

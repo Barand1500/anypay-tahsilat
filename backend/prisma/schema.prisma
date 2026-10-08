@@ -431,8 +431,6 @@ model OdemeIstegi {
   subeDepartmanId Int?      @map("sube_departman_id")
   remove          Boolean?
   qr              String?   @db.VarChar(255)
-  /** Otomatik hatırlatma gün işaretleri — JSON { "1": "iso", "3": "iso" } */
-  hatirlatmaDurum String?   @map("hatirlatma_durum") @db.LongText
 
   @@map("odeme_istekleri")
 }
@@ -461,12 +459,32 @@ model Ayarlar {
   smtpAyarlar            String?   @map("smtp_ayarlar") @db.LongText
   /** Meta WhatsApp Cloud API — JSON */
   whatsappAyarlar        String?   @map("whatsapp_ayarlar") @db.LongText
-  /** Ödeme isteği otomatik hatırlatma — JSON */
-  odemeHatirlatma        String?   @map("odeme_hatirlatma") @db.LongText
   /** Header hızlı erişim görünürlüğü ve yuva sayısı — JSON */
   hizliErisimAyarlari     String?   @map("hizli_erisim_ayarlari") @db.LongText
 
   @@map("ayarlar")
+}
+
+/** Zamanlanmış ödeme isteği hatırlatmaları (personel bildirimi) */
+model OdemeHatirlatma {
+  id              Int       @id @default(autoincrement())
+  musteriId       Int       @map("musteri_id")
+  kullaniciId     Int       @map("kullanici_id")
+  planlananTarih  DateTime  @map("planlanan_tarih")
+  aciklama        String?   @db.LongText
+  email           Boolean   @default(true)
+  sms             Boolean   @default(false)
+  whatsapp        Boolean   @default(false)
+  /** pending | sent | cancelled */
+  durum           String    @db.VarChar(32)
+  token           String    @unique @db.VarChar(64)
+  olusturmaTarihi DateTime  @map("olusturma_tarihi")
+  gonderimTarihi  DateTime? @map("gonderim_tarihi")
+  remove          Boolean?
+
+  @@index([planlananTarih])
+  @@index([kullaniciId])
+  @@map("odeme_hatirlatmalari")
 }
 
 /** Şablon değişken tanımları — e-posta/SMS şablonlarının üst kaydı */
