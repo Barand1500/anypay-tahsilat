@@ -370,8 +370,24 @@ export async function softDeleteBin(id: number): Promise<void> {
   await prisma.$executeRawUnsafe(`DELETE FROM \`bin_kayitlari\` WHERE \`id\` = ?`, id);
 }
 
-/** Ödeme ekranı — sadece bin + banka (auth gerekmez) */
-export async function listBinCatalog(): Promise<{ bin: string; bankId: string; bank: string }[]> {
+/** BIN Tür → taksit segmenti (Bireysel Kart / Ticari Kart) */
+export function segmentFromBinKind(kind: string | null | undefined): 'bireysel' | 'ticari' | null {
+  const k = (kind || '')
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .trim();
+  if (!k) return null;
+  if (k.includes('ticari') || k.includes('commercial') || k.includes('business')) return 'ticari';
+  if (k.includes('bireysel') || k.includes('personal') || k.includes('consumer')) return 'bireysel';
+  return null;
+}
+
+/** Ödeme ekranı — bin + banka + tür (auth gerekmez) */
+export async function listBinCatalog(): Promise<
+  { bin: string; bankId: string; bank: string; kind: string }[]
+> {
   await ensureBinKayitlariTable();
   const rows = await listBins();
   return rows
@@ -380,14 +396,17 @@ export async function listBinCatalog(): Promise<{ bin: string; bankId: string; b
       bin: r.bin,
       bankId: r.bankId,
       bank: r.bank,
+      kind: r.kind || '',
     }));
 }
 
-/** Kart numarası → en uzun eşleşen BIN + banka */
+/** Kart numarası → en uzun eşleşen BIN + banka + tür */
 export async function lookupBinByCard(cardDigits: string): Promise<{
   bin: string;
   bankId: number | null;
   bankName: string;
+  kind: string;
+  segment: 'bireysel' | 'ticari' | null;
 } | null> {
   const d = cardDigits.replace(/\D/g, '');
   if (d.length < 4) return null;
@@ -404,6 +423,8 @@ export async function lookupBinByCard(cardDigits: string): Promise<{
     bin: best.bin,
     bankId: best.bankId ? Number(best.bankId) : null,
     bankName: best.bank,
+    kind: best.kind || '',
+    segment: segmentFromBinKind(best.kind),
   };
 }
 

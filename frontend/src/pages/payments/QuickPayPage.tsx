@@ -20,6 +20,7 @@ import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import {
   detectBank,
+  detectCardSegment,
   digitsOnly,
   formatCardNumber,
   formatExpiryInput,
@@ -114,11 +115,15 @@ export default function QuickPayPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const cardSegment = useMemo(
+    () => detectCardSegment(cardDigits),
+    [cardDigits, binsRev],
+  );
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
     amount,
     bankName: bank?.fullName || bank?.name,
     bankId: bank?.id,
-    segment: payType === 'sabit' ? 'serbest' : 'bireysel',
+    segment: payType === 'sabit' ? 'serbest' : cardSegment || 'bireysel',
     scope: 'pos',
   });
   const availableBankRows = useMemo(

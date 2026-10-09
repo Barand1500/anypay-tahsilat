@@ -187,7 +187,8 @@ export function findBankLogo(query: { id?: string; name?: string; logo?: string 
   return hit?.logo ?? null;
 }
 
-import { matchRuntimeBin } from '../../lib/binStore';
+import { matchRuntimeBin, segmentFromBinKind } from '../../lib/binStore';
+export { segmentFromBinKind };
 
 function normalizeBankText(s: string): string {
   return s
@@ -276,6 +277,12 @@ export function detectBank(cardDigits: string): BankInfo | null {
   }
 
   return null;
+}
+
+/** Kart BIN Tür → bireysel | ticari (yoksa null) */
+export function detectCardSegment(cardDigits: string): CardSegment | null {
+  const runtime = matchRuntimeBin(digitsOnly(cardDigits));
+  return segmentFromBinKind(runtime?.kind ?? '') ?? null;
 }
 
 /** Karşılaştırma modalı için birkaç banka */

@@ -6,6 +6,7 @@ type CatalogRow = {
   bin: string;
   bankId: string;
   bank: string;
+  kind?: string;
 };
 
 /** DB banka adı → logo kataloğu slug (T. VAKIFLAR… → vakifbank) */
@@ -65,6 +66,7 @@ function mapCatalog(rows: CatalogRow[]): RuntimeBin[] {
       bin: r.bin,
       bankId: fromName || r.bankId,
       bankName: r.bank,
+      kind: r.kind || '',
     };
   });
 }

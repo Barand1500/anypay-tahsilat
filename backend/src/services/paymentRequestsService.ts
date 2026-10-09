@@ -387,12 +387,14 @@ export async function getPaymentRequestInstallmentRates(
   }
 
   const agreementCode = await getCustomerAgreementCode(row.musteriId);
-  // Ödeme Al / Hızlı Ödeme ile aynı: sabit→serbest, diğerleri (serbest dahil)→bireysel
+  // Sabit tutar → serbest paket; diğerleri → BIN Tür (ticari/bireysel), yoksa bireysel
+  const segment =
+    tip === 'sabit' ? 'serbest' : cardBank?.segment ?? 'bireysel';
   const rates = await resolveAgreementRates({
     agreementCode,
     bankId,
     bankName,
-    segment: tip === 'sabit' ? 'serbest' : 'bireysel',
+    segment,
     amount,
   });
 

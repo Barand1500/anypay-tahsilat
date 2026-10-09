@@ -1,9 +1,11 @@
-/** Api Ayarları BIN listesi — ödeme ekranında kart → banka (runtime) */
+/** Api Ayarları BIN listesi — ödeme ekranında kart → banka + tür (runtime) */
 
 export type RuntimeBin = {
   bin: string;
   bankId: string;
   bankName: string;
+  /** BIN Tür: Bireysel Kart / Ticari Kart */
+  kind: string;
 };
 
 let store: RuntimeBin[] = [];
@@ -21,6 +23,7 @@ export function setRuntimeBins(rows: RuntimeBin[]) {
       bin: r.bin.replace(/\D/g, ''),
       bankId: r.bankId,
       bankName: r.bankName,
+      kind: (r.kind || '').trim(),
     }))
     .filter((r) => r.bin.length >= 4)
     .sort((a, b) => b.bin.length - a.bin.length);
@@ -48,5 +51,19 @@ export function matchRuntimeBin(cardDigits: string): RuntimeBin | null {
   for (const row of store) {
     if (d.startsWith(row.bin)) return row;
   }
+  return null;
+}
+
+/** BIN Tür → taksit segmenti */
+export function segmentFromBinKind(kind: string | null | undefined): 'bireysel' | 'ticari' | null {
+  const k = (kind || '')
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .trim();
+  if (!k) return null;
+  if (k.includes('ticari') || k.includes('commercial') || k.includes('business')) return 'ticari';
+  if (k.includes('bireysel') || k.includes('personal') || k.includes('consumer')) return 'bireysel';
   return null;
 }

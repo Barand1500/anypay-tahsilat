@@ -19,6 +19,7 @@ import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import {
   detectBank,
+  detectCardSegment,
   digitsOnly,
   formatCardNumber,
   formatExpiryInput,
@@ -137,6 +138,10 @@ export default function PaymentCollectPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
   const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const cardSegment = useMemo(
+    () => detectCardSegment(cardDigits),
+    [cardDigits, binsRev],
+  );
 
   const { rows: agreementRows } = useAgreementRates({
     amount: amount || 0,
@@ -144,7 +149,8 @@ export default function PaymentCollectPage() {
     bankId: bank?.id || null,
     musteriId: customer?.id ? Number(customer.id) : null,
     agreementCode: customer?.cardAgreementCode ?? null,
-    segment: payType === 'sabit' ? 'serbest' : 'bireysel',
+    // Sabit → serbest paket; diğerleri → BIN Tür (ticari/bireysel)
+    segment: payType === 'sabit' ? 'serbest' : cardSegment || 'bireysel',
   });
   const installmentRows = useMemo(() => {
     if (amount <= 0) return [];

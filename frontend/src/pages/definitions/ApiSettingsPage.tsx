@@ -63,8 +63,9 @@ export default function ApiSettingsPage() {
     setRuntimeBins(
       list.map((r) => ({
         bin: r.bin,
-        bankId: (r as BinRow & { bankId?: string }).bankId || '',
+        bankId: r.bankId || '',
         bankName: r.bank,
+        kind: r.kind || '',
       })),
     );
   }, []);
