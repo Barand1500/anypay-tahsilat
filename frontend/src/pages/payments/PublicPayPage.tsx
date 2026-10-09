@@ -211,9 +211,12 @@ export default function PublicPayPage() {
     setRatesLoading(true);
     setRatesError(false);
     const query = new URLSearchParams({ bin: rateBin, amount: String(payableAmount) });
+    if (bank.id && /^\d+$/.test(bank.id)) query.set('bankId', bank.id);
+    const bankLabel = (bank.fullName || bank.name || '').trim();
+    if (bankLabel) query.set('bankName', bankLabel);
     const timer = window.setTimeout(() => {
       void api.get<InstallmentRow[]>(`/api/pay/${encodeURIComponent(payToken)}/installments?${query.toString()}`)
-        .then((rows) => { if (!cancelled) setInstallmentRates(rows); })
+        .then((rows) => { if (!cancelled) setInstallmentRates(Array.isArray(rows) ? rows : []); })
         .catch(() => { if (!cancelled) { setInstallmentRates([]); setRatesError(true); } })
         .finally(() => { if (!cancelled) setRatesLoading(false); });
     }, 250);
@@ -222,19 +225,25 @@ export default function PublicPayPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [payToken, view?.status, bank?.id, rateBin, payableAmount]);
+  }, [payToken, view?.status, bank?.id, bank?.name, bank?.fullName, rateBin, payableAmount]);
 
-  const pricedInstallments = useMemo(() => installmentOpts.map((n) => {
-    const configured = installmentRates.find((rate) => rate.n === n);
-    return configured ?? {
-      n,
-      plusN: 0,
-      commissionPct: 0,
-      installmentAmount: payableAmount / n,
-      totalAmount: payableAmount,
-      minLimit: 0,
-    };
-  }), [installmentOpts, installmentRates, payableAmount]);
+  const pricedInstallments = useMemo(
+    () =>
+      installmentOpts.map((n) => {
+        const configured = installmentRates.find((rate) => rate.n === n);
+        return (
+          configured ?? {
+            n,
+            plusN: 0,
+            commissionPct: 0,
+            installmentAmount: payableAmount / Math.max(1, n),
+            totalAmount: payableAmount,
+            minLimit: 0,
+          }
+        );
+      }),
+    [installmentOpts, installmentRates, payableAmount],
+  );
 
   const selectedRate = useMemo(
     () => pricedInstallments.find((r) => r.n === installment) ?? null,
@@ -605,16 +614,23 @@ export default function PublicPayPage() {
                               ? `${selectedRate.n} × ${formatMoneyDisplay(
                                   view.commissionIncluded
                                     ? selectedRate.installmentAmount
-                                    : payableAmount / Math.max(1, selectedRate.n + selectedRate.plusN),
+                                    : payableAmount /
+                                        Math.max(1, selectedRate.n + selectedRate.plusN),
                                 )}`
                               : formatMoneyDisplay(
-                                  view.commissionIncluded ? selectedRate.totalAmount : payableAmount,
+                                  view.commissionIncluded
+                                    ? selectedRate.totalAmount
+                                    : payableAmount,
                                 )}
                           </p>
                           {selectedRate.commissionPct > 0 ? (
                             <p className="mt-1 text-[11px] font-semibold text-rose-500">
                               Vade farkı %{formatMoneyTr(selectedRate.commissionPct)}
-                              {view.commissionIncluded ? '' : ' · Satıcı karşılar'}
+                              {view.commissionIncluded
+                                ? ` = ${formatMoneyDisplay(
+                                    Math.max(0, selectedRate.totalAmount - payableAmount),
+                                  )}`
+                                : ' · Satıcı karşılar'}
                             </p>
                           ) : (
                             <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -658,6 +674,7 @@ export default function PublicPayPage() {
                       ? pricedInstallments.map((rate) => {
                           const n = rate.n;
                           const active = installment === n;
+                          // Referans site gibi: komisyon dahil → banka oranlı tutar; hariç → ana tutar + vade bilgisi
                           const chargedTotal = view.commissionIncluded
                             ? rate.totalAmount
                             : payableAmount;
@@ -665,6 +682,7 @@ export default function PublicPayPage() {
                           const perPayment = view.commissionIncluded
                             ? rate.installmentAmount
                             : chargedTotal / paymentCount;
+                          const vadeFarki = Math.max(0, rate.totalAmount - payableAmount);
                           return (
                             <button
                               key={n}
@@ -707,9 +725,9 @@ export default function PublicPayPage() {
                               ) : null}
                               {n > 1 && rate.commissionPct > 0 ? (
                                 <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
-                                  Vade farkı %{formatMoneyTr(rate.commissionPct)} ={' '}
-                                  {formatMoneyTr(Math.max(0, rate.totalAmount - payableAmount))}
-                                  {!view.commissionIncluded ? ' · Satıcı karşılar' : ''}
+                                  {view.commissionIncluded
+                                    ? `Vade farkı %${formatMoneyTr(rate.commissionPct)} - ${formatMoneyTr(vadeFarki)}`
+                                    : `Vade farkı %${formatMoneyTr(rate.commissionPct)} · Satıcı karşılar`}
                                 </p>
                               ) : null}
                             </button>

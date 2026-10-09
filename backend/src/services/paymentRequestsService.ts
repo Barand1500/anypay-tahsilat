@@ -351,7 +351,13 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
  */
 export async function getPaymentRequestInstallmentRates(
   token: string,
-  input: { bin: string; amount?: number },
+  input: {
+    bin: string;
+    amount?: number;
+    /** Frontend detectBank — BIN eşleşmezse yedek */
+    bankId?: number | null;
+    bankName?: string | null;
+  },
 ): Promise<AgreementRateRow[]> {
   const row = await prisma.odemeIstegi.findFirst({
     where: { istekNo: token, ...notRemoved() },
@@ -368,17 +374,25 @@ export async function getPaymentRequestInstallmentRates(
   }
 
   const cardBank = await lookupBinByCard(input.bin);
-  if (!cardBank?.bankId && !cardBank?.bankName) {
+  const bankId =
+    cardBank?.bankId ??
+    (input.bankId != null && Number.isFinite(input.bankId) ? input.bankId : null);
+  const bankName =
+    (cardBank?.bankName || '').trim() ||
+    (input.bankName || '').trim() ||
+    null;
+
+  if (bankId == null && !bankName) {
     return [];
   }
 
   const agreementCode = await getCustomerAgreementCode(row.musteriId);
+  // Ödeme Al / Hızlı Ödeme ile aynı: sabit→serbest, diğerleri (serbest dahil)→bireysel
   const rates = await resolveAgreementRates({
     agreementCode,
-    bankId: cardBank.bankId,
-    bankName: cardBank.bankName,
-    // Ödeme Al ile aynı segment; bireysel yoksa tumu fallback (varsayılan)
-    segment: tip === 'serbest' || tip === 'sabit' ? 'serbest' : 'bireysel',
+    bankId,
+    bankName,
+    segment: tip === 'sabit' ? 'serbest' : 'bireysel',
     amount,
   });
 

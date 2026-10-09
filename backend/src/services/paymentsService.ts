@@ -474,7 +474,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       agreementCode: code,
       bankId: cardBank?.bankId ?? null,
       bankName: cardBank?.bankName ?? null,
-      segment: input.payType === 'serbest' ? 'serbest' : 'bireysel',
+      // Ödeme Al UI ile aynı (serbest tip dahil bireysel + tumu fallback)
+      segment: 'bireysel',
       amount: input.amount,
     });
     const hit = rates.rows.find((r) => r.n === installment);

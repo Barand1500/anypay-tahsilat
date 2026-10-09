@@ -39,6 +39,8 @@ const legalLinkSchema = z.enum([
 const installmentRatesSchema = z.object({
   bin: z.string().regex(/^\d{6,8}$/),
   amount: z.coerce.number().positive().finite().optional(),
+  bankId: z.coerce.number().int().positive().optional(),
+  bankName: z.string().trim().min(1).max(128).optional(),
 });
 
 payPublicRouter.get('/legal/:link', async (req, res) => {
