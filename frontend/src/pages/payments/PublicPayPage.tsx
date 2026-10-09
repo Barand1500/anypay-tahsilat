@@ -1,4 +1,5 @@
 import gsap from 'gsap';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   useEffect,
   useLayoutEffect,
@@ -392,7 +393,7 @@ export default function PublicPayPage() {
       {isFullscreen ? (
         <aside
           data-anim
-          className="relative flex min-h-[200px] flex-col overflow-hidden bg-[linear-gradient(165deg,var(--color-brand-600)_0%,var(--color-brand-700)_48%,color-mix(in_srgb,var(--color-brand-700)_88%,#0f172a)_100%)] px-6 py-7 text-white sm:px-8 lg:sticky lg:top-0 lg:h-screen lg:w-[min(38vw,26rem)] lg:shrink-0 lg:px-9 lg:py-10 xl:w-[min(36vw,28rem)]"
+          className="relative flex min-h-[200px] flex-col overflow-visible bg-[linear-gradient(165deg,var(--color-brand-600)_0%,var(--color-brand-700)_48%,color-mix(in_srgb,var(--color-brand-700)_88%,#0f172a)_100%)] px-6 py-7 text-white sm:px-8 lg:sticky lg:top-0 lg:h-screen lg:w-[min(38vw,26rem)] lg:shrink-0 lg:px-9 lg:py-10 xl:w-[min(36vw,28rem)]"
         >
           <div
             className="pointer-events-none absolute -right-16 top-10 h-64 w-64 rounded-full bg-white/10 blur-2xl"
@@ -456,20 +457,14 @@ export default function PublicPayPage() {
               </ol>
             </nav>
 
-            <div className="mt-6 flex flex-wrap gap-2.5 lg:mt-8">
+            <div className="relative z-20 mt-6 flex flex-wrap gap-2.5 overflow-visible lg:mt-8">
               {headerBadges.slice(0, 5).map((badge) => (
-                <span
+                <HeroPaymentBadge
                   key={`hero-${badge.id || badge.src}`}
-                  className="flex h-12 items-center rounded-xl bg-white px-3.5 shadow-md sm:h-[3.25rem]"
-                >
-                  <img
-                    src={badge.src}
-                    alt={badge.name}
-                    style={{ height: Math.min(Math.max(badge.heightPx, 28), 32) }}
-                    className="w-auto max-w-[5.5rem] object-contain"
-                    draggable={false}
-                  />
-                </span>
+                  name={badge.name}
+                  src={badge.src}
+                  heightPx={badge.heightPx}
+                />
               ))}
             </div>
           </div>
@@ -967,6 +962,58 @@ function SectionHead({ children }: { children: ReactNode }) {
     <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">
       {children}
     </h2>
+  );
+}
+
+/** Sol panel alt logolar — genel ayarlar logo/favicon hover büyütmesi gibi */
+function HeroPaymentBadge({
+  name,
+  src,
+  heightPx,
+}: {
+  name: string;
+  src: string;
+  heightPx: number;
+}) {
+  const [hover, setHover] = useState(false);
+  const imgH = Math.min(Math.max(heightPx, 28), 32);
+
+  return (
+    <span
+      className="relative flex h-12 items-center overflow-visible rounded-xl bg-white px-3.5 shadow-md sm:h-[3.25rem]"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <img
+        src={src}
+        alt={name}
+        style={{ height: imgH }}
+        className={[
+          'w-auto max-w-[5.5rem] object-contain transition-opacity',
+          hover ? 'opacity-30' : 'opacity-95',
+        ].join(' ')}
+        draggable={false}
+      />
+      <AnimatePresence>
+        {hover ? (
+          <motion.div
+            key="badge-pop"
+            className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/80 bg-white p-3 shadow-[0_18px_48px_rgba(0,0,0,0.28)]"
+            initial={{ height: 0, opacity: 0, scale: 0.3 }}
+            animate={{ height: 'auto', opacity: 1, scale: 1 }}
+            exit={{ height: 0, opacity: 0, scale: 0.3 }}
+            transition={{ type: 'spring', duration: 0.35, bounce: 0.12 }}
+          >
+            <img
+              src={src}
+              alt={name}
+              className="h-28 w-auto max-w-[11rem] object-contain"
+              draggable={false}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </span>
   );
 }
 
