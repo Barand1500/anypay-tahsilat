@@ -278,7 +278,7 @@ export default function PaymentPageSettingsPage() {
         >
           <h3 className="text-sm font-bold text-[var(--panel-ink)]">Sayfa düzeni</h3>
           <p className="mt-1 text-xs text-[var(--panel-muted)]">
-            Kompakt: mevcut kart düzeni. Tam ekran: daha geniş, web sayfası hissi.
+            Kompakt: mevcut kart düzeni. Tam ekran: sol güven şeridi + sağ ödeme sahnesi.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <LayoutCard
@@ -291,7 +291,7 @@ export default function PaymentPageSettingsPage() {
             <LayoutCard
               active={draft.layout === 'fullscreen'}
               title="Tam ekran"
-              desc="Geniş yerleşim, daha ferah header ve bölümler."
+              desc="Sol marka paneli, sağda tutar şeridi ve form."
               onClick={() => setLayout('fullscreen')}
               preview="fullscreen"
             />
@@ -466,21 +466,37 @@ function LayoutCard({
       <div
         className={[
           'mb-3 overflow-hidden rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)]',
-          preview === 'fullscreen' ? 'p-2' : 'mx-auto max-w-[70%] p-1.5',
+          preview === 'fullscreen' ? 'flex h-[72px] p-0' : 'mx-auto max-w-[70%] p-1.5',
         ].join(' ')}
       >
-        <div className="flex h-8 items-center justify-between gap-1 rounded bg-[var(--panel-bg)] px-1.5">
-          <span className="h-2.5 w-8 rounded bg-[var(--panel-line)]" />
-          <span className="flex gap-0.5">
-            <span className="h-2 w-3 rounded bg-[var(--panel-line)]" />
-            <span className="h-2 w-3 rounded bg-[var(--panel-line)]" />
-          </span>
-        </div>
-        <div className="mt-1.5 grid grid-cols-3 gap-1">
-          <span className="h-6 rounded bg-[var(--panel-line)]/70" />
-          <span className="h-6 rounded bg-[var(--panel-line)]/70" />
-          <span className="h-6 rounded bg-[var(--panel-line)]/70" />
-        </div>
+        {preview === 'fullscreen' ? (
+          <>
+            <span className="w-[28%] shrink-0 bg-[color-mix(in_srgb,var(--color-brand-500)_55%,#0f172a)]" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1 p-1.5">
+              <span className="h-3 rounded bg-[var(--panel-bg)]" />
+              <span className="h-4 rounded bg-[color-mix(in_srgb,var(--color-brand-500)_18%,var(--panel-bg))]" />
+              <div className="mt-auto grid grid-cols-2 gap-1">
+                <span className="h-5 rounded bg-[var(--panel-line)]/70" />
+                <span className="h-5 rounded bg-[var(--panel-line)]/70" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex h-8 items-center justify-between gap-1 rounded bg-[var(--panel-bg)] px-1.5">
+              <span className="h-2.5 w-8 rounded bg-[var(--panel-line)]" />
+              <span className="flex gap-0.5">
+                <span className="h-2 w-3 rounded bg-[var(--panel-line)]" />
+                <span className="h-2 w-3 rounded bg-[var(--panel-line)]" />
+              </span>
+            </div>
+            <div className="mt-1.5 grid grid-cols-3 gap-1">
+              <span className="h-6 rounded bg-[var(--panel-line)]/70" />
+              <span className="h-6 rounded bg-[var(--panel-line)]/70" />
+              <span className="h-6 rounded bg-[var(--panel-line)]/70" />
+            </div>
+          </>
+        )}
       </div>
       <p className="text-sm font-bold text-[var(--panel-ink)]">{title}</p>
       <p className="mt-0.5 text-xs text-[var(--panel-muted)]">{desc}</p>
