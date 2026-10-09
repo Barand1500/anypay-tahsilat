@@ -42,6 +42,13 @@ export type PublicPayView = {
   type: 'ch' | 'fatura' | 'sabit' | 'serbest' | 'diger';
   status: 'pending' | 'paid';
   customerTitle: string;
+  /** Sözleşme #musteri*# değişkenleri */
+  customerCode: string;
+  customerTaxNo: string;
+  customerTaxOffice: string;
+  customerAddress: string;
+  customerPhone: string;
+  customerEmail: string;
   amount: number;
   commissionIncluded: boolean;
   description: string;
@@ -308,12 +315,52 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
   if (!row) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
 
   let customerTitle = '—';
+  let customerCode = '';
+  let customerTaxNo = '';
+  let customerTaxOffice = '';
+  let customerAddress = '';
+  let customerPhone = '';
+  let customerEmail = '';
+
   if (row.musteriId != null) {
     const m = await prisma.musteri.findFirst({
       where: { id: row.musteriId },
-      select: { unvan: true },
+      select: {
+        unvan: true,
+        firmaKodu: true,
+        vn: true,
+        tc: true,
+        pasaportNo: true,
+        musteriTipi: true,
+        vd: true,
+        adres: true,
+        telefon: true,
+        eposta: true,
+      },
     });
-    customerTitle = (m?.unvan || '').trim() || '—';
+    if (m) {
+      customerTitle = (m.unvan || '').trim() || '—';
+      customerCode = (m.firmaKodu || String(row.musteriId)).trim();
+      const tip = m.musteriTipi;
+      // 0=gerçek, 1=tüzel, 2=yabancı
+      if (tip === 1) {
+        customerTaxNo = (m.vn || '').replace(/\D/g, '');
+      } else if (tip === 2) {
+        customerTaxNo = (m.pasaportNo || m.vn || '').trim();
+      } else {
+        customerTaxNo = (m.tc || m.vn || '').replace(/\D/g, '') || (m.tc || '').trim();
+      }
+      if (m.vd != null) {
+        const vd = await prisma.vergiDairesi.findFirst({
+          where: { id: m.vd },
+          select: { adi: true },
+        });
+        customerTaxOffice = (vd?.adi || '').trim();
+      }
+      customerAddress = (m.adres || '').trim();
+      customerPhone = (m.telefon || '').replace(/\D/g, '').slice(-10);
+      customerEmail = (m.eposta || '').trim().toLowerCase();
+    }
   }
 
   const currency = await prisma.parabirimi.findFirst({
@@ -328,6 +375,12 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     type: payTypeFromTip(row.odemeTipi),
     status: row.durum ? 'paid' : 'pending',
     customerTitle,
+    customerCode,
+    customerTaxNo,
+    customerTaxOffice,
+    customerAddress,
+    customerPhone,
+    customerEmail,
     amount: row.tutar,
     commissionIncluded: row.komisyonDahil,
     description: (row.aciklama || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),

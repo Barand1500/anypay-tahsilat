@@ -114,3 +114,28 @@ export function getCompanyContractVars(contact: Partial<{ title: string; taxNo: 
     fax: contact.fax || '',
   };
 }
+
+/** Tahsilat / ödeme — müşteri değişkenleri (#musteriUnvanAdSoyad# vb.) */
+export function getCustomerContractVars(
+  customer: Partial<{
+    code: string;
+    title: string;
+    taxNo: string;
+    identityNo: string;
+    taxOffice: string;
+    address: string;
+    phone: string;
+    email: string;
+  }>,
+): ContractVarMap {
+  const taxOrId = (customer.taxNo || customer.identityNo || '').trim();
+  return {
+    musteriKodu: (customer.code || '').trim(),
+    musteriVergiTCPassPortNo: taxOrId,
+    musteriVergiDairesi: (customer.taxOffice || '').trim(),
+    musteriUnvanAdSoyad: (customer.title || '').trim(),
+    musteriTelefon: (customer.phone || '').replace(/\D/g, '').slice(-10),
+    musteriEposta: (customer.email || '').trim(),
+    musteriAdres: (customer.address || '').trim(),
+  };
+}

@@ -23,6 +23,7 @@ import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import { LEGAL_DOCS } from '../../components/layout/legalDocs';
+import { getCustomerContractVars } from '../definitions/mockContracts';
 import {
   DEFAULT_PAYMENT_PAGE,
   type PaymentPageSettings,
@@ -48,6 +49,12 @@ type PublicPayView = {
   type: 'ch' | 'fatura' | 'sabit' | 'serbest' | 'taksit' | 'diger';
   status: 'pending' | 'paid';
   customerTitle: string;
+  customerCode?: string;
+  customerTaxNo?: string;
+  customerTaxOffice?: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  customerEmail?: string;
   amount: number;
   commissionIncluded: boolean;
   description: string;
@@ -103,6 +110,22 @@ export default function PublicPayPage() {
       .map((b) => ({ ...b })),
   }));
   const [pageSettingsReady, setPageSettingsReady] = useState(false);
+
+  const contractCustomerVars = useMemo(
+    () =>
+      view
+        ? getCustomerContractVars({
+            code: view.customerCode || '',
+            title: view.customerTitle !== '—' ? view.customerTitle : '',
+            taxNo: view.customerTaxNo || '',
+            taxOffice: view.customerTaxOffice || '',
+            address: view.customerAddress || '',
+            phone: view.customerPhone || '',
+            email: view.customerEmail || '',
+          })
+        : undefined,
+    [view],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -944,6 +967,7 @@ export default function PublicPayPage() {
         <LegalDocModal
           doc={activeLegalDoc}
           publicView
+          customerVars={contractCustomerVars}
           onClose={() => setActiveLegalDoc(null)}
         />
       ) : null}

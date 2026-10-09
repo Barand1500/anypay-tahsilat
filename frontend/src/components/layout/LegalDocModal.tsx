@@ -15,6 +15,8 @@ type Props = {
   doc: LegalDoc;
   onClose: () => void;
   publicView?: boolean;
+  /** Tahsilat / ödeme linki — #musteriUnvanAdSoyad# vb. */
+  customerVars?: ContractVarMap;
 };
 
 type PublicLegalPayload = ContractDef & { companyVars?: ContractVarMap };
@@ -36,7 +38,12 @@ type ContactPayload = {
  * Footer / ödeme sözleşme modalı — Esc / X; overlay tıklanınca kapanmaz.
  * Panel ve public aynı: metin + firma değişkenleri → resolveContractVars.
  */
-export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
+export function LegalDocModal({
+  doc,
+  onClose,
+  publicView = false,
+  customerVars,
+}: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(doc.title);
@@ -81,6 +88,10 @@ export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
           vars = getCompanyContractVars(contact);
         }
 
+        if (customerVars) {
+          vars = { ...vars, ...customerVars };
+        }
+
         if (cancelled) return;
         setTitle(name);
         setBody(raw ? resolveContractVars(raw, vars) : '');
@@ -98,7 +109,7 @@ export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [doc.id, doc.title, publicView, token]);
+  }, [doc.id, doc.title, publicView, token, customerVars]);
 
   useEffect(() => {
     const el = panelRef.current;
