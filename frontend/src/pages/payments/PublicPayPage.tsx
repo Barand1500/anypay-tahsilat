@@ -194,6 +194,9 @@ export default function PublicPayPage() {
   const expiryErr = getCardExpiryError(expiry);
   const expiryOk = !expiryErr && digitsOnly(expiry).length === 4;
   const expiryFaulty = digitsOnly(expiry).length === 4 && Boolean(expiryErr);
+  const cvcLen = digitsOnly(cvc).length;
+  const cvcOk = cvcLen >= 3;
+  const cvcFaulty = cvcLen > 0 && cvcLen < 3;
 
   useEffect(() => {
     let cancelled = false;
@@ -530,6 +533,8 @@ export default function PublicPayPage() {
                       cardFaulty={cardFaulty}
                       expiryOk={expiryOk}
                       expiryFaulty={expiryFaulty}
+                      cvcOk={cvcOk}
+                      cvcFaulty={cvcFaulty}
                       onHolder={setHolder}
                       onTc={(v) => setTc(digitsOnly(v).slice(0, 11))}
                       onPhone={(v) => {

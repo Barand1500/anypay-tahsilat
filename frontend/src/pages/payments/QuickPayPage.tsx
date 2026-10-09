@@ -144,8 +144,9 @@ export default function QuickPayPage() {
     expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
   const expiryOk =
     expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
-  const cvcFaulty = cvcChecked && digitsOnly(cvc).length < 3;
-  const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
+  const cvcLen = digitsOnly(cvc).length;
+  const cvcFaulty = cvcLen > 0 && cvcLen < 3;
+  const cvcOk = cvcLen >= 3;
   const payTypeLabel =
     payType === 'ch' ? 'C/H BAKİYESİ' : payType === 'fatura' ? 'FATURA' : payType === 'sabit' ? 'SABİT TUTAR' : 'Ödeme Tipi Seçiniz';
 

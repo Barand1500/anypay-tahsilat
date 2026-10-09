@@ -431,7 +431,7 @@ export function AnimatedPayCard({
                         errors?.cvc ? 'border-rose-400 text-rose-600' : '',
                       ].join(' ')}
                     />
-                    {cvcFaulty ? <span className="mt-1 block text-[9px] font-bold text-rose-500">Hatalı</span> : cvcOk ? <span className="mt-1 block text-[9px] font-bold text-emerald-600">OK</span> : null}
+                    {cvcFaulty ? <span className="mt-1 block text-[9px] font-bold text-rose-500">NO</span> : cvcOk ? <span className="mt-1 block text-[9px] font-bold text-emerald-600">OK</span> : null}
                   </div>
                 </div>
                 {errors?.cvc ? (

@@ -167,8 +167,9 @@ export default function PaymentCollectPage() {
     expiryChecked && digitsOnly(expiry).length > 0 && getCardExpiryError(expiry) !== null;
   const expiryOk =
     expiryChecked && digitsOnly(expiry).length === 4 && getCardExpiryError(expiry) === null;
-  const cvcFaulty = cvcChecked && digitsOnly(cvc).length < 3;
-  const cvcOk = cvcChecked && digitsOnly(cvc).length >= 3;
+  const cvcLen = digitsOnly(cvc).length;
+  const cvcFaulty = cvcLen > 0 && cvcLen < 3;
+  const cvcOk = cvcLen >= 3;
   const selected = useMemo(() => {
     if (!amount || amount <= 0) return null;
     return installmentRows.find((r) => r.n === installment) ?? installmentRows[0] ?? null;

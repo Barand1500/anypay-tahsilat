@@ -281,7 +281,7 @@ export function PaymentCardFields(props: Props) {
           inputMode="numeric"
           className="!pr-20 font-mono tabular-nums"
           onBlur={props.onCvcBlur}
-          endAdornment={props.cvcFaulty ? <FaultBadge /> : props.cvcOk ? <OkBadge /> : null}
+          endAdornment={props.cvcFaulty ? <NoBadge /> : props.cvcOk ? <OkBadge /> : null}
         />
       </div>
     </div>
