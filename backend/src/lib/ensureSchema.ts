@@ -329,6 +329,8 @@ export async function ensureSchema(): Promise<void> {
   await ensureWhatsappModule();
   await ensureOdemeHatirlatmalariTable();
   await ensureQuickAccessSettingsColumn();
+  await ensureOdemeSayfaAyarlariColumn();
+  await ensureOdemeSayfaModule();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();
   await ensureBankPosColumns();
@@ -341,6 +343,53 @@ export async function ensureSchema(): Promise<void> {
   await ensureKasaTables();
   await ensureOtpChallengeTable();
   await ensureSozlesmelerTable();
+}
+
+/** Public ödeme sayfası görünümü — JSON (layout, logo boyutu, rozetler) */
+export async function ensureOdemeSayfaAyarlariColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'odeme_sayfa_ayarlari'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `odeme_sayfa_ayarlari` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.odeme_sayfa_ayarlari eklendi');
+  } catch (err) {
+    console.warn('[schema] odeme_sayfa_ayarlari atlandı:', err);
+  }
+}
+
+/** Ayarlar › Ödeme sayfası modülü */
+export async function ensureOdemeSayfaModule(): Promise<void> {
+  try {
+    const existing = await prisma.izinler.findFirst({
+      where: {
+        route: '/ayarlar/odeme-sayfasi',
+        OR: [{ remove: null }, { remove: false }],
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+    await prisma.izinler.create({
+      data: {
+        adi: 'Ödeme Sayfası Ayarları',
+        tablo: 'ayarlar',
+        route: '/ayarlar/odeme-sayfasi',
+        olusturmaTarihi: new Date(),
+        remove: null,
+      },
+    });
+    console.log('[schema] izinler: Ödeme Sayfası Ayarları eklendi');
+  } catch (err) {
+    console.warn('[schema] Ödeme sayfası modülü atlandı:', err);
+  }
 }
 
 /** Genel ayarlardan yönetilen header hızlı erişimi */

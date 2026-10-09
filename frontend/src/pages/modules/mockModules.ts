@@ -201,6 +201,14 @@ export const INITIAL_MODULES: Array<{
     createdAt: '2026-04-08T09:00:00',
   },
   {
+    id: 'm-odeme-sayfasi',
+    name: 'Ödeme Sayfası Ayarları',
+    dbTable: 'Ayarlar',
+    urlPrefix: '/ayarlar/odeme-sayfasi',
+    roles: [],
+    createdAt: '2026-04-09T10:00:00',
+  },
+  {
     id: 'm-genel',
     name: 'Genel Ayarlar',
     dbTable: 'Ayarlar',

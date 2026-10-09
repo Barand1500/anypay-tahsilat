@@ -461,6 +461,8 @@ model Ayarlar {
   whatsappAyarlar        String?   @map("whatsapp_ayarlar") @db.LongText
   /** Header hızlı erişim görünürlüğü ve yuva sayısı — JSON */
   hizliErisimAyarlari     String?   @map("hizli_erisim_ayarlari") @db.LongText
+  /** Public /pay sayfası — düzen, logo boyutu, rozetler — JSON */
+  odemeSayfaAyarlari      String?   @map("odeme_sayfa_ayarlari") @db.LongText
 
   @@map("ayarlar")
 }

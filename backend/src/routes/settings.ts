@@ -60,6 +60,11 @@ import {
   sendWhatsappTest,
   updateWhatsappSettings,
 } from '../services/whatsappSettingsService.js';
+import {
+  getPaymentPageSettings,
+  getPublicPaymentPageSettings,
+  updatePaymentPageSettings,
+} from '../services/paymentPageSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
 import {
   getInstallmentPriority,
@@ -108,6 +113,17 @@ settingsRouter.get('/brand', async (_req, res) => {
     if (err instanceof SettingsError) return sendError(res, 404, err.message);
     console.error(err);
     return sendError(res, 500, 'Marka yüklenemedi');
+  }
+});
+
+/** Public /pay — auth yok */
+settingsRouter.get('/payment-page/public', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getPublicPaymentPageSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Ödeme sayfası ayarları yüklenemedi');
   }
 });
 
@@ -766,6 +782,47 @@ settingsRouter.delete('/erp', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'ERP sıfırlanamadı');
+  }
+});
+
+const paymentPageBadgeSchema = z.object({
+  id: z.string().max(64).optional(),
+  name: z.string().min(1).max(64),
+  src: z.string().min(1).max(6_000_000),
+  heightPx: z.number().min(16).max(56),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(99).optional(),
+});
+
+const paymentPageSchema = z.object({
+  layout: z.enum(['compact', 'fullscreen']),
+  brandLogoHeightPx: z.number().min(24).max(80),
+  badges: z.array(paymentPageBadgeSchema).max(24),
+});
+
+settingsRouter.get('/payment-page', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getPaymentPageSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Ödeme sayfası ayarları yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/payment-page', async (req: AuthedRequest, res) => {
+  const parsed = paymentPageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updatePaymentPageSettings(parsed.data);
+    await writePanelLog(req.auth!.sub, 'Ayarlar - Ödeme sayfası ayarları güncellendi.');
+    return sendSuccess(res, data, 'Ödeme sayfası ayarları kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Ödeme sayfası ayarları kaydedilemedi');
   }
 });
 

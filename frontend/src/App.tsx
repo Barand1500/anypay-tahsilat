@@ -51,6 +51,7 @@ import DefaultsSettingsPage from './pages/settings/DefaultsSettingsPage';
 import EmailSettingsPage from './pages/settings/EmailSettingsPage';
 import SmsSettingsPage from './pages/settings/SmsSettingsPage';
 import WhatsappSettingsPage from './pages/settings/WhatsappSettingsPage';
+import PaymentPageSettingsPage from './pages/settings/PaymentPageSettingsPage';
 import TemplateVariablesPage from './pages/settings/TemplateVariablesPage';
 import ErpSettingsPage from './pages/settings/ErpSettingsPage';
 import RolesPage from './pages/roles/RolesPage';
@@ -180,6 +181,7 @@ export default function App() {
           <Route path="e-posta" element={<EmailSettingsPage />} />
           <Route path="sms" element={<SmsSettingsPage />} />
           <Route path="whatsapp" element={<WhatsappSettingsPage />} />
+          <Route path="odeme-sayfasi" element={<PaymentPageSettingsPage />} />
           <Route path="sablon-degiskenleri" element={<TemplateVariablesPage />} />
           <Route path="erp" element={<ErpSettingsPage />} />
           {/* Bilinmeyen ayarlar alt yolu → özet değil, genel ayarlar */}

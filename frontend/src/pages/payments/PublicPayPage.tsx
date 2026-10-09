@@ -23,6 +23,10 @@ import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecu
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import { LEGAL_DOCS } from '../../components/layout/legalDocs';
 import {
+  DEFAULT_PAYMENT_PAGE,
+  type PaymentPageSettings,
+} from '../settings/paymentPageTypes';
+import {
   detectBank,
   digitsOnly,
   formatCardNumber,
@@ -90,6 +94,36 @@ export default function PublicPayPage() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<{ odemeNo: string; amount: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [pageSettings, setPageSettings] = useState<PaymentPageSettings>(() => ({
+    layout: DEFAULT_PAYMENT_PAGE.layout,
+    brandLogoHeightPx: DEFAULT_PAYMENT_PAGE.brandLogoHeightPx,
+    badges: DEFAULT_PAYMENT_PAGE.badges
+      .filter((b) => b.active)
+      .map((b) => ({ ...b })),
+  }));
+  const [pageSettingsReady, setPageSettingsReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<PaymentPageSettings>('/api/settings/payment-page/public');
+        if (cancelled || !data) return;
+        setPageSettings({
+          layout: data.layout === 'fullscreen' ? 'fullscreen' : 'compact',
+          brandLogoHeightPx: data.brandLogoHeightPx || 40,
+          badges: Array.isArray(data.badges) ? data.badges.map((b) => ({ ...b })) : [],
+        });
+      } catch {
+        /* varsayılan rozetler kalsın */
+      } finally {
+        if (!cancelled) setPageSettingsReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!payToken) {
@@ -270,6 +304,19 @@ export default function PublicPayPage() {
   }
 
   const alreadyPaid = view.status === 'paid' || !!done;
+  const isFullscreen = pageSettings.layout === 'fullscreen';
+  const headerBadges = pageSettingsReady
+    ? pageSettings.badges
+    : pageSettings.badges.length
+      ? pageSettings.badges
+      : PAYMENT_BADGES.map((b, i) => ({
+          id: `fallback-${i}`,
+          name: b.alt,
+          src: b.src,
+          heightPx: 28,
+          active: true,
+          sortOrder: i,
+        }));
   const paymentTypeLabel: Record<PublicPayView['type'], string> = {
     ch: 'Cari hesap tahsilatı',
     fatura: 'Fatura ödemesi',
@@ -284,32 +331,55 @@ export default function PublicPayPage() {
       ref={rootRef}
       className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),var(--panel-bg)_52%)]"
     >
-      <main className="w-full flex-1 px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
-        <div className="mx-auto w-full max-w-[1400px]">
+      <main
+        className={[
+          'w-full flex-1',
+          isFullscreen
+            ? 'px-4 py-5 sm:px-8 lg:px-10 lg:py-8 xl:px-12'
+            : 'px-4 py-4 sm:px-5 lg:px-6 lg:py-5',
+        ].join(' ')}
+      >
+        <div
+          className={[
+            'mx-auto w-full',
+            isFullscreen ? 'max-w-[1680px]' : 'max-w-[1400px]',
+          ].join(' ')}
+        >
           <header
             data-anim
-            className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3"
+            className={[
+              'mb-4 flex flex-wrap items-center justify-between gap-3',
+              isFullscreen ? 'mb-6 min-h-14 sm:mb-8' : 'min-h-12',
+            ].join(' ')}
           >
             <img
               src={logoUrl}
               alt="Firma logosu"
-              className="h-10 w-auto max-w-[180px] object-contain object-left sm:max-w-[200px]"
+              style={{ height: pageSettings.brandLogoHeightPx }}
+              className={[
+                'w-auto object-contain object-left',
+                isFullscreen ? 'max-w-[240px] sm:max-w-[280px]' : 'max-w-[180px] sm:max-w-[200px]',
+              ].join(' ')}
             />
             <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
               <div
                 className="flex flex-wrap items-center justify-end gap-2"
                 aria-label="Kabul edilen ödeme yöntemleri"
               >
-                {PAYMENT_BADGES.map((badge) => (
+                {headerBadges.map((badge) => (
                   <span
-                    key={badge.src}
-                    title={badge.alt}
-                    className="group flex h-10 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-2.5 shadow-sm transition-transform duration-200 ease-out hover:z-10 hover:scale-110 hover:shadow-md"
+                    key={badge.id || badge.src}
+                    title={badge.name}
+                    className={[
+                      'group flex items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-2.5 shadow-sm transition-transform duration-200 ease-out hover:z-10 hover:scale-110 hover:shadow-md',
+                      isFullscreen ? 'h-11' : 'h-10',
+                    ].join(' ')}
                   >
                     <img
                       src={badge.src}
-                      alt={badge.alt}
-                      className={`object-contain transition-transform duration-200 group-hover:scale-105 ${badge.className}`}
+                      alt={badge.name}
+                      style={{ height: badge.heightPx }}
+                      className="w-auto max-w-[6.5rem] object-contain transition-transform duration-200 group-hover:scale-105"
                       draggable={false}
                     />
                   </span>
@@ -330,10 +400,31 @@ export default function PublicPayPage() {
               </p>
             </section>
           ) : (
-            <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-              <section data-anim className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
-                <div className="grid lg:grid-cols-3">
-                  <div className="flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
+            <form
+              onSubmit={(e) => void onSubmit(e)}
+              className={isFullscreen ? 'space-y-6' : 'space-y-4'}
+            >
+              <section
+                data-anim
+                className={[
+                  'overflow-hidden border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]',
+                  isFullscreen ? 'rounded-3xl' : 'rounded-2xl',
+                ].join(' ')}
+              >
+                <div
+                  className={[
+                    'grid',
+                    isFullscreen
+                      ? 'lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1.15fr)_minmax(0,0.95fr)]'
+                      : 'lg:grid-cols-3',
+                  ].join(' ')}
+                >
+                  <div
+                    className={[
+                      'flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] lg:border-b-0 lg:border-r',
+                      isFullscreen ? 'p-6 lg:p-7' : 'p-5',
+                    ].join(' ')}
+                  >
                     <SectionHead>Ödeme bilgileri</SectionHead>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -419,7 +510,12 @@ export default function PublicPayPage() {
                     ) : null}
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] p-5 lg:border-b-0 lg:border-r">
+                  <div
+                    className={[
+                      'flex min-w-0 flex-col gap-4 border-b border-[var(--panel-line)] lg:border-b-0 lg:border-r',
+                      isFullscreen ? 'p-6 lg:p-7' : 'p-5',
+                    ].join(' ')}
+                  >
                     <PaymentCardFields
                       heading="Kredi kartı"
                       SectionHead={SectionHead}
@@ -450,9 +546,19 @@ export default function PublicPayPage() {
                     />
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-4 p-5">
+                  <div
+                    className={[
+                      'flex min-w-0 flex-col gap-4',
+                      isFullscreen ? 'p-6 lg:p-7' : 'p-5',
+                    ].join(' ')}
+                  >
                     <SectionHead>Banka & taksit</SectionHead>
-                    <div className="flex min-h-[220px] flex-1 flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 p-4">
+                    <div
+                      className={[
+                        'flex flex-1 flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60',
+                        isFullscreen ? 'min-h-[260px] p-5' : 'min-h-[220px] p-4',
+                      ].join(' ')}
+                    >
                       {view.posBankLogo ? (
                         <div className="mb-4 flex flex-col items-center justify-center py-2">
                           <img
@@ -537,7 +643,12 @@ export default function PublicPayPage() {
                       gösteriliyor.
                     </p>
                   ) : null}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  <div
+                    className={[
+                      'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
+                      isFullscreen ? '2xl:grid-cols-5' : '2xl:grid-cols-4',
+                    ].join(' ')}
+                  >
                     {!ratesLoading && !ratesError
                       ? pricedInstallments.map((rate) => {
                           const n = rate.n;
@@ -556,7 +667,8 @@ export default function PublicPayPage() {
                               aria-pressed={active}
                               onClick={() => setInstallment(n)}
                               className={[
-                                'relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                                'relative min-h-[176px] overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                                isFullscreen ? 'max-w-none' : 'max-w-[320px]',
                                 active
                                   ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
                                   : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
