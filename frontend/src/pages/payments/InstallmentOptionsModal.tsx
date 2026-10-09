@@ -20,6 +20,8 @@ type Props = {
   musteriId?: number | null;
   agreementCode?: string | null;
   agreementScope?: 'customer' | 'pos';
+  /** Public ödeme linki — auth olmadan karşılaştırma */
+  publicToken?: string | null;
   onPick?: (bank: BankInfo, installment: number) => void;
 };
 type VisibleSegment = Exclude<CardSegment, 'serbest'>;
@@ -33,6 +35,7 @@ export function InstallmentOptionsModal({
   musteriId,
   agreementCode,
   agreementScope = 'customer',
+  publicToken = null,
 }: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -46,11 +49,18 @@ export function InstallmentOptionsModal({
   const [ratesLoading, setRatesLoading] = useState(true);
   const [ratesRequestKey, setRatesRequestKey] = useState("");
   const bankIds = banks.map((b) => b.id).join("|");
-  const rateKey = `${amount}|${agreementCode ?? ""}|${musteriId ?? ""}|${agreementScope}|${bankIds}`;
+  const rateKey = publicToken
+    ? `public|${publicToken}|${amount}`
+    : `${amount}|${agreementCode ?? ""}|${musteriId ?? ""}|${agreementScope}|${bankIds}`;
 
   useEffect(() => {
     let cancelled = false;
     async function loadBanks() {
+      // Public link: bankalar installment-options cevabından gelir
+      if (publicToken) {
+        setBanksLoading(false);
+        return;
+      }
       if (!token) {
         setBanks([]);
         setBanksLoading(false);
@@ -90,7 +100,7 @@ export function InstallmentOptionsModal({
     return () => {
       cancelled = true;
     };
-  }, [token, preferredBankId]);
+  }, [token, preferredBankId, publicToken]);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -116,8 +126,83 @@ export function InstallmentOptionsModal({
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (banksLoading) return;
       if (!amount || amount <= 0) {
+        setRowsBySegment({ tumu: {}, bireysel: {}, ticari: {} });
+        setAvailableSegments([]);
+        setRatesLoading(false);
+        setRatesRequestKey(rateKey);
+        return;
+      }
+
+      // Public ödeme — tek endpoint
+      if (publicToken) {
+        setRatesLoading(true);
+        setBanksLoading(true);
+        try {
+          const q = new URLSearchParams({ amount: String(amount) });
+          const data = await api.get<{
+            banks: { id: string; name: string; logo: string }[];
+            rowsBySegment: Record<VisibleSegment, Record<string, InstallmentRow[]>>;
+            availableSegments: VisibleSegment[];
+          }>(`/api/pay/${encodeURIComponent(publicToken)}/installment-options?${q}`);
+          if (cancelled) return;
+          const preferred = BANKS.find((item) => item.id === preferredBankId);
+          const preferredName = preferred?.name.toLocaleLowerCase("tr");
+          const mapped = data.banks.map((bank) => {
+            const catalog = BANKS.find(
+              (b) =>
+                b.id === bank.id ||
+                b.name.toLocaleLowerCase("tr") === bank.name.toLocaleLowerCase("tr") ||
+                bank.name.toLocaleLowerCase("tr").includes(b.name.toLocaleLowerCase("tr")),
+            );
+            return {
+              id: bank.id,
+              name: bank.name,
+              fullName: bank.name,
+              logo: bank.logo || catalog?.logo || "",
+              bins: [] as string[],
+            };
+          });
+          if (preferredName) {
+            mapped.sort(
+              (a, b) =>
+                Number(b.name.toLocaleLowerCase("tr").includes(preferredName)) -
+                Number(a.name.toLocaleLowerCase("tr").includes(preferredName)),
+            );
+          }
+          setBanks(mapped);
+          setRowsBySegment({
+            tumu: data.rowsBySegment?.tumu ?? {},
+            bireysel: data.rowsBySegment?.bireysel ?? {},
+            ticari: data.rowsBySegment?.ticari ?? {},
+          });
+          const ordered = (["tumu", "bireysel", "ticari"] as const).filter((key) =>
+            (data.availableSegments ?? []).includes(key),
+          );
+          setAvailableSegments(ordered);
+          if (ordered.length) {
+            setSegment((current) =>
+              ordered.some((key) => key === current) ? current : ordered[0]!,
+            );
+          }
+        } catch {
+          if (!cancelled) {
+            setBanks([]);
+            setRowsBySegment({ tumu: {}, bireysel: {}, ticari: {} });
+            setAvailableSegments([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setBanksLoading(false);
+            setRatesLoading(false);
+            setRatesRequestKey(rateKey);
+          }
+        }
+        return;
+      }
+
+      if (banksLoading) return;
+      if (!token) {
         setRowsBySegment({ tumu: {}, bireysel: {}, ticari: {} });
         setAvailableSegments([]);
         setRatesLoading(false);
@@ -129,9 +214,6 @@ export function InstallmentOptionsModal({
       const nextSegments = new Set<VisibleSegment>();
       await Promise.all(
         banks.map(async (bank) => {
-          if (!token) {
-            return;
-          }
           try {
             const q = new URLSearchParams();
             q.set("amount", String(amount));
@@ -176,6 +258,8 @@ export function InstallmentOptionsModal({
   }, [
     amount,
     token,
+    publicToken,
+    preferredBankId,
     agreementCode,
     agreementScope,
     musteriId,

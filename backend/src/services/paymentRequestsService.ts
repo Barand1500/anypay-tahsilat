@@ -1,9 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
-import { createPayment, PaymentsError } from './paymentsService.js';
+import { createPayment, listPaymentBanks, PaymentsError } from './paymentsService.js';
 import { PosResolveError, resolvePosForPayment } from '../gateways/index.js';
-import { getCustomerAgreementCode, resolveAgreementRates, type AgreementRateRow } from './cardAgreementsService.js';
+import {
+  getCustomerAgreementCode,
+  resolveAgreementRates,
+  type AgreementRateRow,
+  type AgreementSegment,
+} from './cardAgreementsService.js';
 import { resolveAllowedInstallments } from './installmentPriorityService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 import {
@@ -371,6 +376,90 @@ export async function getPaymentRequestInstallmentRates(
     rows.unshift({ n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 });
   }
   return rows;
+}
+
+/** Public — tüm bankalar için taksit karşılaştırma (auth yok) */
+export async function getPaymentRequestInstallmentCompare(
+  token: string,
+  input: { amount?: number },
+): Promise<{
+  banks: { id: string; name: string; logo: string }[];
+  rowsBySegment: Record<AgreementSegment, Record<string, AgreementRateRow[]>>;
+  availableSegments: AgreementSegment[];
+}> {
+  const row = await prisma.odemeIstegi.findFirst({
+    where: { istekNo: token, ...notRemoved() },
+  });
+  if (!row) throw new PaymentRequestsError('Ödeme isteği bulunamadı');
+  if (row.durum) throw new PaymentRequestsError('Bu ödeme isteği zaten ödendi');
+  if (row.musteriId == null) throw new PaymentRequestsError('Ödeme isteğine müşteri bağlı değil');
+
+  const tip = payTypeFromTip(row.odemeTipi);
+  const variableAmount = tip === 'serbest' && row.tutar <= 0;
+  const amount = variableAmount ? input.amount : row.tutar;
+  if (
+    !Number.isFinite(amount) ||
+    amount == null ||
+    amount <= 0 ||
+    amount > 999999999.99 ||
+    Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001
+  ) {
+    throw new PaymentRequestsError('Geçerli bir tutar girin');
+  }
+
+  const agreementCode = await getCustomerAgreementCode(row.musteriId);
+  const banks = await listPaymentBanks();
+  const configured = parseTaksitler(row.taksitler);
+  const allowed = configured.length ? configured : [1];
+
+  const rowsBySegment: Record<AgreementSegment, Record<string, AgreementRateRow[]>> = {
+    tumu: {},
+    bireysel: {},
+    ticari: {},
+  };
+  const segmentSet = new Set<AgreementSegment>();
+
+  await Promise.all(
+    banks.map(async (bank) => {
+      const bankId = Number(bank.id);
+      try {
+        const data = await resolveAgreementRates({
+          agreementCode,
+          bankId: Number.isFinite(bankId) ? bankId : null,
+          bankName: bank.name,
+          segment: 'tumu',
+          amount,
+          allowAllFallback: false,
+        });
+        for (const key of ['tumu', 'bireysel', 'ticari'] as const) {
+          const src = data.rowsBySegment?.[key] ?? (key === 'tumu' ? data.rows : []);
+          const filtered = src.filter((rate) => allowed.includes(rate.n));
+          if (allowed.includes(1) && !filtered.some((rate) => rate.n === 1)) {
+            filtered.unshift({
+              n: 1,
+              plusN: 0,
+              commissionPct: 0,
+              installmentAmount: amount,
+              totalAmount: amount,
+              minLimit: 0,
+            });
+          }
+          rowsBySegment[key][bank.id] = filtered;
+        }
+        data.availableSegments?.forEach((s) => segmentSet.add(s));
+        if ((rowsBySegment.tumu[bank.id] ?? []).length) segmentSet.add('tumu');
+      } catch {
+        for (const key of ['tumu', 'bireysel', 'ticari'] as const) {
+          rowsBySegment[key][bank.id] = [];
+        }
+      }
+    }),
+  );
+
+  const availableSegments = (['tumu', 'bireysel', 'ticari'] as const).filter((k) =>
+    segmentSet.has(k),
+  );
+  return { banks, rowsBySegment, availableSegments };
 }
 
 export async function payPaymentRequestByToken(

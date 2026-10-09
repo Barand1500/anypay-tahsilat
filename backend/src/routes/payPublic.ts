@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   getPaymentRequestByToken,
+  getPaymentRequestInstallmentCompare,
   getPaymentRequestInstallmentRates,
   payPaymentRequestByToken,
   PaymentRequestsError,
@@ -64,6 +65,27 @@ payPublicRouter.get('/:token/installments', async (req, res) => {
   } catch (err) {
     if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
     console.error('[public-installment-rates]', err);
+    return sendError(res, 500, 'Taksit seçenekleri yüklenemedi');
+  }
+});
+
+/** Public — banka bazlı taksit karşılaştırma (Taksit Seçenekleri modal) */
+payPublicRouter.get('/:token/installment-options', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!token || token.length > 64) return sendError(res, 400, 'Geçersiz link');
+  const amountRaw = req.query.amount;
+  const amount =
+    amountRaw != null && String(amountRaw).trim() !== ''
+      ? Number(amountRaw)
+      : undefined;
+  try {
+    const data = await getPaymentRequestInstallmentCompare(token, {
+      amount: Number.isFinite(amount) ? amount : undefined,
+    });
+    return sendSuccess(res, data);
+  } catch (err) {
+    if (err instanceof PaymentRequestsError) return sendError(res, 400, err.message);
+    console.error('[public-installment-options]', err);
     return sendError(res, 500, 'Taksit seçenekleri yüklenemedi');
   }
 });

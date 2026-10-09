@@ -36,6 +36,7 @@ import {
   formatMoneyTr,
   type InstallmentRow,
 } from './mockBanks';
+import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 
 type PublicPayView = {
   token: string;
@@ -74,6 +75,7 @@ export default function PublicPayPage() {
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [installment, setInstallment] = useState(1);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [installmentRates, setInstallmentRates] = useState<InstallmentRow[]>([]);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesError, setRatesError] = useState(false);
@@ -199,10 +201,6 @@ export default function PublicPayPage() {
     [pricedInstallments, installment],
   );
 
-  function focusInstallmentPlan() {
-    if (!payableAmount || payableAmount <= 0) return;
-    planRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
 
   function validate(): boolean {
     const next: Record<string, string> = {};
@@ -289,34 +287,32 @@ export default function PublicPayPage() {
             data-anim
             className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3"
           >
-            <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:gap-3">
-              <img
-                src={logoUrl}
-                alt="Firma logosu"
-                className="h-10 w-auto max-w-[180px] object-contain object-left sm:max-w-[200px]"
-              />
-              <PublicLegalMenu
-                onOpenDoc={(doc) => setActiveLegalDoc(doc)}
-              />
-            </div>
-            <div
-              className="flex flex-wrap items-center justify-end gap-2"
-              aria-label="Kabul edilen ödeme yöntemleri"
-            >
-              {PAYMENT_BADGES.map((badge) => (
-                <span
-                  key={badge.src}
-                  title={badge.alt}
-                  className="flex h-10 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-2.5 shadow-sm"
-                >
-                  <img
-                    src={badge.src}
-                    alt={badge.alt}
-                    className={`object-contain ${badge.className}`}
-                    draggable={false}
-                  />
-                </span>
-              ))}
+            <img
+              src={logoUrl}
+              alt="Firma logosu"
+              className="h-10 w-auto max-w-[180px] object-contain object-left sm:max-w-[200px]"
+            />
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
+              <div
+                className="flex flex-wrap items-center justify-end gap-2"
+                aria-label="Kabul edilen ödeme yöntemleri"
+              >
+                {PAYMENT_BADGES.map((badge) => (
+                  <span
+                    key={badge.src}
+                    title={badge.alt}
+                    className="group flex h-10 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-2.5 shadow-sm transition-transform duration-200 ease-out hover:z-10 hover:scale-110 hover:shadow-md"
+                  >
+                    <img
+                      src={badge.src}
+                      alt={badge.alt}
+                      className={`object-contain transition-transform duration-200 group-hover:scale-105 ${badge.className}`}
+                      draggable={false}
+                    />
+                  </span>
+                ))}
+              </div>
+              <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
             </div>
           </header>
 
@@ -476,7 +472,7 @@ export default function PublicPayPage() {
                       <button
                         type="button"
                         disabled={!payableAmount || payableAmount <= 0}
-                        onClick={focusInstallmentPlan}
+                        onClick={() => setCompareOpen(true)}
                         className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         Taksit Seçenekleri
@@ -631,6 +627,16 @@ export default function PublicPayPage() {
           )}
         </div>
       </main>
+
+      {compareOpen && payableAmount > 0 ? (
+        <InstallmentOptionsModal
+          amount={payableAmount}
+          preferredBankId={bank?.id}
+          allowedInstallments={installmentOpts}
+          publicToken={payToken}
+          onClose={() => setCompareOpen(false)}
+        />
+      ) : null}
 
       {activeLegalDoc ? (
         <LegalDocModal
