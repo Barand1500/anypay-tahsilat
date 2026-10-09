@@ -227,28 +227,43 @@ export default function PublicPayPage() {
     };
   }, [payToken, view?.status, bank?.id, bank?.name, bank?.fullName, rateBin, payableAmount]);
 
-  const pricedInstallments = useMemo(
-    () =>
-      installmentOpts.map((n) => {
-        const configured = installmentRates.find((rate) => rate.n === n);
-        return (
-          configured ?? {
-            n,
-            plusN: 0,
-            commissionPct: 0,
-            installmentAmount: payableAmount / Math.max(1, n),
-            totalAmount: payableAmount,
-            minLimit: 0,
-          }
-        );
-      }),
-    [installmentOpts, installmentRates, payableAmount],
-  );
+  /**
+   * Referans mantık: izin verilen ∩ banka anlaşma satırları.
+   * Anlaşmada olmayan taksiti %0 uydurma.
+   * Oran yoksa ve 1 izinliyse yalnızca tek çekim.
+   */
+  const pricedInstallments = useMemo(() => {
+    const allowed = new Set(installmentOpts);
+    const fromBank = installmentRates
+      .filter((rate) => allowed.has(rate.n))
+      .slice()
+      .sort((a, b) => a.n - b.n);
+    if (fromBank.length) return fromBank;
+    if (allowed.has(1) && payableAmount > 0) {
+      return [
+        {
+          n: 1,
+          plusN: 0,
+          commissionPct: 0,
+          installmentAmount: payableAmount,
+          totalAmount: payableAmount,
+          minLimit: 0,
+        },
+      ];
+    }
+    return [];
+  }, [installmentOpts, installmentRates, payableAmount]);
 
   const selectedRate = useMemo(
     () => pricedInstallments.find((r) => r.n === installment) ?? null,
     [pricedInstallments, installment],
   );
+
+  useEffect(() => {
+    if (!pricedInstallments.length) return;
+    if (pricedInstallments.some((r) => r.n === installment)) return;
+    setInstallment(pricedInstallments[0]!.n);
+  }, [pricedInstallments, installment]);
 
 
   function validate(): boolean {
@@ -262,7 +277,7 @@ export default function PublicPayPage() {
     const expErr = getCardExpiryError(expiry);
     if (expErr) next.expiry = expErr;
     if (digitsOnly(cvc).length < 3) next.cvc = 'CVC';
-    if (!installmentOpts.includes(installment)) next.install = 'Taksit seçin';
+    if (!pricedInstallments.some((r) => r.n === installment)) next.install = 'Taksit seçin';
     if (!agree) next.agree = 'Sözleşmeyi kabul edin';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -660,8 +675,7 @@ export default function PublicPayPage() {
                   ) : null}
                   {!ratesLoading && !ratesError && installmentRates.length === 0 ? (
                     <p className="mb-3 text-xs text-[var(--panel-muted)]">
-                      Banka için kayıtlı vade farkı bulunamadı; izin verilen taksitler komisyonsuz
-                      gösteriliyor.
+                      Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.
                     </p>
                   ) : null}
                   <div

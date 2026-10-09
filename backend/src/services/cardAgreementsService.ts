@@ -320,10 +320,21 @@ export async function resolveAgreementRates(opts: {
     return { agreementCode: null, bankId: null, bankName: null, rows: [], availableSegments: [] };
   }
 
+  // Ortak Sanal POS: kaynak banka → yönlenen bankanın anlaşma oranları
+  const { resolveRatesTargetBank, resolveDefaultPosRatesBank } = await import(
+    './commonVirtualPosService.js'
+  );
+  const target = await resolveRatesTargetBank({
+    bankId: opts.bankId ?? null,
+    bankName: opts.bankName ?? null,
+  });
+  let rateBankId = target.bankId;
+  let rateBankName = target.bankName;
+
   let code = (opts.agreementCode || '').trim() || null;
   if (!code) {
     const { resolvePosFallbackAgreementCode } = await import('./posAgreementsService.js');
-    code = await resolvePosFallbackAgreementCode(opts.bankId ?? null);
+    code = await resolvePosFallbackAgreementCode(rateBankId ?? null);
   }
   if (!code) {
     return { agreementCode: null, bankId: null, bankName: null, rows: [], availableSegments: [] };
@@ -337,29 +348,53 @@ export async function resolveAgreementRates(opts: {
     return { agreementCode: code, bankId: null, bankName: null, rows: [], availableSegments: [] };
   }
 
-  let matched = all;
-  if (opts.bankId != null && Number.isFinite(opts.bankId)) {
-    const byId = all.filter((r) => r.bankaId === opts.bankId);
-    if (byId.length) matched = byId;
-    else if (opts.bankName) {
-      const byName = all.filter((r) => bankNameMatch(r, opts.bankName!));
-      if (!byName.length) {
-        return { agreementCode: code, bankId: opts.bankId, bankName: opts.bankName, rows: [], availableSegments: [] };
+  function matchBankRows(
+    bankId: number | null,
+    bankName: string | null,
+  ): typeof all | null {
+    if (bankId != null && Number.isFinite(bankId)) {
+      const byId = all.filter((r) => r.bankaId === bankId);
+      if (byId.length) return byId;
+      if (bankName) {
+        const byName = all.filter((r) => bankNameMatch(r, bankName));
+        return byName.length ? byName : null;
       }
-      matched = byName;
-    } else {
-      return { agreementCode: code, bankId: opts.bankId, bankName: null, rows: [], availableSegments: [] };
+      return null;
     }
-  } else if (opts.bankName) {
-    const byName = all.filter((r) => bankNameMatch(r, opts.bankName!));
-    if (!byName.length) {
-      return { agreementCode: code, bankId: null, bankName: opts.bankName, rows: [], availableSegments: [] };
+    if (bankName) {
+      const byName = all.filter((r) => bankNameMatch(r, bankName));
+      return byName.length ? byName : null;
     }
-    matched = byName;
+    return null;
   }
 
-  // Aynı banka paneli yoksa ilk blok / bankanın oranları
-  if (matched === all) {
+  let matched: typeof all | null = null;
+
+  if (rateBankId != null || rateBankName) {
+    matched = matchBankRows(rateBankId, rateBankName);
+    // Anlaşmada bu banka yok → varsayılan Sanal POS bankasının oranları
+    if (!matched) {
+      const def = await resolveDefaultPosRatesBank();
+      if (def && def.bankId !== rateBankId) {
+        const defRows = matchBankRows(def.bankId, def.bankName);
+        if (defRows?.length) {
+          rateBankId = def.bankId;
+          rateBankName = def.bankName;
+          matched = defRows;
+        }
+      }
+    }
+    if (!matched) {
+      return {
+        agreementCode: code,
+        bankId: rateBankId,
+        bankName: rateBankName,
+        rows: [],
+        availableSegments: [],
+      };
+    }
+  } else {
+    // Banka belirtilmemiş → ilk blok / banka
     const firstBank = all[0]!.bankaId;
     const firstBlok = all[0]!.blokAdi;
     matched = all.filter(

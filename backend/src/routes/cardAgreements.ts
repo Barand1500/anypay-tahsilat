@@ -14,6 +14,7 @@ import {
 } from '../services/cardAgreementsService.js';
 import { writePanelLog } from '../services/logsService.js';
 import { resolvePosBankAgreementCode } from '../services/posAgreementsService.js';
+import { resolveRatesTargetBank } from '../services/commonVirtualPosService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const cardAgreementsRouter = Router();
@@ -74,17 +75,23 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
   const scope = req.query.scope === 'pos' ? 'pos' : 'customer';
 
   try {
+    // Ortak Sanal POS yönlendirmesi (DenizBank → Garanti anlaşması)
+    const target = await resolveRatesTargetBank({
+      bankId: bankId != null && Number.isFinite(bankId) ? bankId : null,
+      bankName,
+    });
+
     let code = scope === 'pos' ? null : agreementCode || null;
     if (scope === 'customer' && !code && musteriId != null && Number.isFinite(musteriId)) {
       code = await getCustomerAgreementCode(musteriId);
     }
-    if (scope === 'pos' && bankId != null && Number.isFinite(bankId)) {
-      code = await resolvePosBankAgreementCode(bankId);
+    if (scope === 'pos' && target.bankId != null) {
+      code = await resolvePosBankAgreementCode(target.bankId);
     }
     const data = await resolveAgreementRates({
       agreementCode: code,
-      bankId: bankId != null && Number.isFinite(bankId) ? bankId : null,
-      bankName,
+      bankId: target.bankId,
+      bankName: target.bankName,
       segment,
       amount: Number.isFinite(amount) ? amount : 0,
       allowAllFallback: false,

@@ -175,3 +175,72 @@ export async function resolveRedirectBankId(sourceBankId: number): Promise<numbe
     return null;
   }
 }
+
+function normalizeBankHint(s: string): string {
+  return s
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Taksit oranı / anlaşma için hedef banka.
+ * Ortak Sanal POS: DenizBank → Garanti gibi yönlendirme.
+ * Logo/kart bankası değişmez; yalnızca oran bankası değişir.
+ */
+export async function resolveRatesTargetBank(opts: {
+  bankId?: number | null;
+  bankName?: string | null;
+}): Promise<{ bankId: number | null; bankName: string | null; redirected: boolean }> {
+  let bankId =
+    opts.bankId != null && Number.isFinite(opts.bankId) ? Number(opts.bankId) : null;
+  let bankName = (opts.bankName || '').trim() || null;
+
+  if (bankId == null && bankName) {
+    try {
+      const banks = await prisma.banka.findMany({
+        where: notRemoved(),
+        select: { id: true, adi: true, kisaAdi: true },
+      });
+      const needle = normalizeBankHint(bankName);
+      const hit = banks.find((b) => {
+        const blob = normalizeBankHint(`${b.adi} ${b.kisaAdi}`);
+        return Boolean(needle && blob && (blob.includes(needle) || needle.includes(blob)));
+      });
+      if (hit) bankId = hit.id;
+    } catch {
+      /* isimden id çözülemezse devam */
+    }
+  }
+
+  if (bankId == null) {
+    return { bankId: null, bankName, redirected: false };
+  }
+
+  const targetId = await resolveRedirectBankId(bankId);
+  if (targetId == null || targetId === bankId) {
+    return { bankId, bankName, redirected: false };
+  }
+
+  const target = await bankBrief(targetId);
+  return {
+    bankId: targetId,
+    bankName: target?.name || bankName,
+    redirected: true,
+  };
+}
+
+/** Varsayılan aktif Sanal POS bankası (anlaşmasız kart bankası fallback) */
+export async function resolveDefaultPosRatesBank(): Promise<{
+  bankId: number;
+  bankName: string;
+} | null> {
+  const { getDefaultVirtualPosBrand } = await import('./virtualPosService.js');
+  const def = await getDefaultVirtualPosBrand();
+  const id = def?.bankId ? Number(def.bankId) : NaN;
+  if (!Number.isFinite(id)) return null;
+  return { bankId: id, bankName: def?.bankName || `Banka #${id}` };
+}
