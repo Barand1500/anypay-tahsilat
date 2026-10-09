@@ -51,9 +51,11 @@ const listSchema = z.object({
   take: z.coerce.number().int().positive().optional(),
 });
 
-paymentsRouter.get('/banks', async (_req, res) => {
+paymentsRouter.get('/banks', async (req, res) => {
   try {
-    return sendSuccess(res, await listPaymentBanks());
+    const excludeRedirected =
+      req.query.excludeRedirected === '1' || req.query.excludeRedirected === 'true';
+    return sendSuccess(res, await listPaymentBanks({ excludeRedirectedSources: excludeRedirected }));
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'Bankalar yüklenemedi');

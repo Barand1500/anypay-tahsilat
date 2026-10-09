@@ -678,17 +678,26 @@ export async function reversePayment(
 }
 
 /** Filtre dropdown — bankalar */
-export async function listPaymentBanks(): Promise<
-  { id: string; name: string; logo: string }[]
-> {
+export async function listPaymentBanks(opts?: {
+  /** Ortak Sanal POS kaynak bankalarını gizle (Taksit Seçenekleri) */
+  excludeRedirectedSources?: boolean;
+}): Promise<{ id: string; name: string; logo: string }[]> {
   const rows = await prisma.banka.findMany({
     where: { OR: [{ remove: null }, { remove: false }] },
     orderBy: { adi: 'asc' },
     select: { id: true, adi: true, kisaAdi: true, logo: true },
   });
-  return rows.map((b) => ({
+  let list = rows.map((b) => ({
     id: String(b.id),
     name: (b.adi || b.kisaAdi || `Banka #${b.id}`).trim(),
     logo: bankLogoUrl(b.logo),
   }));
+  if (opts?.excludeRedirectedSources) {
+    const { listRedirectedSourceBankIds } = await import('./commonVirtualPosService.js');
+    const redirected = await listRedirectedSourceBankIds();
+    if (redirected.size) {
+      list = list.filter((b) => !redirected.has(Number(b.id)));
+    }
+  }
+  return list;
 }

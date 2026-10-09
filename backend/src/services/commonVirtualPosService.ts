@@ -176,6 +176,19 @@ export async function resolveRedirectBankId(sourceBankId: number): Promise<numbe
   }
 }
 
+/** Ortak Sanal POS’ta yönlendirilen kaynak banka id’leri (Taksit Seçenekleri’nde gizlenir) */
+export async function listRedirectedSourceBankIds(): Promise<Set<number>> {
+  try {
+    const rows = await prisma.ortakSanalPos.findMany({
+      where: { aktif: true, ...notRemoved() },
+      select: { bankaId: true },
+    });
+    return new Set(rows.map((r) => r.bankaId).filter((id) => Number.isFinite(id)));
+  } catch {
+    return new Set();
+  }
+}
+
 function normalizeBankHint(s: string): string {
   return s
     .toLocaleLowerCase('tr')

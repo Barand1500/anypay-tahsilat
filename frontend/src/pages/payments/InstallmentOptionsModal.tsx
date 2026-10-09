@@ -69,7 +69,7 @@ export function InstallmentOptionsModal({
       setBanksLoading(true);
       try {
         const list = await api.get<{ id: string; name: string; logo: string }[]>(
-          "/api/payments/banks",
+          "/api/payments/banks?excludeRedirected=1",
           token,
         );
         if (!cancelled) {

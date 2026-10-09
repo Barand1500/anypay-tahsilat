@@ -441,7 +441,8 @@ export async function getPaymentRequestInstallmentCompare(
   }
 
   const agreementCode = await getCustomerAgreementCode(row.musteriId);
-  const banks = await listPaymentBanks();
+  // Yönlendirilen kaynak bankalar (DenizBank/TEB → Garanti) listede görünmez
+  const banks = await listPaymentBanks({ excludeRedirectedSources: true });
 
   const rowsBySegment: Record<AgreementSegment, Record<string, AgreementRateRow[]>> = {
     tumu: {},
