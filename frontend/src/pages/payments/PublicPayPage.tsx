@@ -415,28 +415,58 @@ export default function PublicPayPage() {
               style={{ height: Math.min(pageSettings.brandLogoHeightPx + 8, 56) }}
               className="w-auto max-w-[200px] object-contain object-left brightness-0 invert"
             />
-            <div className="mt-8 max-w-sm lg:mt-auto lg:pb-6">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">
-                Güzel Teknoloji
-              </p>
-              <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight sm:text-[2.35rem]">
+            <div className="mt-7 max-w-sm">
+              <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-[2.35rem]">
                 Güvenli ödeme
               </h1>
-              <p className="mt-3 text-sm leading-relaxed text-white/80">
+              <p className="mt-2.5 text-sm leading-relaxed text-white/80">
                 Kart bilgileriniz şifreli kanal üzerinden iletilir. Ödemenizi sakin ve güvenle tamamlayın.
               </p>
             </div>
-            <div className="relative z-[1] mt-8 flex flex-wrap gap-2 lg:mt-10">
+
+            <nav
+              aria-label="Sözleşmeler"
+              className="mt-8 min-h-0 flex-1 overflow-y-auto pr-1 lg:mt-10"
+            >
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/55">
+                Sözleşmeler
+              </p>
+              <ol className="border-t border-white/15">
+                {LEGAL_DOCS.map((doc, i) => (
+                  <li key={doc.id} className="border-b border-white/15">
+                    <button
+                      type="button"
+                      onClick={() => setActiveLegalDoc(doc)}
+                      className="group flex w-full items-baseline gap-3 py-3 text-left transition hover:bg-white/[0.06]"
+                    >
+                      <span className="w-7 shrink-0 font-mono text-[11px] tabular-nums text-white/45 group-hover:text-white/70">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-semibold leading-snug text-white/95 group-hover:text-white">
+                          {doc.title}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] leading-snug text-white/50">
+                          {doc.subtitle}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+
+            <div className="mt-6 flex flex-wrap gap-2.5 lg:mt-8">
               {headerBadges.slice(0, 5).map((badge) => (
                 <span
                   key={`hero-${badge.id || badge.src}`}
-                  className="flex h-9 items-center rounded-lg bg-white/95 px-2.5 shadow-sm"
+                  className="flex h-12 items-center rounded-xl bg-white px-3.5 shadow-md sm:h-[3.25rem]"
                 >
                   <img
                     src={badge.src}
                     alt={badge.name}
-                    style={{ height: Math.min(badge.heightPx, 22) }}
-                    className="w-auto max-w-[4.5rem] object-contain"
+                    style={{ height: Math.min(Math.max(badge.heightPx, 28), 32) }}
+                    className="w-auto max-w-[5.5rem] object-contain"
                     draggable={false}
                   />
                 </span>
@@ -473,7 +503,6 @@ export default function PublicPayPage() {
             {isFullscreen ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-[var(--panel-ink)]">{view.customerTitle}</p>
-                <p className="text-[11px] text-[var(--panel-muted)]">{paymentTypeLabel[view.type]}</p>
               </div>
             ) : (
               <img
@@ -485,7 +514,9 @@ export default function PublicPayPage() {
             )}
             <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
               {!isFullscreen ? headerBadgesRow : null}
-              <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
+              {!isFullscreen ? (
+                <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
+              ) : null}
             </div>
           </header>
 
@@ -539,9 +570,14 @@ export default function PublicPayPage() {
                           : 'Komisyon ödeme tutarına eklenmez.'}
                       </p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-[var(--brand-soft-bg)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-700)]">
-                      {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-2 self-center sm:self-end">
+                      <p className="text-[12px] font-semibold text-[var(--panel-ink)]">
+                        {paymentTypeLabel[view.type]}
+                      </p>
+                      <span className="rounded-full bg-[var(--brand-soft-bg)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-700)]">
+                        {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
+                      </span>
+                    </div>
                   </div>
                   {view.description || view.files?.length ? (
                     <div className="border-t border-[var(--panel-line)] px-5 py-4 sm:px-6">
