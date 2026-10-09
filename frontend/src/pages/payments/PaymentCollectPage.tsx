@@ -85,7 +85,6 @@ export default function PaymentCollectPage() {
   const [cardChecked, setCardChecked] = useState(false);
   const [tcChecked, setTcChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
-  const [cvcChecked, setCvcChecked] = useState(false);
   const binsRev = useBinsRevision();
 
   useEffect(() => {
@@ -228,7 +227,6 @@ export default function PaymentCollectPage() {
     setCardChecked(true);
     setTcChecked(true);
     setExpiryChecked(true);
-    setCvcChecked(true);
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -564,10 +562,9 @@ export default function PaymentCollectPage() {
                 }}
                 onCard={onCardChange}
                 onExpiry={onExpiryChange}
-                onCvc={(v) => { setCvc(digitsOnly(v).slice(0, 4)); setCvcChecked(false); }}
+                onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
                 onCardBlur={() => setCardChecked(true)}
                 onExpiryBlur={() => setExpiryChecked(true)}
-                onCvcBlur={() => setCvcChecked(true)}
               />
             </div>
 

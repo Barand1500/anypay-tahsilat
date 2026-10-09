@@ -109,7 +109,6 @@ export default function QuickPayPage() {
   const [cardChecked, setCardChecked] = useState(false);
   const [tcChecked, setTcChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
-  const [cvcChecked, setCvcChecked] = useState(false);
   const binsRev = useBinsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
@@ -265,7 +264,6 @@ export default function QuickPayPage() {
     setCardChecked(true);
     setTcChecked(true);
     setExpiryChecked(true);
-    setCvcChecked(true);
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -551,10 +549,9 @@ export default function QuickPayPage() {
               }}
               onCard={onCardChange}
               onExpiry={onExpiryChange}
-              onCvc={(v) => { setCvc(digitsOnly(v).slice(0, 4)); setCvcChecked(false); }}
+              onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
               onCardBlur={() => setCardChecked(true)}
               onExpiryBlur={() => setExpiryChecked(true)}
-              onCvcBlur={() => setCvcChecked(true)}
             />
           </div>
 
