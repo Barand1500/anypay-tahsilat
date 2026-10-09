@@ -2,13 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { CurrenciesError, resolveCurrencyId } from './currenciesService.js';
 import { createPayment, listPaymentBanks, PaymentsError } from './paymentsService.js';
-import { PosResolveError, resolvePosForPayment } from '../gateways/index.js';
 import {
   getCustomerAgreementCode,
   resolveAgreementRates,
   type AgreementRateRow,
   type AgreementSegment,
 } from './cardAgreementsService.js';
+import { lookupBinByCard } from './binsService.js';
 import { getDefaultVirtualPosBrand } from './virtualPosService.js';
 import { resolveAllowedInstallments } from './installmentPriorityService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
@@ -344,7 +344,11 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
   };
 }
 
-/** Public payment link: return only the installment quote rows allowed for this request. */
+/**
+ * Public payment link — taksit planı oranları.
+ * Ödeme Al / Taksit Seçenekleri ile aynı: kart BIN bankası (POS değil).
+ * POS yalnızca tahsilat geçidi; vade farkı müşteri kart anlaşmasındaki kart bankasına aittir.
+ */
 export async function getPaymentRequestInstallmentRates(
   token: string,
   input: { bin: string; amount?: number },
@@ -363,18 +367,17 @@ export async function getPaymentRequestInstallmentRates(
     throw new PaymentRequestsError('Geçerli bir tutar girin');
   }
 
-  let pos;
-  try {
-    pos = await resolvePosForPayment({ cardDigits: input.bin });
-  } catch (err) {
-    if (err instanceof PosResolveError) throw new PaymentRequestsError(err.message);
-    throw err;
+  const cardBank = await lookupBinByCard(input.bin);
+  if (!cardBank?.bankId && !cardBank?.bankName) {
+    return [];
   }
+
   const agreementCode = await getCustomerAgreementCode(row.musteriId);
   const rates = await resolveAgreementRates({
     agreementCode,
-    bankId: pos.bankId,
-    bankName: pos.bankName,
+    bankId: cardBank.bankId,
+    bankName: cardBank.bankName,
+    // Ödeme Al ile aynı segment; bireysel yoksa tumu fallback (varsayılan)
     segment: tip === 'serbest' || tip === 'sabit' ? 'serbest' : 'bireysel',
     amount,
   });

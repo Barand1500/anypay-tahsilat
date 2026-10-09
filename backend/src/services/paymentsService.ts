@@ -12,6 +12,7 @@ import {
   getCustomerAgreementCode,
   resolveAgreementRates,
 } from './cardAgreementsService.js';
+import { lookupBinByCard } from './binsService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 
 export class PaymentsError extends Error {
@@ -464,13 +465,15 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   const installment = input.installment > 0 ? input.installment : 1;
   const apiBase = publicApiBase();
 
+  // Vade farkı: kart BIN bankası (UI / Taksit Seçenekleri ile aynı). POS yalnızca geçit.
   let commissionPct = 0;
   try {
+    const cardBank = await lookupBinByCard(digits);
     const code = await getCustomerAgreementCode(input.musteriId);
     const rates = await resolveAgreementRates({
       agreementCode: code,
-      bankId: pos.bankId,
-      bankName: pos.bankName,
+      bankId: cardBank?.bankId ?? null,
+      bankName: cardBank?.bankName ?? null,
       segment: input.payType === 'serbest' ? 'serbest' : 'bireysel',
       amount: input.amount,
     });
