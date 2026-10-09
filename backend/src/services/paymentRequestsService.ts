@@ -388,7 +388,11 @@ export async function getPaymentRequestInstallmentRates(
   return rows;
 }
 
-/** Public — tüm bankalar için taksit karşılaştırma (auth yok) */
+/**
+ * Public — Ödeme Al / Hızlı Ödeme ile aynı mantık:
+ * müşteri kart anlaşması oranları, banka bazlı tam tablo.
+ * İzinli taksit filtresi frontend’de (allowedInstallments) yapılır.
+ */
 export async function getPaymentRequestInstallmentCompare(
   token: string,
   input: { amount?: number },
@@ -419,8 +423,6 @@ export async function getPaymentRequestInstallmentCompare(
 
   const agreementCode = await getCustomerAgreementCode(row.musteriId);
   const banks = await listPaymentBanks();
-  const configured = parseTaksitler(row.taksitler);
-  const allowed = configured.length ? configured : [1];
 
   const rowsBySegment: Record<AgreementSegment, Record<string, AgreementRateRow[]>> = {
     tumu: {},
@@ -442,22 +444,10 @@ export async function getPaymentRequestInstallmentCompare(
           allowAllFallback: false,
         });
         for (const key of ['tumu', 'bireysel', 'ticari'] as const) {
-          const src = data.rowsBySegment?.[key] ?? (key === 'tumu' ? data.rows : []);
-          const filtered = src.filter((rate) => allowed.includes(rate.n));
-          if (allowed.includes(1) && !filtered.some((rate) => rate.n === 1)) {
-            filtered.unshift({
-              n: 1,
-              plusN: 0,
-              commissionPct: 0,
-              installmentAmount: amount,
-              totalAmount: amount,
-              minLimit: 0,
-            });
-          }
-          rowsBySegment[key][bank.id] = filtered;
+          const src = data.rowsBySegment?.[key] ?? (key === 'tumu' ? data.rows ?? [] : []);
+          rowsBySegment[key][bank.id] = src;
         }
         data.availableSegments?.forEach((s) => segmentSet.add(s));
-        if ((rowsBySegment.tumu[bank.id] ?? []).length) segmentSet.add('tumu');
       } catch {
         for (const key of ['tumu', 'bireysel', 'ticari'] as const) {
           rowsBySegment[key][bank.id] = [];
@@ -466,10 +456,17 @@ export async function getPaymentRequestInstallmentCompare(
     }),
   );
 
+  // Oranı olmayan bankaları listeden çıkar (panel modal ile aynı görünüm)
+  const banksWithRows = banks.filter((bank) =>
+    (['tumu', 'bireysel', 'ticari'] as const).some(
+      (key) => (rowsBySegment[key][bank.id] ?? []).length > 0,
+    ),
+  );
+
   const availableSegments = (['tumu', 'bireysel', 'ticari'] as const).filter((k) =>
     segmentSet.has(k),
   );
-  return { banks, rowsBySegment, availableSegments };
+  return { banks: banksWithRows, rowsBySegment, availableSegments };
 }
 
 export async function payPaymentRequestByToken(
