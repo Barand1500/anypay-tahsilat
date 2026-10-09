@@ -1,5 +1,14 @@
 import gsap from 'gsap';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { PAYMENT_BADGES } from '../../components/layout/Footer';
@@ -65,12 +74,12 @@ export default function PublicPayPage() {
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [installment, setInstallment] = useState(1);
-  const [installmentsOpen, setInstallmentsOpen] = useState(false);
   const [installmentRates, setInstallmentRates] = useState<InstallmentRow[]>([]);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesError, setRatesError] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDoc | null>(null);
   const [agree, setAgree] = useState(false);
+  const planRef = useRef<HTMLElement>(null);
   const [amountText, setAmountText] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -185,6 +194,16 @@ export default function PublicPayPage() {
     };
   }), [installmentOpts, installmentRates, payableAmount]);
 
+  const selectedRate = useMemo(
+    () => pricedInstallments.find((r) => r.n === installment) ?? null,
+    [pricedInstallments, installment],
+  );
+
+  function focusInstallmentPlan() {
+    if (!payableAmount || payableAmount <= 0) return;
+    planRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (variableAmount && (!Number.isFinite(payableAmount) || payableAmount <= 0 || payableAmount > 999999999.99)) next.amount = 'Geçerli bir tutar girin';
@@ -266,8 +285,39 @@ export default function PublicPayPage() {
     >
       <main className="w-full flex-1 px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
         <div className="mx-auto w-full max-w-[1400px]">
-          <header data-anim className="mb-3 flex min-h-10 items-center">
-            <img src={logoUrl} alt="Firma logosu" className="h-10 w-auto max-w-[200px] object-contain object-left" />
+          <header
+            data-anim
+            className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3"
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:gap-3">
+              <img
+                src={logoUrl}
+                alt="Firma logosu"
+                className="h-10 w-auto max-w-[180px] object-contain object-left sm:max-w-[200px]"
+              />
+              <PublicLegalMenu
+                onOpenDoc={(doc) => setActiveLegalDoc(doc)}
+              />
+            </div>
+            <div
+              className="flex flex-wrap items-center justify-end gap-2"
+              aria-label="Kabul edilen ödeme yöntemleri"
+            >
+              {PAYMENT_BADGES.map((badge) => (
+                <span
+                  key={badge.src}
+                  title={badge.alt}
+                  className="flex h-10 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-white px-2.5 shadow-sm"
+                >
+                  <img
+                    src={badge.src}
+                    alt={badge.alt}
+                    className={`object-contain ${badge.className}`}
+                    draggable={false}
+                  />
+                </span>
+              ))}
+            </div>
           </header>
 
           {alreadyPaid ? (
@@ -329,28 +379,43 @@ export default function PublicPayPage() {
                       </p>
                     </div>
 
-                    {view.description ? (
+                    {view.description || view.files?.length ? (
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Açıklama</p>
-                        <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-[var(--panel-ink)]">
-                          {view.description.replace(/<[^>]+>/g, '').slice(0, 1200)}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {view.files?.length ? (
-                      <div className="border-t border-[var(--panel-line)]/70 pt-3">
-                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">Ödeme belgeleri</p>
-                        <ul className="space-y-1.5">
-                          {view.files.map((f) => (
-                            <li key={f.path || f.url}>
-                              <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-medium text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--color-brand-600)]">
-                                <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                                <span className="shrink-0 text-[10px] font-bold text-[var(--color-brand-600)]">Görüntüle</span>
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
+                        {view.description ? (
+                          <>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">
+                              Açıklama
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-[var(--panel-ink)]">
+                              {view.description.replace(/<[^>]+>/g, '').slice(0, 1200)}
+                            </p>
+                          </>
+                        ) : null}
+                        {view.files?.length ? (
+                          <div className={view.description ? 'mt-2.5' : ''}>
+                            {!view.description ? (
+                              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">
+                                Belgeler
+                              </p>
+                            ) : null}
+                            <ul className="flex flex-wrap gap-2">
+                              {view.files.map((f) => (
+                                <li key={f.path || f.url} className="min-w-0">
+                                  <a
+                                    href={f.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={f.name}
+                                    className="inline-flex max-w-[11rem] items-center gap-1.5 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)]"
+                                  >
+                                    <FileGlyph />
+                                    <span className="min-w-0 truncate">{f.name}</span>
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -387,84 +452,163 @@ export default function PublicPayPage() {
                   </div>
 
                   <div className="flex min-w-0 flex-col gap-4 p-5">
-                    <SectionHead>Banka ve taksit</SectionHead>
-                    {!payableAmount ? (
-                      <p className="flex min-h-10 items-center justify-center text-center text-xs text-[var(--panel-muted)]">Taksit seçenekleri için önce ödenecek tutarı girin.</p>
-                    ) : !bank || !rateBin ? (
-                      <p className="flex min-h-10 items-center justify-center text-center text-xs text-[var(--panel-muted)]">Taksit seçeneklerini görmek için kart numaranızı girin; banka tanımlandığında açılır.</p>
-                    ) : (
+                    <SectionHead>Banka & taksit</SectionHead>
+                    <div className="flex min-h-[220px] flex-1 flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 p-4">
+                      {bank?.logo ? (
+                        <div className="mb-4 flex flex-col items-center justify-center py-2">
+                          <img
+                            src={bank.logo}
+                            alt={bank.name}
+                            title={bank.name}
+                            className="h-14 w-auto max-w-[180px] object-contain"
+                          />
+                        </div>
+                      ) : bank ? (
+                        <p className="mb-4 flex flex-1 items-center justify-center text-center text-lg font-bold text-[var(--panel-ink)]">
+                          {bank.name}
+                        </p>
+                      ) : (
+                        <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">
+                          Kart numarasını yazınca banka logosu burada belirir.
+                        </p>
+                      )}
+
                       <button
                         type="button"
-                        aria-expanded={installmentsOpen}
-                        onClick={() => setInstallmentsOpen((open) => !open)}
-                        className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg bg-amber-500 px-3 py-2 text-left text-xs font-bold text-white transition hover:bg-amber-400"
+                        disabled={!payableAmount || payableAmount <= 0}
+                        onClick={focusInstallmentPlan}
+                        className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45"
                       >
-                        <span>Taksit Seçenekleri</span>
-                        <ChevronIcon open={installmentsOpen} />
+                        Taksit Seçenekleri
                       </button>
-                    )}
-                    <div className="flex min-h-28 items-center justify-center rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)] px-4 py-5">
-                      {bank?.logo ? (
-                        <img src={bank.logo} alt={bank.name} title={bank.name} className="max-h-14 max-w-[190px] object-contain" />
-                      ) : bank ? (
-                        <p className="text-lg font-bold text-[var(--panel-ink)]">{bank.name}</p>
-                      ) : (
-                        <p className="max-w-xs text-center text-xs leading-relaxed text-[var(--panel-muted)]">Kart numarasını girdiğinizde banka bilgisi burada görünür.</p>
-                      )}
+
+                      {selectedRate && bank ? (
+                        <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+                            Seçili
+                          </p>
+                          <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
+                            {selectedRate.n === 1 ? 'Tek çekim' : `${selectedRate.n} taksit`}
+                          </p>
+                          <p className="text-sm tabular-nums text-[var(--panel-muted)]">
+                            {selectedRate.n > 1
+                              ? `${selectedRate.n} × ${formatMoneyDisplay(
+                                  view.commissionIncluded
+                                    ? selectedRate.installmentAmount
+                                    : payableAmount / Math.max(1, selectedRate.n + selectedRate.plusN),
+                                )}`
+                              : formatMoneyDisplay(
+                                  view.commissionIncluded ? selectedRate.totalAmount : payableAmount,
+                                )}
+                          </p>
+                          {selectedRate.commissionPct > 0 ? (
+                            <p className="mt-1 text-[11px] font-semibold text-rose-500">
+                              Vade farkı %{formatMoneyTr(selectedRate.commissionPct)}
+                              {view.commissionIncluded ? '' : ' · Satıcı karşılar'}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                              Komisyon yok
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
               </section>
 
-              {installmentsOpen && payableAmount > 0 && bank && rateBin ? (
-                <section data-anim>
+              {payableAmount > 0 && bank && rateBin ? (
+                <section ref={planRef} data-anim>
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
                     <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
                   </div>
-                  {ratesLoading ? <p className="mb-3 text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
-                  {!ratesLoading && ratesError ? <p className="mb-3 text-xs text-rose-500">Taksit fiyatları şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.</p> : null}
-                  {!ratesLoading && !ratesError && installmentRates.length === 0 ? <p className="mb-3 text-xs text-[var(--panel-muted)]">Banka için kayıtlı vade farkı bulunamadı; izin verilen taksitler komisyonsuz gösteriliyor.</p> : null}
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-                  {!ratesLoading && !ratesError ? pricedInstallments.map((rate) => {
-                    const n = rate.n;
-                    const active = installment === n;
-                    const chargedTotal = view.commissionIncluded ? rate.totalAmount : payableAmount;
-                    const paymentCount = Math.max(1, rate.n + rate.plusN);
-                    const perPayment = chargedTotal / paymentCount;
-                    return (
-                    <button
-                      key={n}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setInstallment(n)}
-                      className={[
-                        'relative min-h-[176px] overflow-hidden rounded-lg border p-3 text-right transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
-                        active
-                          ? 'border-[var(--color-brand-600)] bg-[var(--color-brand-600)] text-white shadow-sm'
-                          : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/60 hover:bg-[var(--panel-hover)]',
-                      ].join(' ')}
-                    >
-                      {rate.commissionPct === 0 ? (
-                        <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Komisyon yok</span>
-                      ) : null}
-                      <span className={['pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none sm:text-[5rem]', active ? 'text-white/20' : 'text-[var(--panel-muted)]/15'].join(' ')}>{n}</span>
-                      <p className={['relative text-sm font-semibold text-right', active ? 'text-white/90' : 'text-[var(--panel-muted)]'].join(' ')}>
-                        {n === 1 ? 'TEK ÇEKİM' : `${n} × ${formatMoneyTr(perPayment)}`}
-                      </p>
-                      <p className={['relative mt-2 text-xl font-bold tabular-nums', active ? 'text-white' : 'text-[var(--panel-ink)]'].join(' ')}>
-                        {formatMoneyTr(chargedTotal)}
-                      </p>
-                      {n > 1 && rate.commissionPct > 0 ? (
-                        <div className="relative mt-3 text-[10px] font-semibold leading-relaxed text-rose-500">
-                          <p>VADE FARKI{!view.commissionIncluded ? ' · SATICI KARŞILAR' : ''}</p>
-                          <p>%{formatMoneyTr(rate.commissionPct)} = {formatMoneyTr(Math.max(0, rate.totalAmount - payableAmount))}</p>
-                        </div>
-                      ) : null}
-                    </button>
-                    );
-                  }) : null}
-                  {errors.install ? <p className="col-span-full text-xs text-rose-500">{errors.install}</p> : null}
+                  {ratesLoading ? (
+                    <p className="mb-3 text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p>
+                  ) : null}
+                  {!ratesLoading && ratesError ? (
+                    <p className="mb-3 text-xs text-rose-500">
+                      Taksit fiyatları şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.
+                    </p>
+                  ) : null}
+                  {!ratesLoading && !ratesError && installmentRates.length === 0 ? (
+                    <p className="mb-3 text-xs text-[var(--panel-muted)]">
+                      Banka için kayıtlı vade farkı bulunamadı; izin verilen taksitler komisyonsuz
+                      gösteriliyor.
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {!ratesLoading && !ratesError
+                      ? pricedInstallments.map((rate) => {
+                          const n = rate.n;
+                          const active = installment === n;
+                          const chargedTotal = view.commissionIncluded
+                            ? rate.totalAmount
+                            : payableAmount;
+                          const paymentCount = Math.max(1, rate.n + rate.plusN);
+                          const perPayment = view.commissionIncluded
+                            ? rate.installmentAmount
+                            : chargedTotal / paymentCount;
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => setInstallment(n)}
+                              className={[
+                                'relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                                active
+                                  ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
+                                  : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
+                              ].join(' ')}
+                            >
+                              {rate.commissionPct === 0 ? (
+                                <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                                  Komisyon yok
+                                </span>
+                              ) : null}
+                              <span className="pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]">
+                                {n}
+                              </span>
+                              <p
+                                className={[
+                                  'relative text-sm font-semibold',
+                                  n === 1 ? 'text-right' : 'text-left',
+                                  active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
+                                ].join(' ')}
+                              >
+                                {n === 1 ? 'Tek çekim' : `${n} taksit`}
+                              </p>
+                              <p
+                                className={[
+                                  'relative mt-2 text-xl font-bold tabular-nums text-[var(--panel-ink)]',
+                                  n === 1 ? 'text-right' : 'text-left',
+                                ].join(' ')}
+                              >
+                                {n === 1
+                                  ? formatMoneyTr(chargedTotal)
+                                  : `${n} × ${formatMoneyTr(perPayment)}`}
+                              </p>
+                              {n > 1 ? (
+                                <p className="relative mt-0.5 text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
+                                  Toplam {formatMoneyTr(chargedTotal)}
+                                </p>
+                              ) : null}
+                              {n > 1 && rate.commissionPct > 0 ? (
+                                <p className="relative mt-1 text-[10px] font-semibold leading-relaxed text-rose-500">
+                                  Vade farkı %{formatMoneyTr(rate.commissionPct)} ={' '}
+                                  {formatMoneyTr(Math.max(0, rate.totalAmount - payableAmount))}
+                                  {!view.commissionIncluded ? ' · Satıcı karşılar' : ''}
+                                </p>
+                              ) : null}
+                            </button>
+                          );
+                        })
+                      : null}
+                    {errors.install ? (
+                      <p className="col-span-full text-xs text-rose-500">{errors.install}</p>
+                    ) : null}
                   </div>
                 </section>
               ) : null}
@@ -487,52 +631,6 @@ export default function PublicPayPage() {
           )}
         </div>
       </main>
-
-      <footer className="w-full border-t border-[var(--panel-line)] bg-[var(--panel-elevated)]/90 px-4 py-4 sm:px-5">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-col items-center gap-3.5">
-          <div
-            className="flex flex-wrap items-center justify-center gap-3"
-            aria-label="Kabul edilen ödeme yöntemleri"
-          >
-            {PAYMENT_BADGES.map((badge) => (
-              <span
-                key={badge.src}
-                title={badge.alt}
-                className="flex h-9 items-center justify-center rounded-lg border border-[var(--panel-line)] bg-white px-2.5"
-              >
-                <img
-                  src={badge.src}
-                  alt={badge.alt}
-                  className={`object-contain ${badge.className}`}
-                  draggable={false}
-                />
-              </span>
-            ))}
-          </div>
-
-          <div className="w-full">
-            <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
-              Sözleşmeler ve bilgilendirme
-            </p>
-            <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-              {LEGAL_DOCS.map((doc) => (
-                <li
-                  key={doc.id}
-                  className="min-w-0"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveLegalDoc(doc)}
-                    className="flex min-h-11 w-full items-center justify-center whitespace-normal break-words rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/50 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]"
-                  >
-                    {doc.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </footer>
 
       {activeLegalDoc ? (
         <LegalDocModal
@@ -559,25 +657,209 @@ function SectionHead({ children }: { children: ReactNode }) {
   );
 }
 
+const LEGAL_PANEL_W = 280;
+
+/** Üst bar — footer Sözleşmeler menüsü gibi; aşağı açılır */
+function PublicLegalMenu({ onOpenDoc }: { onOpenDoc: (doc: LegalDoc) => void }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  function updatePos() {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const left = Math.min(r.left, window.innerWidth - LEGAL_PANEL_W - 8);
+    setPos({ top: r.bottom + 10, left: Math.max(8, left) });
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePos();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onResize() {
+      updatePos();
+    }
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onResize, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const items = Array.from(panel.querySelectorAll('[data-menu-item]'));
+    gsap.set(panel, { transformOrigin: 'top left' });
+    gsap.set(items, { autoAlpha: 0, y: -6 });
+    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+    tl.fromTo(
+      panel,
+      { autoAlpha: 0, y: -10, scale: 0.96 },
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.3 },
+    ).to(items, { autoAlpha: 1, y: 0, duration: 0.24, stagger: 0.03 }, '-=0.12');
+    return () => {
+      tl.kill();
+    };
+  }, [open]);
+
+  const panel =
+    open && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            ref={panelRef}
+            role="menu"
+            className="fixed z-[10050] w-[280px] overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_16px_48px_rgba(0,0,0,0.18)]"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <div className="border-b border-[var(--panel-line)] px-4 py-3" data-menu-item>
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-brand-600)]">
+                Yasal
+              </p>
+              <p className="text-sm font-bold text-[var(--panel-ink)]">Sözleşmeler</p>
+            </div>
+            <ul className="max-h-[min(60vh,420px)] overflow-y-auto py-1.5">
+              {LEGAL_DOCS.map((doc) => (
+                <li key={doc.id}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-menu-item
+                    onClick={() => {
+                      setOpen(false);
+                      onOpenDoc(doc);
+                    }}
+                    className="flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left transition hover:bg-[var(--panel-hover)]"
+                  >
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--panel-surface)] text-[var(--panel-muted)]">
+                      <DocSmIcon />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold leading-snug text-[var(--panel-ink)]">
+                        {doc.title}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-[var(--panel-muted)]">
+                        {doc.subtitle}
+                      </span>
+                    </span>
+                    <span className="mt-1 text-[var(--panel-muted)]">
+                      <ChevronRightIcon />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition',
+          open
+            ? 'border-[var(--color-brand-500)]/45 bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)]'
+            : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/40 hover:text-[var(--color-brand-600)]',
+        ].join(' ')}
+      >
+        <DocSmIcon />
+        Sözleşmeler
+        <span className={['transition', open ? 'rotate-180' : ''].join(' ')}>
+          <ChevronDownIcon />
+        </span>
+      </button>
+      {panel}
+    </>
+  );
+}
+
 function CheckIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="m5 12.5 4.5 4.5L19 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="m5 12.5 4.5 4.5L19 7"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
+function FileGlyph() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      className={['shrink-0 transition-transform', open ? 'rotate-180' : ''].join(' ')}
-      aria-hidden
-    >
-      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--color-brand-600)]">
+      <path
+        d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DocSmIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3v4h4M9 12h6M9 16h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 10l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
