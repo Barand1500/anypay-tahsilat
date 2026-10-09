@@ -625,7 +625,7 @@ export default function PublicPayPage() {
         </div>
       </main>
 
-      {compareOpen && payableAmount > 0 ? (
+      {compareOpen && payableAmount > 0 && payToken ? (
         <InstallmentOptionsModal
           amount={payableAmount}
           preferredBankId={bank?.id}

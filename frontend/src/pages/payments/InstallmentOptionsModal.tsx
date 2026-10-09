@@ -134,10 +134,9 @@ export function InstallmentOptionsModal({
         return;
       }
 
-      // Public ödeme — tek endpoint
+      // Public ödeme — tek endpoint (banksLoading set etme → efekt döngüsü olmasın)
       if (publicToken) {
         setRatesLoading(true);
-        setBanksLoading(true);
         try {
           const q = new URLSearchParams({ amount: String(amount) });
           const data = await api.get<{
@@ -148,7 +147,7 @@ export function InstallmentOptionsModal({
           if (cancelled) return;
           const preferred = BANKS.find((item) => item.id === preferredBankId);
           const preferredName = preferred?.name.toLocaleLowerCase("tr");
-          const mapped = data.banks.map((bank) => {
+          const mapped = (data.banks ?? []).map((bank) => {
             const catalog = BANKS.find(
               (b) =>
                 b.id === bank.id ||
@@ -193,7 +192,6 @@ export function InstallmentOptionsModal({
           }
         } finally {
           if (!cancelled) {
-            setBanksLoading(false);
             setRatesLoading(false);
             setRatesRequestKey(rateKey);
           }
@@ -263,11 +261,13 @@ export function InstallmentOptionsModal({
     agreementCode,
     agreementScope,
     musteriId,
-    banksLoading,
+    // Public modda banksLoading değişimi isteği iptal etmesin
+    publicToken ? null : banksLoading,
     rateKey,
   ]);
 
-  const currentRatesLoading = banksLoading || ratesLoading || ratesRequestKey !== rateKey;
+  const currentRatesLoading =
+    (!publicToken && banksLoading) || ratesLoading || ratesRequestKey !== rateKey;
   const visibleSegments = currentRatesLoading ? [] : availableSegments;
   const rowsByBank = rowsBySegment[segment];
 
