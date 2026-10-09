@@ -90,9 +90,13 @@ export function clearLocalContractsCache() {
 }
 
 export function resolveContractVars(text: string, vars: ContractVarMap): string {
+  const byLower: ContractVarMap = {};
+  for (const [k, v] of Object.entries(vars)) {
+    byLower[k.toLocaleLowerCase('tr')] = v;
+  }
   return text.replace(/#([a-zA-ZğüşıöçĞÜŞİÖÇ0-9_]+)#/g, (_, key: string) => {
-    const v = vars[key];
-    return v != null && v !== '' ? v : `#${key}#`;
+    const v = vars[key] ?? byLower[key.toLocaleLowerCase('tr')];
+    return v != null && String(v).trim() !== '' ? String(v) : `#${key}#`;
   });
 }
 

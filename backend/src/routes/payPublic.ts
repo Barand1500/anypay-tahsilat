@@ -7,7 +7,11 @@ import {
   payPaymentRequestByToken,
   PaymentRequestsError,
 } from '../services/paymentRequestsService.js';
-import { getResolvedContractByLink } from '../services/contractsService.js';
+import {
+  companyVarsFromContact,
+  getPublicContractPayload,
+} from '../services/contractsService.js';
+import { getContactSettings } from '../services/settingsService.js';
 import { PaymentsError } from '../services/paymentsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -43,11 +47,22 @@ const installmentRatesSchema = z.object({
   bankName: z.string().trim().min(1).max(128).optional(),
 });
 
+/** Public — firma değişkenleri (sözleşme #unvan# vb.) */
+payPublicRouter.get('/company-vars', async (_req, res) => {
+  try {
+    const contact = await getContactSettings();
+    return sendSuccess(res, companyVarsFromContact(contact));
+  } catch (err) {
+    console.error('[public-company-vars]', err);
+    return sendError(res, 500, 'Firma bilgileri yüklenemedi');
+  }
+});
+
 payPublicRouter.get('/legal/:link', async (req, res) => {
   const parsed = legalLinkSchema.safeParse(req.params.link);
   if (!parsed.success) return sendError(res, 400, 'Geçersiz sözleşme bağlantısı');
   try {
-    const contract = await getResolvedContractByLink(parsed.data);
+    const contract = await getPublicContractPayload(parsed.data);
     if (!contract) return sendError(res, 404, 'Sözleşme bulunamadı');
     return sendSuccess(res, contract);
   } catch (err) {

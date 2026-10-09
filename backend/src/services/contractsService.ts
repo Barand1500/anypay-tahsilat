@@ -10,13 +10,19 @@ export class ContractsError extends Error {
 
 /** Footer / public sözleşme — #unvan# vb. (frontend getCompanyContractVars ile aynı) */
 function resolveContractVars(text: string, vars: Record<string, string>): string {
+  const byLower: Record<string, string> = {};
+  for (const [k, v] of Object.entries(vars)) {
+    byLower[k.toLocaleLowerCase('tr')] = v;
+  }
   return text.replace(/#([a-zA-ZğüşıöçĞÜŞİÖÇ0-9_]+)#/g, (_, key: string) => {
-    const v = vars[key];
-    return v != null && v !== '' ? v : `#${key}#`;
+    const v = vars[key] ?? byLower[key.toLocaleLowerCase('tr')];
+    return v != null && String(v).trim() !== '' ? String(v) : `#${key}#`;
   });
 }
 
-function companyVarsFromContact(contact: Awaited<ReturnType<typeof getContactSettings>>): Record<string, string> {
+export function companyVarsFromContact(
+  contact: Awaited<ReturnType<typeof getContactSettings>>,
+): Record<string, string> {
   return {
     webSitesi: contact.website || contact.fax || '',
     unvan: contact.title || '',
@@ -27,6 +33,27 @@ function companyVarsFromContact(contact: Awaited<ReturnType<typeof getContactSet
     telefon: contact.phone || '',
     gsm: contact.gsm || '',
     fax: contact.fax || '',
+  };
+}
+
+/** Public sözleşme — ham metin + firma değişkenleri (panel ile aynı çözüm) */
+export async function getPublicContractPayload(link: string): Promise<{
+  id: string;
+  name: string;
+  body: string;
+  link: string;
+  order: number;
+  companyVars: Record<string, string>;
+} | null> {
+  const contract = await getContractByLink(link);
+  if (!contract) return null;
+  const contact = await getContactSettings();
+  const companyVars = companyVarsFromContact(contact);
+  const raw = (contract.body || '').trim();
+  return {
+    ...contract,
+    body: raw ? resolveContractVars(raw, companyVars) : '',
+    companyVars,
   };
 }
 
@@ -164,17 +191,13 @@ export async function getContractByLink(link: string): Promise<PublicContract | 
   return row ? mapRow(row as DbRow) : null;
 }
 
-/** Public ödeme — panel footer ile aynı değişken çözümü */
+/** @deprecated — getPublicContractPayload kullan */
 export async function getResolvedContractByLink(link: string): Promise<PublicContract | null> {
-  const contract = await getContractByLink(link);
-  if (!contract) return null;
-  const raw = (contract.body || '').trim();
-  if (!raw) return contract;
-  const contact = await getContactSettings();
-  return {
-    ...contract,
-    body: resolveContractVars(raw, companyVarsFromContact(contact)),
-  };
+  const payload = await getPublicContractPayload(link);
+  if (!payload) return null;
+  const { companyVars: _v, ...contract } = payload;
+  void _v;
+  return contract;
 }
 
 export async function createContract(input: {

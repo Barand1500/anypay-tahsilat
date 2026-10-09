@@ -7,6 +7,7 @@ import {
   getCompanyContractVars,
   resolveContractVars,
   type ContractDef,
+  type ContractVarMap,
 } from '../../pages/definitions/mockContracts';
 import type { LegalDoc } from './legalDocs';
 
@@ -16,9 +17,24 @@ type Props = {
   publicView?: boolean;
 };
 
+type PublicLegalPayload = ContractDef & { companyVars?: ContractVarMap };
+
+type ContactPayload = {
+  title: string;
+  taxNo: string;
+  taxOffice: string;
+  identityNo: string;
+  address: string;
+  email: string;
+  phone: string;
+  gsm: string;
+  website?: string;
+  fax: string;
+};
+
 /**
  * Footer / ödeme sözleşme modalı — Esc / X; overlay tıklanınca kapanmaz.
- * Metin API’den + #degisken# çözümü.
+ * Panel ve public aynı: metin + firma değişkenleri → resolveContractVars.
  */
 export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
   const { token } = useAuth();
@@ -37,43 +53,37 @@ export function LegalDocModal({ doc, onClose, publicView = false }: Props) {
 
     void (async () => {
       try {
-        // Public ödeme: her zaman public endpoint (panel token’ı karışmasın)
-        if (publicView) {
-          const result = await api.get<ContractDef>(
-            `/api/pay/legal/${encodeURIComponent(doc.id)}`,
-          );
-          if (cancelled) return;
-          setTitle(result.name || doc.title);
-          setBody(result.body?.trim() || '');
-          return;
-        }
+        let name = doc.title;
+        let raw = '';
+        let vars: ContractVarMap = {};
 
-        if (!token) {
+        if (publicView) {
+          const [result, companyVars] = await Promise.all([
+            api.get<PublicLegalPayload>(`/api/pay/legal/${encodeURIComponent(doc.id)}`),
+            api.get<ContractVarMap>('/api/pay/company-vars').catch(() => ({}) as ContractVarMap),
+          ]);
+          name = result.name || doc.title;
+          raw = result.body?.trim() ?? '';
+          vars = { ...(result.companyVars || {}), ...companyVars };
+        } else if (!token) {
           if (!cancelled) {
             setTitle(doc.title);
             setBody('');
           }
           return;
+        } else {
+          const [contract, contact] = await Promise.all([
+            api.get<ContractDef>(`/api/contracts/by-link/${encodeURIComponent(doc.id)}`, token),
+            api.get<ContactPayload>('/api/settings/contact', token),
+          ]);
+          name = contract.name || doc.title;
+          raw = contract.body?.trim() ?? '';
+          vars = getCompanyContractVars(contact);
         }
 
-        const [contract, contact] = await Promise.all([
-          api.get<ContractDef>(`/api/contracts/by-link/${encodeURIComponent(doc.id)}`, token),
-          api.get<{
-            title: string;
-            taxNo: string;
-            taxOffice: string;
-            identityNo: string;
-            address: string;
-            email: string;
-            phone: string;
-            gsm: string;
-            fax: string;
-          }>('/api/settings/contact', token),
-        ]);
         if (cancelled) return;
-        const raw = contract.body?.trim() ?? '';
-        setTitle(contract.name || doc.title);
-        setBody(raw ? resolveContractVars(raw, getCompanyContractVars(contact)) : '');
+        setTitle(name);
+        setBody(raw ? resolveContractVars(raw, vars) : '');
       } catch {
         if (!cancelled) {
           setTitle(doc.title);
