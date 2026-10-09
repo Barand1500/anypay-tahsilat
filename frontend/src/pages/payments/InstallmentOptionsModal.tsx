@@ -368,27 +368,21 @@ export function InstallmentOptionsModal({
                     </colgroup>
                     <thead>
                       <tr className="text-[9px] uppercase leading-tight tracking-wide text-[var(--panel-muted)] sm:text-[10px]">
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                        <th className="whitespace-nowrap px-2 py-2 text-right font-semibold sm:px-3">
                           Taksit
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
+                        <th className="whitespace-nowrap px-2 py-2 text-right font-semibold sm:px-3">
                           Komisyon
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
-                          Taksit
-                          <br />
-                          tutarı
+                        <th className="whitespace-nowrap px-2 py-2 text-right font-semibold sm:px-3">
+                          Taksit tutarı
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold sm:px-3">
-                          Toplam
-                          <br />
-                          tutar
+                        <th className="whitespace-nowrap px-2 py-2 text-right font-semibold sm:px-3">
+                          Toplam tutar
                         </th>
                         {showMinLimit ? (
-                          <th className="px-2 py-2 text-right font-semibold sm:px-3">
-                            Taksit Alt
-                            <br />
-                            Limiti
+                          <th className="whitespace-nowrap px-2 py-2 text-right font-semibold sm:px-3">
+                            Taksit Alt Limiti
                           </th>
                         ) : null}
                       </tr>
