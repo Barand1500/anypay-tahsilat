@@ -14,7 +14,8 @@ const SECTION_PAGES: Record<string, readonly string[]> = {
       ? POS_KART_SUBNAV.map((child) => child.to)
       : [item.to],
   ),
-  '/tanimlamalar/pos-kart': POS_KART_SUBNAV.map((item) => item.to),
+  // /tanimlamalar/pos-kart buraya konmaz: dış kapı Navigate ile DefinitionsLayout’u
+  // unmount eder, üst sekme pill animasyonu kesilir. Yönlendirme PosKart index’te.
   '/ayarlar': SETTINGS_SUBNAV.map((item) => item.to),
 };
 
