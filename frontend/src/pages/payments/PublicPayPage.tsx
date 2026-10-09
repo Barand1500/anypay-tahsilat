@@ -865,18 +865,14 @@ export default function PublicPayPage() {
                               aria-pressed={active}
                               onClick={() => setInstallment(n)}
                               className={[
-                                'relative overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                                'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                                 isFullscreen ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
                                 active
                                   ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
                                   : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
                               ].join(' ')}
                             >
-                              {rate.commissionPct === 0 ? (
-                                <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-                                  Komisyon yok
-                                </span>
-                              ) : null}
+                              {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
                               <span className="pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]">
                                 {n}
                               </span>
@@ -971,6 +967,30 @@ function SectionHead({ children }: { children: ReactNode }) {
     <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">
       {children}
     </h2>
+  );
+}
+
+/** Taksit kartı — 3D şerit «Komisyon yok» (kompakt + tam ekran ortak) */
+function NoCommissionRibbon() {
+  return (
+    <span
+      className="pointer-events-none absolute -left-[7px] top-3 z-20"
+      aria-label="Komisyon yok"
+    >
+      <span
+        className="relative inline-block bg-[#f97316] py-[5px] pl-2.5 pr-[18px] text-[9px] font-extrabold uppercase tracking-[0.06em] text-[#fff8f0] shadow-[1px_2px_5px_rgba(0,0,0,0.2)]"
+        style={{
+          clipPath:
+            'polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%)',
+        }}
+      >
+        Komisyon yok
+      </span>
+      <span
+        aria-hidden
+        className="absolute left-[7px] top-full h-0 w-0 border-r-[7px] border-t-[7px] border-r-transparent border-t-[#9a3412]"
+      />
+    </span>
   );
 }
 
