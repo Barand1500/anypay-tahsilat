@@ -7,7 +7,7 @@ import {
   payPaymentRequestByToken,
   PaymentRequestsError,
 } from '../services/paymentRequestsService.js';
-import { getContractByLink } from '../services/contractsService.js';
+import { getResolvedContractByLink } from '../services/contractsService.js';
 import { PaymentsError } from '../services/paymentsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -47,7 +47,7 @@ payPublicRouter.get('/legal/:link', async (req, res) => {
   const parsed = legalLinkSchema.safeParse(req.params.link);
   if (!parsed.success) return sendError(res, 400, 'Geçersiz sözleşme bağlantısı');
   try {
-    const contract = await getContractByLink(parsed.data);
+    const contract = await getResolvedContractByLink(parsed.data);
     if (!contract) return sendError(res, 404, 'Sözleşme bulunamadı');
     return sendSuccess(res, contract);
   } catch (err) {

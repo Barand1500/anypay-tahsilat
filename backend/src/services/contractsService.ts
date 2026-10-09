@@ -1,10 +1,33 @@
 import { prisma } from '../lib/prisma.js';
+import { getContactSettings } from './settingsService.js';
 
 export class ContractsError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ContractsError';
   }
+}
+
+/** Footer / public sözleşme — #unvan# vb. (frontend getCompanyContractVars ile aynı) */
+function resolveContractVars(text: string, vars: Record<string, string>): string {
+  return text.replace(/#([a-zA-ZğüşıöçĞÜŞİÖÇ0-9_]+)#/g, (_, key: string) => {
+    const v = vars[key];
+    return v != null && v !== '' ? v : `#${key}#`;
+  });
+}
+
+function companyVarsFromContact(contact: Awaited<ReturnType<typeof getContactSettings>>): Record<string, string> {
+  return {
+    webSitesi: contact.website || contact.fax || '',
+    unvan: contact.title || '',
+    vergiTCNo: contact.taxNo || contact.identityNo || '',
+    vergiDairesi: contact.taxOffice || '',
+    adres: contact.address || '',
+    eposta: contact.email || '',
+    telefon: contact.phone || '',
+    gsm: contact.gsm || '',
+    fax: contact.fax || '',
+  };
 }
 
 const LINK_IDS = new Set([
@@ -139,6 +162,19 @@ export async function getContractByLink(link: string): Promise<PublicContract | 
   // flags unused except structure check
   void flags;
   return row ? mapRow(row as DbRow) : null;
+}
+
+/** Public ödeme — panel footer ile aynı değişken çözümü */
+export async function getResolvedContractByLink(link: string): Promise<PublicContract | null> {
+  const contract = await getContractByLink(link);
+  if (!contract) return null;
+  const raw = (contract.body || '').trim();
+  if (!raw) return contract;
+  const contact = await getContactSettings();
+  return {
+    ...contract,
+    body: resolveContractVars(raw, companyVarsFromContact(contact)),
+  };
 }
 
 export async function createContract(input: {
