@@ -491,34 +491,20 @@ export default function PublicPayPage() {
             isFullscreen ? 'max-w-[1100px]' : 'max-w-[1400px]',
           ].join(' ')}
         >
-          <header
-            data-anim
-            className={[
-              'mb-4 flex flex-wrap items-center justify-between gap-3',
-              isFullscreen
-                ? 'sticky top-0 z-20 -mx-4 mb-5 border-b border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--panel-bg)_92%,transparent)] px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10'
-                : 'min-h-12',
-            ].join(' ')}
-          >
-            {isFullscreen ? (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[var(--panel-ink)]">{view.customerTitle}</p>
-              </div>
-            ) : (
+          {!isFullscreen ? (
+            <header data-anim className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3">
               <img
                 src={logoUrl}
                 alt="Firma logosu"
                 style={{ height: pageSettings.brandLogoHeightPx }}
                 className="w-auto max-w-[180px] object-contain object-left sm:max-w-[200px]"
               />
-            )}
-            <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
-              {!isFullscreen ? headerBadgesRow : null}
-              {!isFullscreen ? (
+              <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
+                {headerBadgesRow}
                 <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
-              ) : null}
-            </div>
-          </header>
+              </div>
+            </header>
+          ) : null}
 
           {alreadyPaid ? (
             <section data-anim className="mx-auto max-w-2xl rounded-2xl border border-emerald-500/25 bg-[var(--panel-elevated)] p-8 text-center shadow-[var(--panel-shadow)] sm:p-10">
@@ -570,11 +556,14 @@ export default function PublicPayPage() {
                           : 'Komisyon ödeme tutarına eklenmez.'}
                       </p>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2 self-center sm:self-end">
-                      <p className="text-[12px] font-semibold text-[var(--panel-ink)]">
+                    <div className="flex shrink-0 flex-col items-end gap-1.5 self-center sm:self-end">
+                      <p className="max-w-[16rem] text-right text-base font-extrabold tracking-tight text-[var(--panel-ink)] sm:text-lg">
+                        {view.customerTitle}
+                      </p>
+                      <p className="text-[12px] font-semibold text-[var(--panel-muted)]">
                         {paymentTypeLabel[view.type]}
                       </p>
-                      <span className="rounded-full bg-[var(--brand-soft-bg)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-700)]">
+                      <span className="mt-0.5 rounded-full bg-[var(--brand-soft-bg)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-700)]">
                         {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
                       </span>
                     </div>
