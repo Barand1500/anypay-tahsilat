@@ -974,22 +974,36 @@ function SectionHead({ children }: { children: ReactNode }) {
 function NoCommissionRibbon() {
   return (
     <span
-      className="pointer-events-none absolute -left-[7px] top-3 z-20"
+      className="pointer-events-none absolute -left-2 top-2.5 z-20"
       aria-label="Komisyon yok"
     >
-      <span
-        className="relative inline-block bg-[#f97316] py-[5px] pl-2.5 pr-[18px] text-[9px] font-extrabold uppercase tracking-[0.06em] text-[#fff8f0] shadow-[1px_2px_5px_rgba(0,0,0,0.2)]"
-        style={{
-          clipPath:
-            'polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%)',
-        }}
-      >
-        Komisyon yok
-      </span>
-      <span
+      <svg
+        width="112"
+        height="34"
+        viewBox="0 0 112 34"
+        className="overflow-visible drop-shadow-[2px_3px_4px_rgba(0,0,0,0.28)]"
         aria-hidden
-        className="absolute left-[7px] top-full h-0 w-0 border-r-[7px] border-t-[7px] border-r-transparent border-t-[#9a3412]"
-      />
+      >
+        {/* Sol katlama gölgesi — kart kenarına sarılmış hissi */}
+        <path d="M8 24 L8 33 L0 24 Z" fill="#9a3412" />
+        {/* Şerit gövde + sağ ok ucu */}
+        <path d="M0 0 H92 L112 12 L92 24 H0 Z" fill="#f97316" />
+        <text
+          x="46"
+          y="13.5"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#fff8f0"
+          style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            letterSpacing: '0.06em',
+            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          }}
+        >
+          KOMİSYON YOK
+        </text>
+      </svg>
     </span>
   );
 }
