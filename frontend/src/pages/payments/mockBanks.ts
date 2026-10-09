@@ -106,6 +106,7 @@ export function isValidTurkishIdentityNo(value: string): boolean {
 
 /** SKT girişi — ay 01–12’ye sıkıştırır, AA/YY formatlar */
 export function formatExpiryInput(raw: string): string {
+  const curY = new Date().getFullYear() % 100;
   let d = digitsOnly(raw).slice(0, 4);
   if (d.length >= 1) {
     const first = Number(d[0]);
@@ -117,6 +118,21 @@ export function formatExpiryInput(raw: string): string {
     if (Number.isNaN(mm) || mm < 1) mm = 1;
     if (mm > 12) mm = 12;
     d = `${String(mm).padStart(2, '0')}${d.slice(2)}`;
+  }
+  // YY: mevcut yıldan küçük girilemesin (ay>12 gibi anlık düzelt)
+  if (d.length >= 3) {
+    const minFirst = Math.floor(curY / 10);
+    let yyPart = d.slice(2);
+    if (yyPart.length === 1) {
+      const y1 = Number(yyPart[0]);
+      if (!Number.isNaN(y1) && y1 < minFirst) yyPart = String(minFirst);
+    }
+    if (yyPart.length >= 2) {
+      let yy = Number(yyPart.slice(0, 2));
+      if (Number.isNaN(yy) || yy < curY) yy = curY;
+      yyPart = String(yy).padStart(2, '0');
+    }
+    d = `${d.slice(0, 2)}${yyPart.slice(0, 2)}`;
   }
   if (d.length <= 2) return d;
   return `${d.slice(0, 2)}/${d.slice(2)}`;
