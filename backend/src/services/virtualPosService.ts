@@ -72,6 +72,33 @@ export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
   return out;
 }
 
+/** Aktif varsayılan Sanal POS banka logosu (ödeme ekranı sağ panel) */
+export async function getDefaultVirtualPosBrand(): Promise<{
+  bankId: string;
+  bankName: string;
+  bankLogoUrl: string;
+  posName: string;
+} | null> {
+  let row = await prisma.sanalPosTanim.findFirst({
+    where: { varsayilan: true, aktif: { not: false }, ...notRemoved() },
+    orderBy: { id: 'asc' },
+  });
+  if (!row) {
+    row = await prisma.sanalPosTanim.findFirst({
+      where: { aktif: { not: false }, ...notRemoved() },
+      orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
+    });
+  }
+  if (!row) return null;
+  const mapped = await mapRow(row);
+  return {
+    bankId: mapped.bankId,
+    bankName: mapped.bankName,
+    bankLogoUrl: mapped.bankLogoUrl,
+    posName: mapped.posName,
+  };
+}
+
 export async function getVirtualPos(id: number): Promise<PublicVirtualPos | null> {
   const row = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },

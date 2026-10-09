@@ -53,6 +53,9 @@ type PublicPayView = {
   currencyId?: string;
   currencySymbol?: string;
   currencyShortName?: string;
+  posBankName?: string | null;
+  posBankLogo?: string | null;
+  posName?: string | null;
 };
 
 /**
@@ -450,22 +453,22 @@ export default function PublicPayPage() {
                   <div className="flex min-w-0 flex-col gap-4 p-5">
                     <SectionHead>Banka & taksit</SectionHead>
                     <div className="flex min-h-[220px] flex-1 flex-col rounded-xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/60 p-4">
-                      {bank?.logo ? (
+                      {view.posBankLogo ? (
                         <div className="mb-4 flex flex-col items-center justify-center py-2">
                           <img
-                            src={bank.logo}
-                            alt={bank.name}
-                            title={bank.name}
+                            src={view.posBankLogo}
+                            alt={view.posBankName || view.posName || 'Sanal POS'}
+                            title={view.posName || view.posBankName || undefined}
                             className="h-14 w-auto max-w-[180px] object-contain"
                           />
                         </div>
-                      ) : bank ? (
+                      ) : view.posBankName ? (
                         <p className="mb-4 flex flex-1 items-center justify-center text-center text-lg font-bold text-[var(--panel-ink)]">
-                          {bank.name}
+                          {view.posBankName}
                         </p>
                       ) : (
                         <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">
-                          Kart numarasını yazınca banka logosu burada belirir.
+                          Varsayılan Sanal POS tanımlı değil.
                         </p>
                       )}
 
@@ -478,7 +481,7 @@ export default function PublicPayPage() {
                         Taksit Seçenekleri
                       </button>
 
-                      {selectedRate && bank ? (
+                      {selectedRate ? (
                         <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
                             Seçili
@@ -569,30 +572,24 @@ export default function PublicPayPage() {
                               </span>
                               <p
                                 className={[
-                                  'relative text-sm font-semibold',
-                                  n === 1 ? 'text-right' : 'text-left',
+                                  'relative text-right text-sm font-semibold',
                                   active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                                 ].join(' ')}
                               >
                                 {n === 1 ? 'Tek çekim' : `${n} taksit`}
                               </p>
-                              <p
-                                className={[
-                                  'relative mt-2 text-xl font-bold tabular-nums text-[var(--panel-ink)]',
-                                  n === 1 ? 'text-right' : 'text-left',
-                                ].join(' ')}
-                              >
+                              <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                                 {n === 1
                                   ? formatMoneyTr(chargedTotal)
                                   : `${n} × ${formatMoneyTr(perPayment)}`}
                               </p>
                               {n > 1 ? (
-                                <p className="relative mt-0.5 text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
+                                <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
                                   Toplam {formatMoneyTr(chargedTotal)}
                                 </p>
                               ) : null}
                               {n > 1 && rate.commissionPct > 0 ? (
-                                <p className="relative mt-1 text-[10px] font-semibold leading-relaxed text-rose-500">
+                                <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                                   Vade farkı %{formatMoneyTr(rate.commissionPct)} ={' '}
                                   {formatMoneyTr(Math.max(0, rate.totalAmount - payableAmount))}
                                   {!view.commissionIncluded ? ' · Satıcı karşılar' : ''}

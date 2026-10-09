@@ -9,6 +9,7 @@ import {
   type AgreementRateRow,
   type AgreementSegment,
 } from './cardAgreementsService.js';
+import { getDefaultVirtualPosBrand } from './virtualPosService.js';
 import { resolveAllowedInstallments } from './installmentPriorityService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 import {
@@ -51,6 +52,10 @@ export type PublicPayView = {
   currencyId: string;
   currencySymbol: string;
   currencyShortName: string;
+  /** Varsayılan Sanal POS banka logosu (kart BIN’den bağımsız) */
+  posBankName: string | null;
+  posBankLogo: string | null;
+  posName: string | null;
 };
 
 export type PayByTokenInput = {
@@ -316,6 +321,8 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     select: { id: true, sembol: true, kisaAdi: true },
   });
 
+  const posBrand = await getDefaultVirtualPosBrand();
+
   return {
     token: row.istekNo,
     type: payTypeFromTip(row.odemeTipi),
@@ -331,6 +338,9 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     currencyId: String(row.parabirimiId),
     currencySymbol: currency?.sembol || '₺',
     currencyShortName: currency?.kisaAdi || 'TL',
+    posBankName: posBrand?.bankName ?? null,
+    posBankLogo: posBrand?.bankLogoUrl || null,
+    posName: posBrand?.posName ?? null,
   };
 }
 

@@ -678,36 +678,24 @@ export default function PaymentCollectPage() {
                     </span>
                     <p
                       className={[
-                        'relative text-sm font-semibold',
-                        r.n === 1 ? 'text-right' : 'text-left',
+                        'relative text-right text-sm font-semibold',
                         active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                       ].join(' ')}
                     >
                       {r.n === 1 ? 'Tek çekim' : `${r.n} taksit`}
                     </p>
-                    <p
-                      className={[
-                        'relative mt-2 text-xl font-bold tabular-nums',
-                        r.n === 1 ? 'text-right' : 'text-left',
-                        'text-[var(--panel-ink)]',
-                      ].join(' ')}
-                    >
+                    <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                       {r.n === 1
                         ? formatMoneyTr(chargedTotal)
                         : `${r.n} × ${formatMoneyTr(perPayment)}`}
                     </p>
                     {r.n > 1 ? (
-                      <p
-                        className={[
-                          'relative mt-0.5 text-[10px] font-semibold tabular-nums',
-                          'text-[var(--panel-muted)]',
-                        ].join(' ')}
-                      >
+                      <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
                         Toplam {formatMoneyTr(chargedTotal)}
                       </p>
                     ) : null}
                     {r.n > 1 && r.commissionPct > 0 ? (
-                      <p className="relative mt-1 text-[10px] font-semibold leading-relaxed text-rose-500">
+                      <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                         Vade farkı %{formatMoneyTr(r.commissionPct)} = {formatMoneyTr(Math.max(0, r.totalAmount - amount))}
                         {!commissionIncluded ? ' · Satıcı karşılar' : ''}
                       </p>

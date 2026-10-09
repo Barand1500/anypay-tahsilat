@@ -627,13 +627,13 @@ export default function QuickPayPage() {
                         <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Komisyon yok</span>
                       ) : null}
                       <span className="pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]">{r.n}</span>
-                      <p className={['relative text-sm font-semibold', r.n === 1 ? 'text-right' : 'text-left', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
+                      <p className={['relative text-right text-sm font-semibold', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
                         {r.n === 1 ? 'Tek çekim' : `${r.n} taksit`}
                       </p>
-                      <p className={['relative mt-2 text-xl font-bold tabular-nums', r.n === 1 ? 'text-right' : 'text-left', 'text-[var(--panel-ink)]'].join(' ')}>
+                      <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                         {r.n === 1 ? formatMoneyTr(r.totalAmount) : `${r.n} × ${formatMoneyTr(r.installmentAmount)}`}
                       </p>
-                      {r.n > 1 ? <p className="relative mt-0.5 text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">Toplam {formatMoneyTr(r.totalAmount)}</p> : null}
+                      {r.n > 1 ? <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">Toplam {formatMoneyTr(r.totalAmount)}</p> : null}
                     </button>
                   );
                 })}
