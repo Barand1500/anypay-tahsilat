@@ -356,9 +356,8 @@ export default function PublicPayPage() {
 
   const alreadyPaid = view.status === 'paid' || !!done;
   const isFullscreen = pageSettings.layout === 'fullscreen';
-  const headerBadges = pageSettingsReady
-    ? pageSettings.badges
-    : pageSettings.badges.length
+  const headerBadges = (
+    pageSettingsReady || pageSettings.badges.length
       ? pageSettings.badges
       : PAYMENT_BADGES.map((b, i) => ({
           id: `fallback-${i}`,
@@ -367,7 +366,11 @@ export default function PublicPayPage() {
           heightPx: 28,
           active: true,
           sortOrder: i,
-        }));
+        }))
+  )
+    .filter((b) => b.active !== false)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const paymentTypeLabel: Record<PublicPayView['type'], string> = {
     ch: 'Cari hesap tahsilatı',
     fatura: 'Fatura ödemesi',
@@ -436,8 +439,8 @@ export default function PublicPayPage() {
             <img
               src={logoUrl}
               alt="Firma logosu"
-              style={{ height: Math.min(pageSettings.brandLogoHeightPx + 8, 56) }}
-              className="w-auto max-w-[200px] object-contain object-left brightness-0 invert"
+              style={{ height: pageSettings.brandLogoHeightPx }}
+              className="w-auto max-w-[220px] object-contain object-left brightness-0 invert"
             />
             <div className="mt-7 max-w-sm">
               <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-[2.35rem]">
@@ -481,7 +484,7 @@ export default function PublicPayPage() {
             </nav>
 
             <div className="relative z-20 mt-6 flex flex-wrap gap-2.5 overflow-visible lg:mt-8">
-              {headerBadges.slice(0, 5).map((badge) => (
+              {headerBadges.map((badge) => (
                 <HeroPaymentBadge
                   key={`hero-${badge.id || badge.src}`}
                   name={badge.name}
@@ -989,7 +992,7 @@ function SectionHead({ children }: { children: ReactNode }) {
   );
 }
 
-/** Sol panel alt logolar — genel ayarlar logo/favicon hover büyütmesi gibi */
+/** Sol panel alt logolar — ödeme sayfası ayarlarındaki yükseklik + hover büyütme */
 function HeroPaymentBadge({
   name,
   src,
@@ -1000,11 +1003,13 @@ function HeroPaymentBadge({
   heightPx: number;
 }) {
   const [hover, setHover] = useState(false);
-  const imgH = Math.min(Math.max(heightPx, 28), 32);
+  const imgH = Math.min(Math.max(heightPx || 28, 16), 56);
+  const boxH = Math.max(40, imgH + 16);
 
   return (
     <span
-      className="relative flex h-12 items-center overflow-visible rounded-xl bg-white px-3.5 shadow-md sm:h-[3.25rem]"
+      className="relative flex items-center overflow-visible rounded-xl bg-white px-3.5 shadow-md"
+      style={{ height: boxH }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -1013,7 +1018,7 @@ function HeroPaymentBadge({
         alt={name}
         style={{ height: imgH }}
         className={[
-          'w-auto max-w-[5.5rem] object-contain transition-opacity',
+          'w-auto max-w-[6.5rem] object-contain transition-opacity',
           hover ? 'opacity-30' : 'opacity-95',
         ].join(' ')}
         draggable={false}
