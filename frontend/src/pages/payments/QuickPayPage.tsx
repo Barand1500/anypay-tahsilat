@@ -17,12 +17,11 @@ import { normalizePhoneInput } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { InstallmentPlanSection } from './InstallmentPlanSection';
 import {
   formatInstallmentExtraHint,
   formatInstallmentPaymentLine,
   formatInstallmentTitle,
-  InstallmentCardWatermark,
-  installmentPaymentCount,
 } from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import {
@@ -619,70 +618,22 @@ export default function QuickPayPage() {
           </div>
         </div>
         </section>
-          {bank && amount > 0 ? <section data-anim>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
-              <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
-            </div>
-            {ratesLoading ? <p className="text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p> : null}
-            {!ratesLoading && availableBankRows.length ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {availableBankRows.map((r) => {
-                  const active = pickedInstall?.n === r.n && pickedInstall.bank.id === bank.id;
-                  const ok = !allowedInstallments || allowedInstallments.includes(r.n);
-                  const paymentCount = installmentPaymentCount(r.n, r.plusN);
-                  const showTotalLine = paymentCount > 1 || r.plusN > 0;
-                  return (
-                    <button
-                      key={r.n}
-                      type="button"
-                      data-km-jump={ok || undefined}
-                      title={ok ? undefined : 'Size atanmadı'}
-                      disabled={!ok}
-                      onClick={() => ok && setPickedInstall({ n: r.n, bank })}
-                      className={[
-                        'relative min-h-[176px] max-w-[320px] overflow-visible rounded-xl border p-4 text-left text-white transition',
-                        !ok
-                          ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
-                          : active
-                            ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
-                            : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
-                      ].join(' ')}
-                    >
-                      {r.commissionPct === 0 ? (
-                        <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Komisyon yok</span>
-                      ) : null}
-                      {r.plusN > 0 ? (
-                        <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
-                          +{r.plusN} ek
-                        </span>
-                      ) : null}
-                      <InstallmentCardWatermark n={r.n} plusN={r.plusN} />
-                      {r.plusN <= 0 ? (
-                        <p className={['relative text-right text-sm font-semibold', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
-                          {formatInstallmentTitle(r.n, r.plusN)}
-                        </p>
-                      ) : null}
-                      <p
-                        className={[
-                          'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
-                          r.plusN > 0 ? 'mt-6' : 'mt-2',
-                        ].join(' ')}
-                      >
-                        {formatInstallmentPaymentLine(r, r.totalAmount, true, formatMoneyTr)}
-                      </p>
-                      {showTotalLine ? (
-                        <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
-                          Toplam {formatMoneyTr(r.totalAmount)}
-                        </p>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-            {!ratesLoading && !availableBankRows.length ? <p className="text-xs text-[var(--panel-muted)]">Bu banka için taksit anlaşması bulunamadı.</p> : null}
-          </section> : null}
+          {bank && amount > 0 ? (
+            <InstallmentPlanSection
+              rows={availableBankRows}
+              selectedN={pickedInstall?.bank.id === bank.id ? pickedInstall.n : null}
+              onSelect={(n) => setPickedInstall({ n, bank })}
+              baseAmount={amount}
+              commissionIncluded
+              loading={ratesLoading}
+              allowedInstallments={allowedInstallments}
+              emptyMessage={
+                !ratesLoading && !availableBankRows.length
+                  ? 'Bu banka için taksit anlaşması bulunamadı.'
+                  : null
+              }
+            />
+          ) : null}
 
         <div data-anim className="flex flex-col items-center gap-4 pt-2">
           <label className="flex items-start gap-2.5 text-sm text-[var(--panel-ink)]">

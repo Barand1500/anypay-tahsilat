@@ -17,12 +17,11 @@ import { useCustomer } from '../customers/useCustomer';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { InstallmentPlanSection } from './InstallmentPlanSection';
 import {
   formatInstallmentExtraHint,
   formatInstallmentPaymentLine,
   formatInstallmentTitle,
-  InstallmentCardWatermark,
-  installmentPaymentCount,
 } from './installmentDisplay';
 import {
   detectBank,
@@ -647,92 +646,15 @@ export default function PaymentCollectPage() {
           </div>
         </section>
 
-        {/* Taksit ızgarası — yalnızca banka algılanınca */}
         {bank && amount > 0 ? (
-          <section data-anim>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
-              <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {installmentRows.map((r) => {
-                const active = installment === r.n;
-                const chargedTotal = commissionIncluded ? r.totalAmount : amount;
-                const ok =
-                  !allowedInstallments || allowedInstallments.includes(r.n);
-                const paymentCount = installmentPaymentCount(r.n, r.plusN);
-                const showTotalLine = paymentCount > 1 || r.plusN > 0;
-                return (
-                  <button
-                    key={r.n}
-                    type="button"
-                    data-km-jump={ok || undefined}
-                    title={ok ? undefined : 'Size atanmadı'}
-                    disabled={!ok}
-                    onClick={() => ok && setInstallment(r.n)}
-                    className={[
-                      'relative min-h-[176px] max-w-[320px] overflow-visible rounded-xl border p-4 text-left text-white transition',
-                      !ok
-                        ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
-                        : active
-                          ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
-                          : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
-                    ].join(' ')}
-                  >
-                    {r.commissionPct === 0 ? (
-                      <span
-                        className={[
-                          'absolute left-0 top-0 rounded-br-lg px-1.5 py-0.5 text-[9px] font-bold uppercase',
-                          'bg-amber-500 text-white',
-                        ].join(' ')}
-                      >
-                        Komisyon yok
-                      </span>
-                    ) : null}
-                    {r.plusN > 0 ? (
-                      <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
-                        +{r.plusN} ek
-                      </span>
-                    ) : null}
-                    <InstallmentCardWatermark n={r.n} plusN={r.plusN} />
-                    {r.plusN <= 0 ? (
-                      <p
-                        className={[
-                          'relative text-right text-sm font-semibold',
-                          active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
-                        ].join(' ')}
-                      >
-                        {formatInstallmentTitle(r.n, r.plusN)}
-                      </p>
-                    ) : null}
-                    <p
-                      className={[
-                        'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
-                        r.plusN > 0 ? 'mt-6' : 'mt-2',
-                      ].join(' ')}
-                    >
-                      {formatInstallmentPaymentLine(
-                        r,
-                        chargedTotal,
-                        commissionIncluded,
-                        formatMoneyTr,
-                      )}
-                    </p>
-                    {showTotalLine ? (
-                      <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
-                        Toplam {formatMoneyTr(chargedTotal)}
-                      </p>
-                    ) : null}
-                    {paymentCount > 1 && r.commissionPct > 0 ? (
-                      <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
-                        Vade farkı %{formatMoneyTr(r.commissionPct)} = {formatMoneyTr(Math.max(0, r.totalAmount - amount))}
-                      </p>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          <InstallmentPlanSection
+            rows={installmentRows}
+            selectedN={installment}
+            onSelect={setInstallment}
+            baseAmount={amount}
+            commissionIncluded={commissionIncluded}
+            allowedInstallments={allowedInstallments}
+          />
         ) : null}
 
         <div

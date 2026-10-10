@@ -43,12 +43,11 @@ import {
   type InstallmentRow,
 } from './mockBanks';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { InstallmentPlanSection } from './InstallmentPlanSection';
 import {
   formatInstallmentExtraHint,
   formatInstallmentPaymentLine,
   formatInstallmentTitle,
-  InstallmentCardWatermark,
-  installmentPaymentCount,
 } from './installmentDisplay';
 
 type PublicPayView = {
@@ -846,108 +845,23 @@ export default function PublicPayPage() {
               </section>
 
               {payableAmount > 0 && bank && rateBin ? (
-                <section ref={planRef} data-anim>
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
-                    <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
-                  </div>
-                  {ratesLoading ? (
-                    <p className="mb-3 text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p>
-                  ) : null}
-                  {!ratesLoading && ratesError ? (
-                    <p className="mb-3 text-xs text-rose-500">
-                      Taksit fiyatları şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.
-                    </p>
-                  ) : null}
-                  {!ratesLoading && !ratesError && installmentRates.length === 0 ? (
-                    <p className="mb-3 text-xs text-[var(--panel-muted)]">
-                      Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.
-                    </p>
-                  ) : null}
-                  <div
-                    className={[
-                      'grid gap-3',
-                      isFullscreen
-                        ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-                        : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4',
-                    ].join(' ')}
-                  >
-                    {!ratesLoading && !ratesError
-                      ? pricedInstallments.map((rate) => {
-                          const n = rate.n;
-                          const active = installment === n;
-                          // Referans site gibi: komisyon dahil → banka oranlı tutar; hariç → ana tutar + vade bilgisi
-                          const chargedTotal = view.commissionIncluded
-                            ? rate.totalAmount
-                            : payableAmount;
-                          const paymentCount = installmentPaymentCount(rate.n, rate.plusN);
-                          const vadeFarki = Math.max(0, rate.totalAmount - payableAmount);
-                          const showTotalLine = paymentCount > 1 || rate.plusN > 0;
-                          return (
-                            <button
-                              key={n}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() => setInstallment(n)}
-                              className={[
-                                'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
-                                isFullscreen ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
-                                active
-                                  ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
-                                  : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
-                              ].join(' ')}
-                            >
-                              {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
-                              {rate.plusN > 0 ? (
-                                <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
-                                  +{rate.plusN} ek
-                                </span>
-                              ) : null}
-                              <InstallmentCardWatermark n={n} plusN={rate.plusN} />
-                              {rate.plusN <= 0 ? (
-                                <p
-                                  className={[
-                                    'relative text-right text-sm font-semibold',
-                                    active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
-                                  ].join(' ')}
-                                >
-                                  {formatInstallmentTitle(n, rate.plusN)}
-                                </p>
-                              ) : null}
-                              <p
-                                className={[
-                                  'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
-                                  rate.plusN > 0 ? 'mt-6' : 'mt-2',
-                                ].join(' ')}
-                              >
-                                {formatInstallmentPaymentLine(
-                                  rate,
-                                  chargedTotal,
-                                  view.commissionIncluded,
-                                  formatMoneyTr,
-                                )}
-                              </p>
-                              {showTotalLine ? (
-                                <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
-                                  Toplam {formatMoneyTr(chargedTotal)}
-                                </p>
-                              ) : null}
-                              {paymentCount > 1 && rate.commissionPct > 0 ? (
-                                <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
-                                  {view.commissionIncluded
-                                    ? `Vade farkı %${formatMoneyTr(rate.commissionPct)} - ${formatMoneyTr(vadeFarki)}`
-                                    : `Vade farkı %${formatMoneyTr(rate.commissionPct)}`}
-                                </p>
-                              ) : null}
-                            </button>
-                          );
-                        })
-                      : null}
-                    {errors.install ? (
-                      <p className="col-span-full text-xs text-rose-500">{errors.install}</p>
-                    ) : null}
-                  </div>
-                </section>
+                <InstallmentPlanSection
+                  sectionRef={planRef}
+                  rows={pricedInstallments}
+                  selectedN={installment}
+                  onSelect={setInstallment}
+                  baseAmount={payableAmount}
+                  commissionIncluded={view.commissionIncluded}
+                  loading={ratesLoading}
+                  ratesError={ratesError}
+                  emptyRatesHint={
+                    !ratesLoading && !ratesError && installmentRates.length === 0
+                      ? 'Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.'
+                      : null
+                  }
+                  density={isFullscreen ? 'dense' : 'default'}
+                  validationError={errors.install}
+                />
               ) : null}
 
               <section data-anim className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-5 py-5">
@@ -1059,44 +973,6 @@ function HeroPaymentBadge({
           </motion.div>
         ) : null}
       </AnimatePresence>
-    </span>
-  );
-}
-
-/** Taksit kartı — 3D şerit «Komisyon yok» (kompakt + tam ekran ortak) */
-function NoCommissionRibbon() {
-  return (
-    <span
-      className="pointer-events-none absolute -left-2 top-2.5 z-20"
-      aria-label="Komisyon yok"
-    >
-      <svg
-        width="112"
-        height="34"
-        viewBox="0 0 112 34"
-        className="overflow-visible drop-shadow-[2px_3px_4px_rgba(0,0,0,0.28)]"
-        aria-hidden
-      >
-        {/* Sol katlama gölgesi — kart kenarına sarılmış hissi */}
-        <path d="M8 24 L8 33 L0 24 Z" fill="#9a3412" />
-        {/* Şerit gövde + sağ ok ucu */}
-        <path d="M0 0 H92 L112 12 L92 24 H0 Z" fill="#f97316" />
-        <text
-          x="46"
-          y="13.5"
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="#fff8f0"
-          style={{
-            fontSize: '9px',
-            fontWeight: 800,
-            letterSpacing: '0.06em',
-            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-          }}
-        >
-          KOMİSYON YOK
-        </text>
-      </svg>
     </span>
   );
 }

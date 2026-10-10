@@ -83,3 +83,39 @@ export function InstallmentCardWatermark({ n, plusN }: { n: number; plusN?: numb
     </span>
   );
 }
+
+/** Taksit kartı — 3D şerit «Komisyon yok» */
+export function NoCommissionRibbon() {
+  return (
+    <span
+      className="pointer-events-none absolute -left-2 top-2.5 z-20"
+      aria-label="Komisyon yok"
+    >
+      <svg
+        width="112"
+        height="34"
+        viewBox="0 0 112 34"
+        className="overflow-visible drop-shadow-[2px_3px_4px_rgba(0,0,0,0.28)]"
+        aria-hidden
+      >
+        <path d="M8 24 L8 33 L0 24 Z" fill="#9a3412" />
+        <path d="M0 0 H92 L112 12 L92 24 H0 Z" fill="#f97316" />
+        <text
+          x="46"
+          y="13.5"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#fff8f0"
+          style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            letterSpacing: '0.06em',
+            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          }}
+        >
+          KOMİSYON YOK
+        </text>
+      </svg>
+    </span>
+  );
+}
