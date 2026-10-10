@@ -658,10 +658,17 @@ export default function QuickPayPage() {
                         </span>
                       ) : null}
                       <InstallmentCardWatermark n={r.n} plusN={r.plusN} />
-                      <p className={['relative text-right text-sm font-semibold', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
-                        {formatInstallmentTitle(r.n, r.plusN)}
-                      </p>
-                      <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
+                      {r.plusN <= 0 ? (
+                        <p className={['relative text-right text-sm font-semibold', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
+                          {formatInstallmentTitle(r.n, r.plusN)}
+                        </p>
+                      ) : null}
+                      <p
+                        className={[
+                          'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
+                          r.plusN > 0 ? 'mt-6' : 'mt-2',
+                        ].join(' ')}
+                      >
                         {formatInstallmentPaymentLine(r, r.totalAmount, true, formatMoneyTr)}
                       </p>
                       {showTotalLine ? (

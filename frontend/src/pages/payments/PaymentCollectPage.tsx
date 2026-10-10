@@ -633,7 +633,7 @@ export default function PaymentCollectPage() {
                     </p>
                     {selected.commissionPct > 0 ? (
                       <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                        Vade farkı %{formatMoneyTr(selected.commissionPct)}{commissionIncluded ? '' : ' · Satıcı karşılar'}
+                        Vade farkı %{formatMoneyTr(selected.commissionPct)}
                       </p>
                     ) : (
                       <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -695,15 +695,22 @@ export default function PaymentCollectPage() {
                       </span>
                     ) : null}
                     <InstallmentCardWatermark n={r.n} plusN={r.plusN} />
+                    {r.plusN <= 0 ? (
+                      <p
+                        className={[
+                          'relative text-right text-sm font-semibold',
+                          active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
+                        ].join(' ')}
+                      >
+                        {formatInstallmentTitle(r.n, r.plusN)}
+                      </p>
+                    ) : null}
                     <p
                       className={[
-                        'relative text-right text-sm font-semibold',
-                        active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
+                        'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
+                        r.plusN > 0 ? 'mt-6' : 'mt-2',
                       ].join(' ')}
                     >
-                      {formatInstallmentTitle(r.n, r.plusN)}
-                    </p>
-                    <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                       {formatInstallmentPaymentLine(
                         r,
                         chargedTotal,
@@ -719,7 +726,6 @@ export default function PaymentCollectPage() {
                     {paymentCount > 1 && r.commissionPct > 0 ? (
                       <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                         Vade farkı %{formatMoneyTr(r.commissionPct)} = {formatMoneyTr(Math.max(0, r.totalAmount - amount))}
-                        {!commissionIncluded ? ' · Satıcı karşılar' : ''}
                       </p>
                     ) : null}
                   </button>

@@ -831,7 +831,7 @@ export default function PublicPayPage() {
                                 ? ` = ${formatMoneyDisplay(
                                     Math.max(0, selectedRate.totalAmount - payableAmount),
                                   )}`
-                                : ' · Satıcı karşılar'}
+                                : ''}
                             </p>
                           ) : (
                             <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -904,15 +904,22 @@ export default function PublicPayPage() {
                                 </span>
                               ) : null}
                               <InstallmentCardWatermark n={n} plusN={rate.plusN} />
+                              {rate.plusN <= 0 ? (
+                                <p
+                                  className={[
+                                    'relative text-right text-sm font-semibold',
+                                    active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
+                                  ].join(' ')}
+                                >
+                                  {formatInstallmentTitle(n, rate.plusN)}
+                                </p>
+                              ) : null}
                               <p
                                 className={[
-                                  'relative text-right text-sm font-semibold',
-                                  active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
+                                  'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
+                                  rate.plusN > 0 ? 'mt-6' : 'mt-2',
                                 ].join(' ')}
                               >
-                                {formatInstallmentTitle(n, rate.plusN)}
-                              </p>
-                              <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                                 {formatInstallmentPaymentLine(
                                   rate,
                                   chargedTotal,
@@ -929,7 +936,7 @@ export default function PublicPayPage() {
                                 <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                                   {view.commissionIncluded
                                     ? `Vade farkı %${formatMoneyTr(rate.commissionPct)} - ${formatMoneyTr(vadeFarki)}`
-                                    : `Vade farkı %${formatMoneyTr(rate.commissionPct)} · Satıcı karşılar`}
+                                    : `Vade farkı %${formatMoneyTr(rate.commissionPct)}`}
                                 </p>
                               ) : null}
                             </button>

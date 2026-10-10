@@ -73,10 +73,10 @@ export function InstallmentBadge({
 export function InstallmentCardWatermark({ n, plusN }: { n: number; plusN?: number }) {
   const extra = Math.max(0, plusN ?? 0);
   return (
-    <span className="pointer-events-none absolute -bottom-3 left-3 leading-none">
+    <span className="pointer-events-none absolute -bottom-3 left-3 inline-flex items-baseline gap-0.5 leading-none">
       <span className="text-[4.5rem] font-black text-[var(--panel-muted)]/15 sm:text-[5rem]">{n}</span>
       {extra > 0 ? (
-        <span className="absolute -right-1 bottom-6 text-2xl font-black text-[var(--color-brand-500)]/35 sm:text-3xl">
+        <span className="pb-3 text-2xl font-black text-[var(--color-brand-500)]/35 sm:text-3xl">
           +{extra}
         </span>
       ) : null}
