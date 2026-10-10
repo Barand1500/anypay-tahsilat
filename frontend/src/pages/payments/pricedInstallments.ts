@@ -68,44 +68,53 @@ export function ratesBankQuery(
 
 function bankMatchesRedirectSource(bank: BankInfo, redirect: PosRedirect): boolean {
   const id = bank.numericId || (/^\d+$/.test(bank.id) ? bank.id : '');
-  if (id && id === redirect.sourceBankId) return true;
-  const needle = normalizeBankText(redirect.sourceBankName);
-  if (!needle) return false;
-  const blob = normalizeBankText(`${bank.name} ${bank.fullName}`);
-  if (!blob) return false;
-  if (blob.includes(needle) || needle.includes(blob)) return true;
-  const tokens = needle.split(/\s+/).filter((t) => t.length >= 4);
-  return tokens.some((t) => blob.includes(t));
+  if (id && String(id) === String(redirect.sourceBankId)) return true;
+  // Slug eşlemesi: halkbank ↔ T.HALK BANKASI
+  const sourceNorm = normalizeBankText(redirect.sourceBankName);
+  const bankNorm = normalizeBankText(`${bank.id} ${bank.name} ${bank.fullName}`);
+  if (!sourceNorm || !bankNorm) return false;
+  if (bankNorm.includes(sourceNorm) || sourceNorm.includes(bankNorm)) return true;
+  const hints = [
+    'halkbank', 'halk', 'garanti', 'akbank', 'yapikredi', 'yapi', 'isbank',
+    'ziraat', 'vakif', 'deniz', 'qnb', 'finansbank', 'teb', 'ing', 'kuveyt',
+  ];
+  for (const h of hints) {
+    if (sourceNorm.includes(h) && bankNorm.includes(h)) return true;
+  }
+  const tokens = sourceNorm.split(/\s+/).filter((t) => t.length >= 4);
+  return tokens.some((t) => bankNorm.includes(t));
 }
 
 /**
- * Banka & Taksit logosu: Ortak Sanal POS yönlendirmesi varsa hedef banka
- * (Halkbank kartı → QNB logosu). Kart alanındaki BIN logosu değişmez.
+ * Banka & Taksit paneli: Ortak Sanal POS yönlendirmesi varsa YALNIZCA hedef banka logosu
+ * (Halkbank kartı + Halkbank→QNB → QNB). Kart input BIN logosu değişmez.
  */
 export function applyPosDisplayBank(
   cardBank: BankInfo | null,
   redirects: PosRedirect[] = getPosRedirects(),
 ): BankInfo | null {
-  if (!cardBank || !redirects.length) return cardBank;
+  if (!cardBank) return null;
+  if (!redirects.length) return cardBank;
   const hit = redirects.find((r) => bankMatchesRedirectSource(cardBank, r));
   if (!hit) return cardBank;
 
   const catalog = resolveBankFromName(hit.targetBankName, hit.targetBankId);
+  const logo = (hit.targetBankLogoUrl || catalog?.logo || '').trim();
   if (catalog) {
     return {
       ...catalog,
       numericId: hit.targetBankId,
       name: catalog.name,
       fullName: hit.targetBankName || catalog.fullName,
-      logo: hit.targetBankLogoUrl || catalog.logo,
+      logo: logo || catalog.logo,
     };
   }
   return {
     id: hit.targetBankId,
     numericId: hit.targetBankId,
-    name: hit.targetBankName,
-    fullName: hit.targetBankName,
-    logo: hit.targetBankLogoUrl,
+    name: hit.targetBankName || 'Banka',
+    fullName: hit.targetBankName || 'Banka',
+    logo,
     bins: [],
   };
 }

@@ -59,10 +59,18 @@ export type PublicPayView = {
   currencyId: string;
   currencySymbol: string;
   currencyShortName: string;
-  /** Varsayılan Sanal POS banka logosu (kart BIN’den bağımsız) */
+  /** Varsayılan Sanal POS banka logosu (kart yokken yer tutucu) */
   posBankName: string | null;
   posBankLogo: string | null;
   posName: string | null;
+  /** Ortak Sanal POS — Banka&Taksit logosu için (Halkbank → QNB) */
+  posRedirects: Array<{
+    sourceBankId: string;
+    sourceBankName: string;
+    targetBankId: string;
+    targetBankName: string;
+    targetBankLogoUrl: string;
+  }>;
 };
 
 export type PayByTokenInput = {
@@ -369,6 +377,8 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
   });
 
   const posBrand = await getDefaultVirtualPosBrand();
+  const { listActivePosRedirects } = await import('./commonVirtualPosService.js');
+  const posRedirects = await listActivePosRedirects();
 
   return {
     token: row.istekNo,
@@ -394,6 +404,7 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     posBankName: posBrand?.bankName ?? null,
     posBankLogo: posBrand?.bankLogoUrl || null,
     posName: posBrand?.posName ?? null,
+    posRedirects,
   };
 }
 

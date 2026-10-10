@@ -22,6 +22,7 @@ import { useLoadBins } from '../../hooks/useLoadBins';
 import { useLoadPosRedirects } from '../../hooks/useLoadPosRedirects';
 import { usePosRedirectsRevision } from '../../hooks/usePosRedirectsRevision';
 import { api } from '../../lib/api';
+import { setPosRedirects } from '../../lib/posRedirectStore';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import { LEGAL_DOCS } from '../../components/layout/legalDocs';
@@ -82,6 +83,13 @@ type PublicPayView = {
   posBankName?: string | null;
   posBankLogo?: string | null;
   posName?: string | null;
+  posRedirects?: Array<{
+    sourceBankId: string;
+    sourceBankName: string;
+    targetBankId: string;
+    targetBankName: string;
+    targetBankLogoUrl: string;
+  }>;
 };
 
 /**
@@ -180,6 +188,10 @@ export default function PublicPayPage() {
         const data = await api.get<PublicPayView>(`/api/pay/${encodeURIComponent(payToken)}`);
         if (cancelled) return;
         setView(data);
+        // Banka&Taksit yönlendirme haritası (Halkbank → QNB) — pay yanıtından
+        if (Array.isArray(data.posRedirects) && data.posRedirects.length) {
+          setPosRedirects(data.posRedirects);
+        }
         const opts = data.installments.length ? data.installments : [1];
         setInstallment(opts[0]!);
         setHolder(data.customerTitle !== '—' ? data.customerTitle : '');
@@ -750,31 +762,24 @@ export default function PublicPayPage() {
                         isFullscreen ? 'min-h-[240px] p-5' : 'min-h-[220px] p-4',
                       ].join(' ')}
                     >
-                      {/* Kart bankası + Ortak Sanal POS yönlendirmesi (Halkbank → QNB); kart yoksa varsayılan POS */}
-                      {bank?.logo ? (
+                      {/*
+                        Kart varken ASLA varsayılan POS (Garanti) logosu yok.
+                        bank = applyPosDisplayBank: yönlendirme varsa hedef (QNB), yoksa kart bankası.
+                      */}
+                      {cardBank ? (
                         <div className="mb-4 flex flex-col items-center justify-center py-2">
-                          <img
-                            src={bank.logo}
-                            alt={bank.name}
-                            title={bank.fullName || bank.name}
-                            className="h-14 w-auto max-w-[180px] object-contain"
-                          />
-                        </div>
-                      ) : bank?.name ? (
-                        <p className="mb-4 flex flex-1 items-center justify-center text-center text-lg font-bold text-[var(--panel-ink)]">
-                          {bank.name}
-                        </p>
-                      ) : view.posBankLogo ? (
-                        <div className="mb-4 flex flex-col items-center justify-center py-2">
-                          <img
-                            src={view.posBankLogo}
-                            alt={view.posBankName || view.posName || 'Sanal POS'}
-                            title={view.posName || view.posBankName || undefined}
-                            className="h-14 w-auto max-w-[180px] object-contain opacity-70"
-                          />
-                          <p className="mt-2 text-center text-[11px] text-[var(--panel-muted)]">
-                            Kart numarasını yazınca tahsilat bankası güncellenir.
-                          </p>
+                          {(bank?.logo || cardBank.logo) ? (
+                            <img
+                              src={bank?.logo || cardBank.logo}
+                              alt={bank?.name || cardBank.name}
+                              title={bank?.fullName || bank?.name || cardBank.name}
+                              className="h-14 w-auto max-w-[180px] object-contain"
+                            />
+                          ) : (
+                            <p className="text-center text-lg font-bold text-[var(--panel-ink)]">
+                              {bank?.name || cardBank.name}
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">

@@ -9,9 +9,10 @@ export function useLoadPosRedirects() {
     void (async () => {
       try {
         const rows = await api.get<PosRedirect[]>('/api/common-virtual-pos/redirects');
-        if (!cancelled) setPosRedirects(Array.isArray(rows) ? rows : []);
+        if (cancelled) return;
+        if (Array.isArray(rows) && rows.length) setPosRedirects(rows);
       } catch {
-        if (!cancelled) setPosRedirects([]);
+        /* pay view / önceki haritayı silme */
       }
     })();
     return () => {
