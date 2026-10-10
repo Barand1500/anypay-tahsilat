@@ -66,28 +66,52 @@ export function ratesBankQuery(
   };
 }
 
+/**
+ * Kaynak banka eşlemesi — yalnızca id veya marka ipucu.
+ * "bankasi" gibi genel kelime YASAK (TEB→Garanti, Halkbank kartına yanlış yapışıyordu).
+ */
 function bankMatchesRedirectSource(bank: BankInfo, redirect: PosRedirect): boolean {
   const id = bank.numericId || (/^\d+$/.test(bank.id) ? bank.id : '');
   if (id && String(id) === String(redirect.sourceBankId)) return true;
-  // Slug eşlemesi: halkbank ↔ T.HALK BANKASI
+
   const sourceNorm = normalizeBankText(redirect.sourceBankName);
   const bankNorm = normalizeBankText(`${bank.id} ${bank.name} ${bank.fullName}`);
   if (!sourceNorm || !bankNorm) return false;
-  if (bankNorm.includes(sourceNorm) || sourceNorm.includes(bankNorm)) return true;
-  const hints = [
-    'halkbank', 'halk', 'garanti', 'akbank', 'yapikredi', 'yapi', 'isbank',
-    'ziraat', 'vakif', 'deniz', 'qnb', 'finansbank', 'teb', 'ing', 'kuveyt',
+
+  // Uzun / spesifik markalar önce
+  const brands = [
+    'halkbank',
+    'yapikredi',
+    'finansbank',
+    'kuveytturk',
+    'vakifbank',
+    'denizbank',
+    'garanti',
+    'akbank',
+    'isbank',
+    'ziraat',
+    'qnb',
+    'teb',
+    'ing',
+    'hsbc',
+    'halk',
+    'vakif',
+    'deniz',
+    'yapi',
+    'kuveyt',
   ];
-  for (const h of hints) {
+  for (const h of brands) {
     if (sourceNorm.includes(h) && bankNorm.includes(h)) return true;
   }
-  const tokens = sourceNorm.split(/\s+/).filter((t) => t.length >= 4);
-  return tokens.some((t) => bankNorm.includes(t));
+  // Katalog slug (halkbank) kaynak adda geçiyorsa
+  const slug = normalizeBankText(bank.id);
+  if (slug.length >= 3 && sourceNorm.includes(slug)) return true;
+  return false;
 }
 
 /**
- * Banka & Taksit paneli: Ortak Sanal POS yönlendirmesi varsa YALNIZCA hedef banka logosu
- * (Halkbank kartı + Halkbank→QNB → QNB). Kart input BIN logosu değişmez.
+ * Banka & Taksit: yönlendirme varsa hedef logo (Halkbank→QNB → QNB).
+ * redirects argümanı verilirse store’a bağımlı kalmaz (public pay view).
  */
 export function applyPosDisplayBank(
   cardBank: BankInfo | null,

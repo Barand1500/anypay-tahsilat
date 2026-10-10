@@ -240,10 +240,13 @@ export default function PublicPayPage() {
 
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
-  const bank = useMemo(
-    () => applyPosDisplayBank(cardBank),
-    [cardBank, posRedirectRev],
-  );
+  // Yönlendirme: pay yanıtı + store — TEB/Garanti yanlış eşlemesi düzeltildi
+  const bank = useMemo(() => {
+    const fromView = view?.posRedirects;
+    const redirects =
+      Array.isArray(fromView) && fromView.length > 0 ? fromView : undefined;
+    return applyPosDisplayBank(cardBank, redirects);
+  }, [cardBank, view?.posRedirects, posRedirectRev]);
   const rateBin = cardDigits.length >= 8 ? cardDigits.slice(0, 8) : cardDigits.length >= 6 ? cardDigits.slice(0, 6) : '';
   const cardFaulty =
     cardDigits.length > 0 &&
@@ -762,25 +765,19 @@ export default function PublicPayPage() {
                         isFullscreen ? 'min-h-[240px] p-5' : 'min-h-[220px] p-4',
                       ].join(' ')}
                     >
-                      {/*
-                        Kart varken ASLA varsayılan POS (Garanti) logosu yok.
-                        bank = applyPosDisplayBank: yönlendirme varsa hedef (QNB), yoksa kart bankası.
-                      */}
-                      {cardBank ? (
+                      {bank?.logo ? (
                         <div className="mb-4 flex flex-col items-center justify-center py-2">
-                          {(bank?.logo || cardBank.logo) ? (
-                            <img
-                              src={bank?.logo || cardBank.logo}
-                              alt={bank?.name || cardBank.name}
-                              title={bank?.fullName || bank?.name || cardBank.name}
-                              className="h-14 w-auto max-w-[180px] object-contain"
-                            />
-                          ) : (
-                            <p className="text-center text-lg font-bold text-[var(--panel-ink)]">
-                              {bank?.name || cardBank.name}
-                            </p>
-                          )}
+                          <img
+                            src={bank.logo}
+                            alt={bank.name}
+                            title={bank.fullName || bank.name}
+                            className="h-14 w-auto max-w-[180px] object-contain"
+                          />
                         </div>
+                      ) : bank?.name ? (
+                        <p className="mb-4 text-center text-lg font-bold text-[var(--panel-ink)]">
+                          {bank.name}
+                        </p>
                       ) : (
                         <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">
                           Kart numarasını yazınca banka logosu burada belirir.
