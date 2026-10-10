@@ -748,7 +748,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                     ].join(' ')}
                   />
                 </button>
-                Komisyon dahil
+                Komisyon Dahil
               </label>
 
               <div>

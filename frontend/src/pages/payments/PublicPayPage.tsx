@@ -617,7 +617,7 @@ export default function PublicPayPage() {
                         {paymentTypeLabel[view.type]}
                       </p>
                       <span className="mt-0.5 rounded-full bg-[var(--brand-soft-bg)] px-3 py-1.5 text-[11px] font-bold text-[var(--color-brand-700)]">
-                        {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
+                        {view.commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}
                       </span>
                     </div>
                   </div>
@@ -657,7 +657,7 @@ export default function PublicPayPage() {
                         <p className="mt-0.5 text-[11px] text-[var(--panel-muted)]">{paymentTypeLabel[view.type]}</p>
                       </div>
                       <span className="shrink-0 rounded-md bg-[var(--brand-soft-bg)] px-2 py-1 text-[10px] font-bold text-[var(--color-brand-700)]">
-                        {view.commissionIncluded ? 'Komisyon dahil' : 'Komisyon hariç'}
+                        {view.commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}
                       </span>
                     </div>
 

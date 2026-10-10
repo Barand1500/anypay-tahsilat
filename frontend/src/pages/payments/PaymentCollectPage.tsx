@@ -531,7 +531,7 @@ export default function PaymentCollectPage() {
                     ].join(' ')}
                   />
                 </button>
-                Komisyon dahil
+                Komisyon Dahil
               </label>
 
               <TextArea
