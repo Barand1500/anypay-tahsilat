@@ -37,6 +37,7 @@ import {
   isValidLuhn,
   isValidTurkishIdentityNo,
 } from './mockBanks';
+import { buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 
 type PayType = '' | 'ch' | 'fatura' | 'sabit';
 
@@ -149,28 +150,26 @@ export default function PaymentCollectPage() {
     [cardDigits, binsRev],
   );
 
-  // Public /installments ile aynı: BIN + sayısal banka id + müşteri (yoksa POS)
+  const rateQ = useMemo(() => ratesBankQuery(bank, cardDigits), [bank, cardDigits]);
   const { rows: agreementRows, loading: ratesLoading } = useAgreementRates({
     amount: amount || 0,
-    bankName: bank?.name || bank?.fullName || null,
-    bankId: bank?.numericId || (bank?.id && /^\d+$/.test(bank.id) ? bank.id : null),
-    bin: cardDigits.length >= 6 ? cardDigits : null,
+    bankName: rateQ.bankName,
+    bankId: rateQ.bankId,
+    bin: rateQ.bin,
     musteriId: customer?.id ? Number(customer.id) : null,
     agreementCode: customer?.cardAgreementCode ?? null,
     segment: cardSegment || 'bireysel',
   });
-  // Public pricedInstallments ile aynı — izin listesi kutuları gizlemez, yalnızca kilitler
-  const installmentRows = useMemo(() => {
-    if (amount <= 0) return [];
-    const fromBank = agreementRows.slice().sort((a, b) => a.n - b.n);
-    if (fromBank.length) return fromBank;
-    if (!allowedInstallments?.length || allowedInstallments.includes(1)) {
-      return [
-        { n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 },
-      ];
-    }
-    return [];
-  }, [amount, agreementRows, allowedInstallments]);
+  const installmentRows = useMemo(
+    () =>
+      buildPricedInstallments({
+        amount,
+        rates: agreementRows,
+        allowedNs: allowedInstallments,
+        hideDisallowed: false,
+      }),
+    [amount, agreementRows, allowedInstallments],
+  );
 
   const cardFaulty = cardChecked &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));

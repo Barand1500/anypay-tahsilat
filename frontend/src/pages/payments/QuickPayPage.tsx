@@ -24,6 +24,7 @@ import {
   formatInstallmentTitle,
 } from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
+import { buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 import {
   detectBank,
   detectCardSegment,
@@ -125,28 +126,36 @@ export default function QuickPayPage() {
     () => detectCardSegment(cardDigits),
     [cardDigits, binsRev],
   );
-  // Public /installments ile aynı: BIN + sayısal banka id + POS fallback
+  const rateQ = useMemo(() => ratesBankQuery(bank, cardDigits), [bank, cardDigits]);
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
     amount,
-    bankName: bank?.name || bank?.fullName,
-    bankId: bank?.numericId || (bank?.id && /^\d+$/.test(bank.id) ? bank.id : null),
-    bin: cardDigits.length >= 6 ? cardDigits : null,
+    bankName: rateQ.bankName,
+    bankId: rateQ.bankId,
+    bin: rateQ.bin,
     segment: cardSegment || 'bireysel',
   });
-  const availableBankRows = useMemo(() => {
-    if (!amount || amount <= 0) return [];
-    const fromBank = bankInstallmentRows.slice().sort((a, b) => a.n - b.n);
-    if (fromBank.length) return fromBank;
-    if (!allowedInstallments?.length || allowedInstallments.includes(1)) {
-      return [
-        { n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 },
-      ];
-    }
-    return [];
-  }, [amount, bankInstallmentRows, allowedInstallments]);
+  const availableBankRows = useMemo(
+    () =>
+      buildPricedInstallments({
+        amount,
+        rates: bankInstallmentRows,
+        allowedNs: allowedInstallments,
+        hideDisallowed: false,
+      }),
+    [amount, bankInstallmentRows, allowedInstallments],
+  );
   const selectedRate = pickedInstall && pickedInstall.bank.id === bank?.id
     ? availableBankRows.find((row) => row.n === pickedInstall.n)
     : null;
+
+  // Tutar / alt limit değişince geçersiz seçimi düşür
+  useEffect(() => {
+    if (!bank || !pickedInstall) return;
+    if (pickedInstall.bank.id !== bank.id) return;
+    if (availableBankRows.some((r) => r.n === pickedInstall.n)) return;
+    if (availableBankRows[0]) setPickedInstall({ n: availableBankRows[0].n, bank });
+    else setPickedInstall(null);
+  }, [availableBankRows, bank, pickedInstall]);
   const cardFaulty =
     cardChecked &&
     (cardDigits.length < 15 || cardDigits.length > 16 || !isValidLuhn(cardDigits));

@@ -49,6 +49,7 @@ import {
   formatInstallmentPaymentLine,
   formatInstallmentTitle,
 } from './installmentDisplay';
+import { buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 
 type PublicPayView = {
   token: string;
@@ -240,11 +241,12 @@ export default function PublicPayPage() {
     setInstallmentRates([]);
     setRatesLoading(true);
     setRatesError(false);
-    const query = new URLSearchParams({ bin: rateBin, amount: String(payableAmount) });
-    const numericBankId = bank.numericId || (bank.id && /^\d+$/.test(bank.id) ? bank.id : '');
-    if (numericBankId) query.set('bankId', numericBankId);
-    const bankLabel = (bank.name || bank.fullName || '').trim();
-    if (bankLabel) query.set('bankName', bankLabel);
+    const q = ratesBankQuery(bank, rateBin);
+    const query = new URLSearchParams({ amount: String(payableAmount) });
+    if (q.bin) query.set('bin', q.bin.length >= 8 ? q.bin.slice(0, 8) : q.bin.slice(0, 6));
+    else query.set('bin', rateBin);
+    if (q.bankId) query.set('bankId', q.bankId);
+    if (q.bankName) query.set('bankName', q.bankName);
     const timer = window.setTimeout(() => {
       void api.get<InstallmentRow[]>(`/api/pay/${encodeURIComponent(payToken)}/installments?${query.toString()}`)
         .then((rows) => { if (!cancelled) setInstallmentRates(Array.isArray(rows) ? rows : []); })
@@ -256,34 +258,18 @@ export default function PublicPayPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [payToken, view?.status, bank?.id, bank?.name, bank?.fullName, rateBin, payableAmount]);
+  }, [payToken, view?.status, bank, rateBin, payableAmount]);
 
-  /**
-   * Referans mantık: izin verilen ∩ banka anlaşma satırları.
-   * Anlaşmada olmayan taksiti %0 uydurma.
-   * Oran yoksa ve 1 izinliyse yalnızca tek çekim.
-   */
-  const pricedInstallments = useMemo(() => {
-    const allowed = new Set(installmentOpts);
-    const fromBank = installmentRates
-      .filter((rate) => allowed.has(rate.n))
-      .slice()
-      .sort((a, b) => a.n - b.n);
-    if (fromBank.length) return fromBank;
-    if (allowed.has(1) && payableAmount > 0) {
-      return [
-        {
-          n: 1,
-          plusN: 0,
-          commissionPct: 0,
-          installmentAmount: payableAmount,
-          totalAmount: payableAmount,
-          minLimit: 0,
-        },
-      ];
-    }
-    return [];
-  }, [installmentOpts, installmentRates, payableAmount]);
+  const pricedInstallments = useMemo(
+    () =>
+      buildPricedInstallments({
+        amount: payableAmount,
+        rates: installmentRates,
+        allowedNs: installmentOpts,
+        hideDisallowed: true,
+      }),
+    [installmentOpts, installmentRates, payableAmount],
+  );
 
   const selectedRate = useMemo(
     () => pricedInstallments.find((r) => r.n === installment) ?? null,

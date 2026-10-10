@@ -551,11 +551,14 @@ export async function resolveAgreementRates(opts: {
 
     return fromSelected ?? preferred ?? 0;
   };
-  /** Alt limit: detay JSON → kolon; boş/0 = sınır yok */
+  /** Alt limit: detay JSON → kolon; boş/0/negatif = sınır yok */
   const rowMinLimit = (
     row: FlatRow,
     seg: AgreementSegmentDetail | undefined,
-  ): number => parseTrNumber(seg?.minLimit) ?? row.altLimit ?? 0;
+  ): number => {
+    const raw = parseTrNumber(seg?.minLimit) ?? row.altLimit ?? 0;
+    return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  };
 
   const availableSegments = segmentKeys.filter((key) => matched.some((row) => {
     if (!configuredFor(row, key)) return false;
