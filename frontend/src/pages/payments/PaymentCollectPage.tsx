@@ -20,11 +20,7 @@ import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
-import {
-  formatInstallmentExtraHint,
-  formatInstallmentPaymentLine,
-  formatInstallmentTitle,
-} from './installmentDisplay';
+import { SelectedInstallmentSummary } from './installmentDisplay';
 import {
   detectBank,
   detectCardSegment,
@@ -626,36 +622,13 @@ export default function PaymentCollectPage() {
                 </button>
 
                 {selected && bank ? (
-                  <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                      Seçili
-                    </p>
-                    <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                      {formatInstallmentTitle(selected.n, selected.plusN)}
-                    </p>
-                    {formatInstallmentExtraHint(selected.n, selected.plusN) ? (
-                      <p className="text-[10px] font-semibold text-[var(--color-brand-600)]">
-                        {formatInstallmentExtraHint(selected.n, selected.plusN)}
-                      </p>
-                    ) : null}
-                    <p className="text-sm tabular-nums text-[var(--panel-muted)]">
-                      {formatInstallmentPaymentLine(
-                        selected,
-                        commissionIncluded ? selected.totalAmount : amount,
-                        commissionIncluded,
-                        (v) => formatMoneyDisplay(v),
-                      )}
-                    </p>
-                    {selected.commissionPct > 0 ? (
-                      <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                        Vade farkı %{formatMoneyTr(selected.commissionPct)}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                        Komisyon yok
-                      </p>
-                    )}
-                  </div>
+                  <SelectedInstallmentSummary
+                    rate={selected}
+                    baseAmount={amount}
+                    commissionIncluded={commissionIncluded}
+                    formatMoney={(v) => formatMoneyDisplay(v)}
+                    formatPct={formatMoneyTr}
+                  />
                 ) : null}
               </div>
             </div>

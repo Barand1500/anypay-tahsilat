@@ -58,8 +58,8 @@ export function InstallmentPlanSection({
   return (
     <section ref={sectionRef} data-anim className={className || undefined}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit planı</h2>
-        <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı</p>
+        <h2 className="text-sm font-bold text-[var(--panel-ink)]">Taksit Planı</h2>
+        <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı.</p>
       </div>
 
       {loading ? (
@@ -111,26 +111,20 @@ export function InstallmentPlanSection({
                 {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
                 {rate.plusN > 0 ? (
                   <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
-                    +{rate.plusN} ek
+                    +{rate.plusN} Ek Taksit
                   </span>
                 ) : null}
                 <InstallmentCardWatermark n={n} plusN={rate.plusN} />
-                {rate.plusN <= 0 ? (
-                  <p
-                    className={[
-                      'relative text-right text-sm font-semibold',
-                      active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
-                    ].join(' ')}
-                  >
-                    {formatInstallmentTitle(n, rate.plusN)}
-                  </p>
-                ) : null}
                 <p
                   className={[
-                    'relative text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]',
-                    rate.plusN > 0 ? 'mt-6' : 'mt-2',
+                    'relative text-right text-sm font-semibold',
+                    rate.plusN > 0 ? 'mt-6' : '',
+                    active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                   ].join(' ')}
                 >
+                  {formatInstallmentTitle(n, rate.plusN)}
+                </p>
+                <p className="relative mt-1 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                   {formatInstallmentPaymentLine(
                     rate,
                     chargedTotal,

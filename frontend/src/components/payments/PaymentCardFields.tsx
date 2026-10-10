@@ -139,7 +139,7 @@ export function PaymentCardFields(props: Props) {
           />
           <TextInput
             data-km-jump
-            label="Telefon"
+            label="Telefon *"
             value={formatPhoneLive(phoneDigits)}
             error={props.errors.phone}
             onChange={(e) => onPhoneChange(e.target.value)}
@@ -190,7 +190,7 @@ export function PaymentCardFields(props: Props) {
       ) : null}
       <TextInput
         data-km-jump
-        label="Ad Soyad"
+        label="Ad Soyad *"
         value={props.holder}
         error={props.errors.holder}
         onChange={(e) => props.onHolder(formatCardHolderName(e.target.value))}
@@ -212,7 +212,7 @@ export function PaymentCardFields(props: Props) {
       />
       <TextInput
         data-km-jump
-        label="Telefon No"
+        label="Telefon No *"
         value={formatPhoneLive(phoneDigits)}
         error={props.errors.phone}
         onChange={(e) => onPhoneChange(e.target.value)}
@@ -224,7 +224,7 @@ export function PaymentCardFields(props: Props) {
       <div>
         <TextInput
           data-km-jump
-          label="Kart No"
+          label="Kart No *"
           value={props.card}
           error={props.errors.card}
           onChange={(e) => props.onCard(e.target.value)}
@@ -262,7 +262,7 @@ export function PaymentCardFields(props: Props) {
       <div className="grid grid-cols-2 gap-3">
         <TextInput
           data-km-jump
-          label="Son kullanım"
+          label="Son Kullanım *"
           value={props.expiry}
           error={props.errors.expiry}
           onChange={(e) => props.onExpiry(e.target.value)}
@@ -274,7 +274,7 @@ export function PaymentCardFields(props: Props) {
         />
         <TextInput
           data-km-jump
-          label="CVC"
+          label="CVC *"
           value={props.cvc}
           error={props.errors.cvc}
           onChange={(e) => props.onCvc(e.target.value)}

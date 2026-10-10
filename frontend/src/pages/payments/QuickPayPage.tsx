@@ -20,11 +20,7 @@ import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
-import {
-  formatInstallmentExtraHint,
-  formatInstallmentPaymentLine,
-  formatInstallmentTitle,
-} from './installmentDisplay';
+import { SelectedInstallmentSummary, formatInstallmentTitle } from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { applyPosDisplayBank, buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 import {
@@ -601,38 +597,27 @@ export default function QuickPayPage() {
               <button type="button" data-km-jump disabled={!amount || amount <= 0} onClick={() => setInstallOpen(true)} className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45">
                 Taksit Seçenekleri
               </button>
-              {pickedInstall && bank ? (
-                <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Seçili</p>
+              {pickedInstall && bank && selectedRate ? (
+                <SelectedInstallmentSummary
+                  rate={selectedRate}
+                  baseAmount={amount}
+                  commissionIncluded
+                  formatMoney={(v) => formatMoneyDisplay(v)}
+                  formatPct={formatMoneyTr}
+                />
+              ) : pickedInstall && bank ? (
+                <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-left">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+                    Seçili
+                  </p>
                   <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                    {selectedRate
-                      ? formatInstallmentTitle(selectedRate.n, selectedRate.plusN)
-                      : pickedInstall.n === 1
-                        ? 'Tek çekim'
-                        : `${pickedInstall.n} taksit`}
+                    {formatInstallmentTitle(pickedInstall.n)}
                   </p>
-                  {selectedRate && formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN) ? (
-                    <p className="text-[10px] font-semibold text-[var(--color-brand-600)]">
-                      {formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN)}
-                    </p>
-                  ) : null}
-                  <p className="text-sm tabular-nums text-[var(--panel-muted)]">
-                    {selectedRate
-                      ? formatInstallmentPaymentLine(
-                          selectedRate,
-                          selectedRate.totalAmount,
-                          true,
-                          (v) => formatMoneyDisplay(v),
-                        )
-                      : pickedInstall.bank.name}
-                  </p>
-                  {selectedRate ? (
-                    selectedRate.commissionPct > 0
-                      ? <p className="mt-1 text-[11px] font-semibold text-rose-500">Vade farkı %{formatMoneyTr(selectedRate.commissionPct)}</p>
-                      : <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Komisyon yok</p>
-                  ) : null}
+                  <p className="mt-0.5 text-sm text-[var(--panel-muted)]">{pickedInstall.bank.name}</p>
                 </div>
-              ) : errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
+              ) : errors.install ? (
+                <p className="mt-2 text-xs text-rose-500">{errors.install}</p>
+              ) : null}
             </div>
           </div>
         </div>

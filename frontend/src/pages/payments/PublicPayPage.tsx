@@ -47,11 +47,7 @@ import {
 } from './mockBanks';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
-import {
-  formatInstallmentExtraHint,
-  formatInstallmentPaymentLine,
-  formatInstallmentTitle,
-} from './installmentDisplay';
+import { SelectedInstallmentSummary } from './installmentDisplay';
 import { PayAttachmentChips } from './PayAttachmentChips';
 import {
   PayAttachmentPreviewModal,
@@ -411,7 +407,7 @@ export default function PublicPayPage() {
     ch: 'Cari hesap tahsilatı',
     fatura: 'Fatura ödemesi',
     sabit: 'Sabit tutar',
-    serbest: 'Serbest tutar',
+    serbest: 'Serbest Tutar',
     taksit: 'Taksitli ödeme',
     diger: 'Ödeme talebi',
   };
@@ -587,7 +583,7 @@ export default function PublicPayPage() {
                   <div className="flex flex-wrap items-end justify-between gap-4 px-5 py-5 sm:px-6">
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
-                        Ödenecek tutar
+                        Ödenecek Tutar
                       </p>
                       {variableAmount ? (
                         <div className="mt-2 max-w-xs">
@@ -669,7 +665,7 @@ export default function PublicPayPage() {
                       {variableAmount ? (
                         <TextInput
                           id="public-pay-amount"
-                          label={`Ödenecek tutar (${view.currencySymbol || '₺'})`}
+                          label={`Ödenecek Tutar (${view.currencySymbol || '₺'})`}
                           value={amountText}
                           onChange={(e) => setAmountText(maskMoneyInput(e.target.value))}
                           inputMode="decimal"
@@ -679,7 +675,7 @@ export default function PublicPayPage() {
                         />
                       ) : (
                         <>
-                          <p className="text-[11px] font-medium text-[var(--panel-muted)]">Ödenecek tutar</p>
+                          <p className="text-[11px] font-medium text-[var(--panel-muted)]">Ödenecek Tutar</p>
                           <p className="mt-0.5 text-xl font-bold tabular-nums tracking-tight text-[var(--color-brand-600)]">
                             {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
                           </p>
@@ -809,41 +805,13 @@ export default function PublicPayPage() {
                       </button>
 
                       {selectedRate ? (
-                        <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                            Seçili
-                          </p>
-                          <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                            {formatInstallmentTitle(selectedRate.n, selectedRate.plusN)}
-                          </p>
-                          {formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN) ? (
-                            <p className="text-[10px] font-semibold text-[var(--color-brand-600)]">
-                              {formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN)}
-                            </p>
-                          ) : null}
-                          <p className="text-sm tabular-nums text-[var(--panel-muted)]">
-                            {formatInstallmentPaymentLine(
-                              selectedRate,
-                              view.commissionIncluded ? selectedRate.totalAmount : payableAmount,
-                              view.commissionIncluded,
-                              (v) => formatMoneyDisplay(v),
-                            )}
-                          </p>
-                          {selectedRate.commissionPct > 0 ? (
-                            <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                              Vade farkı %{formatMoneyTr(selectedRate.commissionPct)}
-                              {view.commissionIncluded
-                                ? ` = ${formatMoneyDisplay(
-                                    Math.max(0, selectedRate.totalAmount - payableAmount),
-                                  )}`
-                                : ''}
-                            </p>
-                          ) : (
-                            <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                              Komisyon yok
-                            </p>
-                          )}
-                        </div>
+                        <SelectedInstallmentSummary
+                          rate={selectedRate}
+                          baseAmount={payableAmount}
+                          commissionIncluded={view.commissionIncluded}
+                          formatMoney={(v) => formatMoneyDisplay(v)}
+                          formatPct={formatMoneyTr}
+                        />
                       ) : null}
                     </div>
                   </div>
