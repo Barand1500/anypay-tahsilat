@@ -10,6 +10,8 @@ import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { useErpActive } from '../../hooks/useErpActive';
 import { useInitialAmountFocus } from '../../hooks/useInitialAmountFocus';
 import { useAgreementRates } from '../../hooks/useAgreementRates';
+import { useLoadPosRedirects } from '../../hooks/useLoadPosRedirects';
+import { usePosRedirectsRevision } from '../../hooks/usePosRedirectsRevision';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import type { Customer, CustomerKind } from '../customers/mockCustomers';
@@ -24,7 +26,7 @@ import {
   formatInstallmentTitle,
 } from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
-import { buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
+import { applyPosDisplayBank, buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 import {
   detectBank,
   detectCardSegment,
@@ -118,15 +120,21 @@ export default function QuickPayPage() {
   const [tcChecked, setTcChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
   const binsRev = useBinsRevision();
+  useLoadPosRedirects();
+  const posRedirectRev = usePosRedirectsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
-  const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const bank = useMemo(
+    () => applyPosDisplayBank(cardBank),
+    [cardBank, posRedirectRev],
+  );
   const cardSegment = useMemo(
     () => detectCardSegment(cardDigits),
     [cardDigits, binsRev],
   );
-  const rateQ = useMemo(() => ratesBankQuery(bank, cardDigits), [bank, cardDigits]);
+  const rateQ = useMemo(() => ratesBankQuery(cardBank, cardDigits), [cardBank, cardDigits]);
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
     amount,
     bankName: rateQ.bankName,
@@ -540,7 +548,7 @@ export default function QuickPayPage() {
               expiry={expiry}
               cvc={cvc}
               errors={errors}
-              bank={bank}
+              bank={cardBank}
               tcFaulty={tcFaulty || Boolean(errors.tc)}
               tcOk={tcOk && !errors.tc}
               cardFaulty={cardFaulty}

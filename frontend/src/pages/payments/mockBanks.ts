@@ -192,7 +192,7 @@ export function findBankLogo(query: { id?: string; name?: string; logo?: string 
 import { matchRuntimeBin, segmentFromBinKind } from '../../lib/binStore';
 export { segmentFromBinKind };
 
-function normalizeBankText(s: string): string {
+export function normalizeBankText(s: string): string {
   return s
     .toLocaleLowerCase('tr')
     .normalize('NFD')
@@ -203,7 +203,7 @@ function normalizeBankText(s: string): string {
 }
 
 /** DB adı / slug → logo kataloğu (T. VAKIFLAR BANKASI → VakıfBank) */
-function resolveBankFromName(bankName: string, bankId?: string): BankInfo | null {
+export function resolveBankFromName(bankName: string, bankId?: string): BankInfo | null {
   if (bankId) {
     const byId = BANKS.find((b) => b.id === bankId);
     if (byId) return byId;

@@ -19,6 +19,8 @@ import { TextInput } from '../../components/ui/TextInput';
 import { useBrand } from '../../brand/BrandContext';
 import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useLoadBins } from '../../hooks/useLoadBins';
+import { useLoadPosRedirects } from '../../hooks/useLoadPosRedirects';
+import { usePosRedirectsRevision } from '../../hooks/usePosRedirectsRevision';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
@@ -49,7 +51,7 @@ import {
   formatInstallmentPaymentLine,
   formatInstallmentTitle,
 } from './installmentDisplay';
-import { buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
+import { applyPosDisplayBank, buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 
 type PublicPayView = {
   token: string;
@@ -85,7 +87,9 @@ export default function PublicPayPage() {
   const { logoUrl } = useBrand();
   const rootRef = useRef<HTMLDivElement>(null);
   useLoadBins();
+  useLoadPosRedirects();
   const binsRev = useBinsRevision();
+  const posRedirectRev = usePosRedirectsRevision();
 
   const [view, setView] = useState<PublicPayView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,7 +221,11 @@ export default function PublicPayPage() {
   const payableAmount = variableAmount ? parseTrMoney(amountText) : view?.amount ?? 0;
 
   const cardDigits = digitsOnly(card);
-  const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const bank = useMemo(
+    () => applyPosDisplayBank(cardBank),
+    [cardBank, posRedirectRev],
+  );
   const rateBin = cardDigits.length >= 8 ? cardDigits.slice(0, 8) : cardDigits.length >= 6 ? cardDigits.slice(0, 6) : '';
   const cardFaulty =
     cardDigits.length > 0 &&
@@ -231,7 +239,7 @@ export default function PublicPayPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!payToken || !view || view.status !== 'pending' || !bank || !rateBin || payableAmount <= 0) {
+    if (!payToken || !view || view.status !== 'pending' || !cardBank || !rateBin || payableAmount <= 0) {
       setInstallmentRates([]);
       setRatesLoading(false);
       setRatesError(false);
@@ -241,7 +249,7 @@ export default function PublicPayPage() {
     setInstallmentRates([]);
     setRatesLoading(true);
     setRatesError(false);
-    const q = ratesBankQuery(bank, rateBin);
+    const q = ratesBankQuery(cardBank, rateBin);
     const query = new URLSearchParams({ amount: String(payableAmount) });
     if (q.bin) query.set('bin', q.bin.length >= 8 ? q.bin.slice(0, 8) : q.bin.slice(0, 6));
     else query.set('bin', rateBin);
@@ -258,7 +266,7 @@ export default function PublicPayPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [payToken, view?.status, bank, rateBin, payableAmount]);
+  }, [payToken, view?.status, cardBank, rateBin, payableAmount]);
 
   const pricedInstallments = useMemo(
     () =>
@@ -725,7 +733,7 @@ export default function PublicPayPage() {
                       expiry={expiry}
                       cvc={cvc}
                       errors={errors}
-                      bank={bank}
+                      bank={cardBank}
                       cardFaulty={cardFaulty}
                       expiryOk={expiryOk}
                       expiryFaulty={expiryFaulty}

@@ -5,6 +5,7 @@ import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   CommonVirtualPosError,
   createCommonVirtualPos,
+  listActivePosRedirects,
   listCommonVirtualPos,
   softDeleteCommonVirtualPos,
   updateCommonVirtualPos,
@@ -13,6 +14,19 @@ import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const commonVirtualPosRouter = Router();
+
+/** Public — Ödeme Al / Hızlı /pay Banka&Taksit logosunu yönlenen bankaya çevirir */
+commonVirtualPosRouter.get('/redirects', async (_req, res) => {
+  try {
+    const { ensureOrtakSanalPosTable } = await import('../lib/ensureSchema.js');
+    await ensureOrtakSanalPosTable();
+    return sendSuccess(res, await listActivePosRedirects());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'POS yönlendirmeleri yüklenemedi');
+  }
+});
+
 commonVirtualPosRouter.use(requireAuth);
 commonVirtualPosRouter.use(requireModuleWrite('/tanimlamalar/pos-kart/ortak-sanal-pos'));
 

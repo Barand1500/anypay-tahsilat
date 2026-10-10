@@ -189,6 +189,41 @@ export async function listRedirectedSourceBankIds(): Promise<Set<number>> {
   }
 }
 
+/** Ödeme ekranı — aktif yönlendirmeler (logo: kaynak kart → hedef POS bankası) */
+export type PosRedirectPublic = {
+  sourceBankId: string;
+  sourceBankName: string;
+  targetBankId: string;
+  targetBankName: string;
+  targetBankLogoUrl: string;
+};
+
+export async function listActivePosRedirects(): Promise<PosRedirectPublic[]> {
+  try {
+    const rows = await prisma.ortakSanalPos.findMany({
+      where: { aktif: true, ...notRemoved() },
+      orderBy: { id: 'asc' },
+    });
+    const out: PosRedirectPublic[] = [];
+    for (const r of rows) {
+      const [source, target] = await Promise.all([
+        bankBrief(r.bankaId),
+        bankBrief(r.yonlenenBankaId),
+      ]);
+      out.push({
+        sourceBankId: String(r.bankaId),
+        sourceBankName: source?.name || `Banka #${r.bankaId}`,
+        targetBankId: String(r.yonlenenBankaId),
+        targetBankName: target?.name || `Banka #${r.yonlenenBankaId}`,
+        targetBankLogoUrl: target?.logoUrl || '',
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 function normalizeBankHint(s: string): string {
   return s
     .toLocaleLowerCase('tr')
@@ -201,8 +236,7 @@ function normalizeBankHint(s: string): string {
 
 /**
  * Taksit oranı / anlaşma için hedef banka.
- * Ortak Sanal POS: DenizBank → Garanti gibi yönlendirme.
- * Logo/kart bankası değişmez; yalnızca oran bankası değişir.
+ * Ortak Sanal POS: Halkbank → QNB gibi yönlendirme (oran + Banka&Taksit logosu).
  */
 export async function resolveRatesTargetBank(opts: {
   bankId?: number | null;

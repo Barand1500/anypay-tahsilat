@@ -10,6 +10,8 @@ import { useBinsRevision } from '../../hooks/useBinsRevision';
 import { useEffectiveInstallments } from '../../hooks/useEffectiveInstallments';
 import { useErpActive } from '../../hooks/useErpActive';
 import { useInitialAmountFocus } from '../../hooks/useInitialAmountFocus';
+import { useLoadPosRedirects } from '../../hooks/useLoadPosRedirects';
+import { usePosRedirectsRevision } from '../../hooks/usePosRedirectsRevision';
 import { api } from '../../lib/api';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
@@ -37,7 +39,7 @@ import {
   isValidLuhn,
   isValidTurkishIdentityNo,
 } from './mockBanks';
-import { buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
+import { applyPosDisplayBank, buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 
 type PayType = '' | 'ch' | 'fatura' | 'sabit';
 
@@ -94,6 +96,8 @@ export default function PaymentCollectPage() {
   const [tcChecked, setTcChecked] = useState(false);
   const [expiryChecked, setExpiryChecked] = useState(false);
   const binsRev = useBinsRevision();
+  useLoadPosRedirects();
+  const posRedirectRev = usePosRedirectsRevision();
 
   useEffect(() => {
     if (!customer) return;
@@ -144,13 +148,19 @@ export default function PaymentCollectPage() {
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
-  const bank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  /** Banka & Taksit: Ortak Sanal POS yönlendirmesi (Halkbank → QNB) */
+  const bank = useMemo(
+    () => applyPosDisplayBank(cardBank),
+    [cardBank, posRedirectRev],
+  );
   const cardSegment = useMemo(
     () => detectCardSegment(cardDigits),
     [cardDigits, binsRev],
   );
 
-  const rateQ = useMemo(() => ratesBankQuery(bank, cardDigits), [bank, cardDigits]);
+  // Oran sorgusu kart bankası + BIN (sunucu yönlendirmeyi uygular)
+  const rateQ = useMemo(() => ratesBankQuery(cardBank, cardDigits), [cardBank, cardDigits]);
   const { rows: agreementRows, loading: ratesLoading } = useAgreementRates({
     amount: amount || 0,
     bankName: rateQ.bankName,
@@ -550,7 +560,7 @@ export default function PaymentCollectPage() {
                 expiry={expiry}
                 cvc={cvc}
                 errors={errors}
-                bank={bank}
+                bank={cardBank}
                 tcFaulty={tcFaulty || Boolean(errors.tc)}
                 tcOk={tcOk && !errors.tc}
                 cardFaulty={cardFaulty}
