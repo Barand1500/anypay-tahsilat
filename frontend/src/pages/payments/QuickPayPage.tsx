@@ -140,7 +140,6 @@ export default function QuickPayPage() {
         amount,
         rates: bankInstallmentRows,
         allowedNs: allowedInstallments,
-        hideDisallowed: false,
       }),
     [amount, bankInstallmentRows, allowedInstallments],
   );

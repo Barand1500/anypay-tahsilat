@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import { useMemo, type Ref } from 'react';
 import { formatMoneyTr, type InstallmentRow } from './mockBanks';
 import {
   formatInstallmentPaymentLine,
@@ -20,7 +20,7 @@ type Props = {
   /** API boş döndü — sentetik tek çekim vb. */
   emptyRatesHint?: string | null;
   emptyMessage?: string | null;
-  /** null = kısıt yok; dizi = yalnızca bunlar seçilebilir */
+  /** null = kısıt yok; dizi = yalnızca bunlar (diğerleri hiç gösterilmez) */
   allowedInstallments?: number[] | null;
   validationError?: string;
   /** denser grid (public fullscreen) */
@@ -31,7 +31,7 @@ type Props = {
 
 /**
  * Ortak taksit planı — Public / Ödeme Al / Hızlı Ödeme.
- * Komisyon yok şeridi, ek taksit, filigran tek tasarım.
+ * İzin dışı taksitler listeden çıkarılır (soluk gösterilmez).
  */
 export function InstallmentPlanSection({
   rows,
@@ -49,6 +49,12 @@ export function InstallmentPlanSection({
   sectionRef,
   className = '',
 }: Props) {
+  const visibleRows = useMemo(() => {
+    if (!allowedInstallments?.length) return rows;
+    const allow = new Set(allowedInstallments);
+    return rows.filter((r) => allow.has(r.n));
+  }, [rows, allowedInstallments]);
+
   return (
     <section ref={sectionRef} data-anim className={className || undefined}>
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -67,11 +73,11 @@ export function InstallmentPlanSection({
       {!loading && !ratesError && emptyRatesHint ? (
         <p className="mb-3 text-xs text-[var(--panel-muted)]">{emptyRatesHint}</p>
       ) : null}
-      {!loading && !ratesError && !rows.length && emptyMessage ? (
+      {!loading && !ratesError && !visibleRows.length && emptyMessage ? (
         <p className="mb-3 text-xs text-[var(--panel-muted)]">{emptyMessage}</p>
       ) : null}
 
-      {!loading && !ratesError && rows.length > 0 ? (
+      {!loading && !ratesError && visibleRows.length > 0 ? (
         <div
           className={[
             'grid gap-3',
@@ -80,11 +86,9 @@ export function InstallmentPlanSection({
               : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4',
           ].join(' ')}
         >
-          {rows.map((rate) => {
+          {visibleRows.map((rate) => {
             const n = rate.n;
             const active = selectedN === n;
-            const ok =
-              !allowedInstallments || allowedInstallments.includes(n);
             const chargedTotal = commissionIncluded ? rate.totalAmount : baseAmount;
             const paymentCount = installmentPaymentCount(rate.n, rate.plusN);
             const vadeFarki = Math.max(0, rate.totalAmount - baseAmount);
@@ -93,19 +97,15 @@ export function InstallmentPlanSection({
               <button
                 key={n}
                 type="button"
-                data-km-jump={ok || undefined}
-                title={ok ? undefined : 'Size atanmadı'}
-                disabled={!ok}
+                data-km-jump
                 aria-pressed={active}
-                onClick={() => ok && onSelect(n)}
+                onClick={() => onSelect(n)}
                 className={[
                   'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                   density === 'dense' ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
-                  !ok
-                    ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
-                    : active
-                      ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
-                      : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
+                  active
+                    ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
+                    : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
                 ].join(' ')}
               >
                 {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
@@ -159,7 +159,7 @@ export function InstallmentPlanSection({
         </div>
       ) : null}
 
-      {!loading && !ratesError && !rows.length && validationError ? (
+      {!loading && !ratesError && !visibleRows.length && validationError ? (
         <p className="text-xs text-rose-500">{validationError}</p>
       ) : null}
     </section>

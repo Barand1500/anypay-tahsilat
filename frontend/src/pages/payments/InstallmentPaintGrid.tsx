@@ -12,7 +12,7 @@ type Props = {
 
 /**
  * Taksit ızgarası — tek tık veya basılı sürükleyerek boyama (çoklu seçim).
- * İzin dışı hücreler pasif; hover: «Size atanmadı».
+ * İzin dışı taksitler hiç gösterilmez.
  */
 export function InstallmentPaintGrid({ options, value, onChange, allowed, kmJump }: Props) {
   const selectedRef = useRef(value);
@@ -22,6 +22,10 @@ export function InstallmentPaintGrid({ options, value, onChange, allowed, kmJump
   const paintedRef = useRef<Set<number>>(new Set());
 
   const restricted = Array.isArray(allowed) && allowed.length > 0;
+  const visibleOptions = restricted
+    ? options.filter((n) => allowed!.includes(n))
+    : options;
+
   function isAllowed(n: number) {
     return !restricted || allowed!.includes(n);
   }
@@ -100,21 +104,17 @@ export function InstallmentPaintGrid({ options, value, onChange, allowed, kmJump
       onPointerCancel={onPointerUp}
       className="grid grid-cols-4 gap-1.5 select-none touch-none sm:grid-cols-6"
     >
-      {options.map((n) => {
+      {visibleOptions.map((n) => {
         const on = value.includes(n);
-        const ok = isAllowed(n);
         return (
           <button
             key={n}
             type="button"
             data-inst={n}
-            data-locked={ok ? '0' : '1'}
-            title={ok ? undefined : 'Size atanmadı'}
-            disabled={!ok}
-            {...(kmJump && ok ? { 'data-km-jump': true } : {})}
-            tabIndex={ok ? 0 : -1}
+            data-locked="0"
+            {...(kmJump ? { 'data-km-jump': true } : {})}
+            tabIndex={0}
             onKeyDown={(e) => {
-              if (!ok) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 const mode = selectedRef.current.includes(n) ? 'remove' : 'add';
@@ -125,11 +125,9 @@ export function InstallmentPaintGrid({ options, value, onChange, allowed, kmJump
             }}
             className={[
               'rounded-lg py-2 text-sm font-bold tabular-nums transition',
-              !ok
-                ? 'cursor-not-allowed bg-[var(--panel-surface)] text-[var(--panel-muted)]/45 ring-1 ring-[var(--panel-line)] opacity-55'
-                : on
-                  ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                  : 'bg-[var(--panel-elevated)] text-[var(--panel-ink)] ring-1 ring-[var(--panel-line)] hover:ring-[var(--color-brand-500)]/40',
+              on
+                ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
+                : 'bg-[var(--panel-elevated)] text-[var(--panel-ink)] ring-1 ring-[var(--panel-line)] hover:ring-[var(--color-brand-500)]/40',
             ].join(' ')}
           >
             {n}

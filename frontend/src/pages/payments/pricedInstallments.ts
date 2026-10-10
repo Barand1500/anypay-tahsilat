@@ -3,18 +3,13 @@ import { digitsOnly } from './mockBanks';
 
 /**
  * Public / Ödeme Al / Hızlı Ödeme — tek taksit listesi mantığı.
- * Sunucu zaten alt limite göre filtreler; burada güvenlik için tekrar uygulanır.
+ * Alt limit + izin dışı taksitler listeden çıkarılır (soluk gösterilmez).
  */
 export function buildPricedInstallments(opts: {
   amount: number;
   rates: InstallmentRow[];
-  /** null/[] = kısıt yok (panel); dizi = yalnızca bunlar (public ödeme isteği) */
+  /** null/[] = kısıt yok; dizi = yalnızca bunlar görünür/seçilir */
   allowedNs?: number[] | null;
-  /**
-   * true: public — izin dışını listeden çıkar
-   * false: panel — hepsini göster, InstallmentPlanSection kilitler
-   */
-  hideDisallowed?: boolean;
 }): InstallmentRow[] {
   const amount = opts.amount;
   if (!Number.isFinite(amount) || amount <= 0) return [];
@@ -23,12 +18,11 @@ export function buildPricedInstallments(opts: {
     opts.allowedNs != null && opts.allowedNs.length > 0
       ? new Set(opts.allowedNs)
       : null;
-  const hideDisallowed = opts.hideDisallowed === true;
 
   const fromBank = opts.rates
     .filter((rate) => {
       if ((rate.minLimit ?? 0) > amount) return false;
-      if (hideDisallowed && allowed && !allowed.has(rate.n)) return false;
+      if (allowed && !allowed.has(rate.n)) return false;
       return true;
     })
     .slice()

@@ -266,7 +266,6 @@ export default function PublicPayPage() {
         amount: payableAmount,
         rates: installmentRates,
         allowedNs: installmentOpts,
-        hideDisallowed: true,
       }),
     [installmentOpts, installmentRates, payableAmount],
   );

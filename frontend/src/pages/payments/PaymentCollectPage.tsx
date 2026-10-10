@@ -166,7 +166,6 @@ export default function PaymentCollectPage() {
         amount,
         rates: agreementRows,
         allowedNs: allowedInstallments,
-        hideDisallowed: false,
       }),
     [amount, agreementRows, allowedInstallments],
   );

@@ -347,8 +347,16 @@ export function InstallmentOptionsModal({
           ) : null}
           {!currentRatesLoading && banks.length > 0 && (
           <div className="grid gap-4 xl:grid-cols-2">
-            {banks.filter((bank) => (rowsByBank[bank.id] ?? []).length > 0).map((bank) => {
-              const rows = rowsByBank[bank.id] ?? [];
+            {banks
+              .map((bank) => {
+                const allRows = rowsByBank[bank.id] ?? [];
+                const rows = !allowedInstallments?.length
+                  ? allRows
+                  : allRows.filter((r) => allowedInstallments.includes(r.n));
+                return { bank, rows };
+              })
+              .filter(({ rows }) => rows.length > 0)
+              .map(({ bank, rows }) => {
               const showMinLimit = rows.some((r) => r.minLimit > 0);
               return (
                 <article
@@ -358,7 +366,7 @@ export function InstallmentOptionsModal({
                   <div className="flex items-center gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-elevated)] px-4 py-2.5">
                     <img
                       src={bank.logo}
-                      alt=""  
+                      alt=""
                       className="h-8 w-auto max-w-[120px] shrink-0 object-contain"
                     />
                     <span className="min-w-0 flex-1 text-right text-sm font-bold leading-snug text-[var(--panel-ink)]">
@@ -367,11 +375,11 @@ export function InstallmentOptionsModal({
                   </div>
                   <table className="w-full table-fixed text-left text-[11px] sm:text-[12px]">
                     <colgroup>
-                      <col className="w-[14%]" />
-                      <col className="w-[18%]" />
-                      <col className="w-[26%]" />
-                      <col className="w-[28%]" />
-                      {showMinLimit ? <col className="w-[14%]" /> : null}
+                      <col className={showMinLimit ? "w-[12%]" : "w-[14%]"} />
+                      <col className={showMinLimit ? "w-[16%]" : "w-[18%]"} />
+                      <col className={showMinLimit ? "w-[24%]" : "w-[26%]"} />
+                      <col className={showMinLimit ? "w-[26%]" : "w-[28%]"} />
+                      {showMinLimit ? <col className="w-[22%]" /> : null}
                     </colgroup>
                     <thead>
                       <tr className="text-[9px] uppercase leading-tight tracking-wide text-[var(--panel-muted)] sm:text-[10px]">
@@ -388,27 +396,18 @@ export function InstallmentOptionsModal({
                           Toplam tutar
                         </th>
                         {showMinLimit ? (
-                          <th className="whitespace-nowrap px-2 py-2 text-right font-semibold sm:px-3">
-                            Taksit Alt Limiti
+                          <th className="px-1.5 py-2 text-right font-semibold leading-tight sm:px-2">
+                            <span className="block">Taksit</span>
+                            <span className="block">Alt Limiti</span>
                           </th>
                         ) : null}
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((r) => {
-                        const ok =
-                          !allowedInstallments?.length ||
-                          allowedInstallments.includes(r.n);
-                        return (
+                      {rows.map((r) => (
                           <tr
                             key={r.n}
-                            title={ok ? undefined : "Size atanmadı"}
-                            className={[
-                              "border-t border-[var(--panel-line)]/80",
-                              ok
-                                ? "hover:bg-[var(--panel-hover)]/50"
-                                : "cursor-not-allowed opacity-45",
-                            ].join(" ")}
+                            className="border-t border-[var(--panel-line)]/80 hover:bg-[var(--panel-hover)]/50"
                           >
                             <td className="px-2 py-2 text-right sm:px-3">
                               <InstallmentBadge n={r.n} plusN={r.plusN} className="text-sm sm:text-[13px]" />
@@ -429,16 +428,20 @@ export function InstallmentOptionsModal({
                             <td className="px-2 py-2 text-right font-semibold tabular-nums text-[var(--panel-ink)] sm:px-3">
                               {formatMoneyDisplay(r.totalAmount)}
                             </td>
-                            <td hidden={!showMinLimit} className="px-2 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-3">
-                              {ok
-                                ? r.minLimit > 0
-                                  ? formatMoneyDisplay(r.minLimit)
-                                  : "—"
-                                : "Size atanmadı"}
-                            </td>
+                            {showMinLimit ? (
+                              <td className="px-1.5 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-2">
+                                {r.minLimit > 0 ? (
+                                  <span className="inline-flex flex-col items-end leading-tight">
+                                    <span>{formatMoneyTr(r.minLimit)}</span>
+                                    <span className="text-[10px]">₺</span>
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            ) : null}
                           </tr>
-                        );
-                      })}
+                        ))}
                     </tbody>
                   </table>
                 </article>
@@ -447,7 +450,13 @@ export function InstallmentOptionsModal({
           </div>
           )}
           {!currentRatesLoading && banks.length > 0 &&
-          banks.every((bank) => (rowsByBank[bank.id] ?? []).length === 0) ? (
+          banks.every((bank) => {
+            const all = rowsByBank[bank.id] ?? [];
+            const visible = !allowedInstallments?.length
+              ? all
+              : all.filter((r) => allowedInstallments.includes(r.n));
+            return visible.length === 0;
+          }) ? (
             <p className="py-8 text-center text-sm text-[var(--panel-muted)]">Bu tutar ve müşteri grubu için tanımlı taksit seçeneği bulunamadı.</p>
           ) : null}
         </div>
