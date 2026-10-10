@@ -375,11 +375,11 @@ export function InstallmentOptionsModal({
                   </div>
                   <table className="w-full table-fixed text-left text-[11px] sm:text-[12px]">
                     <colgroup>
-                      <col className={showMinLimit ? "w-[12%]" : "w-[14%]"} />
-                      <col className={showMinLimit ? "w-[16%]" : "w-[18%]"} />
-                      <col className={showMinLimit ? "w-[24%]" : "w-[26%]"} />
-                      <col className={showMinLimit ? "w-[26%]" : "w-[28%]"} />
-                      {showMinLimit ? <col className="w-[22%]" /> : null}
+                      <col className={showMinLimit ? "w-[11%]" : "w-[14%]"} />
+                      <col className={showMinLimit ? "w-[15%]" : "w-[18%]"} />
+                      <col className={showMinLimit ? "w-[23%]" : "w-[26%]"} />
+                      <col className={showMinLimit ? "w-[25%]" : "w-[28%]"} />
+                      {showMinLimit ? <col className="w-[26%]" /> : null}
                     </colgroup>
                     <thead>
                       <tr className="text-[9px] uppercase leading-tight tracking-wide text-[var(--panel-muted)] sm:text-[10px]">
@@ -397,8 +397,10 @@ export function InstallmentOptionsModal({
                         </th>
                         {showMinLimit ? (
                           <th className="px-1.5 py-2 text-right font-semibold leading-tight sm:px-2">
-                            <span className="block">Taksit</span>
-                            <span className="block">Alt Limiti</span>
+                            {/* Yer varsa tek satır; daralınca iki satıra kırılır — ₺ tutarla hep yan yana */}
+                            <span className="inline-block max-w-full text-right [text-wrap:balance]">
+                              Taksit Alt Limiti
+                            </span>
                           </th>
                         ) : null}
                       </tr>
@@ -431,9 +433,8 @@ export function InstallmentOptionsModal({
                             {showMinLimit ? (
                               <td className="px-1.5 py-2 text-right tabular-nums text-[var(--panel-muted)] sm:px-2">
                                 {r.minLimit > 0 ? (
-                                  <span className="inline-flex flex-col items-end leading-tight">
-                                    <span>{formatMoneyTr(r.minLimit)}</span>
-                                    <span className="text-[10px]">₺</span>
+                                  <span className="whitespace-nowrap">
+                                    {formatMoneyTr(r.minLimit)} ₺
                                   </span>
                                 ) : (
                                   "—"
