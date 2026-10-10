@@ -27,6 +27,13 @@ type Props = {
 };
 type VisibleSegment = Exclude<CardSegment, 'serbest'>;
 
+/** Mevcut sekme geçerliyse koru; değilse bireysel, yoksa ilk segment */
+function preferSegment(ordered: VisibleSegment[], current?: VisibleSegment): VisibleSegment {
+  if (current && ordered.includes(current)) return current;
+  if (ordered.includes('bireysel')) return 'bireysel';
+  return ordered[0]!;
+}
+
 /** Taksit karşılaştırma — Esc / X; oranlar kart anlaşmasından */
 export function InstallmentOptionsModal({
   amount,
@@ -40,7 +47,7 @@ export function InstallmentOptionsModal({
 }: Props) {
   const { token } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [segment, setSegment] = useState<VisibleSegment>("tumu");
+  const [segment, setSegment] = useState<VisibleSegment>("bireysel");
   const [banks, setBanks] = useState<BankInfo[]>([]);
   const [banksLoading, setBanksLoading] = useState(true);
   const [rowsBySegment, setRowsBySegment] = useState<Record<VisibleSegment, Record<string, InstallmentRow[]>>>(
@@ -181,9 +188,7 @@ export function InstallmentOptionsModal({
           );
           setAvailableSegments(ordered);
           if (ordered.length) {
-            setSegment((current) =>
-              ordered.some((key) => key === current) ? current : ordered[0]!,
-            );
+            setSegment((current) => preferSegment(ordered, current));
           }
         } catch {
           if (!cancelled) {
@@ -244,7 +249,7 @@ export function InstallmentOptionsModal({
         const orderedSegments = (["tumu", "bireysel", "ticari"] as const).filter((key) => nextSegments.has(key));
         setAvailableSegments(orderedSegments);
         if (orderedSegments.length) {
-          setSegment((current) => orderedSegments.some((key) => key === current) ? current : orderedSegments[0]!);
+          setSegment((current) => preferSegment(orderedSegments, current));
         }
         setRatesLoading(false);
         setRatesRequestKey(rateKey);

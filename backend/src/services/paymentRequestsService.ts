@@ -440,9 +440,8 @@ export async function getPaymentRequestInstallmentRates(
   }
 
   const agreementCode = await getCustomerAgreementCode(row.musteriId);
-  // Sabit tutar → serbest paket; diğerleri → BIN Tür (ticari/bireysel), yoksa bireysel
-  const segment =
-    tip === 'sabit' ? 'serbest' : cardBank?.segment ?? 'bireysel';
+  // Ödeme Al ile aynı: BIN Tür (bireysel/ticari); sabit tutar serbest pakete zorlanmaz
+  const segment = cardBank?.segment ?? 'bireysel';
   const rates = await resolveAgreementRates({
     agreementCode,
     bankId,

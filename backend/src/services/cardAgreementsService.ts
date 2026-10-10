@@ -473,17 +473,40 @@ export async function resolveAgreementRates(opts: {
     const detail = detailFor(row);
     const columnRate = key === 'tumu' ? row.komisyonTum
       : key === 'bireysel' ? row.komisyonBireysel : row.komisyonTicari;
-    // Müşteri anlaşmasında çoğu satırda yalnızca bireysel/ticari dolar;
-    // sabit (serbest→tumu) ödemede tumu boş diye satırı düşürme.
-    if (!detail) {
-      if (key === 'tumu') {
-        return row.komisyonTum != null || row.komisyonBireysel != null || row.komisyonTicari != null;
-      }
-      return columnRate != null;
-    }
+    // Tümü sekmesi yalnızca gerçek tumu/all tanımlıysa; bireysel dolu diye şişirme
+    if (!detail) return columnRate != null;
     const item = detail[key === 'tumu' ? 'all' : key];
     if (!item?.active || (key !== 'tumu' && detail.all?.active)) return false;
     return columnRate != null || parseTrNumber(item.bankCommission) != null;
+  };
+
+  /** Ek taksit: tercih edilen aktif segment; '0' default diğer aktif >0 değeri ezmesin */
+  const pickExtraInstallment = (
+    selected: AgreementSegmentDetail | undefined,
+    posItem: (typeof agreementItems)[number] | undefined,
+    preferKey: 'all' | 'bireysel' | 'ticari',
+  ): number => {
+    const fromSelected = parseTrNumber(selected?.extraInstallment);
+    if (fromSelected != null && fromSelected > 0) return fromSelected;
+
+    const readSeg = (key: 'all' | 'bireysel' | 'ticari', requireActive: boolean) => {
+      const seg = posItem?.[key];
+      if (!seg) return null;
+      if (requireActive && seg.active === false) return null;
+      if (requireActive && key !== preferKey && seg.active !== true) return null;
+      return parseTrNumber(seg.extraInstallment);
+    };
+
+    const preferred = readSeg(preferKey, false);
+    if (preferred != null && preferred > 0) return preferred;
+
+    for (const key of ['bireysel', 'all', 'ticari'] as const) {
+      if (key === preferKey) continue;
+      const v = readSeg(key, true);
+      if (v != null && v > 0) return v;
+    }
+
+    return fromSelected ?? preferred ?? 0;
   };
   const availableSegments = segmentKeys.filter((key) => matched.some((row) => {
     if (!configuredFor(row, key)) return false;
@@ -512,15 +535,7 @@ export async function resolveAgreementRates(opts: {
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
       const segKey = effectiveKey === 'tumu' ? 'all' : effectiveKey;
-      const posItem = posDetailFor(n);
-      // Ek taksit banka anlaşmasında bireysel/ticari/all’dan birinde olabilir
-      const extraRaw =
-        parseTrNumber(selected?.extraInstallment) ??
-        parseTrNumber(posItem?.[segKey]?.extraInstallment) ??
-        parseTrNumber(posItem?.bireysel?.extraInstallment) ??
-        parseTrNumber(posItem?.all?.extraInstallment) ??
-        parseTrNumber(posItem?.ticari?.extraInstallment) ??
-        0;
+      const extraRaw = pickExtraInstallment(selected, posDetailFor(n), segKey);
       const plusN = configuredFor(r, effectiveKey)
         ? Math.max(0, Math.min(36 - n, Math.round(extraRaw)))
         : 0;
