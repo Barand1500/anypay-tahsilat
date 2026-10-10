@@ -43,6 +43,13 @@ import {
   type InstallmentRow,
 } from './mockBanks';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import {
+  formatInstallmentExtraHint,
+  formatInstallmentPaymentLine,
+  formatInstallmentTitle,
+  InstallmentCardWatermark,
+  installmentPaymentCount,
+} from './installmentDisplay';
 
 type PublicPayView = {
   token: string;
@@ -802,21 +809,20 @@ export default function PublicPayPage() {
                             Seçili
                           </p>
                           <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                            {selectedRate.n === 1 ? 'Tek çekim' : `${selectedRate.n} taksit`}
+                            {formatInstallmentTitle(selectedRate.n, selectedRate.plusN)}
                           </p>
+                          {formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN) ? (
+                            <p className="text-[10px] font-semibold text-[var(--color-brand-600)]">
+                              {formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN)}
+                            </p>
+                          ) : null}
                           <p className="text-sm tabular-nums text-[var(--panel-muted)]">
-                            {selectedRate.n > 1
-                              ? `${selectedRate.n} × ${formatMoneyDisplay(
-                                  view.commissionIncluded
-                                    ? selectedRate.installmentAmount
-                                    : payableAmount /
-                                        Math.max(1, selectedRate.n + selectedRate.plusN),
-                                )}`
-                              : formatMoneyDisplay(
-                                  view.commissionIncluded
-                                    ? selectedRate.totalAmount
-                                    : payableAmount,
-                                )}
+                            {formatInstallmentPaymentLine(
+                              selectedRate,
+                              view.commissionIncluded ? selectedRate.totalAmount : payableAmount,
+                              view.commissionIncluded,
+                              (v) => formatMoneyDisplay(v),
+                            )}
                           </p>
                           {selectedRate.commissionPct > 0 ? (
                             <p className="mt-1 text-[11px] font-semibold text-rose-500">
@@ -874,11 +880,9 @@ export default function PublicPayPage() {
                           const chargedTotal = view.commissionIncluded
                             ? rate.totalAmount
                             : payableAmount;
-                          const paymentCount = Math.max(1, rate.n + rate.plusN);
-                          const perPayment = view.commissionIncluded
-                            ? rate.installmentAmount
-                            : chargedTotal / paymentCount;
+                          const paymentCount = installmentPaymentCount(rate.n, rate.plusN);
                           const vadeFarki = Math.max(0, rate.totalAmount - payableAmount);
+                          const showTotalLine = paymentCount > 1 || rate.plusN > 0;
                           return (
                             <button
                               key={n}
@@ -894,28 +898,34 @@ export default function PublicPayPage() {
                               ].join(' ')}
                             >
                               {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
-                              <span className="pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]">
-                                {n}
-                              </span>
+                              {rate.plusN > 0 ? (
+                                <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
+                                  +{rate.plusN} ek
+                                </span>
+                              ) : null}
+                              <InstallmentCardWatermark n={n} plusN={rate.plusN} />
                               <p
                                 className={[
                                   'relative text-right text-sm font-semibold',
                                   active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                                 ].join(' ')}
                               >
-                                {n === 1 ? 'Tek çekim' : `${n} taksit`}
+                                {formatInstallmentTitle(n, rate.plusN)}
                               </p>
                               <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
-                                {n === 1
-                                  ? formatMoneyTr(chargedTotal)
-                                  : `${n} × ${formatMoneyTr(perPayment)}`}
+                                {formatInstallmentPaymentLine(
+                                  rate,
+                                  chargedTotal,
+                                  view.commissionIncluded,
+                                  formatMoneyTr,
+                                )}
                               </p>
-                              {n > 1 ? (
+                              {showTotalLine ? (
                                 <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
                                   Toplam {formatMoneyTr(chargedTotal)}
                                 </p>
                               ) : null}
-                              {n > 1 && rate.commissionPct > 0 ? (
+                              {paymentCount > 1 && rate.commissionPct > 0 ? (
                                 <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                                   {view.commissionIncluded
                                     ? `Vade farkı %${formatMoneyTr(rate.commissionPct)} - ${formatMoneyTr(vadeFarki)}`

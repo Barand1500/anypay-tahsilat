@@ -17,6 +17,13 @@ import { normalizePhoneInput } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import {
+  formatInstallmentExtraHint,
+  formatInstallmentPaymentLine,
+  formatInstallmentTitle,
+  InstallmentCardWatermark,
+  installmentPaymentCount,
+} from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import {
   detectBank,
@@ -579,12 +586,26 @@ export default function QuickPayPage() {
               {pickedInstall && bank ? (
                 <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-center">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">Seçili</p>
-                  <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">{pickedInstall.n === 1 ? 'Tek çekim' : `${pickedInstall.n} taksit`}</p>
+                  <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
+                    {selectedRate
+                      ? formatInstallmentTitle(selectedRate.n, selectedRate.plusN)
+                      : pickedInstall.n === 1
+                        ? 'Tek çekim'
+                        : `${pickedInstall.n} taksit`}
+                  </p>
+                  {selectedRate && formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN) ? (
+                    <p className="text-[10px] font-semibold text-[var(--color-brand-600)]">
+                      {formatInstallmentExtraHint(selectedRate.n, selectedRate.plusN)}
+                    </p>
+                  ) : null}
                   <p className="text-sm tabular-nums text-[var(--panel-muted)]">
                     {selectedRate
-                      ? pickedInstall.n > 1
-                        ? `${pickedInstall.n} × ${formatMoneyDisplay(selectedRate.installmentAmount)}`
-                        : formatMoneyDisplay(selectedRate.totalAmount)
+                      ? formatInstallmentPaymentLine(
+                          selectedRate,
+                          selectedRate.totalAmount,
+                          true,
+                          (v) => formatMoneyDisplay(v),
+                        )
                       : pickedInstall.bank.name}
                   </p>
                   {selectedRate ? (
@@ -609,6 +630,8 @@ export default function QuickPayPage() {
                 {availableBankRows.map((r) => {
                   const active = pickedInstall?.n === r.n && pickedInstall.bank.id === bank.id;
                   const ok = !allowedInstallments || allowedInstallments.includes(r.n);
+                  const paymentCount = installmentPaymentCount(r.n, r.plusN);
+                  const showTotalLine = paymentCount > 1 || r.plusN > 0;
                   return (
                     <button
                       key={r.n}
@@ -618,7 +641,7 @@ export default function QuickPayPage() {
                       disabled={!ok}
                       onClick={() => ok && setPickedInstall({ n: r.n, bank })}
                       className={[
-                        'relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left text-white transition',
+                        'relative min-h-[176px] max-w-[320px] overflow-visible rounded-xl border p-4 text-left text-white transition',
                         !ok
                           ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
                           : active
@@ -629,14 +652,23 @@ export default function QuickPayPage() {
                       {r.commissionPct === 0 ? (
                         <span className="absolute left-0 top-0 rounded-br-lg bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Komisyon yok</span>
                       ) : null}
-                      <span className="pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]">{r.n}</span>
+                      {r.plusN > 0 ? (
+                        <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
+                          +{r.plusN} ek
+                        </span>
+                      ) : null}
+                      <InstallmentCardWatermark n={r.n} plusN={r.plusN} />
                       <p className={['relative text-right text-sm font-semibold', active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]'].join(' ')}>
-                        {r.n === 1 ? 'Tek çekim' : `${r.n} taksit`}
+                        {formatInstallmentTitle(r.n, r.plusN)}
                       </p>
                       <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
-                        {r.n === 1 ? formatMoneyTr(r.totalAmount) : `${r.n} × ${formatMoneyTr(r.installmentAmount)}`}
+                        {formatInstallmentPaymentLine(r, r.totalAmount, true, formatMoneyTr)}
                       </p>
-                      {r.n > 1 ? <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">Toplam {formatMoneyTr(r.totalAmount)}</p> : null}
+                      {showTotalLine ? (
+                        <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
+                          Toplam {formatMoneyTr(r.totalAmount)}
+                        </p>
+                      ) : null}
                     </button>
                   );
                 })}

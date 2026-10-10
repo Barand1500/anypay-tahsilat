@@ -18,6 +18,13 @@ import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import {
+  formatInstallmentExtraHint,
+  formatInstallmentPaymentLine,
+  formatInstallmentTitle,
+  InstallmentCardWatermark,
+  installmentPaymentCount,
+} from './installmentDisplay';
+import {
   detectBank,
   detectCardSegment,
   digitsOnly,
@@ -609,12 +616,20 @@ export default function PaymentCollectPage() {
                       Seçili
                     </p>
                     <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                      {selected.n === 1 ? 'Tek çekim' : `${selected.n} taksit`}
+                      {formatInstallmentTitle(selected.n, selected.plusN)}
                     </p>
+                    {formatInstallmentExtraHint(selected.n, selected.plusN) ? (
+                      <p className="text-[10px] font-semibold text-[var(--color-brand-600)]">
+                        {formatInstallmentExtraHint(selected.n, selected.plusN)}
+                      </p>
+                    ) : null}
                     <p className="text-sm tabular-nums text-[var(--panel-muted)]">
-                      {selected.n > 1
-                        ? `${selected.n} × ${formatMoneyDisplay(commissionIncluded ? selected.installmentAmount : amount / (selected.n + selected.plusN))}`
-                        : `${formatMoneyDisplay(commissionIncluded ? selected.totalAmount : amount)}`}
+                      {formatInstallmentPaymentLine(
+                        selected,
+                        commissionIncluded ? selected.totalAmount : amount,
+                        commissionIncluded,
+                        (v) => formatMoneyDisplay(v),
+                      )}
                     </p>
                     {selected.commissionPct > 0 ? (
                       <p className="mt-1 text-[11px] font-semibold text-rose-500">
@@ -643,9 +658,10 @@ export default function PaymentCollectPage() {
               {installmentRows.map((r) => {
                 const active = installment === r.n;
                 const chargedTotal = commissionIncluded ? r.totalAmount : amount;
-                const perPayment = commissionIncluded ? r.installmentAmount : amount / (r.n + r.plusN);
                 const ok =
                   !allowedInstallments || allowedInstallments.includes(r.n);
+                const paymentCount = installmentPaymentCount(r.n, r.plusN);
+                const showTotalLine = paymentCount > 1 || r.plusN > 0;
                 return (
                   <button
                     key={r.n}
@@ -655,7 +671,7 @@ export default function PaymentCollectPage() {
                     disabled={!ok}
                     onClick={() => ok && setInstallment(r.n)}
                     className={[
-                      'relative min-h-[176px] max-w-[320px] overflow-hidden rounded-xl border p-4 text-left text-white transition',
+                      'relative min-h-[176px] max-w-[320px] overflow-visible rounded-xl border p-4 text-left text-white transition',
                       !ok
                         ? 'cursor-not-allowed border-[var(--panel-line)] bg-[var(--panel-surface)] opacity-50'
                         : active
@@ -673,32 +689,34 @@ export default function PaymentCollectPage() {
                         Komisyon yok
                       </span>
                     ) : null}
-                    <span
-                      className={[
-                          'pointer-events-none absolute -bottom-3 left-3 text-[4.5rem] font-black leading-none text-[var(--panel-muted)]/15 sm:text-[5rem]',
-                      ].join(' ')}
-                    >
-                      {r.n}
-                    </span>
+                    {r.plusN > 0 ? (
+                      <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
+                        +{r.plusN} ek
+                      </span>
+                    ) : null}
+                    <InstallmentCardWatermark n={r.n} plusN={r.plusN} />
                     <p
                       className={[
                         'relative text-right text-sm font-semibold',
                         active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                       ].join(' ')}
                     >
-                      {r.n === 1 ? 'Tek çekim' : `${r.n} taksit`}
+                      {formatInstallmentTitle(r.n, r.plusN)}
                     </p>
                     <p className="relative mt-2 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
-                      {r.n === 1
-                        ? formatMoneyTr(chargedTotal)
-                        : `${r.n} × ${formatMoneyTr(perPayment)}`}
+                      {formatInstallmentPaymentLine(
+                        r,
+                        chargedTotal,
+                        commissionIncluded,
+                        formatMoneyTr,
+                      )}
                     </p>
-                    {r.n > 1 ? (
+                    {showTotalLine ? (
                       <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
                         Toplam {formatMoneyTr(chargedTotal)}
                       </p>
                     ) : null}
-                    {r.n > 1 && r.commissionPct > 0 ? (
+                    {paymentCount > 1 && r.commissionPct > 0 ? (
                       <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                         Vade farkı %{formatMoneyTr(r.commissionPct)} = {formatMoneyTr(Math.max(0, r.totalAmount - amount))}
                         {!commissionIncluded ? ' · Satıcı karşılar' : ''}
