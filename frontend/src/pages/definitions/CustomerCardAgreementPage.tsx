@@ -132,7 +132,7 @@ export default function CustomerCardAgreementPage() {
           ...b,
           rows: [
             ...b.rows,
-            { n: nextN, minLimit: '0,00', allRate: '', bireyselRate: '', ticariRate: '' },
+            { n: nextN, minLimit: '0,00', allRate: '', bireyselRate: '0,00', ticariRate: '0,00' },
           ],
         };
       }),

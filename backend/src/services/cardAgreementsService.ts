@@ -241,8 +241,9 @@ async function saveAgreement(
         taksit: n,
         altLimit: parseTrNumber(inst.minLimit),
         komisyonTum: parseTrNumber(inst.allRate),
-        komisyonBireysel: parseTrNumber(inst.bireyselRate),
-        komisyonTicari: parseTrNumber(inst.ticariRate),
+        // Boş oran null olmasın — yoksa ödeme ekranında taksit kutusu düşer
+        komisyonBireysel: parseTrNumber(inst.bireyselRate) ?? 0,
+        komisyonTicari: parseTrNumber(inst.ticariRate) ?? 0,
         tarih: now,
         grup: date,
         blokAdi: bankName.slice(0, 255),
@@ -472,7 +473,14 @@ export async function resolveAgreementRates(opts: {
     const detail = detailFor(row);
     const columnRate = key === 'tumu' ? row.komisyonTum
       : key === 'bireysel' ? row.komisyonBireysel : row.komisyonTicari;
-    if (!detail) return columnRate != null;
+    // Müşteri anlaşmasında çoğu satırda yalnızca bireysel/ticari dolar;
+    // sabit (serbest→tumu) ödemede tumu boş diye satırı düşürme.
+    if (!detail) {
+      if (key === 'tumu') {
+        return row.komisyonTum != null || row.komisyonBireysel != null || row.komisyonTicari != null;
+      }
+      return columnRate != null;
+    }
     const item = detail[key === 'tumu' ? 'all' : key];
     if (!item?.active || (key !== 'tumu' && detail.all?.active)) return false;
     return columnRate != null || parseTrNumber(item.bankCommission) != null;
@@ -504,10 +512,14 @@ export async function resolveAgreementRates(opts: {
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
       const segKey = effectiveKey === 'tumu' ? 'all' : effectiveKey;
-      const posSeg = posDetailFor(n)?.[segKey];
+      const posItem = posDetailFor(n);
+      // Ek taksit banka anlaşmasında bireysel/ticari/all’dan birinde olabilir
       const extraRaw =
         parseTrNumber(selected?.extraInstallment) ??
-        parseTrNumber(posSeg?.extraInstallment) ??
+        parseTrNumber(posItem?.[segKey]?.extraInstallment) ??
+        parseTrNumber(posItem?.bireysel?.extraInstallment) ??
+        parseTrNumber(posItem?.all?.extraInstallment) ??
+        parseTrNumber(posItem?.ticari?.extraInstallment) ??
         0;
       const plusN = configuredFor(r, effectiveKey)
         ? Math.max(0, Math.min(36 - n, Math.round(extraRaw)))

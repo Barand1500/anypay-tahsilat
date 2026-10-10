@@ -465,8 +465,9 @@ export async function savePosCustomerAgreement(
         taksit: n,
         altLimit: parseTrNumber(row.minLimit),
         komisyonTum: parseTrNumber(row.allRate),
-        komisyonBireysel: parseTrNumber(row.bireyselRate),
-        komisyonTicari: parseTrNumber(row.ticariRate),
+        // Boş bireysel/ticari → 0; null kalırsa ödeme ekranında satır hiç görünmez
+        komisyonBireysel: parseTrNumber(row.bireyselRate) ?? 0,
+        komisyonTicari: parseTrNumber(row.ticariRate) ?? 0,
         grup: date,
         blokAdi: blockName.slice(0, 255),
         blokLogo: (block.logoFileName || pos.bankLogoUrl || '').slice(0, 255) || null,
