@@ -508,11 +508,17 @@ export async function resolveAgreementRates(opts: {
 
     return fromSelected ?? preferred ?? 0;
   };
+  /** Alt limit: detay JSON → kolon; boş/0 = sınır yok */
+  const rowMinLimit = (
+    row: FlatRow,
+    seg: AgreementSegmentDetail | undefined,
+  ): number => parseTrNumber(seg?.minLimit) ?? row.altLimit ?? 0;
+
   const availableSegments = segmentKeys.filter((key) => matched.some((row) => {
     if (!configuredFor(row, key)) return false;
-    const detail = detailFor(row)?.[key === 'tumu' ? 'all' : key];
-    const limit = detail ? parseTrNumber(detail.minLimit) ?? 0 : row.altLimit;
-    return limit == null || limit <= amount;
+    const seg = detailFor(row)?.[key === 'tumu' ? 'all' : key];
+    const minLimit = rowMinLimit(row, seg);
+    return minLimit <= amount;
   }));
 
   const calculateRows = (requestedSegment: 'bireysel' | 'ticari' | 'tumu' | 'serbest'): AgreementRateRow[] => [...byN.values()]
@@ -522,9 +528,8 @@ export async function resolveAgreementRates(opts: {
       const detail = detailFor(r);
       const effectiveKey = opts.allowAllFallback !== false && key !== 'tumu' && detail?.all?.active && !configuredFor(r, key) ? 'tumu' : key;
       if (!configuredFor(r, effectiveKey)) return false;
-      const limit = detail?.[effectiveKey === 'tumu' ? 'all' : effectiveKey]?.minLimit;
-      const minLimit = detail ? parseTrNumber(limit) ?? 0 : r.altLimit;
-      return minLimit == null || minLimit <= amount;
+      const selected = detail?.[effectiveKey === 'tumu' ? 'all' : effectiveKey];
+      return rowMinLimit(r, selected) <= amount;
     })
     .map((r) => {
       const key = requestedSegment === 'serbest' ? 'tumu' : requestedSegment;
@@ -540,13 +545,14 @@ export async function resolveAgreementRates(opts: {
         ? Math.max(0, Math.min(36 - n, Math.round(extraRaw)))
         : 0;
       const totalInstallments = n + plusN;
+      const minLimit = rowMinLimit(r, selected);
       return {
         n,
         plusN,
         commissionPct,
         installmentAmount: totalAmount / totalInstallments,
         totalAmount,
-        minLimit: item ? parseTrNumber(selected?.minLimit) ?? 0 : r.altLimit ?? 0,
+        minLimit,
       };
     });
   const rowsBySegment = opts.allowAllFallback === false ? {

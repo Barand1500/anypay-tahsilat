@@ -12,7 +12,7 @@ import {
   setPaymentArchived,
   type TxStatus,
 } from '../services/paymentsService.js';
-import { buildDekontPdf } from '../services/dekontPdfService.js';
+import { buildDekontPdf, parseDekontFormat } from '../services/dekontPdfService.js';
 import { sendMail } from '../lib/mail.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
@@ -177,11 +177,12 @@ paymentsRouter.get('/:id/dekont.pdf', async (req: AuthedRequest, res) => {
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz hareket');
   try {
     const tx = await getPayment(id);
-    const pdf = await buildDekontPdf(tx);
+    const format = parseDekontFormat(req.query.format);
+    const pdf = await buildDekontPdf(tx, format);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="dekont-${tx.id}.pdf"`,
+      `attachment; filename="dekont-${tx.id}-${format}.pdf"`,
     );
     return res.status(200).send(pdf);
   } catch (err) {
@@ -195,14 +196,18 @@ paymentsRouter.post('/:id/dekont/email', async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return sendError(res, 400, 'Geçersiz hareket');
   const parsed = z
-    .object({ email: z.string().email('Geçerli e-posta girin') })
+    .object({
+      email: z.string().email('Geçerli e-posta girin'),
+      format: z.enum(['fis', 'a5', 'a4']).optional(),
+    })
     .safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'E-posta gerekli');
   }
   try {
     const tx = await getPayment(id);
-    const pdf = await buildDekontPdf(tx);
+    const format = parseDekontFormat(parsed.data.format);
+    const pdf = await buildDekontPdf(tx, format);
     const total = (tx.amount + tx.commission).toLocaleString('tr-TR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -214,7 +219,7 @@ paymentsRouter.post('/:id/dekont/email', async (req: AuthedRequest, res) => {
       text: `Dekont ${tx.id} — ${total} TL — PDF ekte.`,
       attachments: [
         {
-          filename: `dekont-${tx.id}.pdf`,
+          filename: `dekont-${tx.id}-${format}.pdf`,
           content: pdf,
           contentType: 'application/pdf',
         },

@@ -1,6 +1,8 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { PublicPaymentRow } from './paymentsService.js';
 
+export type DekontPdfFormat = 'fis' | 'a5' | 'a4';
+
 function money(n: number): string {
   return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -40,43 +42,58 @@ function drawLine(
   page.drawText(asciiSafe(text), { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
 }
 
-/** Sanal POS e-dekont PDF (pdf-lib) */
-export async function buildDekontPdf(tx: PublicPaymentRow): Promise<Buffer> {
+function pageSize(format: DekontPdfFormat): [number, number] {
+  if (format === 'fis') return [227, 620]; // ~80mm x uzun fiş
+  if (format === 'a5') return [420, 595];
+  return [595, 842];
+}
+
+/** Sanal POS e-dekont PDF (pdf-lib) — format: fis | a5 | a4 */
+export async function buildDekontPdf(
+  tx: PublicPaymentRow,
+  format: DekontPdfFormat = 'a4',
+): Promise<Buffer> {
   const doc = await PDFDocument.create();
-  const page = doc.addPage([595, 842]); // A4
+  const [w, h] = pageSize(format);
+  const page = doc.addPage([w, h]);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const d = tx.dekont;
   const total = tx.amount + tx.commission;
-  let y = 800;
+  const margin = format === 'fis' ? 14 : 40;
+  const titleSize = format === 'fis' ? 11 : 14;
+  const bodySize = format === 'fis' ? 8 : 9;
+  let y = h - (format === 'fis' ? 28 : 42);
 
   const title = 'SANAL POS E-DEKONT';
   page.drawText(title, {
-    x: (595 - bold.widthOfTextAtSize(title, 14)) / 2,
+    x: Math.max(margin, (w - bold.widthOfTextAtSize(title, titleSize)) / 2),
     y,
-    size: 14,
+    size: titleSize,
     font: bold,
     color: rgb(0, 0, 0),
   });
-  y -= 28;
+  y -= format === 'fis' ? 18 : 26;
 
-  drawLine(page, font, `Dekont No: ${tx.id}`, 50, y);
-  drawLine(page, font, `Tarih: ${new Date(tx.at).toLocaleString('tr-TR')}`, 320, y);
-  y -= 18;
-  drawLine(page, bold, `Banka: ${tx.bankName}`, 50, y);
+  drawLine(page, font, `Dekont No: ${tx.id}`, margin, y, bodySize);
+  y -= 14;
+  drawLine(page, font, `Tarih: ${new Date(tx.at).toLocaleString('tr-TR')}`, margin, y, bodySize);
+  y -= 14;
+  drawLine(page, bold, `Banka: ${tx.bankName}`, margin, y, bodySize);
+  y -= 12;
+  drawLine(page, font, `Musteri: ${tx.customerTitle || '-'}`, margin, y, bodySize);
   y -= 16;
-  drawLine(page, font, `Musteri: ${tx.customerTitle || '-'}`, 50, y);
-  y -= 22;
 
   page.drawRectangle({
-    x: 45,
-    y: y - 8,
-    width: 505,
-    height: 2,
+    x: margin,
+    y: y - 4,
+    width: w - margin * 2,
+    height: 1.5,
     color: rgb(0.2, 0.2, 0.2),
   });
-  y -= 24;
+  y -= 18;
 
+  const labelW = format === 'fis' ? 72 : 110;
   const rows: [string, string][] = [
     ['Uye Isyeri', d.merchantTitle],
     ['Adres', d.merchantAddress || '-'],
@@ -96,22 +113,30 @@ export async function buildDekontPdf(tx: PublicPaymentRow): Promise<Buffer> {
   ];
 
   for (const [label, value] of rows) {
-    if (y < 80) break;
-    drawLine(page, bold, `${label}:`, 50, y, 9);
-    drawLine(page, font, value || '-', 160, y, 9);
-    y -= 16;
+    if (y < 36) break;
+    drawLine(page, bold, `${label}:`, margin, y, bodySize);
+    drawLine(page, font, value || '-', margin + labelW, y, bodySize);
+    y -= format === 'fis' ? 12 : 15;
   }
 
-  y -= 12;
+  y -= 8;
   drawLine(
     page,
     font,
-    'Bu belge sanal POS isleminin kaydidir. Guzel Teknoloji - AnyPay Tahsilat',
-    50,
+    'Bu belge sanal POS isleminin kaydidir.',
+    margin,
     y,
-    8,
+    Math.max(7, bodySize - 1),
   );
 
   const bytes = await doc.save();
   return Buffer.from(bytes);
+}
+
+export function parseDekontFormat(raw: unknown): DekontPdfFormat {
+  const s = String(raw || '')
+    .trim()
+    .toLowerCase();
+  if (s === 'fis' || s === 'a5' || s === 'a4') return s;
+  return 'a4';
 }

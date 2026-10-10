@@ -157,8 +157,8 @@ export function LegalDocModal({
             className="absolute right-3 top-3 z-[1] inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
             aria-label="Kapat"
           >
-            <span className="text-base leading-none">×</span>
-            Esc
+            <span className="text-base leading-none">X</span>
+            ESC
           </button>
 
           <div className="relative z-[1] flex items-start gap-3.5 pr-14">
@@ -220,7 +220,7 @@ export function LegalDocModal({
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--panel-surface)_55%,var(--panel-elevated))] px-5 py-3.5 sm:px-7">
           <p className="hidden text-[11px] text-[var(--panel-muted)] sm:block">
-            Esc ile kapatabilirsiniz
+            ESC ile kapatabilirsiniz
           </p>
           <button
             type="button"
