@@ -750,22 +750,35 @@ export default function PublicPayPage() {
                         isFullscreen ? 'min-h-[240px] p-5' : 'min-h-[220px] p-4',
                       ].join(' ')}
                     >
-                      {view.posBankLogo ? (
+                      {/* Kart bankası + Ortak Sanal POS yönlendirmesi (Halkbank → QNB); kart yoksa varsayılan POS */}
+                      {bank?.logo ? (
+                        <div className="mb-4 flex flex-col items-center justify-center py-2">
+                          <img
+                            src={bank.logo}
+                            alt={bank.name}
+                            title={bank.fullName || bank.name}
+                            className="h-14 w-auto max-w-[180px] object-contain"
+                          />
+                        </div>
+                      ) : bank?.name ? (
+                        <p className="mb-4 flex flex-1 items-center justify-center text-center text-lg font-bold text-[var(--panel-ink)]">
+                          {bank.name}
+                        </p>
+                      ) : view.posBankLogo ? (
                         <div className="mb-4 flex flex-col items-center justify-center py-2">
                           <img
                             src={view.posBankLogo}
                             alt={view.posBankName || view.posName || 'Sanal POS'}
                             title={view.posName || view.posBankName || undefined}
-                            className="h-14 w-auto max-w-[180px] object-contain"
+                            className="h-14 w-auto max-w-[180px] object-contain opacity-70"
                           />
+                          <p className="mt-2 text-center text-[11px] text-[var(--panel-muted)]">
+                            Kart numarasını yazınca tahsilat bankası güncellenir.
+                          </p>
                         </div>
-                      ) : view.posBankName ? (
-                        <p className="mb-4 flex flex-1 items-center justify-center text-center text-lg font-bold text-[var(--panel-ink)]">
-                          {view.posBankName}
-                        </p>
                       ) : (
                         <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">
-                          Varsayılan Sanal POS tanımlı değil.
+                          Kart numarasını yazınca banka logosu burada belirir.
                         </p>
                       )}
 
