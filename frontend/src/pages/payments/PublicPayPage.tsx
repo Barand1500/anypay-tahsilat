@@ -22,7 +22,7 @@ import { useLoadBins } from '../../hooks/useLoadBins';
 import { useLoadPosRedirects } from '../../hooks/useLoadPosRedirects';
 import { usePosRedirectsRevision } from '../../hooks/usePosRedirectsRevision';
 import { api } from '../../lib/api';
-import { setPosRedirects } from '../../lib/posRedirectStore';
+import { setPosDisplayMeta } from '../../lib/posRedirectStore';
 import { maybeStartThreeD, type PaymentCreateResult } from '../../lib/threeDSecure';
 import { normalizePhoneInput } from '../customers/mockCustomers';
 import { LEGAL_DOCS } from '../../components/layout/legalDocs';
@@ -188,10 +188,18 @@ export default function PublicPayPage() {
         const data = await api.get<PublicPayView>(`/api/pay/${encodeURIComponent(payToken)}`);
         if (cancelled) return;
         setView(data);
-        // Banka&Taksit yönlendirme haritası (Halkbank → QNB) — pay yanıtından
-        if (Array.isArray(data.posRedirects) && data.posRedirects.length) {
-          setPosRedirects(data.posRedirects);
-        }
+        // Banka&Taksit: yönlendirme + varsayılan Sanal POS — pay yanıtından
+        setPosDisplayMeta({
+          redirects: Array.isArray(data.posRedirects) ? data.posRedirects : [],
+          defaultPos:
+            data.posBankName || data.posBankLogo
+              ? {
+                  bankId: '',
+                  bankName: data.posBankName || '',
+                  bankLogoUrl: data.posBankLogo || '',
+                }
+              : null,
+        });
         const opts = data.installments.length ? data.installments : [1];
         setInstallment(opts[0]!);
         setHolder(data.customerTitle !== '—' ? data.customerTitle : '');
@@ -240,13 +248,20 @@ export default function PublicPayPage() {
 
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
-  // Yönlendirme: pay yanıtı + store — TEB/Garanti yanlış eşlemesi düzeltildi
+  // 1) yönlendirme varsa hedef  2) yoksa varsayılan Sanal POS (Garanti)
   const bank = useMemo(() => {
-    const fromView = view?.posRedirects;
-    const redirects =
-      Array.isArray(fromView) && fromView.length > 0 ? fromView : undefined;
-    return applyPosDisplayBank(cardBank, redirects);
-  }, [cardBank, view?.posRedirects, posRedirectRev]);
+    return applyPosDisplayBank(cardBank, {
+      redirects: Array.isArray(view?.posRedirects) ? view.posRedirects : undefined,
+      defaultPos:
+        view?.posBankName || view?.posBankLogo
+          ? {
+              bankId: '',
+              bankName: view.posBankName || '',
+              bankLogoUrl: view.posBankLogo || '',
+            }
+          : undefined,
+    });
+  }, [cardBank, view?.posRedirects, view?.posBankName, view?.posBankLogo, posRedirectRev]);
   const rateBin = cardDigits.length >= 8 ? cardDigits.slice(0, 8) : cardDigits.length >= 6 ? cardDigits.slice(0, 6) : '';
   const cardFaulty =
     cardDigits.length > 0 &&

@@ -1,16 +1,38 @@
 import { useEffect } from 'react';
 import { api } from '../lib/api';
-import { setPosRedirects, type PosRedirect } from '../lib/posRedirectStore';
+import {
+  setPosDisplayMeta,
+  type DefaultPosBrand,
+  type PosRedirect,
+} from '../lib/posRedirectStore';
 
-/** Ortak Sanal POS yönlendirme haritası — public (auth gerekmez) */
+type PosDisplayMetaApi = {
+  redirects?: PosRedirect[];
+  defaultPos?: DefaultPosBrand | null;
+};
+
+/** Ortak Sanal POS + varsayılan Sanal POS — public (auth gerekmez) */
 export function useLoadPosRedirects() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const rows = await api.get<PosRedirect[]>('/api/common-virtual-pos/redirects');
+        const data = await api.get<PosDisplayMetaApi | PosRedirect[]>(
+          '/api/common-virtual-pos/redirects',
+        );
         if (cancelled) return;
-        if (Array.isArray(rows) && rows.length) setPosRedirects(rows);
+        // Yeni şekil: { redirects, defaultPos }
+        if (data && !Array.isArray(data) && Array.isArray(data.redirects)) {
+          setPosDisplayMeta({
+            redirects: data.redirects,
+            defaultPos: data.defaultPos ?? null,
+          });
+          return;
+        }
+        // Eski şekil: dizi (geriye uyum)
+        if (Array.isArray(data) && data.length) {
+          setPosDisplayMeta({ redirects: data });
+        }
       } catch {
         /* pay view / önceki haritayı silme */
       }

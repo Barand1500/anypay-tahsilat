@@ -149,7 +149,7 @@ export default function PaymentCollectPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
-  /** Banka & Taksit: Ortak Sanal POS yönlendirmesi (Halkbank → QNB) */
+  /** Banka & Taksit: yönlendirme → hedef; yoksa varsayılan Sanal POS */
   const bank = useMemo(
     () => applyPosDisplayBank(cardBank),
     [cardBank, posRedirectRev],

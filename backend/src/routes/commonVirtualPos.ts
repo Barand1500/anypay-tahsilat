@@ -5,7 +5,7 @@ import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   CommonVirtualPosError,
   createCommonVirtualPos,
-  listActivePosRedirects,
+  getPosDisplayMeta,
   listCommonVirtualPos,
   softDeleteCommonVirtualPos,
   updateCommonVirtualPos,
@@ -15,12 +15,15 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 export const commonVirtualPosRouter = Router();
 
-/** Public — Ödeme Al / Hızlı /pay Banka&Taksit logosunu yönlenen bankaya çevirir */
+/**
+ * Public — Banka&Taksit logosu:
+ * yönlendirme varsa hedef banka; yoksa varsayılan Sanal POS.
+ */
 commonVirtualPosRouter.get('/redirects', async (_req, res) => {
   try {
     const { ensureOrtakSanalPosTable } = await import('../lib/ensureSchema.js');
     await ensureOrtakSanalPosTable();
-    return sendSuccess(res, await listActivePosRedirects());
+    return sendSuccess(res, await getPosDisplayMeta());
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'POS yönlendirmeleri yüklenemedi');

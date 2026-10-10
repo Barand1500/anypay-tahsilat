@@ -126,6 +126,7 @@ export default function QuickPayPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
+  /** Banka & Taksit: yönlendirme → hedef; yoksa varsayılan Sanal POS */
   const bank = useMemo(
     () => applyPosDisplayBank(cardBank),
     [cardBank, posRedirectRev],

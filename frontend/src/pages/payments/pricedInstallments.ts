@@ -1,4 +1,9 @@
-import { getPosRedirects, type PosRedirect } from '../../lib/posRedirectStore';
+import {
+  getDefaultPosBrand,
+  getPosRedirects,
+  type DefaultPosBrand,
+  type PosRedirect,
+} from '../../lib/posRedirectStore';
 import type { BankInfo, InstallmentRow } from './mockBanks';
 import { digitsOnly, normalizeBankText, resolveBankFromName } from './mockBanks';
 
@@ -109,36 +114,76 @@ function bankMatchesRedirectSource(bank: BankInfo, redirect: PosRedirect): boole
   return false;
 }
 
-/**
- * Banka & Taksit: yönlendirme varsa hedef logo (Halkbank→QNB → QNB).
- * redirects argümanı verilirse store’a bağımlı kalmaz (public pay view).
- */
-export function applyPosDisplayBank(
-  cardBank: BankInfo | null,
-  redirects: PosRedirect[] = getPosRedirects(),
-): BankInfo | null {
-  if (!cardBank) return null;
-  if (!redirects.length) return cardBank;
-  const hit = redirects.find((r) => bankMatchesRedirectSource(cardBank, r));
-  if (!hit) return cardBank;
-
-  const catalog = resolveBankFromName(hit.targetBankName, hit.targetBankId);
-  const logo = (hit.targetBankLogoUrl || catalog?.logo || '').trim();
+function toDisplayBank(
+  bankId: string,
+  bankName: string,
+  logoUrl: string,
+): BankInfo {
+  const catalog = resolveBankFromName(bankName, bankId);
+  const logo = (logoUrl || catalog?.logo || '').trim();
   if (catalog) {
     return {
       ...catalog,
-      numericId: hit.targetBankId,
+      numericId: bankId || catalog.numericId || null,
       name: catalog.name,
-      fullName: hit.targetBankName || catalog.fullName,
+      fullName: bankName || catalog.fullName,
       logo: logo || catalog.logo,
     };
   }
   return {
-    id: hit.targetBankId,
-    numericId: hit.targetBankId,
-    name: hit.targetBankName || 'Banka',
-    fullName: hit.targetBankName || 'Banka',
+    id: bankId || 'pos',
+    numericId: bankId || null,
+    name: bankName || 'Banka',
+    fullName: bankName || 'Banka',
     logo,
     bins: [],
   };
+}
+
+export type PosDisplayOpts = {
+  redirects?: PosRedirect[] | null;
+  /** Sanal POS Tanımları › varsayılan — yönlendirme yoksa bu logo */
+  defaultPos?: DefaultPosBrand | null;
+};
+
+/**
+ * Banka & Taksit logosu:
+ * 1) Ortak Sanal POS yönlendirmesi varsa → hedef (Halkbank→QNB)
+ * 2) Yoksa → varsayılan Sanal POS (Garanti vb.)
+ * Kart input BIN logosu değişmez.
+ */
+export function applyPosDisplayBank(
+  cardBank: BankInfo | null,
+  opts?: PosDisplayOpts | PosRedirect[] | null,
+): BankInfo | null {
+  if (!cardBank) return null;
+
+  // Geriye uyum: eski imza applyPosDisplayBank(bank, redirects[])
+  const normalized: PosDisplayOpts = Array.isArray(opts)
+    ? { redirects: opts }
+    : opts ?? {};
+
+  const redirects =
+    normalized.redirects && normalized.redirects.length > 0
+      ? normalized.redirects
+      : getPosRedirects();
+  const defaultPos = normalized.defaultPos !== undefined
+    ? normalized.defaultPos
+    : getDefaultPosBrand();
+
+  const hit = redirects.find((r) => bankMatchesRedirectSource(cardBank, r));
+  if (hit) {
+    return toDisplayBank(hit.targetBankId, hit.targetBankName, hit.targetBankLogoUrl);
+  }
+
+  if (defaultPos?.bankName || defaultPos?.bankLogoUrl) {
+    return toDisplayBank(
+      defaultPos.bankId || '',
+      defaultPos.bankName || '',
+      defaultPos.bankLogoUrl || '',
+    );
+  }
+
+  // Son çare: kart bankası (varsayılan POS yüklenene kadar)
+  return cardBank;
 }

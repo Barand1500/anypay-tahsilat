@@ -198,6 +198,18 @@ export type PosRedirectPublic = {
   targetBankLogoUrl: string;
 };
 
+export type DefaultPosBrandPublic = {
+  bankId: string;
+  bankName: string;
+  bankLogoUrl: string;
+};
+
+/** Banka&Taksit: yönlendirme listesi + varsayılan Sanal POS (yönlendirme yoksa) */
+export type PosDisplayMetaPublic = {
+  redirects: PosRedirectPublic[];
+  defaultPos: DefaultPosBrandPublic | null;
+};
+
 export async function listActivePosRedirects(): Promise<PosRedirectPublic[]> {
   try {
     const rows = await prisma.ortakSanalPos.findMany({
@@ -222,6 +234,25 @@ export async function listActivePosRedirects(): Promise<PosRedirectPublic[]> {
   } catch {
     return [];
   }
+}
+
+export async function getPosDisplayMeta(): Promise<PosDisplayMetaPublic> {
+  const redirects = await listActivePosRedirects();
+  let defaultPos: DefaultPosBrandPublic | null = null;
+  try {
+    const { getDefaultVirtualPosBrand } = await import('./virtualPosService.js');
+    const def = await getDefaultVirtualPosBrand();
+    if (def) {
+      defaultPos = {
+        bankId: def.bankId,
+        bankName: def.bankName,
+        bankLogoUrl: def.bankLogoUrl,
+      };
+    }
+  } catch {
+    defaultPos = null;
+  }
+  return { redirects, defaultPos };
 }
 
 function normalizeBankHint(s: string): string {
