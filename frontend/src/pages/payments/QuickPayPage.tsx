@@ -125,12 +125,12 @@ export default function QuickPayPage() {
     () => detectCardSegment(cardDigits),
     [cardDigits, binsRev],
   );
+  // Public ödeme ile aynı: müşteri/POS fallback anlaşması + BIN segment (sabit→serbest yok)
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
     amount,
     bankName: bank?.fullName || bank?.name,
     bankId: bank?.id,
-    segment: payType === 'sabit' ? 'serbest' : cardSegment || 'bireysel',
-    scope: 'pos',
+    segment: cardSegment || 'bireysel',
   });
   const availableBankRows = useMemo(
     () => {
@@ -676,7 +676,6 @@ export default function QuickPayPage() {
           amount={amount}
           preferredBankId={bank?.id}
           allowedInstallments={allowedInstallments}
-          agreementScope="pos"
           onClose={() => setInstallOpen(false)}
           onPick={(b, n) => {
             if (allowedInstallments?.length && !allowedInstallments.includes(n)) {

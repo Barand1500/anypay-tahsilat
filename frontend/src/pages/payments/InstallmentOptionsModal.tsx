@@ -225,6 +225,7 @@ export function InstallmentOptionsModal({
             q.set("bankName", bank.fullName || bank.name);
             q.set("bankId", bank.id);
             q.set("scope", agreementScope);
+            q.set("strictSegments", "1");
             if (agreementCode) q.set("code", agreementCode);
             if (musteriId != null) q.set("musteriId", String(musteriId));
             const data = await api.get<{

@@ -73,6 +73,9 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
       ? Number(req.query.musteriId)
       : null;
   const scope = req.query.scope === 'pos' ? 'pos' : 'customer';
+  // Modal (segment tablosu) strict; panel/public ile aynı oran için fallback açık
+  const strictSegments =
+    req.query.strictSegments === '1' || req.query.strictSegments === 'true';
 
   try {
     // Ortak Sanal POS yönlendirmesi (DenizBank → Garanti anlaşması)
@@ -94,7 +97,7 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
       bankName: target.bankName,
       segment,
       amount: Number.isFinite(amount) ? amount : 0,
-      allowAllFallback: false,
+      allowAllFallback: !strictSegments,
     });
     return sendSuccess(res, data);
   } catch (err) {

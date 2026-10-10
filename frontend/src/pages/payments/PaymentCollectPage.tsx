@@ -149,14 +149,14 @@ export default function PaymentCollectPage() {
     [cardDigits, binsRev],
   );
 
+  // Public ödeme ile aynı: müşteri anlaşması + BIN segment (sabit→serbest yok)
   const { rows: agreementRows } = useAgreementRates({
     amount: amount || 0,
     bankName: bank?.fullName || bank?.name || null,
     bankId: bank?.id || null,
     musteriId: customer?.id ? Number(customer.id) : null,
     agreementCode: customer?.cardAgreementCode ?? null,
-    // Sabit → serbest paket; diğerleri → BIN Tür (ticari/bireysel)
-    segment: payType === 'sabit' ? 'serbest' : cardSegment || 'bireysel',
+    segment: cardSegment || 'bireysel',
   });
   const installmentRows = useMemo(() => {
     if (amount <= 0) return [];
