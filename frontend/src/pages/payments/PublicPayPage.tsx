@@ -51,6 +51,11 @@ import {
   formatInstallmentPaymentLine,
   formatInstallmentTitle,
 } from './installmentDisplay';
+import { PayAttachmentChips } from './PayAttachmentChips';
+import {
+  PayAttachmentPreviewModal,
+  type PayAttachmentFile,
+} from './PayAttachmentPreviewModal';
 import { applyPosDisplayBank, buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 
 type PublicPayView = {
@@ -106,6 +111,7 @@ export default function PublicPayPage() {
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesError, setRatesError] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDoc | null>(null);
+  const [previewFile, setPreviewFile] = useState<PayAttachmentFile | null>(null);
   const [agree, setAgree] = useState(false);
   const planRef = useRef<HTMLElement>(null);
   const [amountText, setAmountText] = useState('');
@@ -597,22 +603,9 @@ export default function PublicPayPage() {
                         </p>
                       ) : null}
                       {view.files?.length ? (
-                        <ul className={['flex flex-wrap gap-2', view.description ? 'mt-3' : ''].join(' ')}>
-                          {view.files.map((f) => (
-                            <li key={f.path || f.url} className="min-w-0">
-                              <a
-                                href={f.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={f.name}
-                                className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)]"
-                              >
-                                <FileGlyph />
-                                <span className="min-w-0 truncate">{f.name}</span>
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
+                        <div className={view.description ? 'mt-3' : ''}>
+                          <PayAttachmentChips files={view.files} onOpen={setPreviewFile} />
+                        </div>
                       ) : null}
                     </div>
                   ) : null}
@@ -694,22 +687,11 @@ export default function PublicPayPage() {
                                 Belgeler
                               </p>
                             ) : null}
-                            <ul className="flex flex-wrap gap-2">
-                              {view.files.map((f) => (
-                                <li key={f.path || f.url} className="min-w-0">
-                                  <a
-                                    href={f.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title={f.name}
-                                    className="inline-flex max-w-[11rem] items-center gap-1.5 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--panel-ink)] transition hover:border-[var(--color-brand-500)]/45 hover:bg-[var(--brand-soft-bg)] hover:text-[var(--color-brand-700)]"
-                                  >
-                                    <FileGlyph />
-                                    <span className="min-w-0 truncate">{f.name}</span>
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
+                            <PayAttachmentChips
+                              files={view.files}
+                              onOpen={setPreviewFile}
+                              dense
+                            />
                           </div>
                         ) : null}
                       </div>
@@ -897,6 +879,13 @@ export default function PublicPayPage() {
           publicView
           customerVars={contractCustomerVars}
           onClose={() => setActiveLegalDoc(null)}
+        />
+      ) : null}
+
+      {previewFile ? (
+        <PayAttachmentPreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
         />
       ) : null}
 
@@ -1130,20 +1119,6 @@ function CheckIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function FileGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--color-brand-600)]">
-      <path
-        d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path d="M14 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
