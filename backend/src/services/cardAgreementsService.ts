@@ -441,8 +441,33 @@ export async function resolveAgreementRates(opts: {
     }
   }
 
+  // Ek taksit yalnızca Sanal POS banka kart anlaşması (pos-bank-*) detayında tutulur;
+  // müşteri kart anlaşması düz satırlardan geldiğinde plusN buradan tamamlanır.
+  const { resolvePosBankAgreementCode } = await import('./posAgreementsService.js');
+  let posBankItems: typeof agreementItems = [];
+  const posBankCode = await resolvePosBankAgreementCode(rateBankId);
+  if (posBankCode) {
+    if (posBankCode === code && agreementItems.length) {
+      posBankItems = agreementItems;
+    } else {
+      const posRow = await prisma.kartAnlasma.findFirst({
+        where: { anlasmaKodu: posBankCode, ...notRemoved(), NOT: { detay: null } },
+        select: { detay: true },
+      });
+      if (posRow?.detay) {
+        try {
+          const parsed = JSON.parse(posRow.detay) as { items?: typeof agreementItems };
+          posBankItems = parsed.items ?? [];
+        } catch {
+          posBankItems = [];
+        }
+      }
+    }
+  }
+
   const segmentKeys: AgreementSegment[] = ['tumu', 'bireysel', 'ticari'];
   const detailFor = (row: FlatRow) => agreementItems.find((entry) => entry.n === row.taksit);
+  const posDetailFor = (taksit: number) => posBankItems.find((entry) => entry.n === taksit);
   const configuredFor = (row: FlatRow, key: AgreementSegment) => {
     const detail = detailFor(row);
     const columnRate = key === 'tumu' ? row.komisyonTum
@@ -478,8 +503,14 @@ export async function resolveAgreementRates(opts: {
       const commissionPct = Math.max(0, +((parseTrNumber(selected?.customerCommission) ?? pickRate(r, effectiveKey)) || 0).toFixed(4));
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
-      const plusN = selected?.active
-        ? Math.max(0, Math.min(36 - n, Math.round(parseTrNumber(selected.extraInstallment) ?? 0)))
+      const segKey = effectiveKey === 'tumu' ? 'all' : effectiveKey;
+      const posSeg = posDetailFor(n)?.[segKey];
+      const extraRaw =
+        parseTrNumber(selected?.extraInstallment) ??
+        parseTrNumber(posSeg?.extraInstallment) ??
+        0;
+      const plusN = configuredFor(r, effectiveKey)
+        ? Math.max(0, Math.min(36 - n, Math.round(extraRaw)))
         : 0;
       const totalInstallments = n + plusN;
       return {
