@@ -241,8 +241,9 @@ export default function PublicPayPage() {
     setRatesLoading(true);
     setRatesError(false);
     const query = new URLSearchParams({ bin: rateBin, amount: String(payableAmount) });
-    if (bank.id && /^\d+$/.test(bank.id)) query.set('bankId', bank.id);
-    const bankLabel = (bank.fullName || bank.name || '').trim();
+    const numericBankId = bank.numericId || (bank.id && /^\d+$/.test(bank.id) ? bank.id : '');
+    if (numericBankId) query.set('bankId', numericBankId);
+    const bankLabel = (bank.name || bank.fullName || '').trim();
     if (bankLabel) query.set('bankName', bankLabel);
     const timer = window.setTimeout(() => {
       void api.get<InstallmentRow[]>(`/api/pay/${encodeURIComponent(payToken)}/installments?${query.toString()}`)

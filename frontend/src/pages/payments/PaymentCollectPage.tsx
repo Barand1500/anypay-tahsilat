@@ -149,25 +149,27 @@ export default function PaymentCollectPage() {
     [cardDigits, binsRev],
   );
 
-  // Public ödeme ile aynı: müşteri anlaşması + BIN segment (sabit→serbest yok)
-  const { rows: agreementRows } = useAgreementRates({
+  // Public /installments ile aynı: BIN + sayısal banka id + müşteri (yoksa POS)
+  const { rows: agreementRows, loading: ratesLoading } = useAgreementRates({
     amount: amount || 0,
-    bankName: bank?.fullName || bank?.name || null,
-    bankId: bank?.id || null,
+    bankName: bank?.name || bank?.fullName || null,
+    bankId: bank?.numericId || (bank?.id && /^\d+$/.test(bank.id) ? bank.id : null),
+    bin: cardDigits.length >= 6 ? cardDigits : null,
     musteriId: customer?.id ? Number(customer.id) : null,
     agreementCode: customer?.cardAgreementCode ?? null,
     segment: cardSegment || 'bireysel',
   });
+  // Public pricedInstallments ile aynı — izin listesi kutuları gizlemez, yalnızca kilitler
   const installmentRows = useMemo(() => {
     if (amount <= 0) return [];
-    const allowedRows = agreementRows.filter((row) =>
-      !allowedInstallments?.length || allowedInstallments.includes(row.n),
-    );
-    if (allowedRows.some((row) => row.n === 1)) return allowedRows;
-    return [
-      { n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 },
-      ...allowedRows,
-    ];
+    const fromBank = agreementRows.slice().sort((a, b) => a.n - b.n);
+    if (fromBank.length) return fromBank;
+    if (!allowedInstallments?.length || allowedInstallments.includes(1)) {
+      return [
+        { n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 },
+      ];
+    }
+    return [];
   }, [amount, agreementRows, allowedInstallments]);
 
   const cardFaulty = cardChecked &&
@@ -185,6 +187,12 @@ export default function PaymentCollectPage() {
     if (!amount || amount <= 0) return null;
     return installmentRows.find((r) => r.n === installment) ?? installmentRows[0] ?? null;
   }, [amount, installmentRows, installment]);
+
+  useEffect(() => {
+    if (!installmentRows.length) return;
+    if (installmentRows.some((r) => r.n === installment)) return;
+    setInstallment(installmentRows[0]!.n);
+  }, [installmentRows, installment]);
 
   function flash(msg: string) {
     setToast(msg);
@@ -646,14 +654,20 @@ export default function PaymentCollectPage() {
           </div>
         </section>
 
-        {bank && amount > 0 ? (
+        {bank && amount > 0 && cardDigits.length >= 6 ? (
           <InstallmentPlanSection
             rows={installmentRows}
             selectedN={installment}
             onSelect={setInstallment}
             baseAmount={amount}
             commissionIncluded={commissionIncluded}
+            loading={ratesLoading}
             allowedInstallments={allowedInstallments}
+            emptyRatesHint={
+              !ratesLoading && agreementRows.length === 0
+                ? 'Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.'
+                : null
+            }
           />
         ) : null}
 

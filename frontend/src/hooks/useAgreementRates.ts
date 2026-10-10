@@ -11,12 +11,14 @@ type RatesResponse = {
 };
 
 /**
- * Kart anlaşmasından taksit oranları. Anlaşma yoksa sessizce örnek oran üretmez.
+ * Kart anlaşmasından taksit oranları — public /installments ile aynı motor.
+ * bin verilirse sunucu BIN’den banka + segment çözer.
  */
 export function useAgreementRates(opts: {
   amount: number;
   bankName?: string | null;
   bankId?: string | null;
+  bin?: string | null;
   musteriId?: number | null;
   agreementCode?: string | null;
   segment?: CardSegment;
@@ -28,6 +30,7 @@ export function useAgreementRates(opts: {
 
   const segment = opts.segment || 'bireysel';
   const amount = opts.amount;
+  const bin = (opts.bin || '').replace(/\D/g, '');
 
   const load = useCallback(async () => {
     if (!amount || amount <= 0) {
@@ -38,6 +41,13 @@ export function useAgreementRates(opts: {
       setRows([]);
       return;
     }
+    // Public gibi: banka veya yeterli BIN yoksa oran çekme
+    if (!bin || bin.length < 6) {
+      if (!opts.bankName && !(opts.bankId && /^\d+$/.test(opts.bankId))) {
+        setRows([]);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const q = new URLSearchParams();
@@ -46,8 +56,11 @@ export function useAgreementRates(opts: {
       if (opts.scope) q.set('scope', opts.scope);
       if (opts.agreementCode) q.set('code', opts.agreementCode);
       if (opts.musteriId != null) q.set('musteriId', String(opts.musteriId));
+      // Kısa ad tercih (Garanti BBVA); fullName eşleşmesi sunucuda da fuzzy
       if (opts.bankName) q.set('bankName', opts.bankName);
-      if (opts.bankId && /^\d+$/.test(opts.bankId)) q.set('bankId', opts.bankId);
+      const bankId = (opts.bankId || '').trim();
+      if (bankId && /^\d+$/.test(bankId)) q.set('bankId', bankId);
+      if (bin.length >= 6) q.set('bin', bin.slice(0, 8));
 
       const data = await api.get<RatesResponse>(`/api/card-agreements/rates?${q}`, token);
       if (data.rows?.length) {
@@ -64,6 +77,7 @@ export function useAgreementRates(opts: {
     token,
     amount,
     segment,
+    bin,
     opts.agreementCode,
     opts.musteriId,
     opts.bankName,

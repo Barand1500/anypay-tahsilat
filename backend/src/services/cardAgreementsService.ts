@@ -296,7 +296,19 @@ function bankNameMatch(row: FlatRow, needle: string): boolean {
   const n = normalizeText(needle);
   if (!n) return false;
   const blob = normalizeText(`${row.blokAdi || ''} ${row.adi || ''}`);
-  return blob.includes(n) || n.includes(blob);
+  if (!blob) return false;
+  if (blob.includes(n) || n.includes(blob)) return true;
+  // "Türkiye Garanti Bankası A.Ş." ↔ "Garanti BBVA"
+  const hints = [
+    'garanti', 'akbank', 'yapikredi', 'yapi kredi', 'isbank', 'is bank',
+    'ziraat', 'halkbank', 'halk bank', 'vakif', 'deniz', 'qnb', 'finansbank',
+    'teb', 'ing', 'hsbc', 'kuveyt', 'fiba', 'seker', 'anadolu', 'albaraka',
+  ];
+  for (const h of hints) {
+    if (n.includes(h) && blob.includes(h)) return true;
+  }
+  const nTokens = n.split(/\s+/).filter((t) => t.length >= 4);
+  return nTokens.some((t) => blob.includes(t));
 }
 
 /** Müşteri kodu / varsayılan paket → taksit oran satırları */
@@ -341,7 +353,7 @@ export async function resolveAgreementRates(opts: {
     return { agreementCode: null, bankId: null, bankName: null, rows: [], availableSegments: [] };
   }
 
-  const all = await prisma.kartAnlasma.findMany({
+  let all = await prisma.kartAnlasma.findMany({
     where: { anlasmaKodu: code, ...notRemoved() },
     orderBy: [{ taksit: 'asc' }],
   });
@@ -373,7 +385,7 @@ export async function resolveAgreementRates(opts: {
 
   if (rateBankId != null || rateBankName) {
     matched = matchBankRows(rateBankId, rateBankName);
-    // Anlaşmada bu banka yok → varsayılan Sanal POS bankasının oranları
+    // Anlaşmada bu banka yok → varsayılan Sanal POS bankasının oranları (aynı kod içinde)
     if (!matched) {
       const def = await resolveDefaultPosRatesBank();
       if (def && def.bankId !== rateBankId) {
@@ -382,6 +394,37 @@ export async function resolveAgreementRates(opts: {
           rateBankId = def.bankId;
           rateBankName = def.bankName;
           matched = defRows;
+        }
+      }
+    }
+    // Müşteri paketinde banka yok veya yalnızca tek çekim → POS müşteri/banka anlaşması
+    // (Ödeme Al / Hızlı Ödeme, public /pay ile aynı taksit planını görsün)
+    const sparseMatch =
+      matched != null &&
+      new Set(matched.map((r) => r.taksit)).size <= 1;
+    if (!matched || sparseMatch) {
+      const { resolvePosFallbackAgreementCode } = await import('./posAgreementsService.js');
+      const posCode = await resolvePosFallbackAgreementCode(rateBankId ?? null);
+      if (posCode && posCode !== code) {
+        const posRows = await prisma.kartAnlasma.findMany({
+          where: { anlasmaKodu: posCode, ...notRemoved() },
+          orderBy: [{ taksit: 'asc' }],
+        });
+        if (posRows.length) {
+          const prevAll = all;
+          const prevMatched = matched;
+          all = posRows;
+          const posMatched = matchBankRows(rateBankId, rateBankName);
+          const posRicher =
+            posMatched != null &&
+            new Set(posMatched.map((r) => r.taksit)).size >
+              (prevMatched ? new Set(prevMatched.map((r) => r.taksit)).size : 0);
+          if (posMatched && (!matched || posRicher)) {
+            code = posCode;
+            matched = posMatched;
+          } else {
+            all = prevAll;
+          }
         }
       }
     }

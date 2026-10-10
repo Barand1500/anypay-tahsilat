@@ -125,23 +125,25 @@ export default function QuickPayPage() {
     () => detectCardSegment(cardDigits),
     [cardDigits, binsRev],
   );
-  // Public ödeme ile aynı: müşteri/POS fallback anlaşması + BIN segment (sabit→serbest yok)
+  // Public /installments ile aynı: BIN + sayısal banka id + POS fallback
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
     amount,
-    bankName: bank?.fullName || bank?.name,
-    bankId: bank?.id,
+    bankName: bank?.name || bank?.fullName,
+    bankId: bank?.numericId || (bank?.id && /^\d+$/.test(bank.id) ? bank.id : null),
+    bin: cardDigits.length >= 6 ? cardDigits : null,
     segment: cardSegment || 'bireysel',
   });
-  const availableBankRows = useMemo(
-    () => {
-      const allowedRows = bankInstallmentRows.filter((row) =>
-        !allowedInstallments?.length || allowedInstallments.includes(row.n),
-      );
-      if (!amount || amount <= 0 || allowedRows.some((row) => row.n === 1)) return allowedRows;
-      return [{ n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 }, ...allowedRows];
-    },
-    [amount, bankInstallmentRows, allowedInstallments],
-  );
+  const availableBankRows = useMemo(() => {
+    if (!amount || amount <= 0) return [];
+    const fromBank = bankInstallmentRows.slice().sort((a, b) => a.n - b.n);
+    if (fromBank.length) return fromBank;
+    if (!allowedInstallments?.length || allowedInstallments.includes(1)) {
+      return [
+        { n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 },
+      ];
+    }
+    return [];
+  }, [amount, bankInstallmentRows, allowedInstallments]);
   const selectedRate = pickedInstall && pickedInstall.bank.id === bank?.id
     ? availableBankRows.find((row) => row.n === pickedInstall.n)
     : null;
@@ -618,7 +620,7 @@ export default function QuickPayPage() {
           </div>
         </div>
         </section>
-          {bank && amount > 0 ? (
+          {bank && amount > 0 && cardDigits.length >= 6 ? (
             <InstallmentPlanSection
               rows={availableBankRows}
               selectedN={pickedInstall?.bank.id === bank.id ? pickedInstall.n : null}
@@ -627,6 +629,11 @@ export default function QuickPayPage() {
               commissionIncluded
               loading={ratesLoading}
               allowedInstallments={allowedInstallments}
+              emptyRatesHint={
+                !ratesLoading && bankInstallmentRows.length === 0
+                  ? 'Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.'
+                  : null
+              }
               emptyMessage={
                 !ratesLoading && !availableBankRows.length
                   ? 'Bu banka için taksit anlaşması bulunamadı.'

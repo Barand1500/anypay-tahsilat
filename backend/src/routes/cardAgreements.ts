@@ -56,15 +56,16 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
   const amount = Number(req.query.amount);
   const agreementCode =
     typeof req.query.code === 'string' ? req.query.code : undefined;
-  const bankName =
+  let bankName =
     typeof req.query.bankName === 'string' ? req.query.bankName : undefined;
   const bankIdRaw = req.query.bankId;
-  const bankId =
+  let bankId =
     bankIdRaw != null && String(bankIdRaw).trim() !== ''
       ? Number(bankIdRaw)
       : null;
+  if (bankId != null && !Number.isFinite(bankId)) bankId = null;
   const segmentRaw = typeof req.query.segment === 'string' ? req.query.segment : 'bireysel';
-  const segment =
+  let segment: 'bireysel' | 'ticari' | 'tumu' | 'serbest' =
     segmentRaw === 'ticari' || segmentRaw === 'tumu' || segmentRaw === 'serbest'
       ? segmentRaw
       : 'bireysel';
@@ -76,8 +77,22 @@ cardAgreementsRouter.get('/rates', async (req, res) => {
   // Modal (segment tablosu) strict; panel/public ile aynı oran için fallback açık
   const strictSegments =
     req.query.strictSegments === '1' || req.query.strictSegments === 'true';
+  const binRaw = typeof req.query.bin === 'string' ? req.query.bin.replace(/\D/g, '') : '';
 
   try {
+    // Public ödeme ile aynı: BIN → banka id + bireysel/ticari
+    if (binRaw.length >= 6) {
+      const { lookupBinByCard } = await import('../services/binsService.js');
+      const cardBank = await lookupBinByCard(binRaw);
+      if (cardBank) {
+        if (cardBank.bankId != null) bankId = cardBank.bankId;
+        if (cardBank.bankName) bankName = cardBank.bankName;
+        if (cardBank.segment && segment !== 'tumu' && segment !== 'serbest') {
+          segment = cardBank.segment;
+        }
+      }
+    }
+
     // Ortak Sanal POS yönlendirmesi (DenizBank → Garanti anlaşması)
     const target = await resolveRatesTargetBank({
       bankId: bankId != null && Number.isFinite(bankId) ? bankId : null,

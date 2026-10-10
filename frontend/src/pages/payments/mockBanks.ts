@@ -4,6 +4,8 @@ import { formatMoneyAmount, formatMoneyDisplay } from '../settings/personalPrefs
 
 export type BankInfo = {
   id: string;
+  /** BIN kaydındaki sayısal banka_id — rates API ile public /installments aynı id */
+  numericId?: string | null;
   name: string;
   /** Resmi / uzun unvan — taksit karşılaştırma başlığı */
   fullName: string;
@@ -265,10 +267,15 @@ export function detectBank(cardDigits: string): BankInfo | null {
   // Api Ayarları › BIN (DB) — varsa öncelikli
   const runtime = matchRuntimeBin(d);
   if (runtime) {
+    const numericId =
+      runtime.bankId && /^\d+$/.test(String(runtime.bankId))
+        ? String(runtime.bankId)
+        : null;
     const resolved = resolveBankFromName(runtime.bankName, runtime.bankId);
-    if (resolved) return resolved;
+    if (resolved) return { ...resolved, numericId };
     return {
-      id: runtime.bankId || `bin-${runtime.bin}`,
+      id: numericId || `bin-${runtime.bin}`,
+      numericId,
       name: runtime.bankName,
       fullName: runtime.bankName,
       logo: '',
