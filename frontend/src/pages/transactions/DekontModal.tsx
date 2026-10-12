@@ -1,20 +1,24 @@
 import gsap from 'gsap';
 import html2canvas from 'html2canvas';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { useBrand } from '../../brand/BrandContext';
+import { api } from '../../lib/api';
+import {
+  DekontTemplateView,
+  ctxFromTransaction,
+} from '../settings/DekontTemplateView';
+import { getDefaultFisBlocks, type DekontBlock } from '../settings/dekontTypes';
 import {
   amountInWordsTr,
   dekontBankName,
-  dekontSlipTitle,
   formatMoneyTr,
   formatMoneyDisplay,
   formatTxDate,
   maskCardForDekont,
   maskIdentityForDekont,
   maskPhoneForDekont,
-  splitTxDateTime,
   type Transaction,
 } from './transactionTypes';
 
@@ -50,12 +54,37 @@ export function DekontModal({ tx, onClose }: Props) {
   const [email, setEmail] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fisBlocks, setFisBlocks] = useState<DekontBlock[]>(() => getDefaultFisBlocks());
   const d = tx.dekont;
   const bankName = dekontBankName(tx);
   const total = tx.amount + tx.commission;
   const money = formatMoneyTr(total);
   const at = formatTxDate(tx.at);
   const isFis = format === 'fis';
+  const fisCtx = useMemo(
+    () => ctxFromTransaction(tx, logoUrl, systemName),
+    [tx, logoUrl, systemName],
+  );
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{ fis?: { blocks?: DekontBlock[] } }>(
+          '/api/settings/dekont',
+          token,
+        );
+        if (cancelled) return;
+        if (data.fis?.blocks?.length) setFisBlocks(data.fis.blocks.map((b) => ({ ...b })));
+      } catch {
+        /* varsayılan fiş */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -257,12 +286,12 @@ export function DekontModal({ tx, onClose }: Props) {
               style={{ colorScheme: 'light', width: '100%' }}
             >
               {isFis ? (
-                <FisSlip
-                  tx={tx}
-                  logoUrl={logoUrl}
-                  systemName={systemName}
-                  money={money}
-                  total={total}
+                <DekontTemplateView
+                  blocks={fisBlocks}
+                  ctx={fisCtx}
+                  mode="print"
+                  className="!w-full shadow-none"
+                  style={{ width: '100%', maxWidth: '80mm' }}
                 />
               ) : (
                 <>
@@ -390,121 +419,6 @@ export function DekontModal({ tx, onClose }: Props) {
       </div>
     </div>,
     document.body,
-  );
-}
-
-/** 80mm termal POS slip — satış / taksit / iptal / iade */
-function FisSlip({
-  tx,
-  logoUrl,
-  systemName,
-  money,
-  total,
-}: {
-  tx: Transaction;
-  logoUrl: string;
-  systemName: string;
-  money: string;
-  total: number;
-}) {
-  const d = tx.dekont;
-  const { date, time } = splitTxDateTime(tx.at);
-  const slipTitle = dekontSlipTitle(tx);
-  const isCancelOrRefund = tx.status === 'cancelled' || tx.status === 'refunded';
-  const showInstallmentLine = tx.installments > 1 && tx.status === 'paid';
-
-  return (
-    <div className="mx-auto max-w-full text-center text-black">
-      <div className="mb-2.5 flex justify-center">
-        <img
-          src={logoUrl}
-          alt={systemName || 'Firma'}
-          className="h-10 w-auto max-w-[70%] object-contain"
-        />
-      </div>
-
-      <p className="text-[9px] font-semibold tracking-wide">BU BELGEYİ SAKLAYINIZ</p>
-      <p className="mt-2 text-[12px] font-bold uppercase leading-tight">{d.merchantTitle}</p>
-      {d.merchantAddress ? (
-        <p className="mt-1 text-[9px] leading-relaxed text-[#222]">{d.merchantAddress}</p>
-      ) : null}
-      {d.merchantPhone ? (
-        <p className="mt-0.5 text-[9px] tabular-nums text-[#222]">{d.merchantPhone}</p>
-      ) : null}
-
-      <p className="mt-2.5 text-[11px] font-bold">{tx.bankName}</p>
-
-      <div className="mt-2.5 space-y-0.5 text-left text-[9px] tabular-nums">
-        <FisRow left={`TARİH: ${date}`} right={`SAAT: ${time}`} />
-        <FisRow left={`İŞLEM NO: ${d.transactionNo || tx.id}`} right={d.authCode ? `ONAY: ${d.authCode}` : ''} />
-        {d.referenceNo ? <FisRow left={`REF: ${d.referenceNo}`} right="" /> : null}
-        {d.cardHolderName && d.cardHolderName !== '—' ? (
-          <p className="pt-0.5">KART SAHİBİ: {d.cardHolderName}</p>
-        ) : null}
-      </div>
-
-      {showInstallmentLine ? (
-        <p className="mt-2.5 text-[10px] font-bold">TAKSİT SAYISI: {tx.installments}</p>
-      ) : null}
-
-      <p className="mt-2 text-[14px] font-bold tracking-wide">{slipTitle}</p>
-      <p className="mt-1.5 text-[11px] tabular-nums tracking-wider">
-        {maskCardForDekont(d.cardMasked)}
-      </p>
-
-      <p className="mt-2.5 text-[9px] font-semibold tracking-wide">İŞLEM TUTARI</p>
-      <p className="mt-0.5 text-[18px] font-bold tabular-nums leading-none">{money} TL</p>
-      {tx.commission > 0 ? (
-        <p className="mt-1 text-[9px] tabular-nums text-[#333]">
-          Tutar {formatMoneyDisplay(tx.amount)} · Komisyon {formatMoneyDisplay(tx.commission)}
-        </p>
-      ) : null}
-
-      <p className="mt-2.5 text-[11px] font-bold tracking-wide">İŞLEM ONAYLANDI</p>
-      {d.authCode || d.referenceNo ? (
-        <div className="mt-1.5 space-y-0.5 text-[9px] tabular-nums">
-          {d.authCode ? <p>ONAY KODU: {d.authCode}</p> : null}
-          {d.referenceNo ? <p>BANKA REFERANS: {d.referenceNo}</p> : null}
-        </div>
-      ) : null}
-
-      {d.threeDSecure ? (
-        <p className="mt-1.5 text-[8px] italic text-[#444]">3D Secure ile tamamlanmıştır.</p>
-      ) : null}
-
-      <p className="mt-2.5 text-[8px] leading-relaxed text-[#222]">
-        {isCancelOrRefund
-          ? tx.status === 'refunded'
-            ? 'TUTAR KARŞILIĞI İŞLEM İADE EDİLMİŞTİR'
-            : 'TUTAR KARŞILIĞI İŞLEM İPTAL EDİLMİŞTİR'
-          : 'TUTAR KARŞILIĞI MAL VEYA HİZMET ALDIM'}
-      </p>
-      <p className="mt-1 text-[9px] font-bold tracking-wide">MALİ DEĞERİ YOKTUR</p>
-      <p className="mt-0.5 text-[9px] font-semibold">MÜŞTERİ NÜSHASI</p>
-
-      <div className="mt-3 flex justify-center border-t border-dashed border-[#999] pt-3">
-        {tx.bankLogo ? (
-          <img
-            src={tx.bankLogo}
-            alt={tx.bankName}
-            className="h-8 w-auto max-w-[65%] object-contain"
-          />
-        ) : (
-          <p className="text-[11px] font-bold">{tx.bankName}</p>
-        )}
-      </div>
-
-      <p className="mt-2 text-[8px] text-[#555]">Yalnız; {amountInWordsTr(total)}</p>
-    </div>
-  );
-}
-
-function FisRow({ left, right }: { left: string; right: string }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="min-w-0 break-all">{left}</span>
-      {right ? <span className="shrink-0 text-right">{right}</span> : null}
-    </div>
   );
 }
 

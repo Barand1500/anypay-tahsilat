@@ -65,6 +65,11 @@ import {
   getPublicPaymentPageSettings,
   updatePaymentPageSettings,
 } from '../services/paymentPageSettingsService.js';
+import {
+  getDekontSettings,
+  updateDekontSettings,
+  type DekontBlockType,
+} from '../services/dekontSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
 import {
   getInstallmentPriority,
@@ -824,6 +829,79 @@ settingsRouter.patch('/payment-page', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Ödeme sayfası ayarları kaydedilemedi');
+  }
+});
+
+const dekontBlockTypeEnum = z.enum([
+  'brandLogo',
+  'bankLogo',
+  'keepSlip',
+  'merchantTitle',
+  'merchantAddress',
+  'merchantPhone',
+  'bankName',
+  'dateTimeRow',
+  'txnMeta',
+  'installmentLine',
+  'slipTitle',
+  'cardMasked',
+  'amountBlock',
+  'approvedLine',
+  'authRef',
+  'legalLine',
+  'maliDeger',
+  'musteriNushasi',
+] as [DekontBlockType, ...DekontBlockType[]]);
+
+const dekontBlockSchema = z.object({
+  id: z.string().min(1).max(64),
+  type: dekontBlockTypeEnum,
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+  w: z.number().min(4).max(100),
+  h: z.number().min(2).max(40),
+  fontScale: z.number().min(0.7).max(1.6),
+  align: z.enum(['left', 'center', 'right']),
+  z: z.number().int().min(0).max(99),
+});
+
+const dekontLayoutSchema = z.object({
+  blocks: z.array(dekontBlockSchema).min(1).max(48),
+});
+
+const dekontSettingsSchema = z.object({
+  fis: dekontLayoutSchema,
+  a5: dekontLayoutSchema.nullable().optional(),
+  a4: dekontLayoutSchema.nullable().optional(),
+});
+
+settingsRouter.get('/dekont', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getDekontSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Dekont ayarları yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/dekont', async (req: AuthedRequest, res) => {
+  const parsed = dekontSettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateDekontSettings({
+      fis: parsed.data.fis,
+      a5: parsed.data.a5 ?? null,
+      a4: parsed.data.a4 ?? null,
+    });
+    await writePanelLog(req.auth!.sub, 'Ayarlar - Dekont ayarları güncellendi.');
+    return sendSuccess(res, data, 'Dekont ayarları kaydedildi');
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Dekont ayarları kaydedilemedi');
   }
 });
 

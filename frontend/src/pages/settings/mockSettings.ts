@@ -15,6 +15,7 @@ export const SETTINGS_SUBNAV: SettingsSubnavItem[] = [
   { to: '/ayarlar/sms', label: 'SMS Ayarları', ready: true },
   { to: '/ayarlar/whatsapp', label: 'WhatsApp Ayarları', ready: true },
   { to: '/ayarlar/odeme-sayfasi', label: 'Ödeme Sayfası', ready: true },
+  { to: '/ayarlar/dekont', label: 'Dekont Ayarları', ready: true },
   { to: '/ayarlar/sablon-degiskenleri', label: 'Şablon Değişkenleri', ready: true },
   { to: '/ayarlar/erp', label: 'ERP Entegrasyon', ready: true },
 ];

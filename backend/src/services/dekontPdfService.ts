@@ -1,6 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import {
+  getDekontSettings,
+  type DekontBlock,
+  type DekontBlockType,
+} from './dekontSettingsService.js';
 import { maskCard, maskIdentity, maskPhone, type PublicPaymentRow } from './paymentsService.js';
 import { getGeneralSettings, UPLOADS_ROOT } from './settingsService.js';
 
@@ -43,25 +48,6 @@ function drawLine(
   size = 10,
 ) {
   page.drawText(asciiSafe(text), { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
-}
-
-function drawCentered(
-  page: PDFPage,
-  font: PDFFont,
-  text: string,
-  y: number,
-  size: number,
-  pageW: number,
-) {
-  const t = asciiSafe(text);
-  const tw = font.widthOfTextAtSize(t, size);
-  page.drawText(t, {
-    x: Math.max(8, (pageW - tw) / 2),
-    y,
-    size,
-    font,
-    color: rgb(0.08, 0.08, 0.08),
-  });
 }
 
 function pageSize(format: DekontPdfFormat): [number, number] {
@@ -173,27 +159,147 @@ async function embedLogo(
   }
 }
 
-function drawEmbeddedImage(
-  page: PDFPage,
-  img: PDFImage,
-  pageW: number,
-  yTop: number,
-  maxH: number,
-  maxW: number,
-): number {
-  const scale = Math.min(maxW / img.width, maxH / img.height, 1);
-  const w = img.width * scale;
-  const h = img.height * scale;
-  page.drawImage(img, {
-    x: (pageW - w) / 2,
-    y: yTop - h,
-    width: w,
-    height: h,
-  });
-  return yTop - h;
+function blockBox(pageW: number, pageH: number, b: DekontBlock) {
+  const x = (b.x / 100) * pageW;
+  const boxH = (b.h / 100) * pageH;
+  const boxW = (b.w / 100) * pageW;
+  const top = pageH - (b.y / 100) * pageH;
+  return { x, boxW, boxH, top, bottom: top - boxH };
 }
 
-/** 80mm POS slip PDF */
+function drawInBlock(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  box: { x: number; boxW: number; top: number; boxH: number },
+  size: number,
+  align: DekontBlock['align'],
+  lineOffset = 0,
+) {
+  const t = asciiSafe(text);
+  if (!t) return;
+  const tw = font.widthOfTextAtSize(t, size);
+  let x = box.x;
+  if (align === 'center') x = box.x + Math.max(0, (box.boxW - tw) / 2);
+  else if (align === 'right') x = box.x + Math.max(0, box.boxW - tw);
+  const y = box.top - size - 2 - lineOffset;
+  if (y < box.top - box.boxH) return;
+  page.drawText(t, {
+    x: Math.max(4, x),
+    y,
+    size,
+    font,
+    color: rgb(0.08, 0.08, 0.08),
+  });
+}
+
+function drawImageInBlock(
+  page: PDFPage,
+  img: PDFImage,
+  box: { x: number; boxW: number; top: number; boxH: number },
+) {
+  const scale = Math.min(box.boxW / img.width, box.boxH / img.height, 1);
+  const iw = img.width * scale;
+  const ih = img.height * scale;
+  page.drawImage(img, {
+    x: box.x + (box.boxW - iw) / 2,
+    y: box.top - ih - Math.max(0, (box.boxH - ih) / 2),
+    width: iw,
+    height: ih,
+  });
+}
+
+type FisPdfCtx = {
+  brandLogoUrl: string;
+  bankLogoUrl: string;
+  bankName: string;
+  merchantTitle: string;
+  merchantAddress: string;
+  merchantPhone: string;
+  date: string;
+  time: string;
+  transactionNo: string;
+  authCode: string;
+  referenceNo: string;
+  cardHolderName: string;
+  cardMasked: string;
+  installments: number;
+  status: string;
+  slipTitle: string;
+  amountTotal: string;
+  amountDetail: string | null;
+  legalLine: string;
+  threeDSecure: boolean;
+};
+
+function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; bold: boolean; size: number }[] {
+  const showInstallment = ctx.installments > 1 && ctx.status === 'paid';
+  switch (type) {
+    case 'keepSlip':
+      return [{ text: 'BU BELGEYI SAKLAYINIZ', bold: true, size: 7 }];
+    case 'merchantTitle':
+      return [{ text: ctx.merchantTitle || '-', bold: true, size: 9 }];
+    case 'merchantAddress':
+      return ctx.merchantAddress ? [{ text: ctx.merchantAddress, bold: false, size: 7 }] : [];
+    case 'merchantPhone':
+      return ctx.merchantPhone ? [{ text: ctx.merchantPhone, bold: false, size: 7 }] : [];
+    case 'bankName':
+      return [{ text: ctx.bankName || '-', bold: true, size: 8 }];
+    case 'dateTimeRow':
+      return [{ text: `TARIH: ${ctx.date}          SAAT: ${ctx.time}`, bold: false, size: 7 }];
+    case 'txnMeta': {
+      const lines: { text: string; bold: boolean; size: number }[] = [
+        {
+          text: `ISLEM NO: ${ctx.transactionNo}${ctx.authCode ? `   ONAY: ${ctx.authCode}` : ''}`,
+          bold: false,
+          size: 7,
+        },
+      ];
+      if (ctx.referenceNo) lines.push({ text: `REF: ${ctx.referenceNo}`, bold: false, size: 7 });
+      if (ctx.cardHolderName && ctx.cardHolderName !== '—') {
+        lines.push({ text: `KART SAHIBI: ${ctx.cardHolderName}`, bold: false, size: 7 });
+      }
+      return lines;
+    }
+    case 'installmentLine':
+      return showInstallment
+        ? [{ text: `TAKSIT SAYISI: ${ctx.installments}`, bold: true, size: 8 }]
+        : [];
+    case 'slipTitle':
+      return [{ text: ctx.slipTitle, bold: true, size: 11 }];
+    case 'cardMasked':
+      return [{ text: ctx.cardMasked, bold: false, size: 9 }];
+    case 'amountBlock': {
+      const lines = [
+        { text: 'ISLEM TUTARI', bold: true, size: 7 },
+        { text: ctx.amountTotal, bold: true, size: 14 },
+      ];
+      if (ctx.amountDetail) lines.push({ text: ctx.amountDetail, bold: false, size: 6.5 });
+      return lines;
+    }
+    case 'approvedLine':
+      return [{ text: 'ISLEM ONAYLANDI', bold: true, size: 9 }];
+    case 'authRef': {
+      const lines: { text: string; bold: boolean; size: number }[] = [];
+      if (ctx.authCode) lines.push({ text: `ONAY KODU: ${ctx.authCode}`, bold: false, size: 7 });
+      if (ctx.referenceNo) lines.push({ text: `BANKA REFERANS: ${ctx.referenceNo}`, bold: false, size: 7 });
+      if (ctx.threeDSecure) {
+        lines.push({ text: '3D Secure ile tamamlanmistir.', bold: false, size: 6.5 });
+      }
+      return lines;
+    }
+    case 'legalLine':
+      return [{ text: ctx.legalLine, bold: false, size: 6.5 }];
+    case 'maliDeger':
+      return [{ text: 'MALI DEGERI YOKTUR', bold: true, size: 7 }];
+    case 'musteriNushasi':
+      return [{ text: 'MUSTERI NUSHASI', bold: true, size: 7 }];
+    default:
+      return [];
+  }
+}
+
+/** 80mm POS slip PDF — kayıtlı fiş bloklarına göre */
 async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
   const doc = await PDFDocument.create();
   const [w, h] = pageSize('fis');
@@ -202,9 +308,7 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const d = tx.dekont;
   const total = tx.amount + tx.commission;
-  const margin = 14;
   const { date, time } = splitDateTime(tx.at);
-  let y = h - 20;
 
   let brandLogoUrl = '';
   try {
@@ -214,103 +318,8 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
     /* yok */
   }
 
-  const brandImg = brandLogoUrl ? await embedLogo(doc, brandLogoUrl) : null;
-  if (brandImg) {
-    y = drawEmbeddedImage(page, brandImg, w, y, 36, w - margin * 2);
-    y -= 10;
-  }
-
-  drawCentered(page, bold, 'BU BELGEYI SAKLAYINIZ', y, 7, w);
-  y -= 14;
-  drawCentered(page, bold, d.merchantTitle || '-', y, 9, w);
-  y -= 12;
-  if (d.merchantAddress) {
-    drawCentered(page, font, d.merchantAddress, y, 7, w);
-    y -= 10;
-  }
-  if (d.merchantPhone) {
-    drawCentered(page, font, d.merchantPhone, y, 7, w);
-    y -= 10;
-  }
-
-  y -= 4;
-  drawCentered(page, bold, tx.bankName || '-', y, 8, w);
-  y -= 14;
-
-  drawLine(page, font, `TARIH: ${date}`, margin, y, 7);
-  const saat = asciiSafe(`SAAT: ${time}`);
-  page.drawText(saat, {
-    x: w - margin - bold.widthOfTextAtSize(saat, 7),
-    y,
-    size: 7,
-    font,
-    color: rgb(0.1, 0.1, 0.1),
-  });
-  y -= 11;
-
-  drawLine(page, font, `ISLEM NO: ${d.transactionNo || tx.id}`, margin, y, 7);
-  if (d.authCode) {
-    const onay = asciiSafe(`ONAY: ${d.authCode}`);
-    page.drawText(onay, {
-      x: Math.max(margin, w - margin - font.widthOfTextAtSize(onay, 7)),
-      y,
-      size: 7,
-      font,
-      color: rgb(0.1, 0.1, 0.1),
-    });
-  }
-  y -= 11;
-
-  if (d.referenceNo) {
-    drawLine(page, font, `REF: ${d.referenceNo}`, margin, y, 7);
-    y -= 11;
-  }
-  if (d.cardHolderName && d.cardHolderName !== '—') {
-    drawLine(page, font, `KART SAHIBI: ${d.cardHolderName}`, margin, y, 7);
-    y -= 11;
-  }
-
-  if (tx.installments > 1 && tx.status === 'paid') {
-    y -= 2;
-    drawCentered(page, bold, `TAKSIT SAYISI: ${tx.installments}`, y, 8, w);
-    y -= 12;
-  }
-
-  drawCentered(page, bold, slipTitle(tx), y, 11, w);
-  y -= 14;
-  drawCentered(page, font, maskCard(d.cardMasked || ''), y, 9, w);
-  y -= 14;
-
-  drawCentered(page, bold, 'ISLEM TUTARI', y, 7, w);
-  y -= 14;
-  drawCentered(page, bold, `${money(total)} TL`, y, 14, w);
-  y -= 14;
-  if (tx.commission > 0) {
-    drawCentered(
-      page,
-      font,
-      `Tutar ${money(tx.amount)} · Komisyon ${money(tx.commission)}`,
-      y,
-      6.5,
-      w,
-    );
-    y -= 10;
-  }
-
-  drawCentered(page, bold, 'ISLEM ONAYLANDI', y, 9, w);
-  y -= 12;
-  if (d.authCode) {
-    drawCentered(page, font, `ONAY KODU: ${d.authCode}`, y, 7, w);
-    y -= 10;
-  }
-  if (d.referenceNo) {
-    drawCentered(page, font, `BANKA REFERANS: ${d.referenceNo}`, y, 7, w);
-    y -= 10;
-  }
-  if (d.threeDSecure) {
-    drawCentered(page, font, '3D Secure ile tamamlanmistir.', y, 6.5, w);
-    y -= 10;
-  }
+  const settings = await getDekontSettings();
+  const blocks = [...settings.fis.blocks].sort((a, b) => a.z - b.z || a.y - b.y);
 
   const legal =
     tx.status === 'refunded'
@@ -318,29 +327,58 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
       : tx.status === 'cancelled'
         ? 'TUTAR KARSILIGI ISLEM IPTAL EDILMISTIR'
         : 'TUTAR KARSILIGI MAL VEYA HIZMET ALDIM';
-  drawCentered(page, font, legal, y, 6.5, w);
-  y -= 11;
-  drawCentered(page, bold, 'MALI DEGERI YOKTUR', y, 7, w);
-  y -= 10;
-  drawCentered(page, bold, 'MUSTERI NUSHASI', y, 7, w);
-  y -= 14;
 
-  page.drawRectangle({
-    x: margin,
-    y: y + 4,
-    width: w - margin * 2,
-    height: 0.6,
-    color: rgb(0.55, 0.55, 0.55),
-  });
-  y -= 6;
+  const ctx: FisPdfCtx = {
+    brandLogoUrl,
+    bankLogoUrl: tx.bankLogo || '',
+    bankName: tx.bankName || '',
+    merchantTitle: d.merchantTitle || '',
+    merchantAddress: d.merchantAddress || '',
+    merchantPhone: d.merchantPhone || '',
+    date,
+    time,
+    transactionNo: d.transactionNo || tx.id,
+    authCode: d.authCode || '',
+    referenceNo: d.referenceNo || '',
+    cardHolderName: d.cardHolderName || '',
+    cardMasked: maskCard(d.cardMasked || ''),
+    installments: tx.installments,
+    status: tx.status,
+    slipTitle: slipTitle(tx),
+    amountTotal: `${money(total)} TL`,
+    amountDetail:
+      tx.commission > 0
+        ? `Tutar ${money(tx.amount)} · Komisyon ${money(tx.commission)}`
+        : null,
+    legalLine: legal,
+    threeDSecure: Boolean(d.threeDSecure),
+  };
 
+  const brandImg = brandLogoUrl ? await embedLogo(doc, brandLogoUrl) : null;
   const bankImg = tx.bankLogo ? await embedLogo(doc, tx.bankLogo) : null;
-  if (bankImg) {
-    y = drawEmbeddedImage(page, bankImg, w, y, 28, w - margin * 2);
-    y -= 8;
-  } else if (tx.bankName) {
-    drawCentered(page, bold, tx.bankName, y, 9, w);
-    y -= 12;
+
+  for (const block of blocks) {
+    const box = blockBox(w, h, block);
+    const scale = block.fontScale || 1;
+
+    if (block.type === 'brandLogo') {
+      if (brandImg) drawImageInBlock(page, brandImg, box);
+      else drawInBlock(page, bold, 'Logo', box, 9 * scale, block.align);
+      continue;
+    }
+    if (block.type === 'bankLogo') {
+      if (bankImg) drawImageInBlock(page, bankImg, box);
+      else drawInBlock(page, bold, ctx.bankName || '-', box, 9 * scale, block.align);
+      continue;
+    }
+
+    const lines = linesForBlock(block.type, ctx);
+    let offset = 0;
+    for (const line of lines) {
+      const size = line.size * scale;
+      drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset);
+      offset += size + 2;
+    }
   }
 
   const bytes = await doc.save();
