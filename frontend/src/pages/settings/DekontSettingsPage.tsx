@@ -11,6 +11,7 @@ import {
   ctxFromSample,
 } from './DekontTemplateView';
 import {
+  DEKONT_CONTENT_FIELD_META,
   DEKONT_PREVIEW_SLIP_OPTIONS,
   DEKONT_VARIABLE_META,
   PAPER_CSS,
@@ -22,6 +23,7 @@ import {
   newDekontBlock,
   type DekontBlock,
   type DekontBlockType,
+  type DekontContentField,
   type DekontPaperFormat,
   type DekontPreviewSlipKind,
   type DekontSettings,
@@ -29,11 +31,18 @@ import {
 
 gsap.registerPlugin(useGSAP);
 
+function cloneBlock(b: DekontBlock): DekontBlock {
+  return {
+    ...b,
+    fields: b.fields ? [...b.fields] : undefined,
+  };
+}
+
 function cloneSettings(s: DekontSettings): DekontSettings {
   return {
-    fis: { blocks: s.fis.blocks.map((b) => ({ ...b })) },
-    a5: s.a5 ? { blocks: s.a5.blocks.map((b) => ({ ...b })) } : null,
-    a4: s.a4 ? { blocks: s.a4.blocks.map((b) => ({ ...b })) } : null,
+    fis: { blocks: s.fis.blocks.map(cloneBlock) },
+    a5: s.a5 ? { blocks: s.a5.blocks.map(cloneBlock) } : null,
+    a4: s.a4 ? { blocks: s.a4.blocks.map(cloneBlock) } : null,
   };
 }
 
@@ -164,13 +173,62 @@ export default function DekontSettingsPage() {
   function addVariable(type: DekontBlockType) {
     const maxZ = blocks.reduce((m, b) => Math.max(m, b.z), 0);
     const block = newDekontBlock(type, {
-      x: 5,
+      x: type === 'emptyBox' || type === 'contentBox' ? 5 + (blocks.length % 2) * 46 : 5,
       y: Math.min(70, 8 + (blocks.length % 10) * 6),
       z: maxZ + 1,
     });
     patchLayout(tab, (list) => [...list, block]);
     setSelectedId(block.id);
   }
+
+  function toggleField(field: DekontContentField) {
+    if (!selected || (selected.type !== 'contentBox' && selected.type !== 'emptyBox')) return;
+    const cur = selected.fields ?? [];
+    const next = cur.includes(field) ? cur.filter((f) => f !== field) : [...cur, field];
+    updateBlock(selected.id, {
+      type: 'contentBox',
+      fields: next,
+      border: selected.border !== false,
+    });
+  }
+
+  function splitPartiesCards() {
+    if (!selected || selected.type !== 'partiesCards') return;
+    const left = newDekontBlock('contentBox', {
+      x: selected.x,
+      y: selected.y,
+      w: Math.max(20, selected.w / 2 - 1),
+      h: selected.h,
+      fontScale: selected.fontScale,
+      align: 'left',
+      z: selected.z,
+      border: true,
+      fields: ['merchantTitle', 'merchantAddress', 'merchantPhone'],
+    });
+    const right = newDekontBlock('contentBox', {
+      x: selected.x + selected.w / 2 + 1,
+      y: selected.y,
+      w: Math.max(20, selected.w / 2 - 1),
+      h: selected.h,
+      fontScale: selected.fontScale,
+      align: 'left',
+      z: selected.z,
+      border: true,
+      fields: ['cardHolderName', 'holderPhone'],
+    });
+    patchLayout(tab, (list) => [
+      ...list.filter((b) => b.id !== selected.id),
+      left,
+      right,
+    ]);
+    setSelectedId(left.id);
+  }
+
+  const canEditBoxContent =
+    selected &&
+    (selected.type === 'contentBox' ||
+      selected.type === 'emptyBox' ||
+      selected.type === 'partiesCards');
 
   function resetCurrent() {
     if (tab === 'fis') {
@@ -348,6 +406,76 @@ export default function DekontSettingsPage() {
                 className="shadow-md"
               />
             </div>
+
+            {tab !== 'fis' && canEditBoxContent && selected ? (
+              <div className="mt-3 shrink-0 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-[var(--panel-ink)]">Kutu içeriği</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selected.type === 'partiesCards' ? (
+                      <button
+                        type="button"
+                        onClick={splitPartiesCards}
+                        className="rounded-lg border border-[var(--panel-line)] px-2 py-1 text-[11px] font-semibold text-[var(--panel-ink)] hover:bg-[var(--panel-hover)]"
+                      >
+                        İkiye böl (ayrı kutular)
+                      </button>
+                    ) : (
+                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--panel-muted)]">
+                        <input
+                          type="checkbox"
+                          checked={selected.border !== false}
+                          onChange={(e) => updateBlock(selected.id, { border: e.target.checked })}
+                        />
+                        Kenarlık
+                      </label>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        patchLayout(tab, (list) => list.filter((b) => b.id !== selected.id));
+                        setSelectedId(null);
+                      }}
+                      className="rounded-lg border border-red-300/70 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Kutuyu sil
+                    </button>
+                  </div>
+                </div>
+                {selected.type === 'partiesCards' ? (
+                  <p className="text-[11px] text-[var(--panel-muted)]">
+                    Bu hazır çift kutudur. İçeriği ayrı yönetmek için “İkiye böl” deyin veya sağdan
+                    boş / içerik kutusu ekleyin.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-[11px] text-[var(--panel-muted)]">
+                      Kutuda gösterilecek alanları seçin (sıra ekleme sırasıdır).
+                    </p>
+                    <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
+                      {DEKONT_CONTENT_FIELD_META.map((f) => {
+                        const on = (selected.fields ?? []).includes(f.id);
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => toggleField(f.id)}
+                            className={[
+                              'rounded-lg border px-2 py-1 text-[10px] font-semibold transition',
+                              on
+                                ? 'border-[var(--color-brand-600)] bg-[var(--color-brand-600)] text-white'
+                                : 'border-[var(--panel-line)] text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]',
+                            ].join(' ')}
+                          >
+                            {f.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
           </div>
 
           {/* lg:h-0 lg:min-h-full → yan yana iken yükseklik tuvale eşit; taşınca iç scroll */}

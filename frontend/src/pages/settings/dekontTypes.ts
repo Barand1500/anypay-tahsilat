@@ -25,7 +25,76 @@ export type DekontBlockType =
   | 'partiesCards'
   | 'detailTable'
   | 'legalBox'
-  | 'amountWords';
+  | 'amountWords'
+  /** Yönetilebilir kutular */
+  | 'emptyBox'
+  | 'contentBox';
+
+/** contentBox içinde gösterilebilecek alanlar */
+export type DekontContentField =
+  | 'merchantTitle'
+  | 'merchantAddress'
+  | 'merchantPhone'
+  | 'cardHolderName'
+  | 'holderPhone'
+  | 'identityNo'
+  | 'bankName'
+  | 'cardMasked'
+  | 'date'
+  | 'time'
+  | 'atLabel'
+  | 'dekontNo'
+  | 'transactionNo'
+  | 'authCode'
+  | 'referenceNo'
+  | 'amountTotal'
+  | 'amountOnly'
+  | 'commissionOnly'
+  | 'installments'
+  | 'description'
+  | 'slipTitle'
+  | 'legalLine'
+  | 'amountInWords'
+  | 'staticDocTitle'
+  | 'staticKeepSlip'
+  | 'staticApproved'
+  | 'staticMali'
+  | 'staticMusteri';
+
+export const DEKONT_CONTENT_FIELD_META: Array<{
+  id: DekontContentField;
+  label: string;
+  bold?: boolean;
+}> = [
+  { id: 'merchantTitle', label: 'Üye işyeri', bold: true },
+  { id: 'merchantAddress', label: 'Adres' },
+  { id: 'merchantPhone', label: 'İşyeri telefon' },
+  { id: 'cardHolderName', label: 'Kart sahibi', bold: true },
+  { id: 'holderPhone', label: 'Kart sahibi telefon' },
+  { id: 'identityNo', label: 'T.C. / kimlik' },
+  { id: 'bankName', label: 'Banka adı', bold: true },
+  { id: 'cardMasked', label: 'Kart no' },
+  { id: 'date', label: 'Tarih' },
+  { id: 'time', label: 'Saat' },
+  { id: 'atLabel', label: 'Tarih+saat' },
+  { id: 'dekontNo', label: 'Dekont no' },
+  { id: 'transactionNo', label: 'İşlem no' },
+  { id: 'authCode', label: 'Onay kodu' },
+  { id: 'referenceNo', label: 'Referans' },
+  { id: 'amountTotal', label: 'Toplam tutar', bold: true },
+  { id: 'amountOnly', label: 'Tutar' },
+  { id: 'commissionOnly', label: 'Komisyon' },
+  { id: 'installments', label: 'Taksit' },
+  { id: 'description', label: 'Açıklama' },
+  { id: 'slipTitle', label: 'İşlem tipi', bold: true },
+  { id: 'legalLine', label: 'Yasal satır' },
+  { id: 'amountInWords', label: 'Yazıyla tutar' },
+  { id: 'staticDocTitle', label: 'SANAL POS E-DEKONT', bold: true },
+  { id: 'staticKeepSlip', label: 'BU BELGEYİ SAKLAYINIZ' },
+  { id: 'staticApproved', label: 'İŞLEM ONAYLANDI', bold: true },
+  { id: 'staticMali', label: 'MALİ DEĞERİ YOKTUR', bold: true },
+  { id: 'staticMusteri', label: 'MÜŞTERİ NÜSHASI' },
+];
 
 export type DekontBlock = {
   id: string;
@@ -37,6 +106,10 @@ export type DekontBlock = {
   fontScale: number;
   align: 'left' | 'center' | 'right';
   z: number;
+  /** emptyBox / contentBox — kenarlık */
+  border?: boolean;
+  /** contentBox — kutuda gösterilecek alanlar (sıra önemli) */
+  fields?: DekontContentField[];
 };
 
 export type DekontFormatLayout = { blocks: DekontBlock[] };
@@ -102,9 +175,11 @@ export const DEKONT_VARIABLE_META: Array<{
 }> = [
   { type: 'brandLogo', label: 'Firma logosu', hint: 'Üst marka' },
   { type: 'bankLogo', label: 'Banka logosu', hint: 'Kartın bankası' },
+  { type: 'emptyBox', label: 'Boş kutu', hint: 'Kenarlıklı boş çerçeve', sheetOnly: true },
+  { type: 'contentBox', label: 'İçerik kutusu', hint: 'Alanları seçilebilir', sheetOnly: true },
   { type: 'docTitle', label: 'Başlık', hint: 'SANAL POS E-DEKONT', sheetOnly: true },
   { type: 'dekontNoDate', label: 'Dekont no / tarih', hint: 'Üst meta', sheetOnly: true },
-  { type: 'partiesCards', label: 'Taraflar', hint: 'İşyeri + kart sahibi', sheetOnly: true },
+  { type: 'partiesCards', label: 'Taraflar (çift)', hint: 'Hazır iki kutu', sheetOnly: true },
   { type: 'detailTable', label: 'Detay tablosu', hint: 'İki kolon KV', sheetOnly: true },
   { type: 'legalBox', label: 'Yasal kutu', hint: 'İmza alanı', sheetOnly: true },
   { type: 'amountWords', label: 'Yazıyla tutar', hint: 'Yalnız; …', sheetOnly: true },
@@ -168,9 +243,11 @@ export function newDekontBlock(
     detailTable: { w: 90, h: 28, fontScale: 0.85, align: 'left' },
     legalBox: { w: 90, h: 12, fontScale: 0.8, align: 'left' },
     amountWords: { w: 90, h: 3, fontScale: 0.9, align: 'left' },
+    emptyBox: { w: 44, h: 12, fontScale: 1, align: 'left' },
+    contentBox: { w: 44, h: 12, fontScale: 0.95, align: 'left' },
   };
   const d = defaults[type];
-  return {
+  const base: DekontBlock = {
     id: makeId(type),
     type,
     x: partial?.x ?? 5,
@@ -181,6 +258,21 @@ export function newDekontBlock(
     align: partial?.align ?? d.align,
     z: partial?.z ?? 1,
   };
+  if (type === 'emptyBox') {
+    base.border = partial?.border ?? true;
+    base.fields = [];
+  }
+  if (type === 'contentBox') {
+    base.border = partial?.border ?? true;
+    base.fields = partial?.fields?.length
+      ? [...partial.fields]
+      : ['merchantTitle', 'merchantAddress', 'merchantPhone'];
+  }
+  if (partial?.border !== undefined && type !== 'emptyBox' && type !== 'contentBox') {
+    base.border = partial.border;
+  }
+  if (partial?.fields) base.fields = [...partial.fields];
+  return base;
 }
 
 export function getDefaultFisBlocks(): DekontBlock[] {
@@ -206,20 +298,131 @@ export function getDefaultFisBlocks(): DekontBlock[] {
   ];
 }
 
-/** A5/A4 mevcut kutu düzenine yakın varsayılan */
+/** A5/A4 — ayrı yönetilebilir kutular */
 export function getDefaultSheetBlocks(): DekontBlock[] {
   return [
     newDekontBlock('brandLogo', { x: 4, y: 2, w: 30, h: 6, align: 'left', z: 2 }),
     newDekontBlock('bankLogo', { x: 66, y: 2, w: 30, h: 6, align: 'right', z: 2 }),
     newDekontBlock('docTitle', { x: 5, y: 10, w: 90, h: 4, fontScale: 1.1 }),
     newDekontBlock('dekontNoDate', { x: 5, y: 15, w: 90, h: 3, fontScale: 0.9, align: 'left' }),
-    newDekontBlock('partiesCards', { x: 5, y: 19, w: 90, h: 11, fontScale: 0.95, align: 'left' }),
+    newDekontBlock('contentBox', {
+      x: 5,
+      y: 19,
+      w: 44,
+      h: 11,
+      fontScale: 0.95,
+      align: 'left',
+      border: true,
+      fields: ['merchantTitle', 'merchantAddress', 'merchantPhone'],
+    }),
+    newDekontBlock('contentBox', {
+      x: 51,
+      y: 19,
+      w: 44,
+      h: 11,
+      fontScale: 0.95,
+      align: 'left',
+      border: true,
+      fields: ['cardHolderName', 'holderPhone'],
+    }),
     newDekontBlock('detailTable', { x: 5, y: 31.5, w: 90, h: 30, fontScale: 0.85, align: 'left' }),
     newDekontBlock('amountWords', { x: 5, y: 62.5, w: 90, h: 3, fontScale: 0.9, align: 'left' }),
     newDekontBlock('legalBox', { x: 5, y: 67, w: 90, h: 14, fontScale: 0.8, align: 'left' }),
     newDekontBlock('maliDeger', { x: 5, y: 83, w: 90, h: 3, fontScale: 0.95 }),
     newDekontBlock('musteriNushasi', { x: 5, y: 87, w: 90, h: 3, fontScale: 0.9 }),
   ];
+}
+
+export function resolveContentField(
+  field: DekontContentField,
+  ctx: {
+    merchantTitle: string;
+    merchantAddress: string;
+    merchantPhone: string;
+    cardHolderName: string;
+    holderPhone: string;
+    identityNo: string;
+    bankName: string;
+    cardMasked: string;
+    date: string;
+    time: string;
+    atLabel: string;
+    dekontNo: string;
+    transactionNo: string;
+    authCode: string;
+    referenceNo: string;
+    amountTotal: string;
+    amountOnly: string;
+    commissionOnly: string;
+    installments: number;
+    description: string;
+    slipTitle: string;
+    legalLine: string;
+    amountInWords?: string;
+  },
+): { text: string; bold: boolean } {
+  const meta = DEKONT_CONTENT_FIELD_META.find((m) => m.id === field);
+  const bold = Boolean(meta?.bold);
+  switch (field) {
+    case 'merchantTitle':
+      return { text: ctx.merchantTitle, bold };
+    case 'merchantAddress':
+      return { text: ctx.merchantAddress, bold };
+    case 'merchantPhone':
+      return { text: ctx.merchantPhone, bold };
+    case 'cardHolderName':
+      return { text: ctx.cardHolderName, bold };
+    case 'holderPhone':
+      return { text: ctx.holderPhone, bold };
+    case 'identityNo':
+      return { text: ctx.identityNo, bold };
+    case 'bankName':
+      return { text: ctx.bankName, bold };
+    case 'cardMasked':
+      return { text: ctx.cardMasked, bold };
+    case 'date':
+      return { text: ctx.date, bold };
+    case 'time':
+      return { text: ctx.time, bold };
+    case 'atLabel':
+      return { text: ctx.atLabel, bold };
+    case 'dekontNo':
+      return { text: ctx.dekontNo, bold };
+    case 'transactionNo':
+      return { text: ctx.transactionNo, bold };
+    case 'authCode':
+      return { text: ctx.authCode, bold };
+    case 'referenceNo':
+      return { text: ctx.referenceNo, bold };
+    case 'amountTotal':
+      return { text: ctx.amountTotal, bold };
+    case 'amountOnly':
+      return { text: ctx.amountOnly, bold };
+    case 'commissionOnly':
+      return { text: ctx.commissionOnly, bold };
+    case 'installments':
+      return { text: String(ctx.installments), bold };
+    case 'description':
+      return { text: ctx.description, bold };
+    case 'slipTitle':
+      return { text: ctx.slipTitle, bold };
+    case 'legalLine':
+      return { text: ctx.legalLine, bold };
+    case 'amountInWords':
+      return { text: ctx.amountInWords || '—', bold };
+    case 'staticDocTitle':
+      return { text: 'SANAL POS E-DEKONT', bold: true };
+    case 'staticKeepSlip':
+      return { text: 'BU BELGEYİ SAKLAYINIZ', bold: false };
+    case 'staticApproved':
+      return { text: 'İŞLEM ONAYLANDI', bold: true };
+    case 'staticMali':
+      return { text: 'MALİ DEĞERİ YOKTUR', bold: true };
+    case 'staticMusteri':
+      return { text: 'MÜŞTERİ NÜSHASI', bold: false };
+    default:
+      return { text: '', bold: false };
+  }
 }
 
 export function getDefaultDekontSettings(): DekontSettings {

@@ -25,7 +25,70 @@ export type DekontBlockType =
   | 'partiesCards'
   | 'detailTable'
   | 'legalBox'
-  | 'amountWords';
+  | 'amountWords'
+  | 'emptyBox'
+  | 'contentBox';
+
+export type DekontContentField =
+  | 'merchantTitle'
+  | 'merchantAddress'
+  | 'merchantPhone'
+  | 'cardHolderName'
+  | 'holderPhone'
+  | 'identityNo'
+  | 'bankName'
+  | 'cardMasked'
+  | 'date'
+  | 'time'
+  | 'atLabel'
+  | 'dekontNo'
+  | 'transactionNo'
+  | 'authCode'
+  | 'referenceNo'
+  | 'amountTotal'
+  | 'amountOnly'
+  | 'commissionOnly'
+  | 'installments'
+  | 'description'
+  | 'slipTitle'
+  | 'legalLine'
+  | 'amountInWords'
+  | 'staticDocTitle'
+  | 'staticKeepSlip'
+  | 'staticApproved'
+  | 'staticMali'
+  | 'staticMusteri';
+
+const CONTENT_FIELDS = new Set<DekontContentField>([
+  'merchantTitle',
+  'merchantAddress',
+  'merchantPhone',
+  'cardHolderName',
+  'holderPhone',
+  'identityNo',
+  'bankName',
+  'cardMasked',
+  'date',
+  'time',
+  'atLabel',
+  'dekontNo',
+  'transactionNo',
+  'authCode',
+  'referenceNo',
+  'amountTotal',
+  'amountOnly',
+  'commissionOnly',
+  'installments',
+  'description',
+  'slipTitle',
+  'legalLine',
+  'amountInWords',
+  'staticDocTitle',
+  'staticKeepSlip',
+  'staticApproved',
+  'staticMali',
+  'staticMusteri',
+]);
 
 export type DekontBlock = {
   id: string;
@@ -37,6 +100,8 @@ export type DekontBlock = {
   fontScale: number;
   align: 'left' | 'center' | 'right';
   z: number;
+  border?: boolean;
+  fields?: DekontContentField[];
 };
 
 export type DekontFormatLayout = { blocks: DekontBlock[] };
@@ -72,6 +137,8 @@ const BLOCK_TYPES = new Set<DekontBlockType>([
   'detailTable',
   'legalBox',
   'amountWords',
+  'emptyBox',
+  'contentBox',
 ]);
 
 function clamp(n: number, min: number, max: number): number {
@@ -83,11 +150,21 @@ function makeId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function normalizeFields(raw: unknown): DekontContentField[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => x as DekontContentField)
+    .filter((x) => CONTENT_FIELDS.has(x))
+    .slice(0, 24);
+  return out;
+}
+
 function block(
   type: DekontBlockType,
   partial: Partial<Omit<DekontBlock, 'type' | 'id'>> & Pick<DekontBlock, 'x' | 'y' | 'w' | 'h'>,
 ): DekontBlock {
-  return {
+  const b: DekontBlock = {
     id: makeId(type),
     type,
     x: clamp(partial.x, 0, 100),
@@ -98,6 +175,23 @@ function block(
     align: partial.align === 'left' || partial.align === 'right' ? partial.align : 'center',
     z: Math.round(clamp(partial.z ?? 1, 0, 99)),
   };
+  if (type === 'emptyBox' || type === 'contentBox') {
+    b.border = partial.border !== false;
+    b.fields =
+      type === 'contentBox'
+        ? (normalizeFields(partial.fields) ?? [
+            'merchantTitle',
+            'merchantAddress',
+            'merchantPhone',
+          ])
+        : normalizeFields(partial.fields) ?? [];
+  } else if (partial.border !== undefined) {
+    b.border = Boolean(partial.border);
+  }
+  if (partial.fields && type !== 'emptyBox' && type !== 'contentBox') {
+    b.fields = normalizeFields(partial.fields);
+  }
+  return b;
 }
 
 /** Varsayılan 80mm fiş — mevcut FisSlip sırasına yakın */
@@ -124,14 +218,35 @@ export function getDefaultFisBlocks(): DekontBlock[] {
   ];
 }
 
-/** A5/A4 kutu düzenine yakın varsayılan */
+/** A5/A4 — ayrı yönetilebilir kutular */
 export function getDefaultSheetBlocks(): DekontBlock[] {
   return [
     block('brandLogo', { x: 4, y: 2, w: 30, h: 6, align: 'left', z: 2 }),
     block('bankLogo', { x: 66, y: 2, w: 30, h: 6, align: 'right', z: 2 }),
     block('docTitle', { x: 5, y: 10, w: 90, h: 4, fontScale: 1.1, align: 'center', z: 1 }),
     block('dekontNoDate', { x: 5, y: 15, w: 90, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
-    block('partiesCards', { x: 5, y: 19, w: 90, h: 11, fontScale: 0.95, align: 'left', z: 1 }),
+    block('contentBox', {
+      x: 5,
+      y: 19,
+      w: 44,
+      h: 11,
+      fontScale: 0.95,
+      align: 'left',
+      z: 1,
+      border: true,
+      fields: ['merchantTitle', 'merchantAddress', 'merchantPhone'],
+    }),
+    block('contentBox', {
+      x: 51,
+      y: 19,
+      w: 44,
+      h: 11,
+      fontScale: 0.95,
+      align: 'left',
+      z: 1,
+      border: true,
+      fields: ['cardHolderName', 'holderPhone'],
+    }),
     block('detailTable', { x: 5, y: 31.5, w: 90, h: 30, fontScale: 0.85, align: 'left', z: 1 }),
     block('amountWords', { x: 5, y: 62.5, w: 90, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
     block('legalBox', { x: 5, y: 67, w: 90, h: 14, fontScale: 0.8, align: 'left', z: 1 }),
@@ -153,7 +268,7 @@ function normalizeBlock(raw: unknown, i: number): DekontBlock | null {
   const b = raw as Partial<DekontBlock>;
   const type = b.type as DekontBlockType;
   if (!BLOCK_TYPES.has(type)) return null;
-  return {
+  const out: DekontBlock = {
     id: typeof b.id === 'string' && b.id.trim() ? b.id.trim().slice(0, 64) : makeId(type),
     type,
     x: clamp(Number(b.x), 0, 100),
@@ -164,6 +279,19 @@ function normalizeBlock(raw: unknown, i: number): DekontBlock | null {
     align: b.align === 'left' || b.align === 'right' ? b.align : 'center',
     z: Math.round(clamp(Number(b.z ?? i), 0, 99)),
   };
+  if (type === 'emptyBox' || type === 'contentBox') {
+    out.border = b.border !== false;
+    out.fields =
+      type === 'contentBox'
+        ? (normalizeFields(b.fields) ?? ['merchantTitle', 'merchantAddress', 'merchantPhone'])
+        : (normalizeFields(b.fields) ?? []);
+  } else if (b.border !== undefined) {
+    out.border = Boolean(b.border);
+  }
+  if (b.fields && type !== 'emptyBox' && type !== 'contentBox') {
+    out.fields = normalizeFields(b.fields);
+  }
+  return out;
 }
 
 function normalizeLayout(raw: unknown): DekontFormatLayout | null {

@@ -13,6 +13,7 @@ import {
 } from '../transactions/transactionTypes';
 import {
   PAPER_CSS,
+  resolveContentField,
   type DekontBlock,
   type DekontBlockType,
   type DekontPaperFormat,
@@ -180,13 +181,59 @@ function BlockContent({
   type,
   ctx,
   fontScale,
+  block,
 }: {
   type: DekontBlockType;
   ctx: DekontRenderCtx;
   fontScale: number;
+  block?: DekontBlock;
 }) {
   const fs = (base: number) => ({ fontSize: `${base * fontScale}px` });
   const showInstallment = ctx.installments > 1 && ctx.status === 'paid';
+
+  if (type === 'emptyBox') {
+    const bordered = block?.border !== false;
+    return (
+      <div
+        className={[
+          'h-full w-full',
+          bordered ? 'border border-[#444]' : 'border border-dashed border-[#bbb]',
+        ].join(' ')}
+      />
+    );
+  }
+
+  if (type === 'contentBox') {
+    const bordered = block?.border !== false;
+    const fields = block?.fields?.length
+      ? block.fields
+      : (['merchantTitle', 'merchantAddress', 'merchantPhone'] as const);
+    return (
+      <div
+        className={[
+          'flex h-full w-full flex-col justify-start gap-0.5 overflow-hidden p-1.5',
+          bordered ? 'border border-[#444]' : '',
+        ].join(' ')}
+        style={fs(10)}
+      >
+        {fields.map((f) => {
+          const line = resolveContentField(f, ctx);
+          if (!line.text) return null;
+          return (
+            <p
+              key={f}
+              className={['leading-snug', line.bold ? 'font-bold' : ''].join(' ')}
+            >
+              {line.text}
+            </p>
+          );
+        })}
+        {!fields.length ? (
+          <p className="text-[10px] italic text-[#888]">Boş kutu — alan ekleyin</p>
+        ) : null}
+      </div>
+    );
+  }
 
   switch (type) {
     case 'brandLogo':
@@ -565,7 +612,7 @@ export function DekontTemplateView({
             }}
           >
             <div className={`flex h-full w-full flex-col justify-center ${alignClass(block.align)}`}>
-              <BlockContent type={block.type} ctx={ctx} fontScale={block.fontScale} />
+              <BlockContent type={block.type} ctx={ctx} fontScale={block.fontScale} block={block} />
             </div>
             {selected ? (
               <span
@@ -597,7 +644,31 @@ export function DekontVariablePreview({
   return (
     <div className="flex h-10 w-full items-center justify-center overflow-hidden rounded-md bg-white px-1 text-black">
       <div className="max-h-full max-w-full origin-center scale-[0.85]">
-        <BlockContent type={type} ctx={ctx} fontScale={0.85} />
+        <BlockContent
+          type={type}
+          ctx={ctx}
+          fontScale={0.85}
+          block={
+            type === 'emptyBox' || type === 'contentBox'
+              ? {
+                  id: 'preview',
+                  type,
+                  x: 0,
+                  y: 0,
+                  w: 100,
+                  h: 100,
+                  fontScale: 1,
+                  align: 'left',
+                  z: 1,
+                  border: true,
+                  fields:
+                    type === 'contentBox'
+                      ? ['merchantTitle', 'merchantAddress', 'merchantPhone']
+                      : [],
+                }
+              : undefined
+          }
+        />
       </div>
     </div>
   );

@@ -857,7 +857,40 @@ const dekontBlockTypeEnum = z.enum([
   'detailTable',
   'legalBox',
   'amountWords',
+  'emptyBox',
+  'contentBox',
 ] as [DekontBlockType, ...DekontBlockType[]]);
+
+const dekontContentFieldEnum = z.enum([
+  'merchantTitle',
+  'merchantAddress',
+  'merchantPhone',
+  'cardHolderName',
+  'holderPhone',
+  'identityNo',
+  'bankName',
+  'cardMasked',
+  'date',
+  'time',
+  'atLabel',
+  'dekontNo',
+  'transactionNo',
+  'authCode',
+  'referenceNo',
+  'amountTotal',
+  'amountOnly',
+  'commissionOnly',
+  'installments',
+  'description',
+  'slipTitle',
+  'legalLine',
+  'amountInWords',
+  'staticDocTitle',
+  'staticKeepSlip',
+  'staticApproved',
+  'staticMali',
+  'staticMusteri',
+]);
 
 const dekontBlockSchema = z.object({
   id: z.string().min(1).max(64),
@@ -869,6 +902,8 @@ const dekontBlockSchema = z.object({
   fontScale: z.number().min(0.7).max(1.6),
   align: z.enum(['left', 'center', 'right']),
   z: z.number().int().min(0).max(99),
+  border: z.boolean().optional(),
+  fields: z.array(dekontContentFieldEnum).max(24).optional(),
 });
 
 const dekontLayoutSchema = z.object({

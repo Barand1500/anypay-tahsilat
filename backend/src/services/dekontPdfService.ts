@@ -5,6 +5,7 @@ import {
   getDekontSettings,
   type DekontBlock,
   type DekontBlockType,
+  type DekontContentField,
 } from './dekontSettingsService.js';
 import { maskCard, maskIdentity, maskPhone, type PublicPaymentRow } from './paymentsService.js';
 import { getGeneralSettings, UPLOADS_ROOT } from './settingsService.js';
@@ -324,8 +325,73 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       ];
     case 'amountWords':
       return [{ text: `Yalniz; ${ctx.amountInWords}`, bold: true, size: 8 }];
+    case 'emptyBox':
+      return [];
     default:
       return [];
+  }
+}
+
+function fieldText(field: DekontContentField, ctx: FisPdfCtx): { text: string; bold: boolean } {
+  switch (field) {
+    case 'merchantTitle':
+      return { text: ctx.merchantTitle, bold: true };
+    case 'merchantAddress':
+      return { text: ctx.merchantAddress, bold: false };
+    case 'merchantPhone':
+      return { text: ctx.merchantPhone, bold: false };
+    case 'cardHolderName':
+      return { text: ctx.cardHolderName, bold: true };
+    case 'holderPhone':
+      return { text: ctx.holderPhone, bold: false };
+    case 'identityNo':
+      return { text: ctx.identityNo, bold: false };
+    case 'bankName':
+      return { text: ctx.bankName, bold: true };
+    case 'cardMasked':
+      return { text: ctx.cardMasked, bold: false };
+    case 'date':
+      return { text: ctx.date, bold: false };
+    case 'time':
+      return { text: ctx.time, bold: false };
+    case 'atLabel':
+      return { text: ctx.atLabel, bold: false };
+    case 'dekontNo':
+      return { text: ctx.dekontNo, bold: false };
+    case 'transactionNo':
+      return { text: ctx.transactionNo, bold: false };
+    case 'authCode':
+      return { text: ctx.authCode, bold: false };
+    case 'referenceNo':
+      return { text: ctx.referenceNo, bold: false };
+    case 'amountTotal':
+      return { text: ctx.amountTotal, bold: true };
+    case 'amountOnly':
+      return { text: ctx.amountOnly, bold: false };
+    case 'commissionOnly':
+      return { text: ctx.commissionOnly, bold: false };
+    case 'installments':
+      return { text: String(ctx.installments), bold: false };
+    case 'description':
+      return { text: ctx.description, bold: false };
+    case 'slipTitle':
+      return { text: ctx.slipTitle, bold: true };
+    case 'legalLine':
+      return { text: ctx.legalLine, bold: false };
+    case 'amountInWords':
+      return { text: ctx.amountInWords || '-', bold: false };
+    case 'staticDocTitle':
+      return { text: 'SANAL POS E-DEKONT', bold: true };
+    case 'staticKeepSlip':
+      return { text: 'BU BELGEYI SAKLAYINIZ', bold: false };
+    case 'staticApproved':
+      return { text: 'ISLEM ONAYLANDI', bold: true };
+    case 'staticMali':
+      return { text: 'MALI DEGERI YOKTUR', bold: true };
+    case 'staticMusteri':
+      return { text: 'MUSTERI NUSHASI', bold: false };
+    default:
+      return { text: '', bold: false };
   }
 }
 
@@ -415,6 +481,33 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     if (block.type === 'bankLogo') {
       if (bankImg) drawImageInBlock(page, bankImg, box);
       else drawInBlock(page, bold, ctx.bankName || '-', box, 9 * scale, block.align);
+      continue;
+    }
+
+    if (block.type === 'emptyBox' || block.type === 'contentBox') {
+      if (block.border !== false) {
+        page.drawRectangle({
+          x: box.x,
+          y: box.bottom,
+          width: box.boxW,
+          height: box.boxH,
+          borderColor: rgb(0.2, 0.2, 0.2),
+          borderWidth: 0.8,
+        });
+      }
+      if (block.type === 'contentBox') {
+        const fields = block.fields?.length
+          ? block.fields
+          : (['merchantTitle', 'merchantAddress', 'merchantPhone'] as DekontContentField[]);
+        let offset = 4;
+        for (const f of fields) {
+          const line = fieldText(f, ctx);
+          if (!line.text) continue;
+          const size = 8 * scale;
+          drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset);
+          offset += size + 2;
+        }
+      }
       continue;
     }
 
