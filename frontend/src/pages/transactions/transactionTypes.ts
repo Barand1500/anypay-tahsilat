@@ -88,6 +88,29 @@ export function dekontBankName(tx: Transaction): string {
   return tx.bankName;
 }
 
+/** POS fiş kart: 5218 **** **** 9313 */
+export function maskCardForDekont(raw: string): string {
+  const d = (raw || '').replace(/\D/g, '');
+  if (!d) return '—';
+  if (d.length < 8) return '*'.repeat(Math.min(d.length, 16));
+  return `${d.slice(0, 4)} **** **** ${d.slice(-4)}`;
+}
+
+/** T.C. dekont: 123******90 */
+export function maskIdentityForDekont(raw: string): string {
+  const d = (raw || '').replace(/\D/g, '');
+  if (!d) return '—';
+  if (d.length < 5) return '*'.repeat(d.length);
+  return `${d.slice(0, 3)}${'*'.repeat(Math.max(0, d.length - 5))}${d.slice(-2)}`;
+}
+
+/** Telefon dekont: 530 *** ** 50 */
+export function maskPhoneForDekont(raw: string): string {
+  const d = (raw || '').replace(/\D/g, '').slice(-10);
+  if (d.length < 7) return raw?.trim() || '—';
+  return `${d.slice(0, 3)} *** ** ${d.slice(-2)}`;
+}
+
 /** 80mm fiş — işlem tipi başlığı */
 export function dekontSlipTitle(tx: Pick<Transaction, 'status' | 'installments'>): string {
   if (tx.status === 'cancelled') return 'SATIŞ İPTALİ';

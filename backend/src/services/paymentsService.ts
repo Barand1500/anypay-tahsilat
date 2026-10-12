@@ -112,11 +112,20 @@ function tipFromPayType(payType: 'ch' | 'fatura' | 'serbest'): number {
   return payType === 'fatura' ? 2 : payType === 'serbest' ? 1 : 0;
 }
 
+/** POS fiş: 5218 **** **** 9313 (ilk 4 + son 4) */
 function maskCard(digits: string): string {
   const d = digits.replace(/\D/g, '');
-  if (d.length < 10) return d;
-  const groups = [d.slice(0, 4), d.slice(4, 6) + '**', '****', d.slice(-4)];
-  return groups.join(' ');
+  if (!d) return '—';
+  if (d.length < 8) return '*'.repeat(Math.min(d.length, 16));
+  return `${d.slice(0, 4)} **** **** ${d.slice(-4)}`;
+}
+
+/** T.C.: 123******90 */
+function maskIdentity(raw: string): string {
+  const d = raw.replace(/\D/g, '');
+  if (!d) return '—';
+  if (d.length < 5) return '*'.repeat(d.length);
+  return `${d.slice(0, 3)}${'*'.repeat(Math.max(0, d.length - 5))}${d.slice(-2)}`;
 }
 
 function formatPhone(raw: string): string {
@@ -130,6 +139,8 @@ function maskPhone(raw: string): string {
   if (d.length < 7) return raw || '—';
   return `${d.slice(0, 3)} *** ** ${d.slice(-2)}`;
 }
+
+export { maskCard, maskIdentity, maskPhone };
 
 function bankResponseDetails(raw: string | null | undefined) {
   if (!raw) return { referenceNo: '', authCode: '' };
@@ -343,13 +354,13 @@ async function hydrate(
         merchantPhone: merchant.merchantPhone,
         cardHolderName: (r.adsoyad || '').trim() || '—',
         cardHolderPhoneMasked: maskPhone(phone),
-        cardHolderPhone: phone || '—',
-        identityNo: (r.tc || '').trim(),
+        cardHolderPhone: maskPhone(phone),
+        identityNo: maskIdentity((r.tc || '').trim()),
         description: (r.aciklama || '').trim() || '—',
         referenceNo,
         transactionNo: r.odemeNo || String(r.id),
         authCode,
-        cardMasked: (r.kartNo || '').trim() || '—',
+        cardMasked: maskCard((r.kartNo || '').trim()),
         threeDSecure: true,
       },
       detail: {

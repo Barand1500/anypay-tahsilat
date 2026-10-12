@@ -5,6 +5,9 @@ import { api } from '../../lib/api';
 import {
   formatMoneyDisplay,
   formatTxDate,
+  maskCardForDekont,
+  maskIdentityForDekont,
+  maskPhoneForDekont,
   TX_STATUS_LABEL,
   type Transaction,
 } from './transactionTypes';
@@ -100,8 +103,8 @@ export default function TransactionDetailPage() {
       <div className="grid gap-3 lg:grid-cols-2">
         <Section title="Tahsilat Bilgileri">
           <Value label="Ad Soyad" value={tx.dekont.cardHolderName} />
-          <Value label="T.C. Kimlik No" value={tx.dekont.identityNo} />
-          <Value label="Telefon" value={tx.dekont.cardHolderPhoneMasked} />
+          <Value label="T.C. Kimlik No" value={maskIdentityForDekont(tx.dekont.identityNo)} />
+          <Value label="Telefon" value={maskPhoneForDekont(tx.dekont.cardHolderPhoneMasked)} />
           <Value label="Tutar" value={formatMoneyDisplay(tx.amount)} />
           <Value label="Komisyon" value={formatMoneyDisplay(tx.commission)} />
           <Value label="Komisyonlu Tutar" value={formatMoneyDisplay(total)} />
@@ -129,7 +132,7 @@ export default function TransactionDetailPage() {
           <Value label="İşlem No" value={tx.id} />
           <Value label="Referans Kodu" value={tx.detail.referenceNo} />
           <Value label="Onay Kodu" value={tx.detail.authCode} />
-          <Value label="Kart No" value={tx.dekont.cardMasked} />
+          <Value label="Kart No" value={maskCardForDekont(tx.dekont.cardMasked)} />
         </Section>
       </div>
 

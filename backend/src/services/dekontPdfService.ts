@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
-import type { PublicPaymentRow } from './paymentsService.js';
+import { maskCard, maskIdentity, maskPhone, type PublicPaymentRow } from './paymentsService.js';
 import { getGeneralSettings, UPLOADS_ROOT } from './settingsService.js';
 
 export type DekontPdfFormat = 'fis' | 'a5' | 'a4';
@@ -278,7 +278,7 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
 
   drawCentered(page, bold, slipTitle(tx), y, 11, w);
   y -= 14;
-  drawCentered(page, font, d.cardMasked || '-', y, 9, w);
+  drawCentered(page, font, maskCard(d.cardMasked || ''), y, 9, w);
   y -= 14;
 
   drawCentered(page, bold, 'ISLEM TUTARI', y, 7, w);
@@ -400,8 +400,9 @@ export async function buildDekontPdf(
     ['Adres', d.merchantAddress || '-'],
     ['Telefon', d.merchantPhone || '-'],
     ['Kart Sahibi', d.cardHolderName],
-    ['TC / Vergi No', d.identityNo || '-'],
-    ['Kart', d.cardMasked],
+    ['TC / Vergi No', maskIdentity(d.identityNo || '')],
+    ['Kart', maskCard(d.cardMasked || '')],
+    ['Telefon', maskPhone(d.cardHolderPhone || d.cardHolderPhoneMasked || '')],
     ['Taksit', String(tx.installments)],
     ['Tutar', `${money(tx.amount)} TL`],
     ['Komisyon', `${money(tx.commission)} TL`],

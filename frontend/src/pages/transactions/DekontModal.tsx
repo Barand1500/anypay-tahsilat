@@ -11,6 +11,9 @@ import {
   formatMoneyTr,
   formatMoneyDisplay,
   formatTxDate,
+  maskCardForDekont,
+  maskIdentityForDekont,
+  maskPhoneForDekont,
   splitTxDateTime,
   type Transaction,
 } from './transactionTypes';
@@ -296,7 +299,9 @@ export function DekontModal({ tx, onClose }: Props) {
                     <div className="border border-[#444] p-2.5">
                       <p className="font-bold leading-snug">{d.cardHolderName}</p>
                       <p className="mt-1.5 text-[11px] sm:text-[12px]">-</p>
-                      <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">{d.cardHolderPhoneMasked}</p>
+                      <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">
+                        {maskPhoneForDekont(d.cardHolderPhoneMasked || d.cardHolderPhone)}
+                      </p>
                     </div>
                   </div>
 
@@ -306,15 +311,15 @@ export function DekontModal({ tx, onClose }: Props) {
                         <Kv label="ONAY ZAMANI" value={at} />
                         <Kv label="REFERANS NO" value={d.referenceNo} />
                         <Kv label="ADI SOYADI" value={d.cardHolderName} />
-                        <Kv label="T.C. KİMLİK NO" value={d.identityNo} />
-                        <Kv label="TELEFONU" value={d.cardHolderPhone} />
+                        <Kv label="T.C. KİMLİK NO" value={maskIdentityForDekont(d.identityNo)} />
+                        <Kv label="TELEFONU" value={maskPhoneForDekont(d.cardHolderPhone || d.cardHolderPhoneMasked)} />
                         <Kv label="AÇIKLAMA" value={d.description || '-'} last />
                       </div>
                       <div>
                         <Kv label="İŞLEM NO" value={d.transactionNo} />
                         <Kv label="ONAY KODU" value={d.authCode || ''} />
                         <Kv label="BANKA" value={bankName} />
-                        <Kv label="KART" value={d.cardMasked} />
+                        <Kv label="KART" value={maskCardForDekont(d.cardMasked)} />
                         <Kv label="TAKSİT" value={String(tx.installments)} />
                         <Kv label="TUTAR" value={`${formatMoneyDisplay(tx.amount)}`} />
                         <Kv label="KOMİSYON" value={`${formatMoneyDisplay(tx.commission)}`} />
@@ -443,7 +448,9 @@ function FisSlip({
       ) : null}
 
       <p className="mt-2 text-[14px] font-bold tracking-wide">{slipTitle}</p>
-      <p className="mt-1.5 text-[11px] tabular-nums tracking-wider">{d.cardMasked}</p>
+      <p className="mt-1.5 text-[11px] tabular-nums tracking-wider">
+        {maskCardForDekont(d.cardMasked)}
+      </p>
 
       <p className="mt-2.5 text-[9px] font-semibold tracking-wide">İŞLEM TUTARI</p>
       <p className="mt-0.5 text-[18px] font-bold tabular-nums leading-none">{money} TL</p>
