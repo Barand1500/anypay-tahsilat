@@ -178,58 +178,82 @@ export function normalizeWhatsappTo(raw: string): string {
   return d;
 }
 
-/** Ayarlar sayfası — kayıtlı Meta ile sınama mesajı */
-export async function sendWhatsappTest(phoneRaw: string): Promise<{ sent: true; to: string }> {
-  const message = `AnyPay Tahsilat WhatsApp sinama. ${new Date().toLocaleString('tr-TR')}`;
-  const result = await sendWhatsappText(phoneRaw, message);
+type MetaSendResult = { to: string; messageId?: string };
+
+/**
+ * Ayarlar sınaması — önce Meta’nın varsayılan hello_world şablonu
+ * (ilk temas / 24 saat dışında serbest metin telefona düşmez).
+ */
+export async function sendWhatsappTest(
+  phoneRaw: string,
+): Promise<{ sent: true; to: string; via: 'template' | 'text'; messageId?: string }> {
+  const to = normalizeWhatsappTo(phoneRaw);
+  if (!to || to.length < 10) throw new SettingsError('Geçerli telefon numarası yok');
+
+  let via: 'template' | 'text' = 'template';
+  let messageId: string | undefined;
+  let content = 'hello_world (şablon sınama)';
+
+  try {
+    const r = await sendWhatsappTemplate(to, 'hello_world', 'en_US');
+    messageId = r.messageId;
+  } catch (templateErr) {
+    // Şablon yoksa / dil farklıysa serbest metin dene (yalnızca 24s penceresinde gelir)
+    const message = `AnyPay Tahsilat WhatsApp sinama. ${new Date().toLocaleString('tr-TR')}`;
+    content = message;
+    via = 'text';
+    try {
+      const r = await sendWhatsappText(to, message);
+      messageId = r.messageId;
+    } catch (textErr) {
+      const tMsg =
+        templateErr instanceof Error ? templateErr.message : 'Şablon gönderilemedi';
+      const xMsg = textErr instanceof Error ? textErr.message : 'Metin gönderilemedi';
+      throw new SettingsError(
+        [
+          'Sınama mesajı telefona iletilemedi.',
+          `Şablon: ${tMsg}`,
+          `Metin: ${xMsg}`,
+          'Not: Meta’da Development modundaysanız numarayı “To” listesine ekleyin; Live’da onaylı şablon gerekir.',
+        ].join(' '),
+      );
+    }
+  }
+
   try {
     const { recordSendHistory } = await import('./sendHistoryService.js');
     await recordSendHistory({
       musteriId: null,
       type: 'whatsapp',
-      recipient: result.to,
-      content: message,
+      recipient: to,
+      content: `[${via}] ${content}`,
       kaynak: 'whatsapp-test',
       basarili: true,
     });
   } catch {
     /* opsiyonel */
   }
-  return { sent: true, to: result.to };
+  return { sent: true, to, via, messageId };
 }
 
-/**
- * Meta Cloud API — metin mesajı.
- * Not: işletme başlatımlı sohbetlerde şablon gerekebilir; Meta hata dönerse yüzeye çıkarılır.
- */
-export async function sendWhatsappText(
-  toRaw: string,
-  body: string,
-): Promise<{ to: string }> {
-  const cfg = await resolveWhatsappConfig();
-  if (!cfg) {
-    throw new SettingsError(
-      'WhatsApp entegrasyonu kapalı veya eksik — Ayarlar › WhatsApp sayfasından etkinleştirin',
-    );
-  }
-  const to = normalizeWhatsappTo(toRaw);
-  if (!to || to.length < 10) throw new SettingsError('Geçerli telefon numarası yok');
-  const text = (body || '').trim();
-  if (!text) throw new SettingsError('Mesaj metni boş');
-
-  const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(cfg.phoneNumberId)}/messages`;
+async function postWhatsappMessage(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  payload: Record<string, unknown>,
+): Promise<MetaSendResult> {
+  const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(phoneNumberId)}/messages`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${cfg.accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to,
-      type: 'text',
-      text: { preview_url: true, body: text.slice(0, 4096) },
+      ...payload,
     }),
   });
 
@@ -243,7 +267,7 @@ export async function sendWhatsappText(
       error_data?: { details?: string };
       fbtrace_id?: string;
     };
-    messages?: unknown[];
+    messages?: Array<{ id?: string }>;
   } = {};
   try {
     parsed = JSON.parse(raw) as typeof parsed;
@@ -256,7 +280,59 @@ export async function sendWhatsappText(
     throw new SettingsError(formatMetaSendError(parsed.error, raw, res.status));
   }
 
-  return { to };
+  const messageId = parsed.messages?.[0]?.id;
+  return { to, messageId };
+}
+
+/** Meta Cloud API — onaylı şablon (ilk temas / pazarlama) */
+export async function sendWhatsappTemplate(
+  toRaw: string,
+  templateName: string,
+  languageCode = 'en_US',
+): Promise<MetaSendResult> {
+  const cfg = await resolveWhatsappConfig();
+  if (!cfg) {
+    throw new SettingsError(
+      'WhatsApp entegrasyonu kapalı veya eksik — Ayarlar › WhatsApp sayfasından etkinleştirin',
+    );
+  }
+  const to = normalizeWhatsappTo(toRaw);
+  if (!to || to.length < 10) throw new SettingsError('Geçerli telefon numarası yok');
+  const name = (templateName || '').trim();
+  if (!name) throw new SettingsError('Şablon adı gerekli');
+
+  return postWhatsappMessage(cfg.phoneNumberId, cfg.accessToken, to, {
+    type: 'template',
+    template: {
+      name,
+      language: { code: languageCode },
+    },
+  });
+}
+
+/**
+ * Meta Cloud API — metin mesajı.
+ * Not: işletme başlatımlı sohbetlerde şablon gerekebilir; Meta hata dönerse yüzeye çıkarılır.
+ */
+export async function sendWhatsappText(
+  toRaw: string,
+  body: string,
+): Promise<MetaSendResult> {
+  const cfg = await resolveWhatsappConfig();
+  if (!cfg) {
+    throw new SettingsError(
+      'WhatsApp entegrasyonu kapalı veya eksik — Ayarlar › WhatsApp sayfasından etkinleştirin',
+    );
+  }
+  const to = normalizeWhatsappTo(toRaw);
+  if (!to || to.length < 10) throw new SettingsError('Geçerli telefon numarası yok');
+  const text = (body || '').trim();
+  if (!text) throw new SettingsError('Mesaj metni boş');
+
+  return postWhatsappMessage(cfg.phoneNumberId, cfg.accessToken, to, {
+    type: 'text',
+    text: { preview_url: true, body: text.slice(0, 4096) },
+  });
 }
 
 /** Meta hata gövdesini kullanıcıya okunur Türkçe metne çevir */

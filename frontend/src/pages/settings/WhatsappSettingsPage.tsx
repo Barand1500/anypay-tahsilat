@@ -185,12 +185,23 @@ export default function WhatsappSettingsPage() {
     setTestMsg(null);
     setTestOk(false);
     try {
-      const data = await api.post<{ sent: true; to: string }>(
-        '/api/settings/whatsapp/test',
-        { phone: testPhone },
-        token,
+      const data = await api.post<{
+        sent: true;
+        to: string;
+        via?: 'template' | 'text';
+        messageId?: string;
+      }>('/api/settings/whatsapp/test', { phone: testPhone }, token);
+      const viaLabel =
+        data.via === 'template'
+          ? 'hello_world şablonu'
+          : data.via === 'text'
+            ? 'serbest metin (yalnızca 24s penceresi)'
+            : 'Meta';
+      setTestMsg(
+        `Sınama WhatsApp kabul edildi → ${data.to} (${viaLabel})${
+          data.messageId ? ` · id ${data.messageId.slice(0, 18)}…` : ''
+        }`,
       );
-      setTestMsg(`Sınama WhatsApp gönderildi → ${data.to}`);
       setTestOk(true);
     } catch (err) {
       setTestMsg(err instanceof Error ? err.message : 'Sınama gönderilemedi');
@@ -428,7 +439,8 @@ export default function WhatsappSettingsPage() {
         <div className="mb-4">
           <h2 className="text-base font-bold text-[var(--panel-ink)]">WhatsApp Gönderim Sınama</h2>
           <p className="mt-0.5 text-xs text-[var(--panel-muted)]">
-            Kayıtlı Meta ayarlarıyla gerçek sınama mesajı gönderir. Entegrasyonun açık olması gerekir.
+            Meta’nın hello_world şablonu ile sınar (ilk mesajda serbest metin telefona düşmez).
+            Development modunda numarayı Meta › API Setup › To listesine ekleyin.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
