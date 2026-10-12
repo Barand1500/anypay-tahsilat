@@ -11,19 +11,23 @@ import {
   ctxFromSample,
 } from './DekontTemplateView';
 import {
+  DEKONT_PREVIEW_SLIP_OPTIONS,
   DEKONT_VARIABLE_META,
+  PAPER_CSS,
   SAMPLE_DEKONT_CTX,
+  applyPreviewSlipKind,
   getDefaultDekontSettings,
   getDefaultFisBlocks,
+  getDefaultSheetBlocks,
   newDekontBlock,
   type DekontBlock,
   type DekontBlockType,
+  type DekontPaperFormat,
+  type DekontPreviewSlipKind,
   type DekontSettings,
 } from './dekontTypes';
 
 gsap.registerPlugin(useGSAP);
-
-type FormatTab = 'fis' | 'a5' | 'a4';
 
 function cloneSettings(s: DekontSettings): DekontSettings {
   return {
@@ -37,15 +41,30 @@ function settingsKey(s: DekontSettings): string {
   return JSON.stringify(s);
 }
 
+function layoutBlocks(s: DekontSettings, tab: DekontPaperFormat): DekontBlock[] {
+  if (tab === 'fis') return s.fis.blocks;
+  if (tab === 'a5') return s.a5?.blocks ?? [];
+  return s.a4?.blocks ?? [];
+}
+
+function ensureLayout(s: DekontSettings, tab: DekontPaperFormat): DekontFormatSafe {
+  if (tab === 'fis') return { blocks: s.fis.blocks.length ? s.fis.blocks : getDefaultFisBlocks() };
+  const cur = tab === 'a5' ? s.a5 : s.a4;
+  return { blocks: cur?.blocks?.length ? cur.blocks : getDefaultSheetBlocks() };
+}
+
+type DekontFormatSafe = { blocks: DekontBlock[] };
+
 /**
- * Ayarlar › Dekont — Canva benzeri 80mm fiş editörü.
+ * Ayarlar › Dekont — Canva benzeri Fiş / A5 / A4 editörü.
  */
 export default function DekontSettingsPage() {
   const { token } = useAuth();
   const { logoUrl, systemName } = useBrand();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const [tab, setTab] = useState<FormatTab>('fis');
+  const [tab, setTab] = useState<DekontPaperFormat>('fis');
+  const [previewKind, setPreviewKind] = useState<DekontPreviewSlipKind>('installment');
   const [draft, setDraft] = useState<DekontSettings>(() => getDefaultDekontSettings());
   const [baseline, setBaseline] = useState<DekontSettings>(() => getDefaultDekontSettings());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -54,10 +73,10 @@ export default function DekontSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
 
-  const sampleCtx = useMemo(
-    () => ctxFromSample(SAMPLE_DEKONT_CTX(logoUrl), systemName),
-    [logoUrl, systemName],
-  );
+  const sampleCtx = useMemo(() => {
+    const base = SAMPLE_DEKONT_CTX(logoUrl);
+    return ctxFromSample(applyPreviewSlipKind(base, previewKind), systemName);
+  }, [logoUrl, systemName, previewKind]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -67,8 +86,8 @@ export default function DekontSettingsPage() {
       const data = await api.get<DekontSettings>('/api/settings/dekont', token);
       const next = cloneSettings({
         fis: data.fis?.blocks?.length ? data.fis : { blocks: getDefaultFisBlocks() },
-        a5: data.a5 ?? null,
-        a4: data.a4 ?? null,
+        a5: data.a5?.blocks?.length ? data.a5 : { blocks: getDefaultSheetBlocks() },
+        a4: data.a4?.blocks?.length ? data.a4 : { blocks: getDefaultSheetBlocks() },
       });
       setDraft(next);
       setBaseline(cloneSettings(next));
@@ -85,8 +104,17 @@ export default function DekontSettingsPage() {
   }, [load]);
 
   const dirty = settingsKey(draft) !== settingsKey(baseline);
-  const blocks = draft.fis.blocks;
+  const blocks = layoutBlocks(draft, tab);
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
+
+  const palette = useMemo(
+    () =>
+      DEKONT_VARIABLE_META.filter((v) => {
+        if (tab === 'fis') return !v.sheetOnly;
+        return !v.fisOnly;
+      }),
+    [tab],
+  );
 
   useGSAP(
     () => {
@@ -102,30 +130,35 @@ export default function DekontSettingsPage() {
   );
 
   useEffect(() => {
+    setSelectedId(null);
+  }, [tab]);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (tab !== 'fis') return;
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (!selectedId) return;
       e.preventDefault();
-      setDraft((prev) => ({
-        ...prev,
-        fis: { blocks: prev.fis.blocks.filter((b) => b.id !== selectedId) },
-      }));
+      patchLayout(tab, (prev) => prev.filter((b) => b.id !== selectedId));
       setSelectedId(null);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId, tab]);
 
+  function patchLayout(format: DekontPaperFormat, fn: (blocks: DekontBlock[]) => DekontBlock[]) {
+    setDraft((prev) => {
+      const cur = ensureLayout(prev, format);
+      const nextBlocks = fn(cur.blocks);
+      if (format === 'fis') return { ...prev, fis: { blocks: nextBlocks } };
+      if (format === 'a5') return { ...prev, a5: { blocks: nextBlocks } };
+      return { ...prev, a4: { blocks: nextBlocks } };
+    });
+  }
+
   function updateBlock(id: string, patch: Partial<DekontBlock>) {
-    setDraft((prev) => ({
-      ...prev,
-      fis: {
-        blocks: prev.fis.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-      },
-    }));
+    patchLayout(tab, (list) => list.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   }
 
   function addVariable(type: DekontBlockType) {
@@ -135,18 +168,18 @@ export default function DekontSettingsPage() {
       y: Math.min(70, 8 + (blocks.length % 10) * 6),
       z: maxZ + 1,
     });
-    setDraft((prev) => ({
-      ...prev,
-      fis: { blocks: [...prev.fis.blocks, block] },
-    }));
+    patchLayout(tab, (list) => [...list, block]);
     setSelectedId(block.id);
   }
 
-  function resetFis() {
-    setDraft((prev) => ({
-      ...prev,
-      fis: { blocks: getDefaultFisBlocks() },
-    }));
+  function resetCurrent() {
+    if (tab === 'fis') {
+      setDraft((prev) => ({ ...prev, fis: { blocks: getDefaultFisBlocks() } }));
+    } else if (tab === 'a5') {
+      setDraft((prev) => ({ ...prev, a5: { blocks: getDefaultSheetBlocks() } }));
+    } else {
+      setDraft((prev) => ({ ...prev, a4: { blocks: getDefaultSheetBlocks() } }));
+    }
     setSelectedId(null);
   }
 
@@ -160,8 +193,17 @@ export default function DekontSettingsPage() {
     setError(null);
     setSaveOk(false);
     try {
-      const data = await api.patch<DekontSettings>('/api/settings/dekont', draft, token);
-      const next = cloneSettings(data);
+      const payload: DekontSettings = {
+        fis: draft.fis,
+        a5: draft.a5?.blocks?.length ? draft.a5 : { blocks: getDefaultSheetBlocks() },
+        a4: draft.a4?.blocks?.length ? draft.a4 : { blocks: getDefaultSheetBlocks() },
+      };
+      const data = await api.patch<DekontSettings>('/api/settings/dekont', payload, token);
+      const next = cloneSettings({
+        fis: data.fis,
+        a5: data.a5 ?? { blocks: getDefaultSheetBlocks() },
+        a4: data.a4 ?? { blocks: getDefaultSheetBlocks() },
+      });
       setDraft(next);
       setBaseline(cloneSettings(next));
       setSaveOk(true);
@@ -174,19 +216,19 @@ export default function DekontSettingsPage() {
   }
 
   return (
-    <div ref={rootRef} className="space-y-4">
+    <div ref={rootRef} className="space-y-4 pb-8">
       <div data-anim className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--panel-ink)]">Dekont Ayarları</h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">
-            80mm fiş düzenini sürükleyerek düzenleyin. Değişkenler örnek içerikle gösterilir.
+            Fiş, A5 ve A4 düzenlerini sürükleyerek düzenleyin. Önizleme örnek içerik gösterir.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={loading || saving}
-            onClick={resetFis}
+            onClick={resetCurrent}
             className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-50"
           >
             Sıfırla
@@ -205,28 +247,45 @@ export default function DekontSettingsPage() {
         </div>
       </div>
 
-      <div data-anim className="flex rounded-xl border border-[var(--panel-line)] p-0.5 w-fit">
-        {(
-          [
-            { id: 'fis' as const, label: 'Fiş (80mm)' },
-            { id: 'a5' as const, label: 'A5' },
-            { id: 'a4' as const, label: 'A4' },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={[
-              'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-              tab === t.id
-                ? 'bg-[var(--color-brand-600)] text-white'
-                : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]',
-            ].join(' ')}
+      <div data-anim className="flex flex-wrap items-center gap-3">
+        <div className="flex rounded-xl border border-[var(--panel-line)] p-0.5 w-fit">
+          {(
+            [
+              { id: 'fis' as const, label: 'Fiş (80mm)' },
+              { id: 'a5' as const, label: 'A5' },
+              { id: 'a4' as const, label: 'A4' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={[
+                'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                tab === t.id
+                  ? 'bg-[var(--color-brand-600)] text-white'
+                  : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]',
+              ].join(' ')}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <label className="flex items-center gap-2 text-xs text-[var(--panel-muted)]">
+          <span className="font-semibold">Önizleme tipi</span>
+          <select
+            value={previewKind}
+            onChange={(e) => setPreviewKind(e.target.value as DekontPreviewSlipKind)}
+            className="rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-2.5 py-1.5 text-xs font-semibold text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)]"
           >
-            {t.label}
-          </button>
-        ))}
+            {DEKONT_PREVIEW_SLIP_OPTIONS.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {error ? (
@@ -237,23 +296,12 @@ export default function DekontSettingsPage() {
 
       {loading ? (
         <p className="text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
-      ) : tab !== 'fis' ? (
-        <div
-          data-anim
-          className="rounded-2xl border border-dashed border-[var(--panel-line)] bg-[var(--panel-surface)]/40 px-6 py-16 text-center"
-        >
-          <p className="text-base font-semibold text-[var(--panel-ink)]">Yakında</p>
-          <p className="mt-2 text-sm text-[var(--panel-muted)]">
-            {tab.toUpperCase()} düzeni henüz Canva editöründe yok — canlı dekontta mevcut kutu düzeni
-            kullanılır. Veri modeli hazır.
-          </p>
-        </div>
       ) : (
-        <div data-anim className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="rounded-2xl border border-[var(--panel-line)] bg-[#e8eef4] p-4 sm:p-6">
+        <div data-anim className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="rounded-2xl border border-[var(--panel-line)] bg-[#e8eef4] p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                Tuval · 80mm
+                Tuval · {PAPER_CSS[tab].label}
               </p>
               {selected ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -274,10 +322,7 @@ export default function DekontSettingsPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setDraft((prev) => ({
-                        ...prev,
-                        fis: { blocks: prev.fis.blocks.filter((b) => b.id !== selected.id) },
-                      }));
+                      patchLayout(tab, (list) => list.filter((b) => b.id !== selected.id));
                       setSelectedId(null);
                     }}
                     className="rounded-lg border border-red-300/70 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
@@ -290,11 +335,12 @@ export default function DekontSettingsPage() {
                 <p className="text-[11px] text-[var(--panel-muted)]">Blok seçin veya sağdan ekleyin</p>
               )}
             </div>
-            <div className="flex justify-center overflow-auto">
+            <div className="flex justify-center">
               <DekontTemplateView
                 blocks={blocks}
                 ctx={sampleCtx}
                 mode="edit"
+                format={tab}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 onMove={(id, x, y) => updateBlock(id, { x, y })}
@@ -305,14 +351,12 @@ export default function DekontSettingsPage() {
           </div>
 
           <aside className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
               Değişkenler
             </p>
-            <p className="mb-3 text-[11px] text-[var(--panel-muted)]">
-              Tıklayın → tuvale eklenir
-            </p>
-            <ul className="max-h-[min(70vh,640px)] space-y-2 overflow-y-auto pr-1">
-              {DEKONT_VARIABLE_META.map((v) => (
+            <p className="mb-3 text-[11px] text-[var(--panel-muted)]">Tıklayın → tuvale eklenir</p>
+            <ul className="space-y-2">
+              {palette.map((v) => (
                 <li key={v.type}>
                   <button
                     type="button"

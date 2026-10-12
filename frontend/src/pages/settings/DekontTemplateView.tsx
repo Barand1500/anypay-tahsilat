@@ -4,11 +4,20 @@ import {
   dekontSlipTitle,
   formatMoneyDisplay,
   formatMoneyTr,
+  formatTxDate,
   maskCardForDekont,
+  maskIdentityForDekont,
+  maskPhoneForDekont,
   splitTxDateTime,
   type Transaction,
 } from '../transactions/transactionTypes';
-import type { DekontBlock, DekontBlockType, DekontSampleContext } from './dekontTypes';
+import {
+  PAPER_CSS,
+  type DekontBlock,
+  type DekontBlockType,
+  type DekontPaperFormat,
+  type DekontSampleContext,
+} from './dekontTypes';
 
 export type DekontRenderCtx = {
   brandLogoUrl: string;
@@ -20,6 +29,7 @@ export type DekontRenderCtx = {
   merchantPhone: string;
   date: string;
   time: string;
+  atLabel: string;
   transactionNo: string;
   authCode: string;
   referenceNo: string;
@@ -34,6 +44,14 @@ export type DekontRenderCtx = {
   legalLine: string;
   threeDSecure?: boolean;
   amountInWords?: string;
+  dekontNo: string;
+  identityNo: string;
+  holderPhone: string;
+  description: string;
+  amountOnly: string;
+  commissionOnly: string;
+  legalBox1: string;
+  legalBox2: string;
 };
 
 export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknoloji'): DekontRenderCtx {
@@ -47,20 +65,29 @@ export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknol
     merchantPhone: s.merchantPhone,
     date: s.date,
     time: s.time,
+    atLabel: `${s.date} ${s.time}`,
     transactionNo: s.transactionNo,
     authCode: s.authCode,
     referenceNo: s.referenceNo,
     cardHolderName: s.cardHolderName,
     cardMasked: s.cardMasked,
     installments: s.installments,
-    status: 'paid',
+    status: s.status,
     slipTitle: s.slipTitle,
     amountLabel: s.amountLabel,
     amountTotal: s.amountTotal,
-    amountDetail: s.amountDetail,
+    amountDetail: s.amountDetail || null,
     legalLine: s.legalLine,
     threeDSecure: true,
     amountInWords: 'BİN ELLİ ÜÇ TÜRK LİRASI KIRK KURUŞ',
+    dekontNo: s.dekontNo,
+    identityNo: s.identityNo,
+    holderPhone: s.holderPhone,
+    description: s.description,
+    amountOnly: s.amountOnly,
+    commissionOnly: s.commissionOnly,
+    legalBox1: s.legalBox1,
+    legalBox2: s.legalBox2,
   };
 }
 
@@ -73,7 +100,10 @@ export function ctxFromTransaction(
   const total = tx.amount + tx.commission;
   const money = formatMoneyTr(total);
   const { date, time } = splitTxDateTime(tx.at);
+  const at = formatTxDate(tx.at);
   const isCancelOrRefund = tx.status === 'cancelled' || tx.status === 'refunded';
+  const legal1 = `Kredi kartımdan / banka kartımdan ${money} ₺ tutarın ${d.merchantTitle} adına çekilmesini ve ilgili tutarın üye işyerine aktarılmasını kabul ederim.`;
+  const legal2 = `Banka veya kart kuruluşunun ödemeyi bloke etmesi, iade etmesi veya üye işyerine aktarmaması halinde ${money} ₺ tutarı ${d.merchantTitle}’ne bizzat ödemeyi taahhüt ederim.`;
   return {
     brandLogoUrl: logoUrl,
     brandName: systemName || 'Firma',
@@ -84,6 +114,7 @@ export function ctxFromTransaction(
     merchantPhone: d.merchantPhone || '',
     date,
     time,
+    atLabel: at,
     transactionNo: d.transactionNo || tx.id,
     authCode: d.authCode || '',
     referenceNo: d.referenceNo || '',
@@ -105,6 +136,14 @@ export function ctxFromTransaction(
       : 'TUTAR KARŞILIĞI MAL VEYA HİZMET ALDIM',
     threeDSecure: Boolean(d.threeDSecure),
     amountInWords: amountInWordsTr(total),
+    dekontNo: tx.id,
+    identityNo: maskIdentityForDekont(d.identityNo),
+    holderPhone: maskPhoneForDekont(d.cardHolderPhoneMasked || d.cardHolderPhone),
+    description: d.description || '-',
+    amountOnly: formatMoneyDisplay(tx.amount),
+    commissionOnly: formatMoneyDisplay(tx.commission),
+    legalBox1: legal1,
+    legalBox2: legal2,
   };
 }
 
@@ -112,6 +151,7 @@ type Props = {
   blocks: DekontBlock[];
   ctx: DekontRenderCtx;
   mode: 'edit' | 'print';
+  format?: DekontPaperFormat;
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   onMove?: (id: string, x: number, y: number) => void;
@@ -136,7 +176,15 @@ function alignClass(align: DekontBlock['align']): string {
   return 'text-center items-center';
 }
 
-function BlockContent({ type, ctx, fontScale }: { type: DekontBlockType; ctx: DekontRenderCtx; fontScale: number }) {
+function BlockContent({
+  type,
+  ctx,
+  fontScale,
+}: {
+  type: DekontBlockType;
+  ctx: DekontRenderCtx;
+  fontScale: number;
+}) {
   const fs = (base: number) => ({ fontSize: `${base * fontScale}px` });
   const showInstallment = ctx.installments > 1 && ctx.status === 'paid';
 
@@ -208,7 +256,13 @@ function BlockContent({ type, ctx, fontScale }: { type: DekontBlockType; ctx: De
         </div>
       );
     case 'installmentLine':
-      if (!showInstallment) return <span className="opacity-40" style={fs(10)}>TAKSİT SAYISI: —</span>;
+      if (!showInstallment) {
+        return (
+          <span className="opacity-40" style={fs(10)}>
+            TAKSİT SAYISI: —
+          </span>
+        );
+      }
       return (
         <p className="w-full font-bold" style={fs(10)}>
           TAKSİT SAYISI: {ctx.installments}
@@ -274,19 +328,127 @@ function BlockContent({ type, ctx, fontScale }: { type: DekontBlockType; ctx: De
           MÜŞTERİ NÜSHASI
         </p>
       );
+    case 'docTitle':
+      return (
+        <div
+          className="flex h-full w-full items-center justify-center border border-[#222] px-2 font-bold tracking-wide"
+          style={fs(13)}
+        >
+          SANAL POS E-DEKONT
+        </div>
+      );
+    case 'dekontNoDate':
+      return (
+        <div className="flex w-full justify-between gap-2" style={fs(11)}>
+          <span>
+            Dekont No: <strong>{ctx.dekontNo}</strong>
+          </span>
+          <span className="tabular-nums">{ctx.atLabel}</span>
+        </div>
+      );
+    case 'partiesCards':
+      return (
+        <div className="grid h-full w-full grid-cols-2 gap-1.5" style={fs(10)}>
+          <div className="overflow-hidden border border-[#444] p-1.5">
+            <p className="font-bold leading-snug">{ctx.merchantTitle}</p>
+            <p className="mt-1 leading-relaxed text-[#222]">{ctx.merchantAddress}</p>
+            <p className="mt-1 tabular-nums">{ctx.merchantPhone}</p>
+          </div>
+          <div className="overflow-hidden border border-[#444] p-1.5">
+            <p className="font-bold leading-snug">{ctx.cardHolderName}</p>
+            <p className="mt-1">-</p>
+            <p className="mt-1 tabular-nums">{ctx.holderPhone}</p>
+          </div>
+        </div>
+      );
+    case 'detailTable': {
+      const left: [string, string][] = [
+        ['ONAY ZAMANI', ctx.atLabel],
+        ['REFERANS NO', ctx.referenceNo],
+        ['ADI SOYADI', ctx.cardHolderName],
+        ['T.C. KİMLİK NO', ctx.identityNo],
+        ['TELEFONU', ctx.holderPhone],
+        ['AÇIKLAMA', ctx.description],
+      ];
+      const right: [string, string][] = [
+        ['İŞLEM NO', ctx.transactionNo],
+        ['ONAY KODU', ctx.authCode],
+        ['BANKA', ctx.bankName],
+        ['KART', ctx.cardMasked],
+        ['TAKSİT', String(ctx.installments)],
+        ['TUTAR', ctx.amountOnly],
+        ['KOMİSYON', ctx.commissionOnly],
+        ['TOPLAM', ctx.amountTotal],
+      ];
+      return (
+        <div className="h-full w-full overflow-hidden border border-[#444]" style={fs(10)}>
+          <div className="grid h-full grid-cols-2">
+            <div className="border-r border-[#444]">
+              {left.map(([k, v], i) => (
+                <div
+                  key={k}
+                  className={[
+                    'flex gap-1 px-1.5 py-0.5',
+                    i < left.length - 1 ? 'border-b border-[#ddd]' : '',
+                  ].join(' ')}
+                >
+                  <span className="w-[5.5rem] shrink-0 font-semibold">{k}</span>
+                  <span>:</span>
+                  <span className="min-w-0 flex-1 break-all tabular-nums">{v || '—'}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              {right.map(([k, v], i) => (
+                <div
+                  key={k}
+                  className={[
+                    'flex gap-1 px-1.5 py-0.5',
+                    i < right.length - 1 ? 'border-b border-[#ddd]' : '',
+                    k === 'TOPLAM' ? 'font-bold' : '',
+                  ].join(' ')}
+                >
+                  <span className="w-[5rem] shrink-0 font-semibold">{k}</span>
+                  <span>:</span>
+                  <span className="min-w-0 flex-1 break-all tabular-nums">{v || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    case 'legalBox':
+      return (
+        <div className="flex h-full w-full flex-col justify-between overflow-hidden border border-[#444] p-1.5" style={fs(9)}>
+          <p className="leading-relaxed text-[#222]">{ctx.legalBox1}</p>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <span className="font-semibold">{ctx.cardHolderName}</span>
+            <span className="min-w-[3.5rem] border-t border-[#666] pt-0.5 text-center text-[10px] font-bold">
+              İMZA
+            </span>
+          </div>
+        </div>
+      );
+    case 'amountWords':
+      return (
+        <p className="w-full font-bold uppercase" style={fs(11)}>
+          Yalnız; {ctx.amountInWords || '—'}
+        </p>
+      );
     default:
       return null;
   }
 }
 
 /**
- * Fiş şablonu — edit (tuval) veya print (canlı dekont).
- * Bloklar yüzde konumlu absolute.
+ * Şablon — edit (tuval) veya print. Bloklar yüzde konumlu.
  */
 export function DekontTemplateView({
   blocks,
   ctx,
   mode,
+  format = 'fis',
   selectedId,
   onSelect,
   onMove,
@@ -294,7 +456,9 @@ export function DekontTemplateView({
   className = '',
   style,
 }: Props) {
+  const paper = PAPER_CSS[format];
   const sorted = [...blocks].sort((a, b) => a.z - b.z || a.y - b.y);
+  const maxH = format === 'fis' ? 40 : 55;
 
   function startDrag(e: ReactPointerEvent<HTMLDivElement>, block: DekontBlock) {
     if (mode !== 'edit' || !onMove) return;
@@ -346,7 +510,7 @@ export function DekontTemplateView({
       const dw = ((ev.clientX - startX) / rect.width) * 100;
       const dh = ((ev.clientY - startY) / rect.height) * 100;
       const nw = clamp(snap(origW + dw), 8, 100 - block.x);
-      const nh = clamp(snap(origH + dh), 2, Math.min(40, 100 - block.y));
+      const nh = clamp(snap(origH + dh), 2, Math.min(maxH, 100 - block.y));
       onResize!(block.id, nw, nh);
     }
     function onUp(ev: PointerEvent) {
@@ -362,13 +526,15 @@ export function DekontTemplateView({
     <div
       data-dekont-canvas
       className={[
-        'relative mx-auto overflow-hidden bg-white font-mono text-black',
+        'relative mx-auto overflow-hidden bg-white text-black',
+        format === 'fis' ? 'font-mono' : 'font-sans',
         mode === 'edit' ? 'select-none touch-none' : '',
         className,
       ].join(' ')}
       style={{
-        width: '80mm',
-        aspectRatio: '227 / 720',
+        width: paper.width,
+        aspectRatio: paper.aspectRatio,
+        maxWidth: '100%',
         colorScheme: 'light',
         ...style,
       }}
@@ -411,7 +577,7 @@ export function DekontTemplateView({
           </div>
         );
       })}
-      {mode === 'print' && ctx.amountInWords ? (
+      {mode === 'print' && format === 'fis' && ctx.amountInWords ? (
         <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-[8px] text-[#555]">
           Yalnız; {ctx.amountInWords}
         </p>
@@ -430,7 +596,7 @@ export function DekontVariablePreview({
 }): ReactNode {
   return (
     <div className="flex h-10 w-full items-center justify-center overflow-hidden rounded-md bg-white px-1 text-black">
-      <div className="max-h-full max-w-full scale-[0.85] origin-center">
+      <div className="max-h-full max-w-full origin-center scale-[0.85]">
         <BlockContent type={type} ctx={ctx} fontScale={0.85} />
       </div>
     </div>

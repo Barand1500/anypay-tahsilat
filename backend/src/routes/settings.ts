@@ -851,6 +851,12 @@ const dekontBlockTypeEnum = z.enum([
   'legalLine',
   'maliDeger',
   'musteriNushasi',
+  'docTitle',
+  'dekontNoDate',
+  'partiesCards',
+  'detailTable',
+  'legalBox',
+  'amountWords',
 ] as [DekontBlockType, ...DekontBlockType[]]);
 
 const dekontBlockSchema = z.object({
@@ -859,7 +865,7 @@ const dekontBlockSchema = z.object({
   x: z.number().min(0).max(100),
   y: z.number().min(0).max(100),
   w: z.number().min(4).max(100),
-  h: z.number().min(2).max(40),
+  h: z.number().min(2).max(55),
   fontScale: z.number().min(0.7).max(1.6),
   align: z.enum(['left', 'center', 'right']),
   z: z.number().int().min(0).max(99),

@@ -9,34 +9,27 @@ import {
   DekontTemplateView,
   ctxFromTransaction,
 } from '../settings/DekontTemplateView';
-import { getDefaultFisBlocks, type DekontBlock } from '../settings/dekontTypes';
 import {
-  amountInWordsTr,
-  dekontBankName,
-  formatMoneyTr,
-  formatMoneyDisplay,
-  formatTxDate,
-  maskCardForDekont,
-  maskIdentityForDekont,
-  maskPhoneForDekont,
-  type Transaction,
-} from './transactionTypes';
+  getDefaultFisBlocks,
+  getDefaultSheetBlocks,
+  type DekontBlock,
+  type DekontPaperFormat,
+} from '../settings/dekontTypes';
+import { type Transaction } from './transactionTypes';
 
 type Props = {
   tx: Transaction;
   onClose: () => void;
 };
 
-type DekontFormat = 'fis' | 'a5' | 'a4';
-
-const FORMAT_TABS: { id: DekontFormat; label: string }[] = [
+const FORMAT_TABS: { id: DekontPaperFormat; label: string }[] = [
   { id: 'fis', label: 'Fiş (80mm)' },
   { id: 'a5', label: 'A5' },
   { id: 'a4', label: 'A4' },
 ];
 
 /** Kağıt genişlikleri (ekran önizleme) */
-const PAPER_WIDTH: Record<DekontFormat, string> = {
+const PAPER_WIDTH: Record<DekontPaperFormat, string> = {
   fis: '80mm',
   a5: '148mm',
   a4: '210mm',
@@ -50,35 +43,39 @@ export function DekontModal({ tx, onClose }: Props) {
   const { token } = useAuth();
   const { logoUrl, systemName } = useBrand();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [format, setFormat] = useState<DekontFormat>('a4');
+  const [format, setFormat] = useState<DekontPaperFormat>('a4');
   const [email, setEmail] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [fisBlocks, setFisBlocks] = useState<DekontBlock[]>(() => getDefaultFisBlocks());
-  const d = tx.dekont;
-  const bankName = dekontBankName(tx);
-  const total = tx.amount + tx.commission;
-  const money = formatMoneyTr(total);
-  const at = formatTxDate(tx.at);
-  const isFis = format === 'fis';
-  const fisCtx = useMemo(
+  const [layouts, setLayouts] = useState<Record<DekontPaperFormat, DekontBlock[]>>(() => ({
+    fis: getDefaultFisBlocks(),
+    a5: getDefaultSheetBlocks(),
+    a4: getDefaultSheetBlocks(),
+  }));
+  const renderCtx = useMemo(
     () => ctxFromTransaction(tx, logoUrl, systemName),
     [tx, logoUrl, systemName],
   );
+  const activeBlocks = layouts[format];
 
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     void (async () => {
       try {
-        const data = await api.get<{ fis?: { blocks?: DekontBlock[] } }>(
-          '/api/settings/dekont',
-          token,
-        );
+        const data = await api.get<{
+          fis?: { blocks?: DekontBlock[] };
+          a5?: { blocks?: DekontBlock[] } | null;
+          a4?: { blocks?: DekontBlock[] } | null;
+        }>('/api/settings/dekont', token);
         if (cancelled) return;
-        if (data.fis?.blocks?.length) setFisBlocks(data.fis.blocks.map((b) => ({ ...b })));
+        setLayouts({
+          fis: data.fis?.blocks?.length ? data.fis.blocks.map((b) => ({ ...b })) : getDefaultFisBlocks(),
+          a5: data.a5?.blocks?.length ? data.a5.blocks.map((b) => ({ ...b })) : getDefaultSheetBlocks(),
+          a4: data.a4?.blocks?.length ? data.a4.blocks.map((b) => ({ ...b })) : getDefaultSheetBlocks(),
+        });
       } catch {
-        /* varsayılan fiş */
+        /* varsayılanlar */
       }
     })();
     return () => {
@@ -228,10 +225,6 @@ export function DekontModal({ tx, onClose }: Props) {
     }
   }
 
-  const legal1 = `Kredi kartımdan / banka kartımdan ${money} ₺ tutarın ${d.merchantTitle} adına çekilmesini ve ilgili tutarın üye işyerine aktarılmasını kabul ederim. İşbu belge, tarafıma ait kart ile yapılan işlemin geçerli bir ödeme talimatı olduğunu gösterir.`;
-
-  const legal2 = `Banka veya kart kuruluşunun ödemeyi bloke etmesi, iade etmesi veya üye işyerine aktarmaması halinde ${money} ₺ tutarı ${d.merchantTitle}’ne bizzat ödemeyi taahhüt ederim. Bu dekont, mal/hizmet teslimine ilişkin yazılı delil niteliğindedir.`;
-
   return createPortal(
     <div className="fixed inset-0 z-[11000] flex items-start justify-center overflow-y-auto bg-black/45 p-4 sm:p-6">
       <div
@@ -279,104 +272,17 @@ export function DekontModal({ tx, onClose }: Props) {
           <div className="mx-auto" style={{ width: PAPER_WIDTH[format], maxWidth: '100%' }}>
             <div
               id="dekont-print-root"
-              className={[
-                'rounded-sm border border-[#c5cdd6] bg-white text-black shadow-sm',
-                isFis ? 'p-3 font-mono text-[10px] leading-snug' : 'p-4 text-[13px] sm:p-5',
-              ].join(' ')}
+              className="rounded-sm border border-[#c5cdd6] bg-white p-2 text-black shadow-sm sm:p-3"
               style={{ colorScheme: 'light', width: '100%' }}
             >
-              {isFis ? (
-                <DekontTemplateView
-                  blocks={fisBlocks}
-                  ctx={fisCtx}
-                  mode="print"
-                  className="!w-full shadow-none"
-                  style={{ width: '100%', maxWidth: '80mm' }}
-                />
-              ) : (
-                <>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <img
-                      src={logoUrl}
-                      alt={systemName || 'Şirket'}
-                      className="h-11 w-auto object-contain"
-                    />
-                    <img
-                      src={tx.bankLogo}
-                      alt={tx.bankName}
-                      className="h-9 w-auto max-w-[120px] object-contain"
-                    />
-                  </div>
-
-                  <div className="mb-3 border border-[#222] px-3 py-2 text-center text-sm font-bold tracking-wide text-black">
-                    SANAL POS E-DEKONT
-                  </div>
-
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-black">
-                    <span>
-                      Dekont No: <strong>{tx.id}</strong>
-                    </span>
-                    <span className="tabular-nums">{at}</span>
-                  </div>
-
-                  <div className="mb-3 grid gap-2 sm:grid-cols-2">
-                    <div className="border border-[#444] p-2.5">
-                      <p className="font-bold leading-snug">{d.merchantTitle}</p>
-                      <p className="mt-1.5 text-[11px] leading-relaxed sm:text-[12px]">{d.merchantAddress}</p>
-                      <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">{d.merchantPhone}</p>
-                    </div>
-                    <div className="border border-[#444] p-2.5">
-                      <p className="font-bold leading-snug">{d.cardHolderName}</p>
-                      <p className="mt-1.5 text-[11px] sm:text-[12px]">-</p>
-                      <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">
-                        {maskPhoneForDekont(d.cardHolderPhoneMasked || d.cardHolderPhone)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mb-0 border border-[#444]">
-                    <div className="grid sm:grid-cols-2">
-                      <div className="border-b border-[#444] sm:border-b-0 sm:border-r">
-                        <Kv label="ONAY ZAMANI" value={at} />
-                        <Kv label="REFERANS NO" value={d.referenceNo} />
-                        <Kv label="ADI SOYADI" value={d.cardHolderName} />
-                        <Kv label="T.C. KİMLİK NO" value={maskIdentityForDekont(d.identityNo)} />
-                        <Kv label="TELEFONU" value={maskPhoneForDekont(d.cardHolderPhone || d.cardHolderPhoneMasked)} />
-                        <Kv label="AÇIKLAMA" value={d.description || '-'} last />
-                      </div>
-                      <div>
-                        <Kv label="İŞLEM NO" value={d.transactionNo} />
-                        <Kv label="ONAY KODU" value={d.authCode || ''} />
-                        <Kv label="BANKA" value={bankName} />
-                        <Kv label="KART" value={maskCardForDekont(d.cardMasked)} />
-                        <Kv label="TAKSİT" value={String(tx.installments)} />
-                        <Kv label="TUTAR" value={`${formatMoneyDisplay(tx.amount)}`} />
-                        <Kv label="KOMİSYON" value={`${formatMoneyDisplay(tx.commission)}`} />
-                        <Kv label="TOPLAM" value={`${money} ₺`} last strong />
-                      </div>
-                    </div>
-
-                    <div className="border-t border-[#444] px-3 py-3">
-                      <p className="text-[12px] font-bold uppercase tracking-wide">
-                        Yalnız; {amountInWordsTr(total)}
-                      </p>
-                      <p className="mt-2 text-center text-[12px]">
-                        Yukarıdaki bedel karşılığında mal veya hizmet aldım.
-                      </p>
-                      {d.threeDSecure ? (
-                        <p className="mt-1 text-center text-[10px] italic text-[#444] sm:text-[11px]">
-                          Bu ödeme 3D Secure güvenli doğrulama ile yapılmıştır.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 space-y-3">
-                    <LegalBox text={legal1} name={d.cardHolderName} />
-                    <LegalBox text={legal2} name={d.cardHolderName} />
-                  </div>
-                </>
-              )}
+              <DekontTemplateView
+                blocks={activeBlocks}
+                ctx={renderCtx}
+                mode="print"
+                format={format}
+                className="!w-full shadow-none"
+                style={{ width: '100%', maxWidth: PAPER_WIDTH[format] }}
+              />
             </div>
           </div>
         </div>
@@ -419,67 +325,6 @@ export function DekontModal({ tx, onClose }: Props) {
       </div>
     </div>,
     document.body,
-  );
-}
-
-function Kv({
-  label,
-  value,
-  last,
-  strong,
-  compact,
-}: {
-  label: string;
-  value: string;
-  last?: boolean;
-  strong?: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      className={[
-        'flex gap-1 text-black',
-        compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[12px]',
-        last ? '' : 'border-b border-[#ddd]',
-      ].join(' ')}
-    >
-      <span className={['shrink-0 font-semibold', compact ? 'w-[5.5rem]' : 'w-[7.25rem]'].join(' ')}>
-        {label}
-      </span>
-      <span className="shrink-0">:</span>
-      <span
-        className={[
-          'min-w-0 flex-1 break-all pl-1 tabular-nums',
-          strong ? 'font-bold' : '',
-        ].join(' ')}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function LegalBox({
-  text,
-  name,
-  compact,
-}: {
-  text: string;
-  name: string;
-  compact?: boolean;
-}) {
-  return (
-    <div className={['border border-[#444] text-black', compact ? 'p-2' : 'p-2.5'].join(' ')}>
-      <p className={['leading-relaxed text-[#222]', compact ? 'text-[9px]' : 'text-[11px]'].join(' ')}>
-        {text}
-      </p>
-      <div className={['flex items-end justify-between gap-3', compact ? 'mt-3' : 'mt-5'].join(' ')}>
-        <span className={['font-semibold', compact ? 'text-[10px]' : 'text-[12px]'].join(' ')}>{name}</span>
-        <span className="min-w-[4.5rem] border-t border-[#666] pt-1 text-center text-[11px] font-bold tracking-wide">
-          İMZA
-        </span>
-      </div>
-    </div>
   );
 }
 

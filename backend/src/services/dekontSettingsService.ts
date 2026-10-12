@@ -19,7 +19,13 @@ export type DekontBlockType =
   | 'authRef'
   | 'legalLine'
   | 'maliDeger'
-  | 'musteriNushasi';
+  | 'musteriNushasi'
+  | 'docTitle'
+  | 'dekontNoDate'
+  | 'partiesCards'
+  | 'detailTable'
+  | 'legalBox'
+  | 'amountWords';
 
 export type DekontBlock = {
   id: string;
@@ -60,6 +66,12 @@ const BLOCK_TYPES = new Set<DekontBlockType>([
   'legalLine',
   'maliDeger',
   'musteriNushasi',
+  'docTitle',
+  'dekontNoDate',
+  'partiesCards',
+  'detailTable',
+  'legalBox',
+  'amountWords',
 ]);
 
 function clamp(n: number, min: number, max: number): number {
@@ -81,7 +93,7 @@ function block(
     x: clamp(partial.x, 0, 100),
     y: clamp(partial.y, 0, 100),
     w: clamp(partial.w, 4, 100),
-    h: clamp(partial.h, 2, 40),
+    h: clamp(partial.h, 2, 55),
     fontScale: clamp(partial.fontScale ?? 1, 0.7, 1.6),
     align: partial.align === 'left' || partial.align === 'right' ? partial.align : 'center',
     z: Math.round(clamp(partial.z ?? 1, 0, 99)),
@@ -112,11 +124,27 @@ export function getDefaultFisBlocks(): DekontBlock[] {
   ];
 }
 
+/** A5/A4 kutu düzenine yakın varsayılan */
+export function getDefaultSheetBlocks(): DekontBlock[] {
+  return [
+    block('brandLogo', { x: 4, y: 2, w: 30, h: 6, align: 'left', z: 2 }),
+    block('bankLogo', { x: 66, y: 2, w: 30, h: 6, align: 'right', z: 2 }),
+    block('docTitle', { x: 5, y: 10, w: 90, h: 4, fontScale: 1.1, align: 'center', z: 1 }),
+    block('dekontNoDate', { x: 5, y: 15, w: 90, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
+    block('partiesCards', { x: 5, y: 19, w: 90, h: 11, fontScale: 0.95, align: 'left', z: 1 }),
+    block('detailTable', { x: 5, y: 31.5, w: 90, h: 30, fontScale: 0.85, align: 'left', z: 1 }),
+    block('amountWords', { x: 5, y: 62.5, w: 90, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
+    block('legalBox', { x: 5, y: 67, w: 90, h: 14, fontScale: 0.8, align: 'left', z: 1 }),
+    block('maliDeger', { x: 5, y: 83, w: 90, h: 3, fontScale: 0.95, align: 'center', z: 1 }),
+    block('musteriNushasi', { x: 5, y: 87, w: 90, h: 3, fontScale: 0.9, align: 'center', z: 1 }),
+  ];
+}
+
 export function getDefaultDekontSettings(): DekontSettings {
   return {
     fis: { blocks: getDefaultFisBlocks() },
-    a5: null,
-    a4: null,
+    a5: { blocks: getDefaultSheetBlocks() },
+    a4: { blocks: getDefaultSheetBlocks() },
   };
 }
 
@@ -131,7 +159,7 @@ function normalizeBlock(raw: unknown, i: number): DekontBlock | null {
     x: clamp(Number(b.x), 0, 100),
     y: clamp(Number(b.y), 0, 100),
     w: clamp(Number(b.w), 4, 100),
-    h: clamp(Number(b.h), 2, 40),
+    h: clamp(Number(b.h), 2, 55),
     fontScale: clamp(Number(b.fontScale ?? 1), 0.7, 1.6),
     align: b.align === 'left' || b.align === 'right' ? b.align : 'center',
     z: Math.round(clamp(Number(b.z ?? i), 0, 99)),
@@ -158,8 +186,8 @@ function parseStored(raw: string | null | undefined): DekontSettings | null {
     const fis = normalizeLayout(p.fis) ?? { blocks: getDefaultFisBlocks() };
     return {
       fis,
-      a5: normalizeLayout(p.a5),
-      a4: normalizeLayout(p.a4),
+      a5: normalizeLayout(p.a5) ?? { blocks: getDefaultSheetBlocks() },
+      a4: normalizeLayout(p.a4) ?? { blocks: getDefaultSheetBlocks() },
     };
   } catch {
     return null;

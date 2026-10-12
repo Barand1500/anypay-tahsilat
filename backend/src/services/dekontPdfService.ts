@@ -39,17 +39,6 @@ function asciiSafe(raw: string): string {
     .slice(0, 120);
 }
 
-function drawLine(
-  page: PDFPage,
-  font: PDFFont,
-  text: string,
-  x: number,
-  y: number,
-  size = 10,
-) {
-  page.drawText(asciiSafe(text), { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
-}
-
 function pageSize(format: DekontPdfFormat): [number, number] {
   if (format === 'fis') return [227, 720]; // ~80mm x uzun fiş
   if (format === 'a5') return [420, 595];
@@ -218,17 +207,26 @@ type FisPdfCtx = {
   merchantPhone: string;
   date: string;
   time: string;
+  atLabel: string;
+  dekontNo: string;
   transactionNo: string;
   authCode: string;
   referenceNo: string;
   cardHolderName: string;
   cardMasked: string;
+  identityNo: string;
+  holderPhone: string;
+  description: string;
+  amountOnly: string;
+  commissionOnly: string;
   installments: number;
   status: string;
   slipTitle: string;
   amountTotal: string;
   amountDetail: string | null;
   legalLine: string;
+  legalBox1: string;
+  amountInWords: string;
   threeDSecure: boolean;
 };
 
@@ -294,15 +292,47 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       return [{ text: 'MALI DEGERI YOKTUR', bold: true, size: 7 }];
     case 'musteriNushasi':
       return [{ text: 'MUSTERI NUSHASI', bold: true, size: 7 }];
+    case 'docTitle':
+      return [{ text: 'SANAL POS E-DEKONT', bold: true, size: 12 }];
+    case 'dekontNoDate':
+      return [
+        { text: `Dekont No: ${ctx.dekontNo}     ${ctx.atLabel}`, bold: false, size: 8 },
+      ];
+    case 'partiesCards':
+      return [
+        { text: ctx.merchantTitle || '-', bold: true, size: 8 },
+        { text: ctx.merchantAddress || '', bold: false, size: 7 },
+        { text: ctx.merchantPhone || '', bold: false, size: 7 },
+        { text: ctx.cardHolderName || '-', bold: true, size: 8 },
+        { text: ctx.holderPhone || '', bold: false, size: 7 },
+      ];
+    case 'detailTable':
+      return [
+        { text: `ONAY: ${ctx.atLabel}  REF: ${ctx.referenceNo}`, bold: false, size: 7 },
+        { text: `ISLEM: ${ctx.transactionNo}  ONAY KODU: ${ctx.authCode}`, bold: false, size: 7 },
+        { text: `KART: ${ctx.cardMasked}  TAKSIT: ${ctx.installments}`, bold: false, size: 7 },
+        {
+          text: `TUTAR: ${ctx.amountOnly}  KOMISYON: ${ctx.commissionOnly}  TOPLAM: ${ctx.amountTotal}`,
+          bold: true,
+          size: 8,
+        },
+      ];
+    case 'legalBox':
+      return [
+        { text: ctx.legalBox1, bold: false, size: 6.5 },
+        { text: `${ctx.cardHolderName}                    IMZA`, bold: true, size: 7 },
+      ];
+    case 'amountWords':
+      return [{ text: `Yalniz; ${ctx.amountInWords}`, bold: true, size: 8 }];
     default:
       return [];
   }
 }
 
-/** 80mm POS slip PDF — kayıtlı fiş bloklarına göre */
-async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
+/** Kayıtlı blok şablonuna göre PDF (fis / a5 / a4) */
+async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Promise<Buffer> {
   const doc = await PDFDocument.create();
-  const [w, h] = pageSize('fis');
+  const [w, h] = pageSize(format);
   const page = doc.addPage([w, h]);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -319,7 +349,13 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
   }
 
   const settings = await getDekontSettings();
-  const blocks = [...settings.fis.blocks].sort((a, b) => a.z - b.z || a.y - b.y);
+  const layout =
+    format === 'fis'
+      ? settings.fis
+      : format === 'a5'
+        ? settings.a5
+        : settings.a4;
+  const blocks = [...(layout?.blocks ?? [])].sort((a, b) => a.z - b.z || a.y - b.y);
 
   const legal =
     tx.status === 'refunded'
@@ -328,6 +364,7 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
         ? 'TUTAR KARSILIGI ISLEM IPTAL EDILMISTIR'
         : 'TUTAR KARSILIGI MAL VEYA HIZMET ALDIM';
 
+  const moneyStr = money(total);
   const ctx: FisPdfCtx = {
     brandLogoUrl,
     bankLogoUrl: tx.bankLogo || '',
@@ -337,20 +374,29 @@ async function buildFisSlipPdf(tx: PublicPaymentRow): Promise<Buffer> {
     merchantPhone: d.merchantPhone || '',
     date,
     time,
+    atLabel: `${date} ${time}`,
+    dekontNo: tx.id,
     transactionNo: d.transactionNo || tx.id,
     authCode: d.authCode || '',
     referenceNo: d.referenceNo || '',
     cardHolderName: d.cardHolderName || '',
     cardMasked: maskCard(d.cardMasked || ''),
+    identityNo: maskIdentity(d.identityNo || ''),
+    holderPhone: maskPhone(d.cardHolderPhone || d.cardHolderPhoneMasked || ''),
+    description: d.description || '-',
+    amountOnly: money(tx.amount),
+    commissionOnly: money(tx.commission),
     installments: tx.installments,
     status: tx.status,
     slipTitle: slipTitle(tx),
-    amountTotal: `${money(total)} TL`,
+    amountTotal: `${moneyStr} TL`,
     amountDetail:
       tx.commission > 0
         ? `Tutar ${money(tx.amount)} · Komisyon ${money(tx.commission)}`
         : null,
     legalLine: legal,
+    legalBox1: `Kredi kartimdan ${moneyStr} TL tutarin ${d.merchantTitle || ''} adina cekilmesini kabul ederim.`,
+    amountInWords: '',
     threeDSecure: Boolean(d.threeDSecure),
   };
 
@@ -390,87 +436,7 @@ export async function buildDekontPdf(
   tx: PublicPaymentRow,
   format: DekontPdfFormat = 'a4',
 ): Promise<Buffer> {
-  if (format === 'fis') return buildFisSlipPdf(tx);
-
-  const doc = await PDFDocument.create();
-  const [w, h] = pageSize(format);
-  const page = doc.addPage([w, h]);
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const d = tx.dekont;
-  const total = tx.amount + tx.commission;
-  const margin = 40;
-  const titleSize = 14;
-  const bodySize = 9;
-  let y = h - 42;
-
-  const title = 'SANAL POS E-DEKONT';
-  page.drawText(title, {
-    x: Math.max(margin, (w - bold.widthOfTextAtSize(title, titleSize)) / 2),
-    y,
-    size: titleSize,
-    font: bold,
-    color: rgb(0, 0, 0),
-  });
-  y -= 26;
-
-  drawLine(page, font, `Dekont No: ${tx.id}`, margin, y, bodySize);
-  y -= 14;
-  drawLine(page, font, `Tarih: ${new Date(tx.at).toLocaleString('tr-TR')}`, margin, y, bodySize);
-  y -= 14;
-  drawLine(page, bold, `Banka: ${tx.bankName}`, margin, y, bodySize);
-  y -= 12;
-  drawLine(page, font, `Musteri: ${tx.customerTitle || '-'}`, margin, y, bodySize);
-  y -= 16;
-
-  page.drawRectangle({
-    x: margin,
-    y: y - 4,
-    width: w - margin * 2,
-    height: 1.5,
-    color: rgb(0.2, 0.2, 0.2),
-  });
-  y -= 18;
-
-  const labelW = 110;
-  const rows: [string, string][] = [
-    ['Uye Isyeri', d.merchantTitle],
-    ['Adres', d.merchantAddress || '-'],
-    ['Telefon', d.merchantPhone || '-'],
-    ['Kart Sahibi', d.cardHolderName],
-    ['TC / Vergi No', maskIdentity(d.identityNo || '')],
-    ['Kart', maskCard(d.cardMasked || '')],
-    ['Telefon', maskPhone(d.cardHolderPhone || d.cardHolderPhoneMasked || '')],
-    ['Taksit', String(tx.installments)],
-    ['Tutar', `${money(tx.amount)} TL`],
-    ['Komisyon', `${money(tx.commission)} TL`],
-    ['Toplam', `${money(total)} TL`],
-    ['Referans', d.referenceNo || '-'],
-    ['Islem No', d.transactionNo || '-'],
-    ['Onay Kodu', d.authCode || '-'],
-    ['3D Secure', d.threeDSecure ? 'Evet' : 'Hayir'],
-    ['Aciklama', d.description || '-'],
-  ];
-
-  for (const [label, value] of rows) {
-    if (y < 36) break;
-    drawLine(page, bold, `${label}:`, margin, y, bodySize);
-    drawLine(page, font, value || '-', margin + labelW, y, bodySize);
-    y -= 15;
-  }
-
-  y -= 8;
-  drawLine(
-    page,
-    font,
-    'Bu belge sanal POS isleminin kaydidir.',
-    margin,
-    y,
-    Math.max(7, bodySize - 1),
-  );
-
-  const bytes = await doc.save();
-  return Buffer.from(bytes);
+  return buildBlocksPdf(tx, format);
 }
 
 export function parseDekontFormat(raw: unknown): DekontPdfFormat {
