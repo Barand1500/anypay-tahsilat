@@ -190,19 +190,29 @@ export default function WhatsappSettingsPage() {
         to: string;
         via?: 'template' | 'text';
         messageId?: string;
+        templateWarning?: string;
       }>('/api/settings/whatsapp/test', { phone: testPhone }, token);
-      const viaLabel =
-        data.via === 'template'
-          ? 'hello_world şablonu'
-          : data.via === 'text'
-            ? 'serbest metin (yalnızca 24s penceresi)'
-            : 'Meta';
-      setTestMsg(
-        `Sınama WhatsApp kabul edildi → ${data.to} (${viaLabel})${
-          data.messageId ? ` · id ${data.messageId.slice(0, 18)}…` : ''
-        }`,
-      );
-      setTestOk(true);
+      if (data.via === 'template') {
+        setTestMsg(
+          `Sınama OK (hello_world şablonu) → ${data.to}${
+            data.messageId ? ` · ${data.messageId.slice(0, 22)}…` : ''
+          }. Telefonda işletme numarasından sohbeti kontrol edin.`,
+        );
+        setTestOk(true);
+      } else {
+        // Meta wamid verse bile şablon düştüyse çoğu zaman telefona gelmez
+        setTestMsg(
+          [
+            `Meta serbest metni kabul etti → ${data.to}, ama şablon gönderilemedi.`,
+            'İlk mesaj / 24 saat dışında serbest metin telefona düşmez.',
+            data.templateWarning ? `Şablon hatası: ${data.templateWarning}` : '',
+            'Meta › WhatsApp › Message templates içinde onaylı hello_world (veya TR şablon) oluşturun; Development ise numarayı To listesine ekleyin.',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        );
+        setTestOk(false);
+      }
     } catch (err) {
       setTestMsg(err instanceof Error ? err.message : 'Sınama gönderilemedi');
       setTestOk(false);

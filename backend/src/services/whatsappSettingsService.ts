@@ -184,56 +184,76 @@ type MetaSendResult = { to: string; messageId?: string };
  * Ayarlar sınaması — önce Meta’nın varsayılan hello_world şablonu
  * (ilk temas / 24 saat dışında serbest metin telefona düşmez).
  */
-export async function sendWhatsappTest(
-  phoneRaw: string,
-): Promise<{ sent: true; to: string; via: 'template' | 'text'; messageId?: string }> {
+export async function sendWhatsappTest(phoneRaw: string): Promise<{
+  sent: true;
+  to: string;
+  via: 'template' | 'text';
+  messageId?: string;
+  /** via=text ise şablon neden düştü — UI uyarı için */
+  templateWarning?: string;
+}> {
   const to = normalizeWhatsappTo(phoneRaw);
   if (!to || to.length < 10) throw new SettingsError('Geçerli telefon numarası yok');
 
-  let via: 'template' | 'text' = 'template';
-  let messageId: string | undefined;
-  let content = 'hello_world (şablon sınama)';
-
-  try {
-    const r = await sendWhatsappTemplate(to, 'hello_world', 'en_US');
-    messageId = r.messageId;
-  } catch (templateErr) {
-    // Şablon yoksa / dil farklıysa serbest metin dene (yalnızca 24s penceresinde gelir)
-    const message = `AnyPay Tahsilat WhatsApp sinama. ${new Date().toLocaleString('tr-TR')}`;
-    content = message;
-    via = 'text';
+  const templateLangs = ['en_US', 'en', 'tr', 'tr_TR'];
+  let lastTemplateErr = 'Şablon gönderilemedi';
+  for (const lang of templateLangs) {
     try {
-      const r = await sendWhatsappText(to, message);
-      messageId = r.messageId;
-    } catch (textErr) {
-      const tMsg =
-        templateErr instanceof Error ? templateErr.message : 'Şablon gönderilemedi';
-      const xMsg = textErr instanceof Error ? textErr.message : 'Metin gönderilemedi';
-      throw new SettingsError(
-        [
-          'Sınama mesajı telefona iletilemedi.',
-          `Şablon: ${tMsg}`,
-          `Metin: ${xMsg}`,
-          'Not: Meta’da Development modundaysanız numarayı “To” listesine ekleyin; Live’da onaylı şablon gerekir.',
-        ].join(' '),
-      );
+      const r = await sendWhatsappTemplate(to, 'hello_world', lang);
+      try {
+        const { recordSendHistory } = await import('./sendHistoryService.js');
+        await recordSendHistory({
+          musteriId: null,
+          type: 'whatsapp',
+          recipient: to,
+          content: `[template] hello_world (${lang})`,
+          kaynak: 'whatsapp-test',
+          basarili: true,
+        });
+      } catch {
+        /* opsiyonel */
+      }
+      return { sent: true, to, via: 'template', messageId: r.messageId };
+    } catch (err) {
+      lastTemplateErr = err instanceof Error ? err.message : lastTemplateErr;
     }
   }
 
+  // Şablon yoksa serbest metin — Meta wamid verse bile 24s dışında telefona düşmeyebilir
+  const message = `AnyPay Tahsilat WhatsApp sinama. ${new Date().toLocaleString('tr-TR')}`;
   try {
-    const { recordSendHistory } = await import('./sendHistoryService.js');
-    await recordSendHistory({
-      musteriId: null,
-      type: 'whatsapp',
-      recipient: to,
-      content: `[${via}] ${content}`,
-      kaynak: 'whatsapp-test',
-      basarili: true,
-    });
-  } catch {
-    /* opsiyonel */
+    const r = await sendWhatsappText(to, message);
+    try {
+      const { recordSendHistory } = await import('./sendHistoryService.js');
+      await recordSendHistory({
+        musteriId: null,
+        type: 'whatsapp',
+        recipient: to,
+        content: `[text] ${message}`,
+        kaynak: 'whatsapp-test',
+        basarili: true,
+      });
+    } catch {
+      /* opsiyonel */
+    }
+    return {
+      sent: true,
+      to,
+      via: 'text',
+      messageId: r.messageId,
+      templateWarning: lastTemplateErr,
+    };
+  } catch (textErr) {
+    const xMsg = textErr instanceof Error ? textErr.message : 'Metin gönderilemedi';
+    throw new SettingsError(
+      [
+        'Sınama mesajı telefona iletilemedi.',
+        `Şablon (hello_world): ${lastTemplateErr}`,
+        `Metin: ${xMsg}`,
+        'Meta › Message templates içinde onaylı hello_world olmalı; Development’da numarayı To listesine ekleyin.',
+      ].join(' '),
+    );
   }
-  return { sent: true, to, via, messageId };
 }
 
 async function postWhatsappMessage(
