@@ -14,7 +14,7 @@ export type PaymentPageBadge = {
 
 export type PaymentPageSettings = {
   layout: PaymentPageLayout;
-  /** Mobil: 3 adımlı wizard | dikey yığın (2. tasarım yuvası) */
+  /** Mobil: wizard | tutar hero + bottom sheet */
   mobileLayout: PaymentPageMobileLayout;
   brandLogoHeightPx: number;
   badges: PaymentPageBadge[];

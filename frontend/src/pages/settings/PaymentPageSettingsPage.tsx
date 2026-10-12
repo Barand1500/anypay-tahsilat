@@ -325,8 +325,8 @@ export default function PaymentPageSettingsPage() {
             />
             <MobileLayoutCard
               active={draft.mobileLayout === 'stack'}
-              title="Dikey liste"
-              desc="Mevcut tek sayfa yığın. 2. özel tasarım buraya bağlanacak."
+              title="Tutar hero"
+              desc="Büyük tutar başlığı + kart formu + taksit bottom sheet."
               onClick={() => setMobileLayout('stack')}
               preview="stack"
             />
@@ -512,11 +512,11 @@ function MobileLayoutCard({
           </>
         ) : (
           <>
-            <span className="h-2 rounded bg-[var(--panel-line)]" />
-            <span className="mt-1 h-4 rounded bg-[var(--panel-line)]/70" />
-            <span className="mt-1 h-4 rounded bg-[var(--panel-line)]/70" />
-            <span className="mt-1 h-4 rounded bg-[var(--panel-line)]/70" />
-            <span className="mt-auto h-2 rounded bg-[var(--color-brand-600)]/80" />
+            <span className="h-5 rounded-md bg-[color-mix(in_srgb,var(--color-brand-500)_55%,#0f172a)]" />
+            <span className="mx-auto mt-1 h-2 w-8 rounded bg-[var(--panel-line)]" />
+            <span className="mt-1.5 h-5 rounded bg-[var(--panel-line)]/70" />
+            <span className="mt-1 h-3 rounded bg-[var(--panel-line)]/50" />
+            <span className="mt-auto h-2.5 rounded bg-[var(--color-brand-600)]" />
           </>
         )}
       </div>

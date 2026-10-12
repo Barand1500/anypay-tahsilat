@@ -48,6 +48,7 @@ import {
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
 import { SelectedInstallmentSummary } from './installmentDisplay';
+import { PublicPayMobileHero } from './PublicPayMobileHero';
 import { PublicPayMobileWizard } from './PublicPayMobileWizard';
 import { PayAttachmentChips } from './PayAttachmentChips';
 import {
@@ -416,6 +417,8 @@ export default function PublicPayPage() {
   const alreadyPaid = view.status === 'paid' || !!done;
   const isFullscreen = pageSettings.layout === 'fullscreen';
   const useMobileWizard = pageSettings.mobileLayout === 'wizard';
+  const useMobileHero = pageSettings.mobileLayout === 'stack';
+  const useMobileLayout = useMobileWizard || useMobileHero;
   const headerBadges = (
     pageSettingsReady || pageSettings.badges.length
       ? pageSettings.badges
@@ -573,7 +576,13 @@ export default function PublicPayPage() {
           ].join(' ')}
         >
           {!isFullscreen ? (
-            <header data-anim className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3">
+            <header
+              data-anim
+              className={[
+                'mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3',
+                useMobileHero ? 'hidden lg:flex' : '',
+              ].join(' ')}
+            >
               <img
                 src={logoUrl}
                 alt="Firma logosu"
@@ -585,6 +594,12 @@ export default function PublicPayPage() {
                 <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
               </div>
             </header>
+          ) : null}
+
+          {useMobileHero && !alreadyPaid && !isFullscreen ? (
+            <div className="mb-2 flex justify-end lg:hidden">
+              <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
+            </div>
           ) : null}
 
           {alreadyPaid ? (
@@ -666,9 +681,73 @@ export default function PublicPayPage() {
                 />
               ) : null}
 
+              {useMobileHero && !alreadyPaid ? (
+                <PublicPayMobileHero
+                  logoUrl={logoUrl}
+                  brandLogoHeightPx={pageSettings.brandLogoHeightPx}
+                  badges={headerBadges}
+                  customerTitle={view.customerTitle}
+                  typeLabel={paymentTypeLabel[view.type]}
+                  commissionIncluded={view.commissionIncluded}
+                  currencySymbol={view.currencySymbol || '₺'}
+                  variableAmount={variableAmount}
+                  amountText={amountText}
+                  onAmountText={setAmountText}
+                  payableAmount={payableAmount}
+                  fixedAmount={view.amount}
+                  description={view.description || ''}
+                  files={view.files}
+                  onOpenFile={setPreviewFile}
+                  holder={holder}
+                  tc={tc}
+                  phone={phone}
+                  card={card}
+                  expiry={expiry}
+                  cvc={cvc}
+                  errors={errors}
+                  cardBank={cardBank}
+                  bank={bank}
+                  cardFaulty={cardFaulty}
+                  expiryOk={expiryOk}
+                  expiryFaulty={expiryFaulty}
+                  cvcOk={cvcOk}
+                  cvcFaulty={cvcFaulty}
+                  onHolder={setHolder}
+                  onTc={setTc}
+                  onPhone={setPhone}
+                  onCard={setCard}
+                  onExpiry={setExpiry}
+                  onCvc={setCvc}
+                  clearPhoneError={() =>
+                    setErrors((prev) => {
+                      if (!prev.phone) return prev;
+                      const { phone: _, ...rest } = prev;
+                      return rest;
+                    })
+                  }
+                  installment={installment}
+                  onInstallment={setInstallment}
+                  pricedInstallments={pricedInstallments}
+                  selectedRate={selectedRate}
+                  ratesLoading={ratesLoading}
+                  ratesError={ratesError}
+                  emptyRatesHint={
+                    !ratesLoading && !ratesError && installmentRates.length === 0
+                      ? 'Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.'
+                      : null
+                  }
+                  rateBin={rateBin || null}
+                  onCompare={() => setCompareOpen(true)}
+                  agree={agree}
+                  onAgree={setAgree}
+                  onOpenLegal={setActiveLegalDoc}
+                  saving={saving}
+                />
+              ) : null}
+
               <div
                 className={
-                  useMobileWizard
+                  useMobileLayout
                     ? isFullscreen
                       ? 'hidden space-y-5 lg:block'
                       : 'hidden space-y-4 lg:block'
