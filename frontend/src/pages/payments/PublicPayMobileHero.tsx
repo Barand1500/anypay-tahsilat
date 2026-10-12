@@ -509,7 +509,7 @@ function InstallmentBottomSheet({
                   type="button"
                   onClick={() => onSelect(rate.n)}
                   className={[
-                    'relative min-h-[7.5rem] overflow-hidden rounded-xl border p-3 text-left transition',
+                    'relative min-h-[7.5rem] overflow-visible rounded-xl border p-3 text-left transition',
                     active
                       ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
                       : 'border-[var(--panel-line)] bg-[var(--panel-surface)]',
