@@ -77,7 +77,7 @@ export function InstallmentCardWatermark({
   return (
     <span className="pointer-events-none absolute bottom-1 left-3 z-[2] flex flex-col items-start leading-none">
       {selected ? (
-        <span className="mb-1 rounded-md bg-[var(--color-brand-600)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-sm">
+        <span className="mb-1 inline-flex h-5 items-center justify-center rounded-full bg-[var(--brand-soft-bg)] px-2.5 text-[10px] font-semibold leading-none tracking-wide text-[var(--color-brand-700)] ring-1 ring-[color-mix(in_srgb,var(--color-brand-500)_28%,transparent)]">
           Seçili
         </span>
       ) : null}
