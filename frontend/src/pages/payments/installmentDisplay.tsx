@@ -63,12 +63,25 @@ export function InstallmentBadge({
   );
 }
 
-export function InstallmentCardWatermark({ n, plusN }: { n: number; plusN?: number }) {
+export function InstallmentCardWatermark({
+  n,
+  plusN,
+  selected = false,
+}: {
+  n: number;
+  plusN?: number;
+  selected?: boolean;
+}) {
   const extra = Math.max(0, plusN ?? 0);
   const total = installmentPaymentCount(n, extra);
   return (
-    <span className="pointer-events-none absolute -bottom-3 left-3 inline-flex items-baseline gap-0.5 leading-none">
-      <span className="text-[4.5rem] font-black text-[var(--panel-muted)]/15 sm:text-[5rem]">
+    <span className="pointer-events-none absolute bottom-1 left-3 z-[2] flex flex-col items-start leading-none">
+      {selected ? (
+        <span className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--panel-muted)]/30">
+          Seçili
+        </span>
+      ) : null}
+      <span className="-mb-2 text-[4.5rem] font-black text-[var(--panel-muted)]/15 sm:text-[5rem]">
         {extra > 0 ? total : n}
       </span>
     </span>

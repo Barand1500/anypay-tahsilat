@@ -101,17 +101,20 @@ export function InstallmentPlanSection({
                 aria-pressed={active}
                 onClick={() => onSelect(n)}
                 className={[
-                  'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                  'relative overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                   density === 'dense' ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
                   active
-                    ? 'install-card-selected bg-[var(--panel-hover)]'
+                    ? 'install-card-selected'
                     : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
                 ].join(' ')}
               >
                 {active ? (
-                  <span className="absolute bottom-3 left-3 z-20 rounded-md bg-[var(--color-brand-600)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm">
-                    Seçili
-                  </span>
+                  <>
+                    <span className="install-card-spin-layer" aria-hidden>
+                      <span className="install-card-spin-beam" />
+                    </span>
+                    <span className="install-card-spin-fill" aria-hidden />
+                  </>
                 ) : null}
                 {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
                 {rate.plusN > 0 ? (
@@ -119,17 +122,17 @@ export function InstallmentPlanSection({
                     +{rate.plusN} Ek Taksit
                   </span>
                 ) : null}
-                <InstallmentCardWatermark n={n} plusN={rate.plusN} />
+                <InstallmentCardWatermark n={n} plusN={rate.plusN} selected={active} />
                 <p
                   className={[
-                    'relative text-right text-sm font-semibold',
+                    'relative z-[2] text-right text-sm font-semibold',
                     rate.plusN > 0 ? 'mt-6' : '',
                     active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
                   ].join(' ')}
                 >
                   {formatInstallmentTitle(n, rate.plusN)}
                 </p>
-                <p className="relative mt-1 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
+                <p className="relative z-[2] mt-1 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
                   {formatInstallmentPaymentLine(
                     rate,
                     chargedTotal,
@@ -138,12 +141,12 @@ export function InstallmentPlanSection({
                   )}
                 </p>
                 {showTotalLine ? (
-                  <p className="relative mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
+                  <p className="relative z-[2] mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
                     Toplam {formatMoneyTr(chargedTotal)}
                   </p>
                 ) : null}
                 {paymentCount > 1 && rate.commissionPct > 0 ? (
-                  <p className="relative mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
+                  <p className="relative z-[2] mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
                     {commissionIncluded
                       ? `Vade farkı %${formatMoneyTr(rate.commissionPct)} - ${formatMoneyTr(vadeFarki)}`
                       : `Vade farkı %${formatMoneyTr(rate.commissionPct)}`}
