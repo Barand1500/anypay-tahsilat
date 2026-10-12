@@ -104,13 +104,18 @@ export function InstallmentPlanSection({
                   'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                   density === 'dense' ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
                   active
-                    ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
+                    ? 'install-card-selected bg-[var(--panel-hover)]'
                     : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
                 ].join(' ')}
               >
+                {active ? (
+                  <span className="absolute bottom-3 left-3 z-20 rounded-md bg-[var(--color-brand-600)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm">
+                    Seçili
+                  </span>
+                ) : null}
                 {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
                 {rate.plusN > 0 ? (
-                  <span className="absolute right-3 top-3 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)]">
+                  <span className="absolute right-3 top-3 z-20 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)] ring-1 ring-[var(--color-brand-500)]/25">
                     +{rate.plusN} Ek Taksit
                   </span>
                 ) : null}

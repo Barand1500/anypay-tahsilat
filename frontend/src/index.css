@@ -755,3 +755,57 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
+/* Taksit planı — seçili kart dönen border */
+@keyframes install-border-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.install-card-selected {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent !important;
+  background:
+    linear-gradient(var(--panel-hover), var(--panel-hover)) padding-box,
+    transparent border-box;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-brand-500) 28%, transparent),
+    0 8px 24px color-mix(in srgb, var(--color-brand-500) 16%, transparent);
+}
+
+.install-card-selected::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: calc(0.75rem + 2px);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 38%,
+    color-mix(in srgb, var(--color-brand-400) 55%, transparent) 48%,
+    var(--color-brand-500) 58%,
+    var(--color-brand-400) 68%,
+    transparent 78%,
+    transparent 100%
+  );
+  animation: install-border-spin 2.4s linear infinite;
+}
+
+.install-card-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 0.75rem;
+  background: var(--panel-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .install-card-selected::before {
+    animation: none;
+    background: var(--color-brand-500);
+  }
+}
+
