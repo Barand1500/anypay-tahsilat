@@ -190,29 +190,19 @@ export default function WhatsappSettingsPage() {
         to: string;
         via?: 'template' | 'text';
         messageId?: string;
-        templateWarning?: string;
+        note?: string;
       }>('/api/settings/whatsapp/test', { phone: testPhone }, token);
-      if (data.via === 'template') {
-        setTestMsg(
-          `Sınama OK (hello_world şablonu) → ${data.to}${
-            data.messageId ? ` · ${data.messageId.slice(0, 22)}…` : ''
-          }. Telefonda işletme numarasından sohbeti kontrol edin.`,
-        );
-        setTestOk(true);
-      } else {
-        // Meta wamid verse bile şablon düştüyse çoğu zaman telefona gelmez
-        setTestMsg(
-          [
-            `Meta serbest metni kabul etti → ${data.to}, ama şablon gönderilemedi.`,
-            'İlk mesaj / 24 saat dışında serbest metin telefona düşmez.',
-            data.templateWarning ? `Şablon hatası: ${data.templateWarning}` : '',
-            'Meta › WhatsApp › Message templates içinde onaylı hello_world (veya TR şablon) oluşturun; Development ise numarayı To listesine ekleyin.',
-          ]
-            .filter(Boolean)
-            .join(' '),
-        );
-        setTestOk(false);
-      }
+      const viaLabel = data.via === 'template' ? 'şablon' : 'serbest metin';
+      setTestMsg(
+        [
+          `Sınama WhatsApp gönderildi → ${data.to} (${viaLabel})`,
+          data.messageId ? `id ${data.messageId.slice(0, 22)}…` : '',
+          data.note || '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      );
+      setTestOk(true);
     } catch (err) {
       setTestMsg(err instanceof Error ? err.message : 'Sınama gönderilemedi');
       setTestOk(false);
@@ -449,8 +439,8 @@ export default function WhatsappSettingsPage() {
         <div className="mb-4">
           <h2 className="text-base font-bold text-[var(--panel-ink)]">WhatsApp Gönderim Sınama</h2>
           <p className="mt-0.5 text-xs text-[var(--panel-muted)]">
-            Meta’nın hello_world şablonu ile sınar (ilk mesajda serbest metin telefona düşmez).
-            Development modunda numarayı Meta › API Setup › To listesine ekleyin.
+            Önce serbest metin dener (açık sohbet varsa telefona düşer). Olmazsa şablon dener.
+            hello_world yalnızca Meta test numarasından gider; kendi numaranız için onaylı şablon gerekir.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
