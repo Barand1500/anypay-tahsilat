@@ -18,6 +18,7 @@ import {
   DEFAULT_PAYMENT_PAGE,
   type PaymentPageBadge,
   type PaymentPageLayout,
+  type PaymentPageMobileLayout,
   type PaymentPageSettings,
 } from './paymentPageTypes';
 
@@ -38,6 +39,7 @@ function fileToDataUrl(file: File): Promise<string> {
 function cloneSettings(s: PaymentPageSettings): PaymentPageSettings {
   return {
     layout: s.layout,
+    mobileLayout: s.mobileLayout === 'stack' ? 'stack' : 'wizard',
     brandLogoHeightPx: s.brandLogoHeightPx,
     badges: s.badges.map((b) => ({ ...b })),
   };
@@ -46,6 +48,7 @@ function cloneSettings(s: PaymentPageSettings): PaymentPageSettings {
 function settingsKey(s: PaymentPageSettings): string {
   return JSON.stringify({
     layout: s.layout,
+    mobileLayout: s.mobileLayout,
     brandLogoHeightPx: s.brandLogoHeightPx,
     badges: s.badges.map((b) => ({
       id: b.id,
@@ -85,6 +88,7 @@ export default function PaymentPageSettingsPage() {
       const data = await api.get<PaymentPageSettings>('/api/settings/payment-page', token);
       const next = cloneSettings({
         layout: data.layout === 'fullscreen' ? 'fullscreen' : 'compact',
+        mobileLayout: data.mobileLayout === 'stack' ? 'stack' : 'wizard',
         brandLogoHeightPx: data.brandLogoHeightPx || 40,
         badges: Array.isArray(data.badges) && data.badges.length ? data.badges : DEFAULT_PAYMENT_PAGE.badges,
       });
@@ -118,6 +122,10 @@ export default function PaymentPageSettingsPage() {
 
   function setLayout(layout: PaymentPageLayout) {
     setDraft((d) => ({ ...d, layout }));
+  }
+
+  function setMobileLayout(mobileLayout: PaymentPageMobileLayout) {
+    setDraft((d) => ({ ...d, mobileLayout }));
   }
 
   function setLogoHeight(n: number) {
@@ -206,6 +214,7 @@ export default function PaymentPageSettingsPage() {
     try {
       const payload = {
         layout: draft.layout,
+        mobileLayout: draft.mobileLayout,
         brandLogoHeightPx: draft.brandLogoHeightPx,
         badges: draft.badges.map((b, i) => ({
           id: b.id.startsWith('tmp_') ? undefined : b.id,
@@ -250,7 +259,7 @@ export default function PaymentPageSettingsPage() {
             <h2 className="text-base font-bold text-[var(--panel-ink)]">Ödeme sayfası</h2>
             <p className="mt-0.5 text-sm text-[var(--panel-muted)]">
               Müşteriye giden <span className="font-medium text-[var(--panel-ink)]">/pay</span> linkinin
-              düzeni, logo boyutu ve üstteki ödeme rozetleri.
+              masaüstü düzeni, telefon tasarımı, logo boyutu ve ödeme rozetleri.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -294,6 +303,32 @@ export default function PaymentPageSettingsPage() {
               desc="Sol marka paneli, sağda tutar şeridi ve form."
               onClick={() => setLayout('fullscreen')}
               preview="fullscreen"
+            />
+          </div>
+        </section>
+
+        <section
+          data-anim
+          className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)]"
+        >
+          <h3 className="text-sm font-bold text-[var(--panel-ink)]">Telefon tasarımı</h3>
+          <p className="mt-1 text-xs text-[var(--panel-muted)]">
+            Yalnızca küçük ekranlarda (&lt; lg) geçerli. Masaüstü / tablet geniş ekran değişmez.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <MobileLayoutCard
+              active={draft.mobileLayout === 'wizard'}
+              title="3 adımlı wizard"
+              desc="Bilgi → Kart → Taksit. Altta Geri / Devam çubuğu."
+              onClick={() => setMobileLayout('wizard')}
+              preview="wizard"
+            />
+            <MobileLayoutCard
+              active={draft.mobileLayout === 'stack'}
+              title="Dikey liste"
+              desc="Mevcut tek sayfa yığın. 2. özel tasarım buraya bağlanacak."
+              onClick={() => setMobileLayout('stack')}
+              preview="stack"
             />
           </div>
         </section>
@@ -436,6 +471,58 @@ export default function PaymentPageSettingsPage() {
         </section>
       </form>
     </div>
+  );
+}
+
+function MobileLayoutCard({
+  active,
+  title,
+  desc,
+  onClick,
+  preview,
+}: {
+  active: boolean;
+  title: string;
+  desc: string;
+  onClick: () => void;
+  preview: 'wizard' | 'stack';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'rounded-2xl border p-4 text-left transition',
+        active
+          ? 'border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_10%,var(--panel-elevated))] shadow-sm'
+          : 'border-[var(--panel-line)] bg-[var(--panel-bg)] hover:border-[var(--color-brand-500)]/40',
+      ].join(' ')}
+    >
+      <div className="mb-3 mx-auto flex h-[88px] w-[52px] flex-col overflow-hidden rounded-[10px] border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-1 shadow-sm">
+        {preview === 'wizard' ? (
+          <>
+            <div className="flex gap-0.5 px-0.5 pt-0.5">
+              <span className="h-1.5 flex-1 rounded-full bg-[var(--color-brand-500)]" />
+              <span className="h-1.5 flex-1 rounded-full bg-[var(--panel-line)]" />
+              <span className="h-1.5 flex-1 rounded-full bg-[var(--panel-line)]" />
+            </div>
+            <span className="mt-1.5 h-3 rounded bg-[color-mix(in_srgb,var(--color-brand-500)_18%,var(--panel-bg))]" />
+            <span className="mt-1 h-8 rounded bg-[var(--panel-line)]/60" />
+            <span className="mt-auto h-2.5 rounded bg-[var(--color-brand-600)]" />
+          </>
+        ) : (
+          <>
+            <span className="h-2 rounded bg-[var(--panel-line)]" />
+            <span className="mt-1 h-4 rounded bg-[var(--panel-line)]/70" />
+            <span className="mt-1 h-4 rounded bg-[var(--panel-line)]/70" />
+            <span className="mt-1 h-4 rounded bg-[var(--panel-line)]/70" />
+            <span className="mt-auto h-2 rounded bg-[var(--color-brand-600)]/80" />
+          </>
+        )}
+      </div>
+      <p className="text-sm font-bold text-[var(--panel-ink)]">{title}</p>
+      <p className="mt-0.5 text-xs text-[var(--panel-muted)]">{desc}</p>
+    </button>
   );
 }
 

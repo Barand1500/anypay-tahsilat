@@ -1,5 +1,8 @@
 export type PaymentPageLayout = 'compact' | 'fullscreen';
 
+/** Telefon (< lg) görünümü — masaüstü düzenini etkilemez */
+export type PaymentPageMobileLayout = 'wizard' | 'stack';
+
 export type PaymentPageBadge = {
   id: string;
   name: string;
@@ -11,12 +14,15 @@ export type PaymentPageBadge = {
 
 export type PaymentPageSettings = {
   layout: PaymentPageLayout;
+  /** Mobil: 3 adımlı wizard | dikey yığın (2. tasarım yuvası) */
+  mobileLayout: PaymentPageMobileLayout;
   brandLogoHeightPx: number;
   badges: PaymentPageBadge[];
 };
 
 export const DEFAULT_PAYMENT_PAGE: PaymentPageSettings = {
   layout: 'compact',
+  mobileLayout: 'wizard',
   brandLogoHeightPx: 40,
   badges: [
     { id: 'iyzico', name: 'iyzico', src: '/payments/iyzico.jpg', heightPx: 28, active: true, sortOrder: 0 },

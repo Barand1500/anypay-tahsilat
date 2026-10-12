@@ -8,6 +8,7 @@ import {
 } from './settingsService.js';
 
 export type PaymentPageLayout = 'compact' | 'fullscreen';
+export type PaymentPageMobileLayout = 'wizard' | 'stack';
 
 export type PaymentPageBadge = {
   id: string;
@@ -20,12 +21,14 @@ export type PaymentPageBadge = {
 
 export type PaymentPageSettings = {
   layout: PaymentPageLayout;
+  mobileLayout: PaymentPageMobileLayout;
   brandLogoHeightPx: number;
   badges: PaymentPageBadge[];
 };
 
 export type UpdatePaymentPageInput = {
   layout: PaymentPageLayout;
+  mobileLayout: PaymentPageMobileLayout;
   brandLogoHeightPx: number;
   badges: Array<{
     id?: string;
@@ -62,9 +65,14 @@ const DEFAULT_BADGES: PaymentPageBadge[] = [
 
 const DEFAULT_SETTINGS: PaymentPageSettings = {
   layout: 'compact',
+  mobileLayout: 'wizard',
   brandLogoHeightPx: 40,
   badges: DEFAULT_BADGES,
 };
+
+function parseMobileLayout(raw: unknown): PaymentPageMobileLayout {
+  return raw === 'stack' ? 'stack' : 'wizard';
+}
 
 function clampLogoHeight(n: number): number {
   if (!Number.isFinite(n)) return DEFAULT_SETTINGS.brandLogoHeightPx;
@@ -120,6 +128,7 @@ function parseStored(raw: string | null | undefined): PaymentPageSettings | null
   try {
     const p = JSON.parse(raw) as Partial<PaymentPageSettings>;
     const layout: PaymentPageLayout = p.layout === 'fullscreen' ? 'fullscreen' : 'compact';
+    const mobileLayout = parseMobileLayout(p.mobileLayout);
     const brandLogoHeightPx = clampLogoHeight(Number(p.brandLogoHeightPx));
     const badgesIn = Array.isArray(p.badges) ? p.badges : [];
     const badges: PaymentPageBadge[] = badgesIn
@@ -143,6 +152,7 @@ function parseStored(raw: string | null | undefined): PaymentPageSettings | null
 
     return {
       layout,
+      mobileLayout,
       brandLogoHeightPx,
       badges: badges.length ? badges : DEFAULT_BADGES,
     };
@@ -154,6 +164,7 @@ function parseStored(raw: string | null | undefined): PaymentPageSettings | null
 export function getDefaultPaymentPageSettings(): PaymentPageSettings {
   return {
     layout: DEFAULT_SETTINGS.layout,
+    mobileLayout: DEFAULT_SETTINGS.mobileLayout,
     brandLogoHeightPx: DEFAULT_SETTINGS.brandLogoHeightPx,
     badges: DEFAULT_BADGES.map((b) => ({ ...b })),
   };
@@ -169,6 +180,7 @@ export async function getPublicPaymentPageSettings(): Promise<PaymentPageSetting
   const full = await getPaymentPageSettings();
   return {
     layout: full.layout,
+    mobileLayout: full.mobileLayout,
     brandLogoHeightPx: full.brandLogoHeightPx,
     badges: full.badges.filter((b) => b.active),
   };
@@ -178,6 +190,7 @@ export async function updatePaymentPageSettings(
   input: UpdatePaymentPageInput,
 ): Promise<PaymentPageSettings> {
   const layout: PaymentPageLayout = input.layout === 'fullscreen' ? 'fullscreen' : 'compact';
+  const mobileLayout = parseMobileLayout(input.mobileLayout);
   const brandLogoHeightPx = clampLogoHeight(input.brandLogoHeightPx);
 
   if (!Array.isArray(input.badges) || input.badges.length > 24) {
@@ -217,6 +230,7 @@ export async function updatePaymentPageSettings(
 
   const stored: PaymentPageSettings = {
     layout,
+    mobileLayout,
     brandLogoHeightPx,
     badges: normalized.length ? normalized : getDefaultPaymentPageSettings().badges,
   };
