@@ -297,9 +297,9 @@ export default function DekontSettingsPage() {
       {loading ? (
         <p className="text-sm text-[var(--panel-muted)]">Yükleniyor…</p>
       ) : (
-        <div data-anim className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <div className="rounded-2xl border border-[var(--panel-line)] bg-[#e8eef4] p-4 sm:p-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div data-anim className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="flex min-h-0 flex-col rounded-2xl border border-[var(--panel-line)] bg-[#e8eef4] p-4 sm:p-5">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
                 Tuval · {PAPER_CSS[tab].label}
               </p>
@@ -335,7 +335,7 @@ export default function DekontSettingsPage() {
                 <p className="text-[11px] text-[var(--panel-muted)]">Blok seçin veya sağdan ekleyin</p>
               )}
             </div>
-            <div className="flex justify-center">
+            <div className="flex flex-1 justify-center">
               <DekontTemplateView
                 blocks={blocks}
                 ctx={sampleCtx}
@@ -350,12 +350,15 @@ export default function DekontSettingsPage() {
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3">
-            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
-              Değişkenler
-            </p>
-            <p className="mb-3 text-[11px] text-[var(--panel-muted)]">Tıklayın → tuvale eklenir</p>
-            <ul className="space-y-2">
+          {/* lg:h-0 lg:min-h-full → yan yana iken yükseklik tuvale eşit; taşınca iç scroll */}
+          <aside className="flex max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 lg:h-0 lg:max-h-none lg:min-h-full">
+            <div className="shrink-0">
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--panel-muted)]">
+                Değişkenler
+              </p>
+              <p className="mb-3 text-[11px] text-[var(--panel-muted)]">Tıklayın → tuvale eklenir</p>
+            </div>
+            <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
               {palette.map((v) => (
                 <li key={v.type}>
                   <button
