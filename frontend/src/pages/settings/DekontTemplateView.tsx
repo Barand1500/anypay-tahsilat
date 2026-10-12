@@ -203,6 +203,22 @@ function BlockContent({
     );
   }
 
+  if (type === 'customText') {
+    const bordered = block?.border === true;
+    const text = (block?.text || '').trim() || 'İstek metin';
+    return (
+      <div
+        className={[
+          'flex h-full w-full items-start overflow-hidden whitespace-pre-wrap break-words p-1 leading-snug',
+          bordered ? 'border border-[#444]' : '',
+        ].join(' ')}
+        style={fs(10)}
+      >
+        {text}
+      </div>
+    );
+  }
+
   if (type === 'contentBox') {
     const bordered = block?.border !== false;
     const fields = block?.fields?.length
@@ -649,7 +665,7 @@ export function DekontVariablePreview({
           ctx={ctx}
           fontScale={0.85}
           block={
-            type === 'emptyBox' || type === 'contentBox'
+            type === 'emptyBox' || type === 'contentBox' || type === 'customText'
               ? {
                   id: 'preview',
                   type,
@@ -660,11 +676,12 @@ export function DekontVariablePreview({
                   fontScale: 1,
                   align: 'left',
                   z: 1,
-                  border: true,
+                  border: type !== 'customText',
                   fields:
                     type === 'contentBox'
                       ? ['merchantTitle', 'merchantAddress', 'merchantPhone']
                       : [],
+                  text: type === 'customText' ? 'Örnek istek metin' : undefined,
                 }
               : undefined
           }

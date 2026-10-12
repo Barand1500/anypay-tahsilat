@@ -859,6 +859,7 @@ const dekontBlockTypeEnum = z.enum([
   'amountWords',
   'emptyBox',
   'contentBox',
+  'customText',
 ] as [DekontBlockType, ...DekontBlockType[]]);
 
 const dekontContentFieldEnum = z.enum([
@@ -904,6 +905,7 @@ const dekontBlockSchema = z.object({
   z: z.number().int().min(0).max(99),
   border: z.boolean().optional(),
   fields: z.array(dekontContentFieldEnum).max(24).optional(),
+  text: z.string().max(500).optional(),
 });
 
 const dekontLayoutSchema = z.object({

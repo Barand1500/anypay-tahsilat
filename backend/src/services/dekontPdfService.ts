@@ -484,8 +484,10 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
       continue;
     }
 
-    if (block.type === 'emptyBox' || block.type === 'contentBox') {
-      if (block.border !== false) {
+    if (block.type === 'emptyBox' || block.type === 'contentBox' || block.type === 'customText') {
+      const showBorder =
+        block.type === 'customText' ? block.border === true : block.border !== false;
+      if (showBorder) {
         page.drawRectangle({
           x: box.x,
           y: box.bottom,
@@ -507,6 +509,26 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
           drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset);
           offset += size + 2;
         }
+      }
+      if (block.type === 'customText') {
+        const raw = (block.text || '').trim() || 'Istek metin';
+        const size = 8 * scale;
+        // Satır satır çiz (basit kelime bölme)
+        const words = asciiSafe(raw).split(/\s+/).filter(Boolean);
+        let line = '';
+        let offset = 4;
+        const maxW = Math.max(20, box.boxW - 6);
+        for (const word of words) {
+          const trial = line ? `${line} ${word}` : word;
+          if (font.widthOfTextAtSize(trial, size) > maxW && line) {
+            drawInBlock(page, font, line, box, size, block.align, offset);
+            offset += size + 2;
+            line = word;
+          } else {
+            line = trial;
+          }
+        }
+        if (line) drawInBlock(page, font, line, box, size, block.align, offset);
       }
       continue;
     }

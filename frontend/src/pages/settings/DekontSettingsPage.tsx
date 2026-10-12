@@ -35,6 +35,7 @@ function cloneBlock(b: DekontBlock): DekontBlock {
   return {
     ...b,
     fields: b.fields ? [...b.fields] : undefined,
+    text: b.text,
   };
 }
 
@@ -406,6 +407,44 @@ export default function DekontSettingsPage() {
                 className="shadow-md"
               />
             </div>
+
+            {selected?.type === 'customText' ? (
+              <div className="mt-3 shrink-0 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-[var(--panel-ink)]">İstek metin</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--panel-muted)]">
+                      <input
+                        type="checkbox"
+                        checked={selected.border === true}
+                        onChange={(e) => updateBlock(selected.id, { border: e.target.checked })}
+                      />
+                      Kenarlık
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        patchLayout(tab, (list) => list.filter((b) => b.id !== selected.id));
+                        setSelectedId(null);
+                      }}
+                      className="rounded-lg border border-red-300/70 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Sil
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={selected.text ?? ''}
+                  onChange={(e) => updateBlock(selected.id, { text: e.target.value.slice(0, 500) })}
+                  rows={3}
+                  placeholder="İstediğiniz yazıyı buraya yazın…"
+                  className="w-full resize-y rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-3 py-2 text-sm text-[var(--panel-ink)] outline-none placeholder:text-[var(--panel-muted)] focus:border-[var(--color-brand-500)]"
+                />
+                <p className="mt-1 text-[10px] text-[var(--panel-muted)]">
+                  En fazla 500 karakter · tuvalde anında görünür
+                </p>
+              </div>
+            ) : null}
 
             {tab !== 'fis' && canEditBoxContent && selected ? (
               <div className="mt-3 shrink-0 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3">

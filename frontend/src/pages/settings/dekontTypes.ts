@@ -28,7 +28,9 @@ export type DekontBlockType =
   | 'amountWords'
   /** Yönetilebilir kutular */
   | 'emptyBox'
-  | 'contentBox';
+  | 'contentBox'
+  /** Serbest / istek metin */
+  | 'customText';
 
 /** contentBox içinde gösterilebilecek alanlar */
 export type DekontContentField =
@@ -110,6 +112,8 @@ export type DekontBlock = {
   border?: boolean;
   /** contentBox — kutuda gösterilecek alanlar (sıra önemli) */
   fields?: DekontContentField[];
+  /** customText — kullanıcının yazdığı serbest metin */
+  text?: string;
 };
 
 export type DekontFormatLayout = { blocks: DekontBlock[] };
@@ -199,6 +203,7 @@ export const DEKONT_VARIABLE_META: Array<{
   { type: 'legalLine', label: 'Yasal satır', hint: 'Mal/hizmet…', fisOnly: true },
   { type: 'maliDeger', label: 'Mali değeri yoktur', hint: 'Alt uyarı', fisOnly: true },
   { type: 'musteriNushasi', label: 'Müşteri nüshası', hint: 'Nüsha', fisOnly: true },
+  { type: 'customText', label: 'İstek metin', hint: 'Serbest yazı — tıkla, yaz' },
 ];
 
 export const PAPER_CSS: Record<
@@ -245,6 +250,7 @@ export function newDekontBlock(
     amountWords: { w: 90, h: 3, fontScale: 0.9, align: 'left' },
     emptyBox: { w: 44, h: 12, fontScale: 1, align: 'left' },
     contentBox: { w: 44, h: 12, fontScale: 0.95, align: 'left' },
+    customText: { w: 90, h: 4, fontScale: 1, align: 'left' },
   };
   const d = defaults[type];
   const base: DekontBlock = {
@@ -268,10 +274,15 @@ export function newDekontBlock(
       ? [...partial.fields]
       : ['merchantTitle', 'merchantAddress', 'merchantPhone'];
   }
-  if (partial?.border !== undefined && type !== 'emptyBox' && type !== 'contentBox') {
+  if (type === 'customText') {
+    base.text = (partial?.text ?? 'İstek metninizi buraya yazın').slice(0, 500);
+    base.border = partial?.border ?? false;
+  }
+  if (partial?.border !== undefined && type !== 'emptyBox' && type !== 'contentBox' && type !== 'customText') {
     base.border = partial.border;
   }
   if (partial?.fields) base.fields = [...partial.fields];
+  if (partial?.text !== undefined && type !== 'customText') base.text = partial.text.slice(0, 500);
   return base;
 }
 

@@ -27,7 +27,8 @@ export type DekontBlockType =
   | 'legalBox'
   | 'amountWords'
   | 'emptyBox'
-  | 'contentBox';
+  | 'contentBox'
+  | 'customText';
 
 export type DekontContentField =
   | 'merchantTitle'
@@ -102,6 +103,7 @@ export type DekontBlock = {
   z: number;
   border?: boolean;
   fields?: DekontContentField[];
+  text?: string;
 };
 
 export type DekontFormatLayout = { blocks: DekontBlock[] };
@@ -139,6 +141,7 @@ const BLOCK_TYPES = new Set<DekontBlockType>([
   'amountWords',
   'emptyBox',
   'contentBox',
+  'customText',
 ]);
 
 function clamp(n: number, min: number, max: number): number {
@@ -185,11 +188,20 @@ function block(
             'merchantPhone',
           ])
         : normalizeFields(partial.fields) ?? [];
+  } else if (type === 'customText') {
+    b.border = Boolean(partial.border);
+    b.text =
+      typeof partial.text === 'string' && partial.text.trim()
+        ? partial.text.trim().slice(0, 500)
+        : 'Istek metninizi buraya yazin';
   } else if (partial.border !== undefined) {
     b.border = Boolean(partial.border);
   }
   if (partial.fields && type !== 'emptyBox' && type !== 'contentBox') {
     b.fields = normalizeFields(partial.fields);
+  }
+  if (typeof partial.text === 'string' && type !== 'customText') {
+    b.text = partial.text.slice(0, 500);
   }
   return b;
 }
@@ -285,11 +297,20 @@ function normalizeBlock(raw: unknown, i: number): DekontBlock | null {
       type === 'contentBox'
         ? (normalizeFields(b.fields) ?? ['merchantTitle', 'merchantAddress', 'merchantPhone'])
         : (normalizeFields(b.fields) ?? []);
+  } else if (type === 'customText') {
+    out.border = Boolean(b.border);
+    out.text =
+      typeof b.text === 'string' && b.text.trim()
+        ? b.text.trim().slice(0, 500)
+        : 'Istek metninizi buraya yazin';
   } else if (b.border !== undefined) {
     out.border = Boolean(b.border);
   }
   if (b.fields && type !== 'emptyBox' && type !== 'contentBox') {
     out.fields = normalizeFields(b.fields);
+  }
+  if (typeof b.text === 'string' && type !== 'customText') {
+    out.text = b.text.slice(0, 500);
   }
   return out;
 }
