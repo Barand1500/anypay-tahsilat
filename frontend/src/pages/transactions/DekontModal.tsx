@@ -7,9 +7,11 @@ import { useBrand } from '../../brand/BrandContext';
 import {
   amountInWordsTr,
   dekontBankName,
+  dekontSlipTitle,
   formatMoneyTr,
   formatMoneyDisplay,
   formatTxDate,
+  splitTxDateTime,
   type Transaction,
 } from './transactionTypes';
 
@@ -247,103 +249,100 @@ export function DekontModal({ tx, onClose }: Props) {
               id="dekont-print-root"
               className={[
                 'rounded-sm border border-[#c5cdd6] bg-white text-black shadow-sm',
-                isFis ? 'p-3 text-[11px]' : 'p-4 text-[13px] sm:p-5',
+                isFis ? 'p-3 font-mono text-[10px] leading-snug' : 'p-4 text-[13px] sm:p-5',
               ].join(' ')}
               style={{ colorScheme: 'light', width: '100%' }}
             >
-              <div
-                className={[
-                  'mb-3 flex items-center gap-3',
-                  isFis ? 'flex-col' : 'justify-between',
-                ].join(' ')}
-              >
-                <img
-                  src={logoUrl}
-                  alt={systemName || 'Şirket'}
-                  className={['w-auto object-contain', isFis ? 'h-9' : 'h-11'].join(' ')}
+              {isFis ? (
+                <FisSlip
+                  tx={tx}
+                  logoUrl={logoUrl}
+                  systemName={systemName}
+                  money={money}
+                  total={total}
                 />
-                <img
-                  src={tx.bankLogo}
-                  alt={tx.bankName}
-                  className={['w-auto max-w-[120px] object-contain', isFis ? 'h-7' : 'h-9'].join(' ')}
-                />
-              </div>
-
-              <div
-                className={[
-                  'mb-3 border border-[#222] text-center font-bold tracking-wide text-black',
-                  isFis ? 'px-2 py-1.5 text-[11px]' : 'px-3 py-2 text-sm',
-                ].join(' ')}
-              >
-                SANAL POS E-DEKONT
-              </div>
-
-              <div
-                className={[
-                  'mb-3 flex gap-2 text-black',
-                  isFis ? 'flex-col text-[10px]' : 'flex-wrap items-center justify-between text-[12px]',
-                ].join(' ')}
-              >
-                <span>
-                  Dekont No: <strong>{tx.id}</strong>
-                </span>
-                <span className="tabular-nums">{at}</span>
-              </div>
-
-              <div className={['mb-3 grid gap-2', isFis ? 'grid-cols-1' : 'sm:grid-cols-2'].join(' ')}>
-                <div className="border border-[#444] p-2.5">
-                  <p className="font-bold leading-snug">{d.merchantTitle}</p>
-                  <p className="mt-1.5 text-[11px] leading-relaxed sm:text-[12px]">{d.merchantAddress}</p>
-                  <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">{d.merchantPhone}</p>
-                </div>
-                <div className="border border-[#444] p-2.5">
-                  <p className="font-bold leading-snug">{d.cardHolderName}</p>
-                  <p className="mt-1.5 text-[11px] sm:text-[12px]">-</p>
-                  <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">{d.cardHolderPhoneMasked}</p>
-                </div>
-              </div>
-
-              <div className="mb-0 border border-[#444]">
-                <div className={['grid', isFis ? 'grid-cols-1' : 'sm:grid-cols-2'].join(' ')}>
-                  <div className={isFis ? 'border-b border-[#444]' : 'border-b border-[#444] sm:border-b-0 sm:border-r'}>
-                    <Kv label="ONAY ZAMANI" value={at} compact={isFis} />
-                    <Kv label="REFERANS NO" value={d.referenceNo} compact={isFis} />
-                    <Kv label="ADI SOYADI" value={d.cardHolderName} compact={isFis} />
-                    <Kv label="T.C. KİMLİK NO" value={d.identityNo} compact={isFis} />
-                    <Kv label="TELEFONU" value={d.cardHolderPhone} compact={isFis} />
-                    <Kv label="AÇIKLAMA" value={d.description || '-'} last compact={isFis} />
+              ) : (
+                <>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <img
+                      src={logoUrl}
+                      alt={systemName || 'Şirket'}
+                      className="h-11 w-auto object-contain"
+                    />
+                    <img
+                      src={tx.bankLogo}
+                      alt={tx.bankName}
+                      className="h-9 w-auto max-w-[120px] object-contain"
+                    />
                   </div>
-                  <div>
-                    <Kv label="İŞLEM NO" value={d.transactionNo} compact={isFis} />
-                    <Kv label="ONAY KODU" value={d.authCode || ''} compact={isFis} />
-                    <Kv label="BANKA" value={bankName} compact={isFis} />
-                    <Kv label="KART" value={d.cardMasked} compact={isFis} />
-                    <Kv label="TAKSİT" value={String(tx.installments)} compact={isFis} />
-                    <Kv label="TUTAR" value={`${formatMoneyDisplay(tx.amount)}`} compact={isFis} />
-                    <Kv label="KOMİSYON" value={`${formatMoneyDisplay(tx.commission)}`} compact={isFis} />
-                    <Kv label="TOPLAM" value={`${money} ₺`} last strong compact={isFis} />
+
+                  <div className="mb-3 border border-[#222] px-3 py-2 text-center text-sm font-bold tracking-wide text-black">
+                    SANAL POS E-DEKONT
                   </div>
-                </div>
 
-                <div className="border-t border-[#444] px-3 py-3">
-                  <p className={['font-bold uppercase tracking-wide', isFis ? 'text-[10px]' : 'text-[12px]'].join(' ')}>
-                    Yalnız; {amountInWordsTr(total)}
-                  </p>
-                  <p className={['mt-2 text-center', isFis ? 'text-[10px]' : 'text-[12px]'].join(' ')}>
-                    Yukarıdaki bedel karşılığında mal veya hizmet aldım.
-                  </p>
-                  {d.threeDSecure ? (
-                    <p className="mt-1 text-center text-[10px] italic text-[#444] sm:text-[11px]">
-                      Bu ödeme 3D Secure güvenli doğrulama ile yapılmıştır.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-black">
+                    <span>
+                      Dekont No: <strong>{tx.id}</strong>
+                    </span>
+                    <span className="tabular-nums">{at}</span>
+                  </div>
 
-              <div className={['mt-3 space-y-3', isFis ? 'space-y-2' : ''].join(' ')}>
-                <LegalBox text={legal1} name={d.cardHolderName} compact={isFis} />
-                {!isFis ? <LegalBox text={legal2} name={d.cardHolderName} /> : null}
-              </div>
+                  <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                    <div className="border border-[#444] p-2.5">
+                      <p className="font-bold leading-snug">{d.merchantTitle}</p>
+                      <p className="mt-1.5 text-[11px] leading-relaxed sm:text-[12px]">{d.merchantAddress}</p>
+                      <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">{d.merchantPhone}</p>
+                    </div>
+                    <div className="border border-[#444] p-2.5">
+                      <p className="font-bold leading-snug">{d.cardHolderName}</p>
+                      <p className="mt-1.5 text-[11px] sm:text-[12px]">-</p>
+                      <p className="mt-1.5 text-[11px] tabular-nums sm:text-[12px]">{d.cardHolderPhoneMasked}</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-0 border border-[#444]">
+                    <div className="grid sm:grid-cols-2">
+                      <div className="border-b border-[#444] sm:border-b-0 sm:border-r">
+                        <Kv label="ONAY ZAMANI" value={at} />
+                        <Kv label="REFERANS NO" value={d.referenceNo} />
+                        <Kv label="ADI SOYADI" value={d.cardHolderName} />
+                        <Kv label="T.C. KİMLİK NO" value={d.identityNo} />
+                        <Kv label="TELEFONU" value={d.cardHolderPhone} />
+                        <Kv label="AÇIKLAMA" value={d.description || '-'} last />
+                      </div>
+                      <div>
+                        <Kv label="İŞLEM NO" value={d.transactionNo} />
+                        <Kv label="ONAY KODU" value={d.authCode || ''} />
+                        <Kv label="BANKA" value={bankName} />
+                        <Kv label="KART" value={d.cardMasked} />
+                        <Kv label="TAKSİT" value={String(tx.installments)} />
+                        <Kv label="TUTAR" value={`${formatMoneyDisplay(tx.amount)}`} />
+                        <Kv label="KOMİSYON" value={`${formatMoneyDisplay(tx.commission)}`} />
+                        <Kv label="TOPLAM" value={`${money} ₺`} last strong />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-[#444] px-3 py-3">
+                      <p className="text-[12px] font-bold uppercase tracking-wide">
+                        Yalnız; {amountInWordsTr(total)}
+                      </p>
+                      <p className="mt-2 text-center text-[12px]">
+                        Yukarıdaki bedel karşılığında mal veya hizmet aldım.
+                      </p>
+                      {d.threeDSecure ? (
+                        <p className="mt-1 text-center text-[10px] italic text-[#444] sm:text-[11px]">
+                          Bu ödeme 3D Secure güvenli doğrulama ile yapılmıştır.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-3">
+                    <LegalBox text={legal1} name={d.cardHolderName} />
+                    <LegalBox text={legal2} name={d.cardHolderName} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -386,6 +385,119 @@ export function DekontModal({ tx, onClose }: Props) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** 80mm termal POS slip — satış / taksit / iptal / iade */
+function FisSlip({
+  tx,
+  logoUrl,
+  systemName,
+  money,
+  total,
+}: {
+  tx: Transaction;
+  logoUrl: string;
+  systemName: string;
+  money: string;
+  total: number;
+}) {
+  const d = tx.dekont;
+  const { date, time } = splitTxDateTime(tx.at);
+  const slipTitle = dekontSlipTitle(tx);
+  const isCancelOrRefund = tx.status === 'cancelled' || tx.status === 'refunded';
+  const showInstallmentLine = tx.installments > 1 && tx.status === 'paid';
+
+  return (
+    <div className="mx-auto max-w-full text-center text-black">
+      <div className="mb-2.5 flex justify-center">
+        <img
+          src={logoUrl}
+          alt={systemName || 'Firma'}
+          className="h-10 w-auto max-w-[70%] object-contain"
+        />
+      </div>
+
+      <p className="text-[9px] font-semibold tracking-wide">BU BELGEYİ SAKLAYINIZ</p>
+      <p className="mt-2 text-[12px] font-bold uppercase leading-tight">{d.merchantTitle}</p>
+      {d.merchantAddress ? (
+        <p className="mt-1 text-[9px] leading-relaxed text-[#222]">{d.merchantAddress}</p>
+      ) : null}
+      {d.merchantPhone ? (
+        <p className="mt-0.5 text-[9px] tabular-nums text-[#222]">{d.merchantPhone}</p>
+      ) : null}
+
+      <p className="mt-2.5 text-[11px] font-bold">{tx.bankName}</p>
+
+      <div className="mt-2.5 space-y-0.5 text-left text-[9px] tabular-nums">
+        <FisRow left={`TARİH: ${date}`} right={`SAAT: ${time}`} />
+        <FisRow left={`İŞLEM NO: ${d.transactionNo || tx.id}`} right={d.authCode ? `ONAY: ${d.authCode}` : ''} />
+        {d.referenceNo ? <FisRow left={`REF: ${d.referenceNo}`} right="" /> : null}
+        {d.cardHolderName && d.cardHolderName !== '—' ? (
+          <p className="pt-0.5">KART SAHİBİ: {d.cardHolderName}</p>
+        ) : null}
+      </div>
+
+      {showInstallmentLine ? (
+        <p className="mt-2.5 text-[10px] font-bold">TAKSİT SAYISI: {tx.installments}</p>
+      ) : null}
+
+      <p className="mt-2 text-[14px] font-bold tracking-wide">{slipTitle}</p>
+      <p className="mt-1.5 text-[11px] tabular-nums tracking-wider">{d.cardMasked}</p>
+
+      <p className="mt-2.5 text-[9px] font-semibold tracking-wide">İŞLEM TUTARI</p>
+      <p className="mt-0.5 text-[18px] font-bold tabular-nums leading-none">{money} TL</p>
+      {tx.commission > 0 ? (
+        <p className="mt-1 text-[9px] tabular-nums text-[#333]">
+          Tutar {formatMoneyDisplay(tx.amount)} · Komisyon {formatMoneyDisplay(tx.commission)}
+        </p>
+      ) : null}
+
+      <p className="mt-2.5 text-[11px] font-bold tracking-wide">İŞLEM ONAYLANDI</p>
+      {d.authCode || d.referenceNo ? (
+        <div className="mt-1.5 space-y-0.5 text-[9px] tabular-nums">
+          {d.authCode ? <p>ONAY KODU: {d.authCode}</p> : null}
+          {d.referenceNo ? <p>BANKA REFERANS: {d.referenceNo}</p> : null}
+        </div>
+      ) : null}
+
+      {d.threeDSecure ? (
+        <p className="mt-1.5 text-[8px] italic text-[#444]">3D Secure ile tamamlanmıştır.</p>
+      ) : null}
+
+      <p className="mt-2.5 text-[8px] leading-relaxed text-[#222]">
+        {isCancelOrRefund
+          ? tx.status === 'refunded'
+            ? 'TUTAR KARŞILIĞI İŞLEM İADE EDİLMİŞTİR'
+            : 'TUTAR KARŞILIĞI İŞLEM İPTAL EDİLMİŞTİR'
+          : 'TUTAR KARŞILIĞI MAL VEYA HİZMET ALDIM'}
+      </p>
+      <p className="mt-1 text-[9px] font-bold tracking-wide">MALİ DEĞERİ YOKTUR</p>
+      <p className="mt-0.5 text-[9px] font-semibold">MÜŞTERİ NÜSHASI</p>
+
+      <div className="mt-3 flex justify-center border-t border-dashed border-[#999] pt-3">
+        {tx.bankLogo ? (
+          <img
+            src={tx.bankLogo}
+            alt={tx.bankName}
+            className="h-8 w-auto max-w-[65%] object-contain"
+          />
+        ) : (
+          <p className="text-[11px] font-bold">{tx.bankName}</p>
+        )}
+      </div>
+
+      <p className="mt-2 text-[8px] text-[#555]">Yalnız; {amountInWordsTr(total)}</p>
+    </div>
+  );
+}
+
+function FisRow({ left, right }: { left: string; right: string }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="min-w-0 break-all">{left}</span>
+      {right ? <span className="shrink-0 text-right">{right}</span> : null}
+    </div>
   );
 }
 

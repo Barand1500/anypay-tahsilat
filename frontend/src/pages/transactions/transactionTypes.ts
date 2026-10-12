@@ -88,6 +88,33 @@ export function dekontBankName(tx: Transaction): string {
   return tx.bankName;
 }
 
+/** 80mm fiş — işlem tipi başlığı */
+export function dekontSlipTitle(tx: Pick<Transaction, 'status' | 'installments'>): string {
+  if (tx.status === 'cancelled') return 'SATIŞ İPTALİ';
+  if (tx.status === 'refunded') return 'İADE';
+  if (tx.installments > 1) return 'TAKSİTLİ SATIŞ';
+  return 'SATIŞ';
+}
+
+/** Fiş iki kolon: tarih / saat (TR) */
+export function splitTxDateTime(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: '—', time: '—' };
+  const date = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+  const time = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
+  return { date, time };
+}
+
 import {
   formatMoneyAmount,
   formatMoneyDisplay,
