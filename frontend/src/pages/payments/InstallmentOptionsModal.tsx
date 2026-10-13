@@ -316,14 +316,14 @@ export function InstallmentOptionsModal({
             </button>
           </div>
           {visibleSegments.length > 0 ? (
-            <div className="mt-3 flex rounded-xl border border-[var(--panel-line)] p-0.5">
+            <div className="mt-3 inline-flex w-fit max-w-full rounded-xl border border-[var(--panel-line)] p-0.5">
               {visibleSegments.map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setSegment(k)}
                   className={[
-                    "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
+                    "shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
                     segment === k
                       ? "bg-[var(--color-brand-600)] text-white"
                       : "text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]",

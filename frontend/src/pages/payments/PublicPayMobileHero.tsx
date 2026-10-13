@@ -182,27 +182,11 @@ export function PublicPayMobileHero(props: Props) {
           <span className="mt-2.5 inline-flex rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold text-white ring-1 ring-white/25">
             {commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}
           </span>
-          <div
-            className={[
-              'mx-auto mt-3 flex max-w-sm items-start gap-2',
-              plainDescription ? 'justify-center' : 'justify-end',
-            ].join(' ')}
-          >
-            {plainDescription ? (
-              <p className="min-w-0 flex-1 text-left text-[11px] leading-relaxed text-white/75 line-clamp-3">
-                {plainDescription}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setLegalSheetOpen(true)}
-              className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white ring-1 ring-white/30 backdrop-blur-sm transition hover:bg-white/25"
-              aria-label="Sözleşmeler"
-              title="Sözleşmeler"
-            >
-              <LegalDocIcon />
-            </button>
-          </div>
+          {plainDescription ? (
+            <p className="mx-auto mt-3 max-w-sm text-[11px] leading-relaxed text-white/75 line-clamp-3">
+              {plainDescription}
+            </p>
+          ) : null}
           {files?.length ? (
             <div className="mt-3 flex justify-center">
               <PayAttachmentChips files={files} onOpen={onOpenFile} dense />
@@ -293,26 +277,37 @@ export function PublicPayMobileHero(props: Props) {
 
       {/* Sticky pay bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--panel-elevated)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md lg:hidden">
-        <label className="mb-2 flex cursor-pointer items-start gap-2 text-[11px] leading-snug text-[var(--panel-ink)]">
-          <input
-            type="checkbox"
-            checked={props.agree}
-            onChange={(e) => props.onAgree(e.target.checked)}
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-[var(--input-border)] accent-[var(--color-brand-600)]"
-          />
-          <span>
-            <button
-              type="button"
-              onClick={() =>
-                props.onOpenLegal(LEGAL_DOCS.find((d) => d.id === 'tahsilat') ?? LEGAL_DOCS[0]!)
-              }
-              className="font-semibold text-[var(--color-brand-600)] hover:underline"
-            >
-              Tahsilat Sözleşmesi
-            </button>
-            'ni okudum ve kabul ediyorum.
-          </span>
-        </label>
+        <div className="mb-2 flex items-start gap-2">
+          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-[11px] leading-snug text-[var(--panel-ink)]">
+            <input
+              type="checkbox"
+              checked={props.agree}
+              onChange={(e) => props.onAgree(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-[var(--input-border)] accent-[var(--color-brand-600)]"
+            />
+            <span>
+              <button
+                type="button"
+                onClick={() =>
+                  props.onOpenLegal(LEGAL_DOCS.find((d) => d.id === 'tahsilat') ?? LEGAL_DOCS[0]!)
+                }
+                className="font-semibold text-[var(--color-brand-600)] hover:underline"
+              >
+                Tahsilat Sözleşmesi
+              </button>
+              'ni okudum ve kabul ediyorum.
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setLegalSheetOpen(true)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)]"
+            aria-label="Sözleşmeler"
+            title="Sözleşmeler"
+          >
+            <LegalDocIcon />
+          </button>
+        </div>
         {errors.agree ? <p className="mb-1.5 text-[10px] text-rose-500">{errors.agree}</p> : null}
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
