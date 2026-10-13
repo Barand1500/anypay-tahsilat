@@ -845,6 +845,8 @@ const dekontBlockTypeEnum = z.enum([
   'installmentLine',
   'slipTitle',
   'cardMasked',
+  'cardBrand',
+  'cardSegment',
   'amountBlock',
   'approvedLine',
   'authRef',
@@ -871,6 +873,8 @@ const dekontContentFieldEnum = z.enum([
   'identityNo',
   'bankName',
   'cardMasked',
+  'cardBrand',
+  'cardSegment',
   'date',
   'time',
   'atLabel',
@@ -910,6 +914,8 @@ const dekontBlockSchema = z.object({
 
 const dekontLayoutSchema = z.object({
   blocks: z.array(dekontBlockSchema).min(1).max(48),
+  /** Fiş boyu mm — yalnızca fis düzeninde kullanılır */
+  heightMm: z.number().min(120).max(400).optional(),
 });
 
 const dekontSettingsSchema = z.object({

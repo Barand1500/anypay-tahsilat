@@ -199,9 +199,17 @@ function localImageCandidates(urlOrPath: string): string[] {
   } else {
     out.push(path.join(UPLOADS_ROOT, rel));
   }
-  // public brand / banks
-  const publicRel = rel.startsWith('brand/') || rel.startsWith('banks/') ? rel : null;
-  if (publicRel || raw.startsWith('/brand/') || raw.startsWith('/banks/')) {
+  // public brand / banks / payments (kart markası logoları)
+  const publicRel =
+    rel.startsWith('brand/') || rel.startsWith('banks/') || rel.startsWith('payments/')
+      ? rel
+      : null;
+  if (
+    publicRel ||
+    raw.startsWith('/brand/') ||
+    raw.startsWith('/banks/') ||
+    raw.startsWith('/payments/')
+  ) {
     const p = publicRel || raw.slice(1);
     out.push(
       path.resolve(process.cwd(), 'frontend', 'public', p),
@@ -214,9 +222,26 @@ function localImageCandidates(urlOrPath: string): string[] {
       path.join(UPLOADS_ROOT, 'bankalar', file),
       path.join(UPLOADS_ROOT, 'banks', file),
       path.resolve(process.cwd(), 'frontend', 'public', 'banks', file),
+      path.resolve(process.cwd(), 'frontend', 'public', 'payments', file),
     );
   }
   return out;
+}
+
+/** BIN marka adı → /payments logo; bilinmeyen → MasterCard */
+function resolveCardBrandLogoUrl(brand: string | null | undefined): string {
+  const n = String(brand || '')
+    .trim()
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i');
+  if (!n || n === '-' || n === '—') return '/payments/mastercard.jpg';
+  if (/master\s*card|mastercard|^mc$/.test(n)) return '/payments/mastercard.jpg';
+  if (/^visa$/.test(n)) return '/payments/visa.png';
+  if (/troy/.test(n)) return '/payments/troy.png';
+  if (/amex|american\s*express/.test(n)) return '/payments/amex.png';
+  return '/payments/mastercard.jpg';
 }
 
 async function loadImageBytes(urlOrPath: string): Promise<Uint8Array | null> {
@@ -522,9 +547,8 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       return lines;
     }
     case 'cardBrand':
-      return ctx.cardBrand && ctx.cardBrand !== '—'
-        ? [{ text: ctx.cardBrand, bold: false, size: 8 }]
-        : [];
+      // Logo ayrı çizilir; metin yedek
+      return [];
     case 'cardSegment':
       return ctx.cardSegment && ctx.cardSegment !== '—'
         ? [{ text: ctx.cardSegment, bold: false, size: 8 }]
@@ -860,6 +884,8 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
 
   const brandImg = brandLogoUrl ? await embedLogo(doc, brandLogoUrl) : null;
   const bankImg = tx.bankLogo ? await embedLogo(doc, tx.bankLogo) : null;
+  const cardBrandLogo = resolveCardBrandLogoUrl(ctx.cardBrand);
+  const cardBrandImg = await embedLogo(doc, cardBrandLogo);
 
   for (const block of drawList) {
     const box = blockBox(w, h, block);
@@ -873,6 +899,11 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     if (block.type === 'bankLogo') {
       if (bankImg) drawImageInBlock(page, bankImg, box);
       else drawInBlock(page, bold, ctx.bankName || '-', box, 9 * scale, block.align);
+      continue;
+    }
+    if (block.type === 'cardBrand') {
+      if (cardBrandImg) drawImageInBlock(page, cardBrandImg, box);
+      else drawInBlock(page, bold, ctx.cardBrand || '-', box, 8 * scale, block.align);
       continue;
     }
 

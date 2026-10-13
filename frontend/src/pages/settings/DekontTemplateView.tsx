@@ -11,6 +11,7 @@ import {
   splitTxDateTime,
   type Transaction,
 } from '../transactions/transactionTypes';
+import { resolveCardBrandLogoUrl } from './cardBrandLogo';
 import {
   paperStyleFor,
   resolveContentField,
@@ -37,6 +38,8 @@ export type DekontRenderCtx = {
   cardHolderName: string;
   cardMasked: string;
   cardBrand: string;
+  /** Kart markası logo URL (`/payments/…`) */
+  cardBrandLogoUrl: string;
   cardSegment: string;
   installments: number;
   status: 'paid' | 'cancelled' | 'refunded' | string;
@@ -75,6 +78,7 @@ export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknol
     cardHolderName: s.cardHolderName,
     cardMasked: s.cardMasked,
     cardBrand: s.cardBrand,
+    cardBrandLogoUrl: resolveCardBrandLogoUrl(s.cardBrand),
     cardSegment: s.cardSegment,
     installments: s.installments,
     status: s.status,
@@ -126,6 +130,7 @@ export function ctxFromTransaction(
     cardHolderName: d.cardHolderName || '',
     cardMasked: maskCardForDekont(d.cardMasked),
     cardBrand: (d.cardBrand || '').trim() || '—',
+    cardBrandLogoUrl: resolveCardBrandLogoUrl(d.cardBrand),
     cardSegment: (d.cardSegment || '').trim() || '—',
     installments: tx.installments,
     status: tx.status,
@@ -377,7 +382,14 @@ function BlockContent({
         </div>
       );
     case 'cardBrand':
-      return (
+      return ctx.cardBrandLogoUrl ? (
+        <img
+          src={ctx.cardBrandLogoUrl}
+          alt={ctx.cardBrand && ctx.cardBrand !== '—' ? ctx.cardBrand : 'Kart markası'}
+          className="h-full w-full object-contain"
+          draggable={false}
+        />
+      ) : (
         <p className="w-full tracking-wide" style={fs(10)}>
           {ctx.cardBrand && ctx.cardBrand !== '—' ? ctx.cardBrand : '—'}
         </p>
