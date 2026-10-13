@@ -113,10 +113,11 @@ export function InstallmentOptionsModal({
   useEffect(() => {
     const el = panelRef.current;
     if (!el) return;
+    const mobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
     gsap.fromTo(
       el,
-      { autoAlpha: 0, y: 10 },
-      { autoAlpha: 1, y: 0, duration: 0.2, ease: "power2.out" },
+      { autoAlpha: 0, y: mobile ? 48 : 10 },
+      { autoAlpha: 1, y: 0, duration: 0.28, ease: "power2.out" },
     );
   }, []);
 
@@ -279,7 +280,7 @@ export function InstallmentOptionsModal({
   const rowsByBank = rowsBySegment[segment];
 
   return createPortal(
-    <div className="fixed inset-0 z-[11000] flex items-center justify-center p-3 sm:p-6">
+    <div className="fixed inset-0 z-[11000] flex items-end justify-center p-0 lg:items-center lg:p-6">
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         aria-hidden
@@ -289,7 +290,7 @@ export function InstallmentOptionsModal({
         role="dialog"
         aria-modal
         aria-labelledby="taksit-title"
-        className="relative z-10 flex h-[min(82vh,740px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-xl"
+        className="relative z-10 flex h-[min(92vh,740px)] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_-12px_40px_rgba(0,0,0,0.25)] lg:h-[min(82vh,740px)] lg:rounded-2xl lg:shadow-xl"
       >
         <header className="shrink-0 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">

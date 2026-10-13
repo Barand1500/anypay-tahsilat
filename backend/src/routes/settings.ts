@@ -801,7 +801,7 @@ const paymentPageBadgeSchema = z.object({
 
 const paymentPageSchema = z.object({
   layout: z.enum(['compact', 'fullscreen']),
-  mobileLayout: z.enum(['wizard', 'stack']).optional().default('wizard'),
+  mobileLayout: z.enum(['wizard', 'stack']).optional().default('stack'),
   brandLogoHeightPx: z.number().min(24).max(80),
   badges: z.array(paymentPageBadgeSchema).max(24),
 });

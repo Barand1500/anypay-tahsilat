@@ -1,7 +1,7 @@
 export type PaymentPageLayout = 'compact' | 'fullscreen';
 
-/** Telefon (< lg) görünümü — masaüstü düzenini etkilemez */
-export type PaymentPageMobileLayout = 'wizard' | 'stack';
+/** Mobil her zaman tutar hero (API uyumu için alan korunur) */
+export type PaymentPageMobileLayout = 'stack';
 
 export type PaymentPageBadge = {
   id: string;
@@ -14,7 +14,7 @@ export type PaymentPageBadge = {
 
 export type PaymentPageSettings = {
   layout: PaymentPageLayout;
-  /** Mobil: wizard | tutar hero + bottom sheet */
+  /** Mobil: tutar hero + kutulu taksit */
   mobileLayout: PaymentPageMobileLayout;
   brandLogoHeightPx: number;
   badges: PaymentPageBadge[];
@@ -22,7 +22,7 @@ export type PaymentPageSettings = {
 
 export const DEFAULT_PAYMENT_PAGE: PaymentPageSettings = {
   layout: 'compact',
-  mobileLayout: 'wizard',
+  mobileLayout: 'stack',
   brandLogoHeightPx: 40,
   badges: [
     { id: 'iyzico', name: 'iyzico', src: '/payments/iyzico.jpg', heightPx: 28, active: true, sortOrder: 0 },

@@ -49,7 +49,6 @@ import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
 import { SelectedInstallmentSummary } from './installmentDisplay';
 import { PublicPayMobileHero } from './PublicPayMobileHero';
-import { PublicPayMobileWizard } from './PublicPayMobileWizard';
 import { PayAttachmentChips } from './PayAttachmentChips';
 import {
   PayAttachmentPreviewModal,
@@ -139,7 +138,6 @@ export default function PublicPayPage() {
       .map((b) => ({ ...b })),
   }));
   const [pageSettingsReady, setPageSettingsReady] = useState(false);
-  const [mobileStep, setMobileStep] = useState<0 | 1 | 2>(0);
 
   const contractCustomerVars = useMemo(
     () =>
@@ -165,7 +163,7 @@ export default function PublicPayPage() {
         if (cancelled || !data) return;
         setPageSettings({
           layout: data.layout === 'fullscreen' ? 'fullscreen' : 'compact',
-          mobileLayout: data.mobileLayout === 'stack' ? 'stack' : 'wizard',
+          mobileLayout: 'stack',
           brandLogoHeightPx: data.brandLogoHeightPx || 40,
           badges: Array.isArray(data.badges) ? data.badges.map((b) => ({ ...b })) : [],
         });
@@ -381,44 +379,28 @@ export default function PublicPayPage() {
   }
 
 
-  function validateStep(step: 0 | 1 | 2 | 'all'): boolean {
-    const next: Record<string, string> = {};
-    if (step === 0 || step === 'all') {
-      if (
-        variableAmount &&
-        (!Number.isFinite(payableAmount) || payableAmount <= 0 || payableAmount > 999999999.99)
-      ) {
-        next.amount = 'Geçerli bir tutar girin';
-      }
-    }
-    if (step === 1 || step === 'all') {
-      if (!holder.trim()) next.holder = 'Ad soyad gerekli';
-      if (digitsOnly(tc).length && !isValidTurkishIdentityNo(digitsOnly(tc))) {
-        next.tc = 'Geçerli bir T.C. kimlik numarası girin';
-      }
-      if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
-      const cardDigits = digitsOnly(card);
-      if (cardDigits.length < 15 || !isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
-      const expErr = getCardExpiryError(expiry);
-      if (expErr) next.expiry = expErr;
-      if (digitsOnly(cvc).length < 3) next.cvc = 'CVC';
-    }
-    if (step === 2 || step === 'all') {
-      if (!pricedInstallments.some((r) => r.n === installment)) next.install = 'Taksit seçin';
-      if (!agree) next.agree = 'Sözleşmeyi kabul edin';
-    }
-    setErrors(next);
-    if (Object.keys(next).length && step !== 'all') {
-      if (next.amount) setMobileStep(0);
-      else if (next.holder || next.tc || next.phone || next.card || next.expiry || next.cvc) {
-        setMobileStep(1);
-      } else if (next.install || next.agree) setMobileStep(2);
-    }
-    return Object.keys(next).length === 0;
-  }
-
   function validate(): boolean {
-    return validateStep('all');
+    const next: Record<string, string> = {};
+    if (
+      variableAmount &&
+      (!Number.isFinite(payableAmount) || payableAmount <= 0 || payableAmount > 999999999.99)
+    ) {
+      next.amount = 'Geçerli bir tutar girin';
+    }
+    if (!holder.trim()) next.holder = 'Ad soyad gerekli';
+    if (digitsOnly(tc).length && !isValidTurkishIdentityNo(digitsOnly(tc))) {
+      next.tc = 'Geçerli bir T.C. kimlik numarası girin';
+    }
+    if (digitsOnly(phone).length < 10) next.phone = 'Telefon gerekli';
+    const cardDigits = digitsOnly(card);
+    if (cardDigits.length < 15 || !isValidLuhn(cardDigits)) next.card = 'Kart numarası geçersiz';
+    const expErr = getCardExpiryError(expiry);
+    if (expErr) next.expiry = expErr;
+    if (digitsOnly(cvc).length < 3) next.cvc = 'CVC';
+    if (!pricedInstallments.some((r) => r.n === installment)) next.install = 'Taksit seçin';
+    if (!agree) next.agree = 'Sözleşmeyi kabul edin';
+    setErrors(next);
+    return Object.keys(next).length === 0;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -470,9 +452,8 @@ export default function PublicPayPage() {
 
   const alreadyPaid = view.status === 'paid' || !!done || payFlash?.kind === 'ok';
   const isFullscreen = pageSettings.layout === 'fullscreen';
-  const useMobileWizard = pageSettings.mobileLayout === 'wizard';
-  const useMobileHero = pageSettings.mobileLayout === 'stack';
-  const useMobileLayout = useMobileWizard || useMobileHero;
+  const useMobileHero = true;
+  const useMobileLayout = true;
   const headerBadges = (
     pageSettingsReady || pageSettings.badges.length
       ? pageSettings.badges
@@ -680,70 +661,6 @@ export default function PublicPayPage() {
                   </p>
                 </div>
               ) : null}
-              {useMobileWizard && !alreadyPaid ? (
-                <PublicPayMobileWizard
-                  step={mobileStep}
-                  onStep={setMobileStep}
-                  customerTitle={view.customerTitle}
-                  typeLabel={paymentTypeLabel[view.type]}
-                  commissionIncluded={view.commissionIncluded}
-                  currencySymbol={view.currencySymbol || '₺'}
-                  variableAmount={variableAmount}
-                  amountText={amountText}
-                  onAmountText={setAmountText}
-                  payableAmount={payableAmount}
-                  fixedAmount={view.amount}
-                  description={view.description || ''}
-                  files={view.files}
-                  onOpenFile={setPreviewFile}
-                  holder={holder}
-                  tc={tc}
-                  phone={phone}
-                  card={card}
-                  expiry={expiry}
-                  cvc={cvc}
-                  errors={errors}
-                  cardBank={cardBank}
-                  bank={bank}
-                  cardFaulty={cardFaulty}
-                  expiryOk={expiryOk}
-                  expiryFaulty={expiryFaulty}
-                  cvcOk={cvcOk}
-                  cvcFaulty={cvcFaulty}
-                  onHolder={setHolder}
-                  onTc={setTc}
-                  onPhone={setPhone}
-                  onCard={onCardChange}
-                  onExpiry={setExpiry}
-                  onCvc={setCvc}
-                  clearPhoneError={() =>
-                    setErrors((prev) => {
-                      if (!prev.phone) return prev;
-                      const { phone: _, ...rest } = prev;
-                      return rest;
-                    })
-                  }
-                  installment={installment}
-                  onInstallment={pickInstallment}
-                  pricedInstallments={pricedInstallments}
-                  selectedRate={summaryRate}
-                  ratesLoading={ratesLoading}
-                  ratesError={ratesError}
-                  emptyRatesHint={
-                    !ratesLoading && !ratesError && installmentRates.length === 0
-                      ? 'Bu kart için taksit oranı bulunamadı; yalnızca tek çekim sunuluyor.'
-                      : null
-                  }
-                  rateBin={rateBin || null}
-                  onCompare={() => setCompareOpen(true)}
-                  agree={agree}
-                  onAgree={setAgree}
-                  onOpenLegal={setActiveLegalDoc}
-                  saving={saving}
-                  onValidateStep={(s) => validateStep(s)}
-                />
-              ) : null}
-
               {useMobileHero && !alreadyPaid ? (
                 <PublicPayMobileHero
                   logoUrl={logoUrl}

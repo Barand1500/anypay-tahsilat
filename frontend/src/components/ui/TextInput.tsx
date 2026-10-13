@@ -79,9 +79,9 @@ export const TextInput = forwardRef<HTMLInputElement, Props>(function TextInput(
         {endAdornment ? (
           <div
             className={[
-              /* Yüzen etiket alanını hesaba kat — ikon metin satırının ortasında */
-              'absolute inset-y-0 right-2.5 z-10 flex items-center',
-              !isPlaceholder ? 'pt-2.5' : '',
+              /* Float etikette ikon metin satırının ortasında */
+              'absolute right-2.5 z-10 flex items-center justify-center',
+              isPlaceholder ? 'inset-y-0' : 'bottom-0 top-[1.15rem]',
             ].join(' ')}
           >
             {endAdornment}

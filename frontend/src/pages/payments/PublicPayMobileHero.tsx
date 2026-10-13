@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { TextInput } from '../../components/ui/TextInput';
@@ -10,17 +10,11 @@ import {
   formatCardNumber,
   formatExpiryInput,
   formatMoneyDisplay,
-  formatMoneyTr,
   maskMoneyInput,
   type BankInfo,
   type InstallmentRow,
 } from './mockBanks';
-import {
-  formatInstallmentPaymentLine,
-  formatInstallmentTitle,
-  InstallmentPlanCardBody,
-  SelectedInstallmentSummary,
-} from './installmentDisplay';
+import { InstallmentPlanSection } from './InstallmentPlanSection';
 import { PayAttachmentChips } from './PayAttachmentChips';
 import type { PayAttachmentFile } from './PayAttachmentPreviewModal';
 
@@ -79,7 +73,7 @@ type Props = {
 };
 
 /**
- * Public /pay — telefon: tutar hero + bottom sheet taksit.
+ * Public /pay — telefon: tutar hero + kutulu taksit planı.
  */
 export function PublicPayMobileHero(props: Props) {
   const {
@@ -111,33 +105,26 @@ export function PublicPayMobileHero(props: Props) {
     saving,
   } = props;
 
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
   const displayAmount = variableAmount ? payableAmount : fixedAmount;
   const canPlan = payableAmount > 0 && Boolean(bank && rateBin);
-
-  const peekRows = useMemo(() => {
-    if (!pricedInstallments.length) return [];
-    const sel = pricedInstallments.find((r) => r.n === installment);
-    const rest = pricedInstallments.filter((r) => r.n !== installment).slice(0, 2);
-    return sel ? [sel, ...rest] : pricedInstallments.slice(0, 3);
-  }, [pricedInstallments, installment]);
+  const plainDescription = description
+    ? description.replace(/<[^>]+>/g, '').slice(0, 220)
+    : '';
 
   useEffect(() => {
-    if (!sheetOpen && !legalSheetOpen) return;
+    if (!legalSheetOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (legalSheetOpen) setLegalSheetOpen(false);
-      else if (sheetOpen) setSheetOpen(false);
+      if (e.key === 'Escape') setLegalSheetOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [sheetOpen, legalSheetOpen]);
+  }, [legalSheetOpen]);
 
   return (
     <div className="flex flex-col gap-4 pb-36 lg:hidden">
@@ -166,15 +153,6 @@ export function PublicPayMobileHero(props: Props) {
                 />
               </span>
             ))}
-            <button
-              type="button"
-              onClick={() => setLegalSheetOpen(true)}
-              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 text-[10px] font-bold text-white ring-1 ring-white/30 backdrop-blur-sm"
-              aria-label="Sözleşmeler"
-            >
-              <LegalDocIcon />
-              Sözleşmeler
-            </button>
           </div>
         </div>
 
@@ -204,11 +182,27 @@ export function PublicPayMobileHero(props: Props) {
           <span className="mt-2.5 inline-flex rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold text-white ring-1 ring-white/25">
             {commissionIncluded ? 'Komisyon Dahil' : 'Komisyon Hariç'}
           </span>
-          {description ? (
-            <p className="mx-auto mt-3 max-w-sm text-[11px] leading-relaxed text-white/75 line-clamp-3">
-              {description.replace(/<[^>]+>/g, '').slice(0, 220)}
-            </p>
-          ) : null}
+          <div
+            className={[
+              'mx-auto mt-3 flex max-w-sm items-start gap-2',
+              plainDescription ? 'justify-center' : 'justify-end',
+            ].join(' ')}
+          >
+            {plainDescription ? (
+              <p className="min-w-0 flex-1 text-left text-[11px] leading-relaxed text-white/75 line-clamp-3">
+                {plainDescription}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setLegalSheetOpen(true)}
+              className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white ring-1 ring-white/30 backdrop-blur-sm transition hover:bg-white/25"
+              aria-label="Sözleşmeler"
+              title="Sözleşmeler"
+            >
+              <LegalDocIcon />
+            </button>
+          </div>
           {files?.length ? (
             <div className="mt-3 flex justify-center">
               <PayAttachmentChips files={files} onOpen={onOpenFile} dense />
@@ -247,7 +241,7 @@ export function PublicPayMobileHero(props: Props) {
         />
       </section>
 
-      {/* Banka + seçili şerit */}
+      {/* Banka + kutulu taksit planı */}
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)]">
         <div className="flex items-center gap-3">
           {bank?.logo ? (
@@ -267,82 +261,34 @@ export function PublicPayMobileHero(props: Props) {
           </button>
         </div>
 
-        {selectedRate ? (
-          <button
-            type="button"
-            onClick={() => canPlan && setSheetOpen(true)}
-            className="mt-3 w-full rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)]/70 p-3 text-left transition hover:border-[var(--color-brand-500)]/40"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--panel-muted)]">
-                Seçili plan
-              </p>
-              <span className="text-[10px] font-semibold text-[var(--color-brand-600)]">
-                Taksit Planı ↑
-              </span>
-            </div>
-            <p className="mt-1 text-sm font-bold text-[var(--panel-ink)]">
-              {formatInstallmentTitle(selectedRate.n, selectedRate.plusN)}
-            </p>
-            <p className="text-xs tabular-nums text-[var(--panel-muted)]">
-              {formatInstallmentPaymentLine(
-                selectedRate,
-                commissionIncluded ? selectedRate.totalAmount : payableAmount,
-                commissionIncluded,
-                (v: number) => formatMoneyDisplay(v),
-              )}
-            </p>
-          </button>
-        ) : canPlan ? (
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className="mt-3 w-full rounded-xl border border-dashed border-[var(--panel-line)] px-3 py-3 text-center text-sm font-semibold text-[var(--color-brand-600)]"
-          >
-            Taksit planını seç
-          </button>
-        ) : null}
-
-        {/* Peek strip */}
-        {canPlan && peekRows.length > 0 ? (
-          <div className="mt-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--panel-muted)]">
-                Taksit Planı
-              </p>
-              <button
-                type="button"
-                onClick={() => setSheetOpen(true)}
-                className="text-[10px] font-bold text-[var(--color-brand-600)]"
-              >
-                Tümünü gör
-              </button>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {peekRows.map((rate) => (
-                <PeekCard
-                  key={rate.n}
-                  rate={rate}
-                  active={installment === rate.n}
-                  baseAmount={payableAmount}
-                  commissionIncluded={commissionIncluded}
-                  onSelect={() => onInstallment(rate.n)}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {ratesLoading ? (
-          <p className="mt-2 text-xs text-[var(--panel-muted)]">Taksitler hesaplanıyor…</p>
-        ) : null}
-        {ratesError ? (
-          <p className="mt-2 text-xs text-rose-500">Taksit oranları alınamadı.</p>
-        ) : null}
-        {emptyRatesHint ? (
-          <p className="mt-2 text-xs text-[var(--panel-muted)]">{emptyRatesHint}</p>
-        ) : null}
-        {errors.install ? <p className="mt-2 text-xs text-rose-500">{errors.install}</p> : null}
+        {canPlan ? (
+          <InstallmentPlanSection
+            className="mt-4"
+            rows={pricedInstallments}
+            selectedN={installment}
+            onSelect={onInstallment}
+            baseAmount={payableAmount}
+            commissionIncluded={commissionIncluded}
+            loading={ratesLoading}
+            ratesError={ratesError}
+            emptyRatesHint={emptyRatesHint}
+            validationError={errors.install}
+            density="dense"
+          />
+        ) : (
+          <>
+            {ratesLoading ? (
+              <p className="mt-3 text-xs text-[var(--panel-muted)]">Taksitler hesaplanıyor…</p>
+            ) : null}
+            {ratesError ? (
+              <p className="mt-3 text-xs text-rose-500">Taksit oranları alınamadı.</p>
+            ) : null}
+            {emptyRatesHint ? (
+              <p className="mt-3 text-xs text-[var(--panel-muted)]">{emptyRatesHint}</p>
+            ) : null}
+            {errors.install ? <p className="mt-3 text-xs text-rose-500">{errors.install}</p> : null}
+          </>
+        )}
       </section>
 
       {/* Sticky pay bar */}
@@ -390,24 +336,6 @@ export function PublicPayMobileHero(props: Props) {
         </div>
       </div>
 
-      {sheetOpen
-        ? createPortal(
-            <InstallmentBottomSheet
-              rows={pricedInstallments}
-              selectedN={installment}
-              baseAmount={payableAmount}
-              commissionIncluded={commissionIncluded}
-              onSelect={(n) => {
-                onInstallment(n);
-                setSheetOpen(false);
-              }}
-              onClose={() => setSheetOpen(false)}
-              selectedRate={selectedRate}
-            />,
-            document.body,
-          )
-        : null}
-
       {legalSheetOpen
         ? createPortal(
             <LegalDocsBottomSheet
@@ -426,18 +354,19 @@ export function PublicPayMobileHero(props: Props) {
 
 function LegalDocIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
         stroke="currentColor"
         strokeWidth="1.7"
       />
       <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M9 12h6M9 16h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
 
-/** Mobil — Sözleşmeler listesi (Taksit Planı sheet ile aynı kalıp) */
+/** Mobil — Sözleşmeler listesi */
 function LegalDocsBottomSheet({
   onClose,
   onOpenDoc,
@@ -508,124 +437,5 @@ function MiniHead({ children }: { children: ReactNode }) {
     <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--panel-muted)]">
       {children}
     </h2>
-  );
-}
-
-function PeekCard({
-  rate,
-  active,
-  baseAmount,
-  commissionIncluded,
-  onSelect,
-}: {
-  rate: InstallmentRow;
-  active: boolean;
-  baseAmount: number;
-  commissionIncluded: boolean;
-  onSelect: () => void;
-}) {
-  const charged = commissionIncluded ? rate.totalAmount : baseAmount;
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={[
-        'relative w-[9.5rem] shrink-0 overflow-hidden rounded-xl border p-2.5 text-left transition',
-        active
-          ? 'border-[var(--color-brand-500)] bg-[var(--brand-soft-bg)] shadow-sm'
-          : 'border-[var(--panel-line)] bg-[var(--panel-elevated)]',
-      ].join(' ')}
-    >
-      {rate.plusN > 0 ? (
-        <span className="absolute right-1.5 top-1.5 rounded-full bg-[var(--brand-soft-bg)] px-1.5 py-0.5 text-[8px] font-bold text-[var(--color-brand-700)] ring-1 ring-[var(--color-brand-500)]/20">
-          +{rate.plusN} Ek Taksit
-        </span>
-      ) : null}
-      <p className="pr-8 text-[11px] font-bold text-[var(--panel-ink)]">
-        {formatInstallmentTitle(rate.n, rate.plusN)}
-      </p>
-      <p className="mt-1 text-[11px] font-semibold tabular-nums text-[var(--panel-muted)]">
-        {formatInstallmentPaymentLine(rate, charged, commissionIncluded, formatMoneyTr)}
-      </p>
-    </button>
-  );
-}
-
-function InstallmentBottomSheet({
-  rows,
-  selectedN,
-  baseAmount,
-  commissionIncluded,
-  onSelect,
-  onClose,
-  selectedRate,
-}: {
-  rows: InstallmentRow[];
-  selectedN: number;
-  baseAmount: number;
-  commissionIncluded: boolean;
-  onSelect: (n: number) => void;
-  onClose: () => void;
-  selectedRate: InstallmentRow | null;
-}) {
-  return (
-    <div className="fixed inset-0 z-[10050] lg:hidden" role="dialog" aria-modal="true" aria-label="Taksit Planı">
-      {/* Overlay tıklanınca kapanmaz — Esc / X */}
-      <div className="absolute inset-0 bg-black/45" aria-hidden />
-      <div className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-hidden rounded-t-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_-12px_40px_rgba(0,0,0,0.25)]">
-        <div className="flex items-center justify-between border-b border-[var(--panel-line)] px-4 py-3">
-          <div>
-            <p className="text-sm font-bold text-[var(--panel-ink)]">Taksit Planı</p>
-            <p className="text-[11px] text-[var(--panel-muted)]">Tutara göre hesaplandı.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-[var(--panel-line)] px-2.5 py-1 text-[11px] font-bold text-[var(--panel-muted)]"
-          >
-            X Esc
-          </button>
-        </div>
-        <div className="overflow-y-auto px-4 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ maxHeight: 'calc(78vh - 3.5rem)' }}>
-          {selectedRate ? (
-            <div className="mb-3">
-              <SelectedInstallmentSummary
-                rate={selectedRate}
-                baseAmount={baseAmount}
-                commissionIncluded={commissionIncluded}
-                formatMoney={(v) => formatMoneyDisplay(v)}
-                formatPct={formatMoneyTr}
-              />
-            </div>
-          ) : null}
-          <div className="grid grid-cols-2 gap-2.5">
-            {rows.map((rate) => {
-              const active = selectedN === rate.n;
-              return (
-                <button
-                  key={rate.n}
-                  type="button"
-                  onClick={() => onSelect(rate.n)}
-                  className={[
-                    'relative min-h-[7.5rem] overflow-visible rounded-xl border p-3 text-left transition',
-                    active
-                      ? 'install-card-selected'
-                      : 'border-[var(--panel-line)] bg-[var(--panel-surface)]',
-                  ].join(' ')}
-                >
-                  <InstallmentPlanCardBody
-                    rate={rate}
-                    baseAmount={baseAmount}
-                    commissionIncluded={commissionIncluded}
-                    formatMoney={formatMoneyTr}
-                    selected={active}
-                  />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

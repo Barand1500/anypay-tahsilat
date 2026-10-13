@@ -8,7 +8,7 @@ import {
 } from './settingsService.js';
 
 export type PaymentPageLayout = 'compact' | 'fullscreen';
-export type PaymentPageMobileLayout = 'wizard' | 'stack';
+export type PaymentPageMobileLayout = 'stack';
 
 export type PaymentPageBadge = {
   id: string;
@@ -28,7 +28,8 @@ export type PaymentPageSettings = {
 
 export type UpdatePaymentPageInput = {
   layout: PaymentPageLayout;
-  mobileLayout: PaymentPageMobileLayout;
+  /** Eski 'wizard' değerleri stack'e çevrilir */
+  mobileLayout: PaymentPageMobileLayout | 'wizard';
   brandLogoHeightPx: number;
   badges: Array<{
     id?: string;
@@ -65,13 +66,13 @@ const DEFAULT_BADGES: PaymentPageBadge[] = [
 
 const DEFAULT_SETTINGS: PaymentPageSettings = {
   layout: 'compact',
-  mobileLayout: 'wizard',
+  mobileLayout: 'stack',
   brandLogoHeightPx: 40,
   badges: DEFAULT_BADGES,
 };
 
-function parseMobileLayout(raw: unknown): PaymentPageMobileLayout {
-  return raw === 'stack' ? 'stack' : 'wizard';
+function parseMobileLayout(_raw: unknown): PaymentPageMobileLayout {
+  return 'stack';
 }
 
 function clampLogoHeight(n: number): number {
