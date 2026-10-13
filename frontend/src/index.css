@@ -755,31 +755,7 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
-/* Taksit planı — koyu mavi zemin; sağ yazılar beyaz, vade farkı tam kırmızı */
-.install-card {
-  background: color-mix(in srgb, var(--color-brand-700) 78%, #0b1220) !important;
-  border-color: color-mix(in srgb, var(--color-brand-500) 35%, transparent) !important;
-  color: #f8fbff;
-}
-
-.install-card .install-card-ink,
-.install-card .install-card-muted {
-  color: #ffffff !important;
-}
-
-.install-card .install-card-vade {
-  color: #ef4444 !important;
-}
-
-.install-card .install-card-watermark-num {
-  color: color-mix(in srgb, white 16%, transparent) !important;
-}
-
-.install-card .install-card-watermark-label {
-  color: color-mix(in srgb, white 26%, transparent) !important;
-}
-
-/* Seçili kart = Ödemeyi Tamamla mavisi */
+/* Taksit planı — seçili kart mavi; iç yazılar tam beyaz, vade farkı kırmızı */
 .install-card-selected {
   background: var(--color-brand-600) !important;
   border-color: color-mix(in srgb, var(--color-brand-700) 85%, black) !important;
@@ -799,11 +775,11 @@ html[data-theme='dark'] .log-chip--other {
 }
 
 .install-card-selected .install-card-watermark-num {
-  color: color-mix(in srgb, white 18%, transparent) !important;
+  color: color-mix(in srgb, white 18%, transparent);
 }
 
 .install-card-selected .install-card-watermark-label {
-  color: color-mix(in srgb, white 28%, transparent) !important;
+  color: color-mix(in srgb, white 28%, transparent);
 }
 
 .install-card-selected .install-card-selected-pill {
