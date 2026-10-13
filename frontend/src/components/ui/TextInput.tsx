@@ -77,7 +77,13 @@ export const TextInput = forwardRef<HTMLInputElement, Props>(function TextInput(
         ) : null}
 
         {endAdornment ? (
-          <div className="absolute right-2.5 top-1/2 z-10 -translate-y-1/2">
+          <div
+            className={[
+              /* Float: ikon metin bandıyla (pt-5 / pb-2.5) aynı dikey aralıkta */
+              'absolute right-2.5 z-10 flex items-center',
+              isPlaceholder ? 'inset-y-0' : 'bottom-2.5 top-5',
+            ].join(' ')}
+          >
             {endAdornment}
           </div>
         ) : null}

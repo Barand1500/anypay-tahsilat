@@ -91,15 +91,15 @@ export function InstallmentCardWatermark({
   return (
     <span className="pointer-events-none absolute bottom-1 left-3 z-[2] flex flex-col items-start leading-none">
       {selected ? (
-        <span className="install-card-selected-pill mb-1 inline-flex h-5 items-center justify-center rounded-full px-2.5 text-[10px] font-semibold leading-none tracking-wide">
+        <span className="install-card-selected-pill mb-1 hidden h-5 items-center justify-center rounded-full px-2.5 text-[10px] font-semibold leading-none tracking-wide lg:inline-flex">
           Seçili
         </span>
       ) : null}
       <span className="flex items-end gap-1.5">
-        <span className="install-card-watermark-num -mb-2 text-[4.5rem] font-black text-[var(--panel-muted)]/15 sm:text-[5rem]">
+        <span className="install-card-watermark-num -mb-2 text-[3.25rem] font-black text-[var(--panel-muted)]/15 sm:text-[4.5rem] lg:text-[5rem]">
           {num}
         </span>
-        <span className="install-card-watermark-label mb-2 text-[11px] font-semibold tracking-wide text-[var(--panel-muted)]/25">
+        <span className="install-card-watermark-label mb-1.5 text-[10px] font-semibold tracking-wide text-[var(--panel-muted)]/25 sm:mb-2 sm:text-[11px]">
           taksit
         </span>
       </span>
@@ -191,7 +191,7 @@ export function InstallmentPlanCardBody({
       <InstallmentCardWatermark n={rate.n} plusN={rate.plusN} selected={selected} />
       <p
         className={[
-          'install-card-ink relative z-[2] mt-1 text-right text-[1.125rem] font-bold leading-snug tabular-nums sm:text-xl',
+          'install-card-ink relative z-[2] mt-1 text-right text-[0.95rem] font-bold leading-snug tabular-nums sm:text-[1.125rem] lg:text-xl',
           selected ? '' : 'text-[var(--panel-ink)]',
           rate.plusN > 0 ? 'mt-6' : '',
         ].join(' ')}
@@ -199,12 +199,12 @@ export function InstallmentPlanCardBody({
         {formatInstallmentPaymentLine(rate, chargedTotal, commissionIncluded, formatMoney)}
       </p>
       {showTotalLine ? (
-        <p className="install-card-muted relative z-[2] mt-1 text-right text-[0.95rem] font-semibold leading-snug tabular-nums text-[var(--panel-muted)] sm:text-[1.05rem]">
+        <p className="install-card-muted relative z-[2] mt-1 text-right text-[0.8rem] font-semibold leading-snug tabular-nums text-[var(--panel-muted)] sm:text-[0.95rem] lg:text-[1.05rem]">
           Toplam {formatMoney(chargedTotal)}
         </p>
       ) : null}
       {paymentCount > 1 && rate.commissionPct > 0 ? (
-        <p className="install-card-vade relative z-[2] mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
+        <p className="install-card-vade relative z-[2] mt-1 text-right text-[9px] font-semibold leading-relaxed text-rose-500 sm:text-[10px]">
           {formatVadeFarkiLine(rate.commissionPct, vadeFarki, commissionIncluded, formatMoney)}
         </p>
       ) : null}
