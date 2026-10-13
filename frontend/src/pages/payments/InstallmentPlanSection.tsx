@@ -93,9 +93,10 @@ export function InstallmentPlanSection({
                 className={[
                   'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                   density === 'dense' ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
+                  'install-card',
                   active
                     ? 'install-card-selected'
-                    : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
+                    : 'hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/55 hover:shadow-md',
                 ].join(' ')}
               >
                 <InstallmentPlanCardBody

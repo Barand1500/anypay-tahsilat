@@ -177,33 +177,26 @@ export function InstallmentPlanCardBody({
     <>
       {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
       {rate.plusN > 0 ? (
-        <span
-          className={[
-            'absolute right-3 top-3 z-20 rounded-full px-2 py-0.5 text-[9px] font-bold ring-1',
-            selected
-              ? 'bg-white/15 text-white ring-white/30'
-              : 'bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)] ring-[var(--color-brand-500)]/25',
-          ].join(' ')}
-        >
+        <span className="absolute right-3 top-3 z-20 rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-bold text-white ring-1 ring-white/30">
           +{rate.plusN} Ek Taksit
         </span>
       ) : null}
       <InstallmentCardWatermark n={rate.n} plusN={rate.plusN} selected={selected} />
       <p
         className={[
-          'install-card-muted relative z-[2] mt-1 text-right text-[0.8rem] font-semibold leading-snug tabular-nums text-[var(--panel-muted)] sm:text-[0.95rem] lg:text-[1.05rem]',
+          'install-card-muted relative z-[2] mt-1 text-right text-[0.8rem] font-semibold leading-snug tabular-nums sm:text-[0.95rem] lg:text-[1.05rem]',
           rate.plusN > 0 ? 'mt-6' : '',
         ].join(' ')}
       >
         {formatInstallmentPaymentLine(rate, chargedTotal, commissionIncluded, formatMoney)}
       </p>
       {showTotalLine ? (
-        <p className="install-card-muted relative z-[2] mt-1 text-right text-[0.8rem] font-semibold leading-snug tabular-nums text-[var(--panel-muted)] sm:text-[0.95rem] lg:text-[1.05rem]">
+        <p className="install-card-muted relative z-[2] mt-1 text-right text-[0.8rem] font-semibold leading-snug tabular-nums sm:text-[0.95rem] lg:text-[1.05rem]">
           Toplam {formatMoney(chargedTotal)}
         </p>
       ) : null}
       {paymentCount > 1 && rate.commissionPct > 0 ? (
-        <p className="install-card-vade relative z-[2] mt-1 text-right text-[9px] font-semibold leading-relaxed text-rose-500 sm:text-[10px]">
+        <p className="install-card-vade relative z-[2] mt-1 text-right text-[9px] font-semibold leading-relaxed sm:text-[10px]">
           {formatVadeFarkiLine(rate.commissionPct, vadeFarki, commissionIncluded, formatMoney)}
         </p>
       ) : null}
@@ -228,7 +221,7 @@ export function SelectedInstallmentSummary({
 }: SelectedSummaryProps) {
   return (
     <div
-      className="install-card-selected relative mt-3 min-h-[148px] overflow-visible rounded-xl border p-4 text-left"
+      className="install-card install-card-selected relative mt-3 min-h-[148px] overflow-visible rounded-xl border p-4 text-left"
       aria-label="Seçili taksit"
     >
       <InstallmentPlanCardBody
