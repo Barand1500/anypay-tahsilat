@@ -276,7 +276,7 @@ function BlockContent({
       );
     case 'merchantTitle':
       return (
-        <p className="w-full font-bold uppercase leading-tight" style={fs(12)}>
+        <p className="w-full break-words font-bold uppercase leading-tight" style={fs(12)}>
           {ctx.merchantTitle}
         </p>
       );
@@ -294,7 +294,7 @@ function BlockContent({
       );
     case 'bankName':
       return (
-        <p className="w-full font-bold" style={fs(11)}>
+        <p className="w-full break-words font-bold" style={fs(11)}>
           {ctx.bankName}
         </p>
       );

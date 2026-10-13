@@ -164,8 +164,24 @@ export function DekontModal({ tx, onClose }: Props) {
     try {
       const canvas = await html2canvas(el, {
         backgroundColor: '#ffffff',
-        scale: 2,
+        scale: 3,
         useCORS: true,
+        allowTaint: false,
+        logging: false,
+        imageTimeout: 15000,
+        onclone: (_doc, cloned) => {
+          cloned.style.boxShadow = 'none';
+          cloned.style.filter = 'none';
+          cloned.style.transform = 'none';
+          cloned.querySelectorAll<HTMLElement>('*').forEach((node) => {
+            node.style.textShadow = 'none';
+            node.style.boxShadow = 'none';
+            node.style.filter = 'none';
+            node.style.setProperty('-webkit-text-stroke', '0');
+            node.style.setProperty('-webkit-font-smoothing', 'antialiased');
+            node.style.textRendering = 'geometricPrecision';
+          });
+        },
       });
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
@@ -185,21 +201,87 @@ export function DekontModal({ tx, onClose }: Props) {
       flash('Dekont alanı bulunamadı');
       return;
     }
-    const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
-    if (!win) {
+
+    // Zen / sıkı tarayıcılarda window.open(noopener) yazdırmayı engelleyebilir — iframe kullan
+    const prev = document.getElementById('dekont-print-frame');
+    prev?.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'dekont-print-frame';
+    iframe.title = 'Dekont yazdır';
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      right: '0',
+      bottom: '0',
+      width: '0',
+      height: '0',
+      border: '0',
+      opacity: '0',
+      pointerEvents: 'none',
+    });
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+    if (!doc || !win) {
+      iframe.remove();
       flash('Yazdırma penceresi açılamadı');
       return;
     }
+
     const width = PAPER_WIDTH[format];
-    win.document.write(`<!DOCTYPE html><html><head><title>Dekont ${tx.id}</title>
+    const pageSize =
+      format === 'a4' ? 'A4' : format === 'a5' ? 'A5' : '80mm auto';
+    const styles = Array.from(
+      document.querySelectorAll('link[rel="stylesheet"], style'),
+    )
+      .map((n) => n.outerHTML)
+      .join('\n');
+
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Dekont ${tx.id}</title>
+${styles}
 <style>
-  @page { size: ${format === 'a4' ? 'A4' : format === 'a5' ? 'A5' : '80mm auto'}; margin: 8mm; }
-  body { margin: 0; background: #fff; font-family: system-ui, sans-serif; }
+  @page { size: ${pageSize}; margin: 8mm; }
+  html, body { margin: 0; background: #fff !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sheet { width: ${width}; max-width: 100%; margin: 0 auto; }
-</style></head><body><div class="sheet">${el.outerHTML}</div>
-<script>window.onload=function(){window.focus();window.print();}</script>
-</body></html>`);
-    win.document.close();
+  #dekont-print-root { box-shadow: none !important; border: none !important; }
+</style></head><body><div class="sheet">${el.outerHTML}</div></body></html>`);
+    doc.close();
+
+    const cleanup = () => {
+      setTimeout(() => iframe.remove(), 800);
+    };
+
+    const runPrint = () => {
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        flash('Yazdırma açılamadı — tarayıcı izinlerini kontrol edin');
+      } finally {
+        cleanup();
+      }
+    };
+
+    const imgs = Array.from(doc.images);
+    if (imgs.length === 0) {
+      setTimeout(runPrint, 120);
+      return;
+    }
+    let left = imgs.length;
+    const done = () => {
+      left -= 1;
+      if (left <= 0) setTimeout(runPrint, 80);
+    };
+    imgs.forEach((img) => {
+      if (img.complete) done();
+      else {
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
+      }
+    });
   }
 
   async function sendEmail() {

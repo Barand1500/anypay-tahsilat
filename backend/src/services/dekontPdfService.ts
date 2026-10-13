@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import sharp from 'sharp';
 import {
   getDekontSettings,
   getDefaultFisBlocks,
@@ -197,6 +198,13 @@ function localImageCandidates(urlOrPath: string): string[] {
       path.resolve(UPLOADS_ROOT, '..', 'frontend', 'public', p),
       path.resolve(UPLOADS_ROOT, '..', '..', 'htdocs', 'tahsilat.anypay.com.tr', p),
     );
+    const file = path.basename(p);
+    // Eski PHP: bankalar/ / banks/
+    out.push(
+      path.join(UPLOADS_ROOT, 'bankalar', file),
+      path.join(UPLOADS_ROOT, 'banks', file),
+      path.resolve(process.cwd(), 'frontend', 'public', 'banks', file),
+    );
   }
   return out;
 }
@@ -235,6 +243,11 @@ async function loadImageBytes(urlOrPath: string): Promise<Uint8Array | null> {
   return null;
 }
 
+async function toPngBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const buf = await sharp(Buffer.from(bytes)).ensureAlpha().png().toBuffer();
+  return new Uint8Array(buf);
+}
+
 async function embedLogo(
   doc: PDFDocument,
   urlOrPath: string,
@@ -244,11 +257,18 @@ async function embedLogo(
   try {
     return await doc.embedPng(bytes);
   } catch {
-    try {
-      return await doc.embedJpg(bytes);
-    } catch {
-      return null;
-    }
+    /* jpg / webp / diğer */
+  }
+  try {
+    return await doc.embedJpg(bytes);
+  } catch {
+    /* sharp ile png'ye çevir (webp vb.) */
+  }
+  try {
+    const png = await toPngBytes(bytes);
+    return await doc.embedPng(png);
+  } catch {
+    return null;
   }
 }
 
@@ -274,21 +294,21 @@ function drawInBlock(
 ) {
   const t = encodePdfText(text);
   if (!t) return;
-  const tw = font.widthOfTextAtSize(t, size);
   const innerW = Math.max(8, box.boxW - padX * 2);
+  let draw = t;
+  let tw = font.widthOfTextAtSize(draw, size);
+  if (tw > innerW) {
+    while (draw.length > 1 && font.widthOfTextAtSize(`${draw}…`, size) > innerW) {
+      draw = draw.slice(0, -1);
+    }
+    draw = `${draw}…`;
+    tw = font.widthOfTextAtSize(draw, size);
+  }
   let x = box.x + padX;
   if (align === 'center') x = box.x + Math.max(0, (box.boxW - tw) / 2);
   else if (align === 'right') x = box.x + Math.max(0, box.boxW - tw - padX);
   const y = box.top - size - 2 - lineOffset;
   if (y < box.bottom) return;
-  // Taşan metni kısalt
-  let draw = t;
-  if (tw > innerW && align === 'left') {
-    while (draw.length > 1 && font.widthOfTextAtSize(`${draw}…`, size) > innerW) {
-      draw = draw.slice(0, -1);
-    }
-    draw = `${draw}…`;
-  }
   page.drawText(draw, {
     x: Math.max(2, x),
     y,
@@ -307,7 +327,30 @@ function wrapWords(
   const words = encodePdfText(text).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
+
+  const pushCharBreak = (word: string) => {
+    let chunk = '';
+    for (const ch of word) {
+      const trial = chunk + ch;
+      if (font.widthOfTextAtSize(trial, size) > maxW && chunk) {
+        lines.push(chunk);
+        chunk = ch;
+      } else {
+        chunk = trial;
+      }
+    }
+    line = chunk;
+  };
+
   for (const word of words) {
+    if (font.widthOfTextAtSize(word, size) > maxW) {
+      if (line) {
+        lines.push(line);
+        line = '';
+      }
+      pushCharBreak(word);
+      continue;
+    }
     const trial = line ? `${line} ${word}` : word;
     if (font.widthOfTextAtSize(trial, size) > maxW && line) {
       lines.push(line);
@@ -317,7 +360,29 @@ function wrapWords(
     }
   }
   if (line) lines.push(line);
-  return lines;
+  return lines.length ? lines : [''];
+}
+
+/** Kutuya sığacak şekilde satır satır yazar */
+function drawWrappedInBlock(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  box: PdfBox,
+  size: number,
+  align: DekontBlock['align'],
+  startOffset = 0,
+  padX = 2,
+): number {
+  const maxW = Math.max(8, box.boxW - padX * 2);
+  const wrapped = wrapWords(font, text, size, maxW);
+  let offset = startOffset;
+  for (const ln of wrapped) {
+    if (offset + size > box.boxH - 1) break;
+    drawInBlock(page, font, ln, box, size, align, offset, padX);
+    offset += size + 2;
+  }
+  return offset;
 }
 
 function drawBorderBox(page: PDFPage, box: PdfBox) {
@@ -497,8 +562,7 @@ function drawRichBlock(
       [font, ctx.merchantPhone || ''],
     ] as const) {
       if (!t) continue;
-      drawInBlock(page, f, t, left, s, 'left', o, 4);
-      o += s + 2;
+      o = drawWrappedInBlock(page, f, t, left, s, 'left', o, 4);
     }
     o = 4;
     for (const [f, t] of [
@@ -506,8 +570,7 @@ function drawRichBlock(
       [font, '-'],
       [font, ctx.holderPhone || ''],
     ] as const) {
-      drawInBlock(page, f, t, right, s, 'left', o, 4);
-      o += s + 2;
+      o = drawWrappedInBlock(page, f, t, right, s, 'left', o, 4);
     }
     return;
   }
@@ -767,21 +830,22 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
           const line = fieldText(f, ctx);
           if (!line.text) continue;
           const size = 8 * scale;
-          drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset, 4);
-          offset += size + 2;
+          offset = drawWrappedInBlock(
+            page,
+            line.bold ? bold : font,
+            line.text,
+            box,
+            size,
+            block.align,
+            offset,
+            4,
+          );
         }
       }
       if (block.type === 'customText') {
         const raw = (block.text || '').trim() || 'İstek metin';
         const size = 8 * scale;
-        const maxW = Math.max(20, box.boxW - 8);
-        const wrapped = wrapWords(font, raw, size, maxW);
-        let offset = 4;
-        for (const ln of wrapped) {
-          drawInBlock(page, font, ln, box, size, block.align, offset, 4);
-          offset += size + 2;
-          if (offset > box.boxH - size) break;
-        }
+        drawWrappedInBlock(page, font, raw, box, size, block.align, 4, 4);
       }
       continue;
     }
@@ -790,8 +854,16 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     let offset = 0;
     for (const line of lines) {
       const size = line.size * scale;
-      drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset);
-      offset += size + 2;
+      offset = drawWrappedInBlock(
+        page,
+        line.bold ? bold : font,
+        line.text,
+        box,
+        size,
+        block.align,
+        offset,
+        2,
+      );
     }
   }
 
