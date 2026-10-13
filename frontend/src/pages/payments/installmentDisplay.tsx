@@ -32,6 +32,19 @@ export function formatInstallmentPaymentLine(
   return `${count} × ${formatMoney(per)}`;
 }
 
+export function formatVadeFarkiLine(
+  commissionPct: number,
+  vadeFarki: number,
+  commissionIncluded: boolean,
+  formatMoney: (n: number) => string,
+): string {
+  const pct = formatMoney(commissionPct);
+  if (commissionIncluded && vadeFarki > 0) {
+    return `Vade Farkı %${pct} (${formatMoney(vadeFarki)})`;
+  }
+  return `Vade Farkı %${pct}`;
+}
+
 /** Taksit Seçenekleri tablosu — 1+2 tek renk */
 export function InstallmentBadge({
   n,
@@ -74,15 +87,21 @@ export function InstallmentCardWatermark({
 }) {
   const extra = Math.max(0, plusN ?? 0);
   const total = installmentPaymentCount(n, extra);
+  const num = extra > 0 ? total : n;
   return (
     <span className="pointer-events-none absolute bottom-1 left-3 z-[2] flex flex-col items-start leading-none">
       {selected ? (
-        <span className="mb-1 inline-flex h-5 items-center justify-center rounded-full bg-[var(--brand-soft-bg)] px-2.5 text-[10px] font-semibold leading-none tracking-wide text-[var(--color-brand-700)] ring-1 ring-[color-mix(in_srgb,var(--color-brand-500)_28%,transparent)]">
+        <span className="install-card-selected-pill mb-1 inline-flex h-5 items-center justify-center rounded-full px-2.5 text-[10px] font-semibold leading-none tracking-wide">
           Seçili
         </span>
       ) : null}
-      <span className="-mb-2 text-[4.5rem] font-black text-[var(--panel-muted)]/15 sm:text-[5rem]">
-        {extra > 0 ? total : n}
+      <span className="flex items-end gap-1.5">
+        <span className="install-card-watermark-num -mb-2 text-[4.5rem] font-black text-[var(--panel-muted)]/15 sm:text-[5rem]">
+          {num}
+        </span>
+        <span className="install-card-watermark-label mb-2 text-[11px] font-semibold tracking-wide text-[var(--panel-muted)]/25">
+          taksit
+        </span>
       </span>
     </span>
   );
@@ -124,6 +143,67 @@ export function NoCommissionRibbon() {
   );
 }
 
+type CardBodyProps = {
+  rate: InstallmentRow;
+  baseAmount: number;
+  commissionIncluded: boolean;
+  formatMoney: (n: number) => string;
+  /** Seçili görünüm (mavi kart) — Seçili rozeti */
+  selected?: boolean;
+};
+
+/** Grid kartı + Seçili özet ortak gövde */
+export function InstallmentPlanCardBody({
+  rate,
+  baseAmount,
+  commissionIncluded,
+  formatMoney,
+  selected = false,
+}: CardBodyProps) {
+  const chargedTotal = commissionIncluded ? rate.totalAmount : baseAmount;
+  const paymentCount = installmentPaymentCount(rate.n, rate.plusN);
+  const vadeFarki = Math.max(0, rate.totalAmount - baseAmount);
+  const showTotalLine = paymentCount > 1 || rate.plusN > 0;
+
+  return (
+    <>
+      {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
+      {rate.plusN > 0 ? (
+        <span
+          className={[
+            'absolute right-3 top-3 z-20 rounded-full px-2 py-0.5 text-[9px] font-bold ring-1',
+            selected
+              ? 'bg-white/15 text-white ring-white/30'
+              : 'bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)] ring-[var(--color-brand-500)]/25',
+          ].join(' ')}
+        >
+          +{rate.plusN} Ek Taksit
+        </span>
+      ) : null}
+      <InstallmentCardWatermark n={rate.n} plusN={rate.plusN} selected={selected} />
+      <p
+        className={[
+          'install-card-ink relative z-[2] mt-1 text-right text-xl font-bold tabular-nums',
+          selected ? '' : 'text-[var(--panel-ink)]',
+          rate.plusN > 0 ? 'mt-6' : '',
+        ].join(' ')}
+      >
+        {formatInstallmentPaymentLine(rate, chargedTotal, commissionIncluded, formatMoney)}
+      </p>
+      {showTotalLine ? (
+        <p className="install-card-muted relative z-[2] mt-0.5 text-right text-[12px] font-semibold tabular-nums text-[var(--panel-muted)]">
+          Toplam {formatMoney(chargedTotal)}
+        </p>
+      ) : null}
+      {paymentCount > 1 && rate.commissionPct > 0 ? (
+        <p className="install-card-vade relative z-[2] mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
+          {formatVadeFarkiLine(rate.commissionPct, vadeFarki, commissionIncluded, formatMoney)}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 type SelectedSummaryProps = {
   rate: InstallmentRow;
   baseAmount: number;
@@ -132,44 +212,25 @@ type SelectedSummaryProps = {
   formatPct: (n: number) => string;
 };
 
-/** Banka & Taksit — Seçili özet (sola hizalı, toplam taksit) */
+/** Banka & Taksit — Seçili özet = seçili plan kartının birebir kopyası */
 export function SelectedInstallmentSummary({
   rate,
   baseAmount,
   commissionIncluded,
   formatMoney,
-  formatPct,
 }: SelectedSummaryProps) {
-  const chargedTotal = commissionIncluded ? rate.totalAmount : baseAmount;
-  const count = installmentPaymentCount(rate.n, rate.plusN);
-  const vadeFarki = Math.max(0, rate.totalAmount - baseAmount);
-
   return (
-    <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-left">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-        Seçili
-      </p>
-      <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-        {formatInstallmentTitle(rate.n, rate.plusN)}
-      </p>
-      <p className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--panel-ink)]">
-        {formatInstallmentPaymentLine(rate, chargedTotal, commissionIncluded, formatMoney)}
-      </p>
-      {count > 1 ? (
-        <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-[var(--panel-muted)]">
-          Toplam {formatMoney(chargedTotal)}
-        </p>
-      ) : null}
-      {rate.commissionPct > 0 ? (
-        <p className="mt-1.5 text-[11px] font-semibold text-rose-500">
-          Vade farkı %{formatPct(rate.commissionPct)}
-          {commissionIncluded && vadeFarki > 0 ? ` = ${formatMoney(vadeFarki)}` : ''}
-        </p>
-      ) : (
-        <p className="mt-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-          Komisyon yok
-        </p>
-      )}
+    <div
+      className="install-card-selected relative mt-3 min-h-[148px] overflow-hidden rounded-xl border p-4 text-left"
+      aria-label="Seçili taksit"
+    >
+      <InstallmentPlanCardBody
+        rate={rate}
+        baseAmount={baseAmount}
+        commissionIncluded={commissionIncluded}
+        formatMoney={formatMoney}
+        selected
+      />
     </div>
   );
 }

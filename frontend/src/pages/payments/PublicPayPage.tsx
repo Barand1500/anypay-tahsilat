@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { PAYMENT_BADGES } from '../../components/layout/Footer';
 import { LegalDocModal } from '../../components/layout/LegalDocModal';
@@ -95,6 +95,7 @@ type PublicPayView = {
  */
 export default function PublicPayPage() {
   const { token: payToken } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { logoUrl } = useBrand();
   const rootRef = useRef<HTMLDivElement>(null);
   useLoadBins();
@@ -124,6 +125,8 @@ export default function PublicPayPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<{ odemeNo: string; amount: number } | null>(null);
+  /** 3DS callback dönüşü: /pay/:token?pay=ok|fail&msg=... */
+  const [payFlash, setPayFlash] = useState<{ kind: 'ok' | 'fail'; msg: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pageSettings, setPageSettings] = useState<PaymentPageSettings>(() => ({
     layout: DEFAULT_PAYMENT_PAGE.layout,
@@ -175,6 +178,27 @@ export default function PublicPayPage() {
     };
   }, []);
 
+  // 3DS sonrası banka → API → /pay/:token?pay=ok|fail&msg=...
+  useEffect(() => {
+    const pay = searchParams.get('pay');
+    const msg = (searchParams.get('msg') || '').trim();
+    if (pay !== 'ok' && pay !== 'fail') return;
+    setPayFlash({ kind: pay, msg });
+    if (pay === 'ok') {
+      const odemeNoMatch = msg.match(/#([A-Za-z0-9_-]+)/);
+      setDone((prev) =>
+        prev ?? {
+          odemeNo: odemeNoMatch?.[1] || '—',
+          amount: 0,
+        },
+      );
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('pay');
+    next.delete('msg');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     if (!payToken) {
       setLoadError('Geçersiz link');
@@ -204,6 +228,13 @@ export default function PublicPayPage() {
         const opts = data.installments.length ? data.installments : [1];
         setInstallment(opts[0]!);
         setHolder(data.customerTitle !== '—' ? data.customerTitle : '');
+        if (data.status === 'paid') {
+          setDone((prev) =>
+            prev
+              ? { ...prev, amount: prev.amount || data.amount }
+              : { odemeNo: data.token || '—', amount: data.amount },
+          );
+        }
       } catch (err) {
         if (!cancelled) {
           setLoadError(err instanceof Error ? err.message : 'Ödeme isteği yüklenemedi');
@@ -216,6 +247,14 @@ export default function PublicPayPage() {
       cancelled = true;
     };
   }, [payToken]);
+
+  // Başarı flash sonrası tutarı view'dan doldur
+  useEffect(() => {
+    if (!view || !done || done.amount > 0) return;
+    if (payFlash?.kind === 'ok' || view.status === 'paid') {
+      setDone((prev) => (prev ? { ...prev, amount: view.amount } : prev));
+    }
+  }, [view, done, payFlash]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -414,7 +453,7 @@ export default function PublicPayPage() {
     );
   }
 
-  const alreadyPaid = view.status === 'paid' || !!done;
+  const alreadyPaid = view.status === 'paid' || !!done || payFlash?.kind === 'ok';
   const isFullscreen = pageSettings.layout === 'fullscreen';
   const useMobileWizard = pageSettings.mobileLayout === 'wizard';
   const useMobileHero = pageSettings.mobileLayout === 'stack';
@@ -608,15 +647,30 @@ export default function PublicPayPage() {
               <p className="mt-4 text-xl font-bold text-[var(--panel-ink)]">Ödeme alındı</p>
               <p className="mt-1 text-sm text-[var(--panel-muted)]">
                 {done
-                  ? `${done.odemeNo} · ${formatMoneyDisplay(done.amount, view.currencySymbol || '₺')}`
+                  ? `${done.odemeNo}${done.amount > 0 ? ` · ${formatMoneyDisplay(done.amount, view.currencySymbol || '₺')}` : ''}`
                   : 'Bu link daha önce kullanıldı.'}
               </p>
+              {payFlash?.kind === 'ok' && payFlash.msg ? (
+                <p className="mt-3 text-xs text-[var(--panel-muted)]">{payFlash.msg}</p>
+              ) : null}
             </section>
           ) : (
             <form
               onSubmit={(e) => void onSubmit(e)}
               className={isFullscreen ? 'space-y-5' : 'space-y-4'}
             >
+              {payFlash?.kind === 'fail' ? (
+                <div
+                  data-anim
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+                  role="alert"
+                >
+                  <p className="font-semibold">Ödeme tamamlanamadı</p>
+                  <p className="mt-0.5 text-[13px] opacity-90">
+                    {payFlash.msg || '3D Secure doğrulaması başarısız. Tekrar deneyebilirsiniz.'}
+                  </p>
+                </div>
+              ) : null}
               {useMobileWizard && !alreadyPaid ? (
                 <PublicPayMobileWizard
                   step={mobileStep}

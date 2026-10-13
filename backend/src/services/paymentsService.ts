@@ -43,6 +43,8 @@ export type CreatePaymentInput = {
   bankId?: number | null;
   clientIp?: string;
   email?: string;
+  /** Public ödeme isteği token — 3DS sonrası isteği kapatmak için */
+  istekNo?: string | null;
 };
 
 export type TxStatus = 'paid' | 'cancelled' | 'refunded' | 'pending' | 'failed';
@@ -521,12 +523,14 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     throw new PaymentsError(threeDResult.message);
   }
 
+  const istekNo = (input.istekNo || '').trim() || null;
   const meta = JSON.stringify({
     adapter: threeDResult.adapter,
     posId: pos.posId,
     securityType: pos.securityType,
     startedAt: now.toISOString(),
     commissionPct,
+    ...(istekNo ? { istekNo } : {}),
   });
 
   const row = await prisma.odeme.create({
@@ -555,6 +559,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       sanalposBankaId: pos.bankId,
       ip: (input.clientIp || '').slice(0, 255) || null,
       arsiv: false,
+      istekNo,
     },
   });
 

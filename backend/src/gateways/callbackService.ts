@@ -33,6 +33,34 @@ function pickOrderId(body: Record<string, unknown>): string {
   return '';
 }
 
+function redirectForPayment(istekNo: string | null | undefined): string {
+  const token = (istekNo || '').trim();
+  if (token) return `/pay/${encodeURIComponent(token)}`;
+  return '/hareketler';
+}
+
+/** Başarılı 3DS sonrası bağlı ödeme isteğini kapat */
+async function markPaymentRequestPaid(
+  istekNo: string | null | undefined,
+  amount: number,
+): Promise<void> {
+  const token = (istekNo || '').trim();
+  if (!token) return;
+  const now = new Date();
+  await prisma.odemeIstegi.updateMany({
+    where: {
+      istekNo: token,
+      durum: false,
+      OR: [{ remove: null }, { remove: false }],
+    },
+    data: {
+      durum: true,
+      odemeZamani: now,
+      tutar: amount,
+    },
+  });
+}
+
 /** Banka 3DS dönüşü — odemeNo = orderId */
 export async function handleThreeDCallback(
   body: Record<string, unknown>,
@@ -46,13 +74,15 @@ export async function handleThreeDCallback(
   });
   if (!row) throw new GatewayCallbackError('Ödeme kaydı bulunamadı');
 
+  const redirectPath = redirectForPayment(row.istekNo);
+
   // Zaten sonuçlanmışsa tekrar işleme
   if (row.durum === 1 || row.durum === 2 || row.durum === 0 || row.durum === -1) {
     return {
       odemeNo: orderId,
       success: row.durum === 1,
       message: row.durum === 1 ? 'Ödeme zaten onaylı' : 'Ödeme zaten sonuçlanmış',
-      redirectPath: '/hareketler',
+      redirectPath,
     };
   }
 
@@ -109,6 +139,18 @@ export async function handleThreeDCallback(
     }
   }
 
+  // Provizyon gerekli ama adapter desteklemiyor → başarısız (durum=3'te asılı kalmasın)
+  if (parsed.needsProvision && !(gw.finalizeCallback && posCreds && outcome === 'ok')) {
+    parsed = {
+      ...parsed,
+      success: false,
+      needsProvision: false,
+      message:
+        parsed.message ||
+        '3D doğrulandı ancak provizyon tamamlanamadı (3D_PAY kullanın)',
+    };
+  }
+
   const success = outcome === 'ok' && parsed.success && !parsed.needsProvision;
   const snippet = JSON.stringify({
     adapter: adapterId,
@@ -117,6 +159,7 @@ export async function handleThreeDCallback(
     message: parsed.message,
     hashOk: parsed.success,
     needsProvision: parsed.needsProvision,
+    istekNo: row.istekNo || undefined,
     keys: Object.keys(parsed.raw).filter((k) => !/card|cvv|pan|credit/i.test(k)),
   });
 
@@ -133,7 +176,7 @@ export async function handleThreeDCallback(
       odemeNo: orderId,
       success: false,
       message: '3D doğrulandı; provizyon tamamlanacak',
-      redirectPath: '/hareketler',
+      redirectPath,
     };
   }
 
@@ -146,10 +189,14 @@ export async function handleThreeDCallback(
     },
   });
 
+  if (success) {
+    await markPaymentRequestPaid(row.istekNo, row.tutar);
+  }
+
   return {
     odemeNo: orderId,
     success,
     message: success ? 'Ödeme onaylandı' : parsed.message || 'Ödeme reddedildi',
-    redirectPath: '/hareketler',
+    redirectPath,
   };
 }

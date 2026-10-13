@@ -89,6 +89,12 @@ export const nestpayGateway: PaymentGateway = {
     const taksit = input.installment > 1 ? String(input.installment) : '';
     const billName = (input.card.holder || 'Musteri').trim();
 
+    // Düz "3d" yalnızca kimlik doğrular; Auth/çekim için 3d_pay zorunlu
+    let storetype = mapStoreType(input.pos.securityType);
+    if (storetype === '3d') {
+      storetype = '3d_pay';
+    }
+
     const params: Record<string, string> = {
       pan: input.card.number,
       cv2: input.card.cvc,
@@ -104,7 +110,7 @@ export const nestpayGateway: PaymentGateway = {
       Instalment: taksit,
       currency: currencyCode(input.currencyCode),
       rnd: `${Date.now()}${Math.floor(Math.random() * 100000)}`,
-      storetype: mapStoreType(input.pos.securityType),
+      storetype,
       hashAlgorithm: 'ver3',
       lang: 'tr',
       BillToName: billName,

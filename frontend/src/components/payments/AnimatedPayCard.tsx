@@ -306,7 +306,19 @@ export function AnimatedPayCard({
                       cardFaulty || errors?.card ? errField : '',
                     ].join(' ')}
                   />
-                  {cardFaulty ? <span className={`mt-1 inline-block text-[10px] font-bold ${errText}`}>Hatalı</span> : cardOk ? <span className="mt-1 inline-block text-[10px] font-bold text-emerald-600">OK</span> : null}
+                  {cardFaulty ? (
+                    <span className={`mt-1 inline-flex text-rose-500 ${errText}`} title="Hatalı" aria-label="Hatalı">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                  ) : cardOk ? (
+                    <span className="mt-1 inline-flex text-emerald-600" title="Geçerli" aria-label="Geçerli">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  ) : null}
                   {errors?.card || cardFaulty ? (
                     <p className={`mt-1 text-[10px] font-semibold ${errText}`}>
                       {errors?.card || 'Kart numarası hatalı'}
@@ -431,7 +443,19 @@ export function AnimatedPayCard({
                         errors?.cvc ? 'border-rose-400 text-rose-600' : '',
                       ].join(' ')}
                     />
-                    {cvcFaulty ? <span className="mt-1 block text-[9px] font-bold text-rose-500">NO</span> : cvcOk ? <span className="mt-1 block text-[9px] font-bold text-emerald-600">OK</span> : null}
+                    {cvcFaulty ? (
+                      <span className="mt-1 flex justify-center text-rose-500" title="Geçersiz" aria-label="Geçersiz">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                        </svg>
+                      </span>
+                    ) : cvcOk ? (
+                      <span className="mt-1 flex justify-center text-emerald-600" title="Geçerli" aria-label="Geçerli">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 {errors?.cvc ? (

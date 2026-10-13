@@ -1,12 +1,6 @@
 import { useMemo, type Ref } from 'react';
 import { formatMoneyTr, type InstallmentRow } from './mockBanks';
-import {
-  formatInstallmentPaymentLine,
-  formatInstallmentTitle,
-  InstallmentCardWatermark,
-  installmentPaymentCount,
-  NoCommissionRibbon,
-} from './installmentDisplay';
+import { InstallmentPlanCardBody } from './installmentDisplay';
 
 type Props = {
   rows: InstallmentRow[];
@@ -89,10 +83,6 @@ export function InstallmentPlanSection({
           {visibleRows.map((rate) => {
             const n = rate.n;
             const active = selectedN === n;
-            const chargedTotal = commissionIncluded ? rate.totalAmount : baseAmount;
-            const paymentCount = installmentPaymentCount(rate.n, rate.plusN);
-            const vadeFarki = Math.max(0, rate.totalAmount - baseAmount);
-            const showTotalLine = paymentCount > 1 || rate.plusN > 0;
             return (
               <button
                 key={n}
@@ -101,57 +91,20 @@ export function InstallmentPlanSection({
                 aria-pressed={active}
                 onClick={() => onSelect(n)}
                 className={[
-                  'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                  'relative overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                   density === 'dense' ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
                   active
                     ? 'install-card-selected'
                     : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] hover:-translate-y-0.5 hover:border-[var(--color-brand-500)]/50 hover:shadow-md',
                 ].join(' ')}
               >
-                {active ? (
-                  <>
-                    <span className="install-card-spin-layer" aria-hidden>
-                      <span className="install-card-spin-beam" />
-                    </span>
-                    <span className="install-card-spin-fill" aria-hidden />
-                  </>
-                ) : null}
-                {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
-                {rate.plusN > 0 ? (
-                  <span className="absolute right-3 top-3 z-20 rounded-full bg-[var(--brand-soft-bg)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-brand-700)] ring-1 ring-[var(--color-brand-500)]/25">
-                    +{rate.plusN} Ek Taksit
-                  </span>
-                ) : null}
-                <InstallmentCardWatermark n={n} plusN={rate.plusN} selected={active} />
-                <p
-                  className={[
-                    'relative z-[2] text-right text-sm font-semibold',
-                    rate.plusN > 0 ? 'mt-6' : '',
-                    active ? 'text-[var(--panel-ink)]' : 'text-[var(--panel-muted)]',
-                  ].join(' ')}
-                >
-                  {formatInstallmentTitle(n, rate.plusN)}
-                </p>
-                <p className="relative z-[2] mt-1 text-right text-xl font-bold tabular-nums text-[var(--panel-ink)]">
-                  {formatInstallmentPaymentLine(
-                    rate,
-                    chargedTotal,
-                    commissionIncluded,
-                    formatMoneyTr,
-                  )}
-                </p>
-                {showTotalLine ? (
-                  <p className="relative z-[2] mt-0.5 text-right text-[10px] font-semibold tabular-nums text-[var(--panel-muted)]">
-                    Toplam {formatMoneyTr(chargedTotal)}
-                  </p>
-                ) : null}
-                {paymentCount > 1 && rate.commissionPct > 0 ? (
-                  <p className="relative z-[2] mt-1 text-right text-[10px] font-semibold leading-relaxed text-rose-500">
-                    {commissionIncluded
-                      ? `Vade farkı %${formatMoneyTr(rate.commissionPct)} - ${formatMoneyTr(vadeFarki)}`
-                      : `Vade farkı %${formatMoneyTr(rate.commissionPct)}`}
-                  </p>
-                ) : null}
+                <InstallmentPlanCardBody
+                  rate={rate}
+                  baseAmount={baseAmount}
+                  commissionIncluded={commissionIncluded}
+                  formatMoney={formatMoneyTr}
+                  selected={active}
+                />
               </button>
             );
           })}

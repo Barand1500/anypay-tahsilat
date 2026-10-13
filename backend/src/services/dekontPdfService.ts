@@ -227,16 +227,23 @@ async function loadImageBytes(urlOrPath: string): Promise<Uint8Array | null> {
       return null;
     }
   }
-  // Göreli URL — PUBLIC_APP_URL ile dene
+  // Göreli URL — canlı / local static
   if (urlOrPath.startsWith('/')) {
-    const base = (process.env.PUBLIC_APP_URL || process.env.PUBLIC_API_URL || '')
-      .replace(/\/$/, '');
-    if (base) {
+    const port = process.env.PORT || '3010';
+    const bases = [
+      process.env.PUBLIC_APP_URL,
+      process.env.PUBLIC_API_URL,
+      `http://127.0.0.1:${port}`,
+      `http://localhost:${port}`,
+    ]
+      .map((b) => (b || '').replace(/\/$/, ''))
+      .filter(Boolean);
+    for (const base of bases) {
       try {
         const res = await fetch(`${base}${urlOrPath}`);
         if (res.ok) return new Uint8Array(await res.arrayBuffer());
       } catch {
-        /* yok */
+        /* sonraki */
       }
     }
   }

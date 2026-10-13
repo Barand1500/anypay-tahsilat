@@ -345,6 +345,28 @@ export async function ensureSchema(): Promise<void> {
   await ensureKasaTables();
   await ensureOtpChallengeTable();
   await ensureSozlesmelerTable();
+  await ensureOdemeIstekNoColumn();
+}
+
+/** odemeler.istek_no — public ödeme isteği ↔ 3DS callback bağlama */
+export async function ensureOdemeIstekNoColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'odemeler'
+        AND COLUMN_NAME = 'istek_no'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `odemeler` ADD COLUMN `istek_no` VARCHAR(255) NULL',
+    );
+    console.log('[schema] odemeler.istek_no eklendi');
+  } catch (err) {
+    console.warn('[schema] odemeler.istek_no atlandı:', err);
+  }
 }
 
 /** Ayarlar › Dekont — Canva fiş şablonu JSON */

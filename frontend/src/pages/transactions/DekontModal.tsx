@@ -238,8 +238,9 @@ export function DekontModal({ tx, onClose }: Props) {
       .map((n) => n.outerHTML)
       .join('\n');
 
+    const baseHref = `${window.location.origin}/`;
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Dekont ${tx.id}</title>
+    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><base href="${baseHref}"/><title>Dekont ${tx.id}</title>
 ${styles}
 <style>
   @page { size: ${pageSize}; margin: 8mm; }
@@ -251,10 +252,13 @@ ${styles}
     doc.close();
 
     const cleanup = () => {
-      setTimeout(() => iframe.remove(), 800);
+      setTimeout(() => iframe.remove(), 1200);
     };
 
+    let printed = false;
     const runPrint = () => {
+      if (printed) return;
+      printed = true;
       try {
         win.focus();
         win.print();
@@ -267,13 +271,17 @@ ${styles}
 
     const imgs = Array.from(doc.images);
     if (imgs.length === 0) {
-      setTimeout(runPrint, 120);
+      setTimeout(runPrint, 150);
       return;
     }
     let left = imgs.length;
+    const safety = window.setTimeout(runPrint, 4000);
     const done = () => {
       left -= 1;
-      if (left <= 0) setTimeout(runPrint, 80);
+      if (left <= 0) {
+        window.clearTimeout(safety);
+        setTimeout(runPrint, 80);
+      }
     };
     imgs.forEach((img) => {
       if (img.complete) done();

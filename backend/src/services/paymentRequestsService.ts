@@ -603,13 +603,14 @@ export async function payPaymentRequestByToken(
       note: input.note || (row.aciklama || '').replace(/<[^>]+>/g, ' ').trim() || undefined,
       kullaniciId,
       parabirimiId: row.parabirimiId,
+      istekNo: row.istekNo,
     });
   } catch (err) {
     if (err instanceof PaymentsError) throw err;
     throw err;
   }
 
-  // 3DS beklerken istek henüz “ödendi” değil — callback sonrası işaretlenebilir
+  // 3DS beklerken istek henüz “ödendi” değil — handleThreeDCallback işaretler
   if (payment.status !== 'pending_3d') {
     const now = new Date();
     await prisma.odemeIstegi.update({

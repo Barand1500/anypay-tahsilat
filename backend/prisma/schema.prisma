@@ -349,6 +349,8 @@ model Odeme {
   gercekTutar      Float     @map("gercek_tutar")
   epostaGonderildi Int?      @map("eposta_gonderildi")
   smsGonderildi    Int?      @map("sms_gonderildi")
+  /** Public ödeme isteği token (odeme_istekleri.istek_no) — 3DS callback bağlama */
+  istekNo          String?   @map("istek_no") @db.VarChar(255)
 
   @@map("odemeler")
 }

@@ -755,61 +755,39 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
-/* Taksit planı — seçili kart dönen border (DOM katmanı) */
-@keyframes install-border-spin {
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
+/* Taksit planı — seçili kart (sabit koyu mavi; tema renginden bağımsız) */
 .install-card-selected {
-  border-color: transparent !important;
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  background: linear-gradient(155deg, #1a56b0 0%, #143d7a 55%, #0f2f5c 100%) !important;
+  border-color: #0c2749 !important;
+  box-shadow:
+    0 10px 28px color-mix(in srgb, #143d7a 42%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent);
+  color: #f8fbff;
 }
 
-.install-card-spin-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
+.install-card-selected .install-card-ink {
+  color: #ffffff;
 }
 
-.install-card-spin-beam {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 220%;
-  height: 220%;
-  transform: translate(-50%, -50%);
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent 245deg,
-    color-mix(in srgb, var(--color-brand-500) 45%, white) 275deg,
-    var(--color-brand-500) 300deg,
-    #ffffff 318deg,
-    var(--color-brand-600) 335deg,
-    transparent 360deg
-  );
-  animation: install-border-spin 1.6s linear infinite;
-  will-change: transform;
+.install-card-selected .install-card-muted {
+  color: color-mix(in srgb, white 72%, transparent);
 }
 
-.install-card-spin-fill {
-  position: absolute;
-  inset: 2.5px;
-  z-index: 1;
-  border-radius: calc(0.75rem - 1px);
-  background: var(--panel-hover);
-  pointer-events: none;
+.install-card-selected .install-card-vade {
+  color: #fecaca;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .install-card-spin-beam {
-    animation: none;
-    background: var(--color-brand-500);
-  }
+.install-card-selected .install-card-watermark-num {
+  color: color-mix(in srgb, white 18%, transparent);
+}
+
+.install-card-selected .install-card-watermark-label {
+  color: color-mix(in srgb, white 28%, transparent);
+}
+
+.install-card-selected .install-card-selected-pill {
+  background: color-mix(in srgb, white 18%, transparent);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 32%, transparent);
 }
 

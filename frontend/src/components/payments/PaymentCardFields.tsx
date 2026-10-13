@@ -71,26 +71,65 @@ export function notifyCardDesignChange() {
   window.dispatchEvent(new Event('anypay-card-design'));
 }
 
+function CheckIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <path
+        d="M5 13l4 4L19 7"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function XIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <path
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function FaultBadge() {
   return (
-    <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-500">
-      Hatalı
+    <span
+      className="inline-flex items-center justify-center rounded-md bg-rose-500/15 p-1 text-rose-500"
+      title="Hatalı"
+      aria-label="Hatalı"
+    >
+      <XIcon />
     </span>
   );
 }
 
 function OkBadge() {
   return (
-    <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-      OK
+    <span
+      className="inline-flex items-center justify-center rounded-md bg-emerald-500/15 p-1 text-emerald-600 dark:text-emerald-400"
+      title="Geçerli"
+      aria-label="Geçerli"
+    >
+      <CheckIcon />
     </span>
   );
 }
 
 function NoBadge() {
   return (
-    <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-500">
-      NO
+    <span
+      className="inline-flex items-center justify-center rounded-md bg-rose-500/15 p-1 text-rose-500"
+      title="Geçersiz"
+      aria-label="Geçersiz"
+    >
+      <XIcon />
     </span>
   );
 }
