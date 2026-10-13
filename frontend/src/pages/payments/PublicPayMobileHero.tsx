@@ -278,8 +278,17 @@ export function PublicPayMobileHero(props: Props) {
       {/* Sticky pay bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--panel-elevated)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md lg:hidden">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setLegalSheetOpen(true)}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)]"
+            aria-label="Sözleşmeler"
+            title="Sözleşmeler"
+          >
+            <LegalDocIcon />
+          </button>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold text-[var(--panel-muted)]">Ödenecek</p>
+            <p className="text-[10px] font-semibold text-[var(--panel-muted)]">Ödenecek tutar</p>
             <p className="truncate text-base font-bold tabular-nums text-[var(--panel-ink)]">
               {Number.isFinite(displayAmount) && displayAmount > 0
                 ? formatMoneyDisplay(
@@ -297,37 +306,26 @@ export function PublicPayMobileHero(props: Props) {
             {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
           </button>
         </div>
-        <div className="mt-2.5 flex items-start gap-2">
-          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-[11px] leading-snug text-[var(--panel-ink)]">
-            <input
-              type="checkbox"
-              checked={props.agree}
-              onChange={(e) => props.onAgree(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-[var(--input-border)] accent-[var(--color-brand-600)]"
-            />
-            <span>
-              <button
-                type="button"
-                onClick={() =>
-                  props.onOpenLegal(LEGAL_DOCS.find((d) => d.id === 'tahsilat') ?? LEGAL_DOCS[0]!)
-                }
-                className="font-semibold text-[var(--color-brand-600)] hover:underline"
-              >
-                Tahsilat Sözleşmesi
-              </button>
-              'ni okudum ve kabul ediyorum.
-            </span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setLegalSheetOpen(true)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--color-brand-600)] transition hover:bg-[var(--panel-hover)]"
-            aria-label="Sözleşmeler"
-            title="Sözleşmeler"
-          >
-            <LegalDocIcon />
-          </button>
-        </div>
+        <label className="mt-2.5 flex cursor-pointer items-start gap-2 text-[11px] leading-snug text-[var(--panel-ink)]">
+          <input
+            type="checkbox"
+            checked={props.agree}
+            onChange={(e) => props.onAgree(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-[var(--input-border)] accent-[var(--color-brand-600)]"
+          />
+          <span>
+            <button
+              type="button"
+              onClick={() =>
+                props.onOpenLegal(LEGAL_DOCS.find((d) => d.id === 'tahsilat') ?? LEGAL_DOCS[0]!)
+              }
+              className="font-semibold text-[var(--color-brand-600)] hover:underline"
+            >
+              Tahsilat Sözleşmesi
+            </button>
+            'ni okudum ve kabul ediyorum.
+          </span>
+        </label>
         {errors.agree ? <p className="mt-1 text-[10px] text-rose-500">{errors.agree}</p> : null}
       </div>
 

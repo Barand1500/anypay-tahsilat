@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import type { InstallmentRow } from './mockBanks';
 
 /** Gerçek ödeme dilimi: n + ek taksit */
@@ -108,52 +107,33 @@ export function InstallmentCardWatermark({
   );
 }
 
-/** Taksit kartı — 3D kurdele «Komisyon yok» */
+/** Taksit kartı — 3D şerit «Komisyon yok»; ilk tasarım, uç oval */
 export function NoCommissionRibbon() {
-  const uid = useId().replace(/:/g, '');
-  const bodyId = `komisyon-ribbon-body-${uid}`;
-  const shineId = `komisyon-ribbon-shine-${uid}`;
-
   return (
     <span
       className="pointer-events-none absolute -left-2.5 top-2 z-30"
       aria-label="Komisyon yok"
     >
       <svg
-        width="122"
-        height="40"
-        viewBox="0 0 122 40"
-        className="overflow-visible drop-shadow-[3px_5px_8px_rgba(0,0,0,0.32)]"
+        width="118"
+        height="38"
+        viewBox="0 0 118 38"
+        className="overflow-visible drop-shadow-[3px_4px_6px_rgba(0,0,0,0.35)]"
         aria-hidden
       >
-        <defs>
-          <linearGradient id={bodyId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fb923c" />
-            <stop offset="42%" stopColor="#f97316" />
-            <stop offset="100%" stopColor="#ea580c" />
-          </linearGradient>
-          <linearGradient id={shineId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fff7ed" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#fff7ed" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {/* Arkada sol kıvrım gölgesi */}
-        <path d="M11 27 L11 37 L1 27 Z" fill="#7c2d12" />
-        {/* Ana gövde + yumuşak uç */}
-        <path
-          d="M3 3 H95 C104 3 111 8 113 15 C111 22 104 27 95 27 H3 Z"
-          fill={`url(#${bodyId})`}
-        />
-        {/* Üst parlaklık */}
-        <path d="M3 3 H95 C102 3 108 6 110 11 H3 Z" fill={`url(#${shineId})`} />
-        {/* Alt kenar gölgesi */}
-        <path d="M3 27 H95 C100 27 104 28.5 102 30.5 H8 Z" fill="#c2410c" opacity="0.85" />
-        {/* Sol ön kıvrım (3D kat) */}
-        <path d="M3 3 L12 9 L12 27 L3 27 Z" fill="#ea580c" />
-        <path d="M3 3 L12 9 L10 9 L3 5 Z" fill="#fdba74" opacity="0.7" />
+        {/* Sol kıvrım (arka) */}
+        <path d="M10 26 L10 36 L0 26 Z" fill="#7c2d12" />
+        {/* Ana şerit — sağ uç oval (eski sivri uç yerine) */}
+        <path d="M2 2 H96 A12 12 0 0 1 96 26 H2 Z" fill="#f97316" />
+        {/* Üst ışık */}
+        <path d="M2 2 H96 A12 12 0 0 1 104 10 H2 Z" fill="#fb923c" opacity="0.55" />
+        {/* Alt gölge kıvrım */}
+        <path d="M2 26 H96 L92 30 H6 Z" fill="#c2410c" />
+        {/* Sol ön kıvrım */}
+        <path d="M2 2 L10 8 L10 26 L2 26 Z" fill="#ea580c" />
         <text
-          x="52"
-          y="16.5"
+          x="50"
+          y="15"
           textAnchor="middle"
           dominantBaseline="middle"
           fill="#fff8f0"
