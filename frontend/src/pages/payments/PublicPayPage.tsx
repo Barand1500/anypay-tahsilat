@@ -650,12 +650,6 @@ export default function PublicPayPage() {
             </header>
           ) : null}
 
-          {useMobileHero && !alreadyPaid && !isFullscreen ? (
-            <div className="mb-2 flex justify-end lg:hidden">
-              <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
-            </div>
-          ) : null}
-
           {alreadyPaid ? (
             <section data-anim className="mx-auto max-w-2xl rounded-2xl border border-emerald-500/25 bg-[var(--panel-elevated)] p-8 text-center shadow-[var(--panel-shadow)] sm:p-10">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><CheckIcon /></div>

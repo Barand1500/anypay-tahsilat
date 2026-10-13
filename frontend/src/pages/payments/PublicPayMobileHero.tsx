@@ -15,7 +15,12 @@ import {
   type BankInfo,
   type InstallmentRow,
 } from './mockBanks';
-import { InstallmentPlanCardBody, SelectedInstallmentSummary } from './installmentDisplay';
+import {
+  formatInstallmentPaymentLine,
+  formatInstallmentTitle,
+  InstallmentPlanCardBody,
+  SelectedInstallmentSummary,
+} from './installmentDisplay';
 import { PayAttachmentChips } from './PayAttachmentChips';
 import type { PayAttachmentFile } from './PayAttachmentPreviewModal';
 
@@ -71,7 +76,6 @@ type Props = {
   onAgree: (v: boolean) => void;
   onOpenLegal: (doc: LegalDoc) => void;
   saving: boolean;
-  onOpenContracts?: () => void;
 };
 
 /**
@@ -108,6 +112,7 @@ export function PublicPayMobileHero(props: Props) {
   } = props;
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [legalSheetOpen, setLegalSheetOpen] = useState(false);
   const displayAmount = variableAmount ? payableAmount : fixedAmount;
   const canPlan = payableAmount > 0 && Boolean(bank && rateBin);
 
@@ -119,31 +124,33 @@ export function PublicPayMobileHero(props: Props) {
   }, [pricedInstallments, installment]);
 
   useEffect(() => {
-    if (!sheetOpen) return;
+    if (!sheetOpen && !legalSheetOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSheetOpen(false);
+      if (e.key !== 'Escape') return;
+      if (legalSheetOpen) setLegalSheetOpen(false);
+      else if (sheetOpen) setSheetOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [sheetOpen]);
+  }, [sheetOpen, legalSheetOpen]);
 
   return (
     <div className="flex flex-col gap-4 pb-36 lg:hidden">
       {/* Hero */}
       <section className="overflow-hidden rounded-2xl bg-[linear-gradient(165deg,var(--color-brand-600)_0%,var(--color-brand-700)_55%,color-mix(in_srgb,var(--color-brand-700)_85%,#0f172a)_100%)] text-white shadow-[var(--panel-shadow)]">
-        <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4">
+        <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
           <img
             src={logoUrl}
             alt="Firma logosu"
             style={{ height: Math.min(brandLogoHeightPx, 36) }}
-            className="w-auto max-w-[140px] object-contain object-left brightness-0 invert"
+            className="w-auto max-w-[120px] shrink-0 object-contain object-left brightness-0 invert"
           />
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
             {badges.slice(0, 4).map((b) => (
               <span
                 key={b.id || b.src}
@@ -154,11 +161,20 @@ export function PublicPayMobileHero(props: Props) {
                   src={b.src}
                   alt=""
                   style={{ height: Math.min(b.heightPx, 22) }}
-                  className="w-auto max-w-[3.2rem] object-contain"
+                  className="w-auto max-w-[2.75rem] object-contain"
                   draggable={false}
                 />
               </span>
             ))}
+            <button
+              type="button"
+              onClick={() => setLegalSheetOpen(true)}
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 text-[10px] font-bold text-white ring-1 ring-white/30 backdrop-blur-sm"
+              aria-label="Sözleşmeler"
+            >
+              <LegalDocIcon />
+              Sözleşmeler
+            </button>
           </div>
         </div>
 
@@ -273,7 +289,7 @@ export function PublicPayMobileHero(props: Props) {
                 selectedRate,
                 commissionIncluded ? selectedRate.totalAmount : payableAmount,
                 commissionIncluded,
-                (v) => formatMoneyDisplay(v),
+                (v: number) => formatMoneyDisplay(v),
               )}
             </p>
           </button>
@@ -391,6 +407,98 @@ export function PublicPayMobileHero(props: Props) {
             document.body,
           )
         : null}
+
+      {legalSheetOpen
+        ? createPortal(
+            <LegalDocsBottomSheet
+              onClose={() => setLegalSheetOpen(false)}
+              onOpenDoc={(doc) => {
+                setLegalSheetOpen(false);
+                props.onOpenLegal(doc);
+              }}
+            />,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+function LegalDocIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+/** Mobil — Sözleşmeler listesi (Taksit Planı sheet ile aynı kalıp) */
+function LegalDocsBottomSheet({
+  onClose,
+  onOpenDoc,
+}: {
+  onClose: () => void;
+  onOpenDoc: (doc: LegalDoc) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[10050] lg:hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Sözleşmeler"
+    >
+      <div className="absolute inset-0 bg-black/45" aria-hidden />
+      <div className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-hidden rounded-t-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_-12px_40px_rgba(0,0,0,0.25)]">
+        <div className="flex items-center justify-between border-b border-[var(--panel-line)] px-4 py-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-brand-600)]">
+              Yasal
+            </p>
+            <p className="text-sm font-bold text-[var(--panel-ink)]">Sözleşmeler</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[var(--panel-line)] px-2.5 py-1 text-[11px] font-bold text-[var(--panel-muted)]"
+          >
+            X Esc
+          </button>
+        </div>
+        <ul
+          className="overflow-y-auto py-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          style={{ maxHeight: 'calc(78vh - 3.5rem)' }}
+        >
+          {LEGAL_DOCS.map((doc) => (
+            <li key={doc.id}>
+              <button
+                type="button"
+                onClick={() => onOpenDoc(doc)}
+                className="flex w-full items-start gap-2.5 px-4 py-3 text-left transition active:bg-[var(--panel-hover)]"
+              >
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--panel-surface)] text-[var(--panel-muted)]">
+                  <LegalDocIcon />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold leading-snug text-[var(--panel-ink)]">
+                    {doc.title}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-[var(--panel-muted)]">
+                    {doc.subtitle}
+                  </span>
+                </span>
+                <span className="mt-1 text-[var(--panel-muted)]" aria-hidden>
+                  ›
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
