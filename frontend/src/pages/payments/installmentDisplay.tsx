@@ -123,16 +123,16 @@ export function NoCommissionRibbon() {
       >
         {/* Sol kıvrım (arka) */}
         <path d="M10 26 L10 36 L0 26 Z" fill="#7c2d12" />
-        {/* Ana şerit */}
-        <path d="M2 2 H96 L116 14 L96 26 H2 Z" fill="#f97316" />
+        {/* Ana şerit — sağ uç yumuşak kavis */}
+        <path d="M2 2 H88 Q104 2 108 14 Q104 26 88 26 H2 Z" fill="#f97316" />
         {/* Üst ışık */}
-        <path d="M2 2 H96 L116 14 L112 14 L94 4 H2 Z" fill="#fb923c" opacity="0.55" />
+        <path d="M2 2 H88 Q100 2 104 10 L100 10 Q96 4 88 4 H2 Z" fill="#fb923c" opacity="0.55" />
         {/* Alt gölge kıvrım */}
-        <path d="M2 26 H96 L92 30 H6 Z" fill="#c2410c" />
+        <path d="M2 26 H88 Q94 26 96 28 H6 Z" fill="#c2410c" />
         {/* Sol ön kıvrım */}
         <path d="M2 2 L10 8 L10 26 L2 26 Z" fill="#ea580c" />
         <text
-          x="50"
+          x="48"
           y="15"
           textAnchor="middle"
           dominantBaseline="middle"

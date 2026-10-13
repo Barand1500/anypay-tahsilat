@@ -239,7 +239,7 @@ export function PublicPayMobileHero(props: Props) {
             type="button"
             disabled={!payableAmount || payableAmount <= 0}
             onClick={props.onCompare}
-            className="ml-auto shrink-0 rounded-full bg-amber-500 px-3.5 py-2 text-[11px] font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:opacity-45"
+            className="ml-auto shrink-0 rounded-full bg-orange-500 px-3.5 py-2 text-[11px] font-bold text-white shadow-sm transition hover:bg-orange-400 disabled:opacity-45"
           >
             Taksit Seçenekleri
           </button>

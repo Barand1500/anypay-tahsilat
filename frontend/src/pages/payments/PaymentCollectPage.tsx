@@ -624,7 +624,7 @@ export default function PaymentCollectPage() {
                   data-km-jump
                   disabled={!amount || amount <= 0}
                   onClick={() => setCompareOpen(true)}
-                  className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="mt-auto w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   Taksit Seçenekleri
                 </button>

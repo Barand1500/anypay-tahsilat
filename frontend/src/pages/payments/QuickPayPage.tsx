@@ -594,7 +594,7 @@ export default function QuickPayPage() {
               ) : (
                 <p className="mb-4 flex flex-1 items-center justify-center text-center text-sm text-[var(--panel-muted)]">Kart numarasını yazınca banka logosu burada belirir.</p>
               )}
-              <button type="button" data-km-jump disabled={!amount || amount <= 0} onClick={() => setInstallOpen(true)} className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45">
+              <button type="button" data-km-jump disabled={!amount || amount <= 0} onClick={() => setInstallOpen(true)} className="mt-auto w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-45">
                 Taksit Seçenekleri
               </button>
               {pickedInstall && bank && selectedRate && cardDigits.length >= 6 ? (
