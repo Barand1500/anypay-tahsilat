@@ -152,6 +152,27 @@ export async function handleThreeDCallback(
   }
 
   const success = outcome === 'ok' && parsed.success && !parsed.needsProvision;
+
+  // BIN kart meta (taksitDetay / önceki bankaCevabi) — 3DS sonrası kaybolmasın
+  let cardSegment: string | null = null;
+  let cardBrand = '';
+  const readCardMeta = (raw: string | null | undefined) => {
+    if (!raw?.trim()) return;
+    try {
+      const j = JSON.parse(raw) as Record<string, unknown>;
+      if (j.cardSegment != null && String(j.cardSegment).trim()) {
+        cardSegment = String(j.cardSegment).trim();
+      }
+      if (j.cardBrand != null && String(j.cardBrand).trim()) {
+        cardBrand = String(j.cardBrand).trim();
+      }
+    } catch {
+      /* düz metin */
+    }
+  };
+  readCardMeta(row.taksitDetay);
+  if (!cardSegment && !cardBrand) readCardMeta(row.bankaCevabi);
+
   const snippet = JSON.stringify({
     adapter: adapterId,
     at: new Date().toISOString(),
@@ -160,6 +181,8 @@ export async function handleThreeDCallback(
     hashOk: parsed.success,
     needsProvision: parsed.needsProvision,
     istekNo: row.istekNo || undefined,
+    ...(cardSegment ? { cardSegment } : {}),
+    ...(cardBrand ? { cardBrand } : {}),
     keys: Object.keys(parsed.raw).filter((k) => !/card|cvv|pan|credit/i.test(k)),
   });
 

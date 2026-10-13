@@ -14,13 +14,17 @@ import {
   DEKONT_CONTENT_FIELD_META,
   DEKONT_PREVIEW_SLIP_OPTIONS,
   DEKONT_VARIABLE_META,
-  PAPER_CSS,
+  DEFAULT_FIS_HEIGHT_MM,
+  FIS_HEIGHT_MM_MAX,
+  FIS_HEIGHT_MM_MIN,
   SAMPLE_DEKONT_CTX,
   applyPreviewSlipKind,
+  clampFisHeightMm,
   getDefaultDekontSettings,
   getDefaultFisBlocks,
   getDefaultSheetBlocks,
   newDekontBlock,
+  paperStyleFor,
   type DekontBlock,
   type DekontBlockType,
   type DekontContentField,
@@ -41,7 +45,10 @@ function cloneBlock(b: DekontBlock): DekontBlock {
 
 function cloneSettings(s: DekontSettings): DekontSettings {
   return {
-    fis: { blocks: s.fis.blocks.map(cloneBlock) },
+    fis: {
+      blocks: s.fis.blocks.map(cloneBlock),
+      heightMm: clampFisHeightMm(s.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM),
+    },
     a5: s.a5 ? { blocks: s.a5.blocks.map(cloneBlock) } : null,
     a4: s.a4 ? { blocks: s.a4.blocks.map(cloneBlock) } : null,
   };
@@ -121,7 +128,12 @@ export default function DekontSettingsPage() {
         }>('/api/settings/contact', token).catch(() => null),
       ]);
       const next = cloneSettings({
-        fis: data.fis?.blocks?.length ? data.fis : { blocks: getDefaultFisBlocks() },
+        fis: data.fis?.blocks?.length
+          ? {
+              blocks: data.fis.blocks,
+              heightMm: clampFisHeightMm(data.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM),
+            }
+          : { blocks: getDefaultFisBlocks(), heightMm: DEFAULT_FIS_HEIGHT_MM },
         a5: data.a5?.blocks?.length ? data.a5 : { blocks: getDefaultSheetBlocks() },
         a4: data.a4?.blocks?.length ? data.a4 : { blocks: getDefaultSheetBlocks() },
       });
@@ -199,10 +211,29 @@ export default function DekontSettingsPage() {
     setDraft((prev) => {
       const cur = ensureLayout(prev, format);
       const nextBlocks = fn(cur.blocks);
-      if (format === 'fis') return { ...prev, fis: { blocks: nextBlocks } };
+      if (format === 'fis') {
+        return {
+          ...prev,
+          fis: {
+            blocks: nextBlocks,
+            heightMm: clampFisHeightMm(prev.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM),
+          },
+        };
+      }
       if (format === 'a5') return { ...prev, a5: { blocks: nextBlocks } };
       return { ...prev, a4: { blocks: nextBlocks } };
     });
+  }
+
+  function setFisHeightMm(raw: number) {
+    const heightMm = clampFisHeightMm(raw);
+    setDraft((prev) => ({
+      ...prev,
+      fis: {
+        blocks: prev.fis.blocks.length ? prev.fis.blocks : getDefaultFisBlocks(),
+        heightMm,
+      },
+    }));
   }
 
   function updateBlock(id: string, patch: Partial<DekontBlock>) {
@@ -271,7 +302,12 @@ export default function DekontSettingsPage() {
 
   function buildPayload(s: DekontSettings): DekontSettings {
     return {
-      fis: s.fis.blocks.length ? s.fis : { blocks: getDefaultFisBlocks() },
+      fis: s.fis.blocks.length
+        ? {
+            blocks: s.fis.blocks,
+            heightMm: clampFisHeightMm(s.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM),
+          }
+        : { blocks: getDefaultFisBlocks(), heightMm: DEFAULT_FIS_HEIGHT_MM },
       a5: s.a5?.blocks?.length ? s.a5 : { blocks: getDefaultSheetBlocks() },
       a4: s.a4?.blocks?.length ? s.a4 : { blocks: getDefaultSheetBlocks() },
     };
@@ -281,7 +317,10 @@ export default function DekontSettingsPage() {
   function applyDefaultToDraft(): DekontSettings {
     let next: DekontSettings = draft;
     if (tab === 'fis') {
-      next = { ...draft, fis: { blocks: getDefaultFisBlocks() } };
+      next = {
+        ...draft,
+        fis: { blocks: getDefaultFisBlocks(), heightMm: DEFAULT_FIS_HEIGHT_MM },
+      };
     } else if (tab === 'a5') {
       next = { ...draft, a5: { blocks: getDefaultSheetBlocks() } };
     } else {
@@ -410,6 +449,40 @@ export default function DekontSettingsPage() {
             ))}
           </select>
         </label>
+
+        {tab === 'fis' ? (
+          <label className="flex flex-wrap items-center gap-2 text-xs text-[var(--panel-muted)]">
+            <span className="font-semibold">Fiş boyu</span>
+            <input
+              type="range"
+              min={FIS_HEIGHT_MM_MIN}
+              max={FIS_HEIGHT_MM_MAX}
+              step={5}
+              value={clampFisHeightMm(draft.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM)}
+              onChange={(e) => setFisHeightMm(Number(e.target.value))}
+              className="h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-[var(--panel-line)] accent-[var(--color-brand-500)]"
+              aria-label="Fiş boyu mm"
+            />
+            <input
+              type="number"
+              min={FIS_HEIGHT_MM_MIN}
+              max={FIS_HEIGHT_MM_MAX}
+              step={5}
+              value={clampFisHeightMm(draft.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM)}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isFinite(n)) return;
+                setFisHeightMm(n);
+              }}
+              className="h-8 w-16 rounded-lg border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-2 text-center text-xs font-bold tabular-nums text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)]"
+              aria-label="Fiş boyu mm sayı"
+            />
+            <span className="font-semibold tabular-nums">mm</span>
+            <span className="text-[10px] text-[var(--panel-muted)]">
+              ({FIS_HEIGHT_MM_MIN}–{FIS_HEIGHT_MM_MAX})
+            </span>
+          </label>
+        ) : null}
       </div>
 
       {error ? (
@@ -425,7 +498,7 @@ export default function DekontSettingsPage() {
           <div className="flex min-h-0 flex-col rounded-2xl border border-[var(--panel-line)] bg-[#e8eef4] p-4 sm:p-5">
             <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                Tuval · {PAPER_CSS[tab].label}
+                Tuval · {paperStyleFor(tab, draft.fis.heightMm).label}
               </p>
               {selected ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -493,6 +566,7 @@ export default function DekontSettingsPage() {
                 ctx={sampleCtx}
                 mode="edit"
                 format={tab}
+                heightMm={draft.fis.heightMm}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 onMove={(id, x, y) => updateBlock(id, { x, y })}

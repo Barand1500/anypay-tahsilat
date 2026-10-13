@@ -306,14 +306,14 @@ export function PublicPayMobileHero(props: Props) {
             {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
           </button>
         </div>
-        <label className="mt-2.5 flex cursor-pointer items-start gap-2 text-[11px] leading-snug text-[var(--panel-ink)]">
+        <label className="mt-2.5 flex cursor-pointer items-start justify-center gap-2 text-center text-[11px] leading-snug text-[var(--panel-ink)]">
           <input
             type="checkbox"
             checked={props.agree}
             onChange={(e) => props.onAgree(e.target.checked)}
             className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-[var(--input-border)] accent-[var(--color-brand-600)]"
           />
-          <span>
+          <span className="text-left">
             <button
               type="button"
               onClick={() =>

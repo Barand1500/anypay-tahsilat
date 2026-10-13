@@ -400,12 +400,14 @@ export async function listBinCatalog(): Promise<
     }));
 }
 
-/** Kart numarası → en uzun eşleşen BIN + banka + tür */
+/** Kart numarası → en uzun eşleşen BIN + banka + tür + marka */
 export async function lookupBinByCard(cardDigits: string): Promise<{
   bin: string;
   bankId: number | null;
   bankName: string;
   kind: string;
+  brand: string;
+  type: string;
   segment: 'bireysel' | 'ticari' | null;
 } | null> {
   const d = cardDigits.replace(/\D/g, '');
@@ -424,8 +426,17 @@ export async function lookupBinByCard(cardDigits: string): Promise<{
     bankId: best.bankId ? Number(best.bankId) : null,
     bankName: best.bank,
     kind: best.kind || '',
+    brand: (best.brand || '').trim(),
+    type: (best.type || '').trim(),
     segment: segmentFromBinKind(best.kind),
   };
+}
+
+/** Dekont metni: bireysel / ticari */
+export function segmentLabelTr(segment: 'bireysel' | 'ticari' | null | undefined): string {
+  if (segment === 'ticari') return 'Ticari';
+  if (segment === 'bireysel') return 'Bireysel';
+  return '';
 }
 
 /** İlk kurulumda örnek BIN’ler (tablo boşsa) */

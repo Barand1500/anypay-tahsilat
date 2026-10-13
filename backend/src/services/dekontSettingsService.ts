@@ -14,6 +14,8 @@ export type DekontBlockType =
   | 'installmentLine'
   | 'slipTitle'
   | 'cardMasked'
+  | 'cardBrand'
+  | 'cardSegment'
   | 'amountBlock'
   | 'approvedLine'
   | 'authRef'
@@ -39,6 +41,8 @@ export type DekontContentField =
   | 'identityNo'
   | 'bankName'
   | 'cardMasked'
+  | 'cardBrand'
+  | 'cardSegment'
   | 'date'
   | 'time'
   | 'atLabel'
@@ -69,6 +73,8 @@ const CONTENT_FIELDS = new Set<DekontContentField>([
   'identityNo',
   'bankName',
   'cardMasked',
+  'cardBrand',
+  'cardSegment',
   'date',
   'time',
   'atLabel',
@@ -106,13 +112,27 @@ export type DekontBlock = {
   text?: string;
 };
 
-export type DekontFormatLayout = { blocks: DekontBlock[] };
+export type DekontFormatLayout = {
+  blocks: DekontBlock[];
+  /** Fiş boyu mm — yalnızca 80mm fiş */
+  heightMm?: number;
+};
 
 export type DekontSettings = {
   fis: DekontFormatLayout;
   a5: DekontFormatLayout | null;
   a4: DekontFormatLayout | null;
 };
+
+export const DEFAULT_FIS_HEIGHT_MM = 254;
+export const FIS_HEIGHT_MM_MIN = 120;
+export const FIS_HEIGHT_MM_MAX = 400;
+
+export function clampFisHeightMm(n: unknown): number {
+  const v = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(v)) return DEFAULT_FIS_HEIGHT_MM;
+  return Math.min(FIS_HEIGHT_MM_MAX, Math.max(FIS_HEIGHT_MM_MIN, Math.round(v)));
+}
 
 const BLOCK_TYPES = new Set<DekontBlockType>([
   'brandLogo',
@@ -127,6 +147,8 @@ const BLOCK_TYPES = new Set<DekontBlockType>([
   'installmentLine',
   'slipTitle',
   'cardMasked',
+  'cardBrand',
+  'cardSegment',
   'amountBlock',
   'approvedLine',
   'authRef',
@@ -220,16 +242,18 @@ export function getDefaultFisBlocks(): DekontBlock[] {
     block('txnMeta', { x: 4, y: 37, w: 92, h: 8, fontScale: 0.8, align: 'left', z: 1 }),
     block('installmentLine', { x: 4, y: 46, w: 92, h: 2.4, fontScale: 0.95, align: 'center', z: 1 }),
     block('slipTitle', { x: 4, y: 49, w: 92, h: 3.2, fontScale: 1.25, align: 'center', z: 1 }),
-    block('cardMasked', { x: 4, y: 53, w: 92, h: 4.2, fontScale: 1, align: 'center', z: 1 }),
-    block('amountBlock', { x: 4, y: 58, w: 92, h: 9, fontScale: 1.35, align: 'center', z: 1 }),
-    block('authRef', { x: 4, y: 68, w: 92, h: 6.5, fontScale: 0.8, align: 'center', z: 1 }),
-    block('legalLine', { x: 4, y: 75.5, w: 92, h: 3.5, fontScale: 0.75, align: 'center', z: 1 }),
-    block('maliDeger', { x: 4, y: 79.5, w: 92, h: 2.2, fontScale: 0.9, align: 'center', z: 1 }),
+    block('cardMasked', { x: 4, y: 53, w: 92, h: 3.2, fontScale: 1, align: 'center', z: 1 }),
+    block('cardBrand', { x: 4, y: 56.2, w: 92, h: 2.2, fontScale: 0.95, align: 'center', z: 1 }),
+    block('cardSegment', { x: 4, y: 58.4, w: 92, h: 2.2, fontScale: 0.95, align: 'center', z: 1 }),
+    block('amountBlock', { x: 4, y: 61, w: 92, h: 8.5, fontScale: 1.3, align: 'center', z: 1 }),
+    block('authRef', { x: 4, y: 70.5, w: 92, h: 6, fontScale: 0.8, align: 'center', z: 1 }),
+    block('legalLine', { x: 4, y: 77, w: 92, h: 3.2, fontScale: 0.75, align: 'center', z: 1 }),
+    block('maliDeger', { x: 4, y: 80.5, w: 92, h: 2.2, fontScale: 0.9, align: 'center', z: 1 }),
     block('customText', {
       x: 4,
-      y: 82.5,
+      y: 83.2,
       w: 92,
-      h: 4,
+      h: 3.5,
       fontScale: 0.85,
       align: 'center',
       z: 1,
@@ -291,7 +315,7 @@ export function getDefaultSheetBlocks(): DekontBlock[] {
 
 export function getDefaultDekontSettings(): DekontSettings {
   return {
-    fis: { blocks: getDefaultFisBlocks() },
+    fis: { blocks: getDefaultFisBlocks(), heightMm: DEFAULT_FIS_HEIGHT_MM },
     a5: { blocks: getDefaultSheetBlocks() },
     a4: { blocks: getDefaultSheetBlocks() },
   };
@@ -337,7 +361,7 @@ function normalizeBlock(raw: unknown, i: number): DekontBlock | null {
   return out;
 }
 
-function normalizeLayout(raw: unknown): DekontFormatLayout | null {
+function normalizeLayout(raw: unknown, withHeight = false): DekontFormatLayout | null {
   if (!raw || typeof raw !== 'object') return null;
   const blocksIn = Array.isArray((raw as { blocks?: unknown }).blocks)
     ? (raw as { blocks: unknown[] }).blocks
@@ -347,6 +371,12 @@ function normalizeLayout(raw: unknown): DekontFormatLayout | null {
     .filter((x): x is DekontBlock => x != null)
     .slice(0, 48);
   if (!blocks.length) return null;
+  if (withHeight) {
+    return {
+      blocks,
+      heightMm: clampFisHeightMm((raw as { heightMm?: unknown }).heightMm),
+    };
+  }
   return { blocks };
 }
 
@@ -354,9 +384,16 @@ function parseStored(raw: string | null | undefined): DekontSettings | null {
   if (!raw?.trim()) return null;
   try {
     const p = JSON.parse(raw) as Partial<DekontSettings>;
-    const fis = normalizeLayout(p.fis) ?? { blocks: getDefaultFisBlocks() };
+    const fis =
+      normalizeLayout(p.fis, true) ?? {
+        blocks: getDefaultFisBlocks(),
+        heightMm: DEFAULT_FIS_HEIGHT_MM,
+      };
     return {
-      fis,
+      fis: {
+        blocks: fis.blocks,
+        heightMm: clampFisHeightMm(fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM),
+      },
       a5: normalizeLayout(p.a5) ?? { blocks: getDefaultSheetBlocks() },
       a4: normalizeLayout(p.a4) ?? { blocks: getDefaultSheetBlocks() },
     };
@@ -382,12 +419,15 @@ export async function getDekontSettings(): Promise<DekontSettings> {
 }
 
 export async function updateDekontSettings(input: DekontSettings): Promise<DekontSettings> {
-  const fis = normalizeLayout(input.fis);
+  const fis = normalizeLayout(input.fis, true);
   if (!fis?.blocks.length) throw new SettingsError('Fiş düzeninde en az bir blok gerekli');
   if (fis.blocks.length > 48) throw new SettingsError('En fazla 48 blok eklenebilir');
 
   const stored: DekontSettings = {
-    fis,
+    fis: {
+      blocks: fis.blocks,
+      heightMm: clampFisHeightMm(fis.heightMm ?? input.fis?.heightMm ?? DEFAULT_FIS_HEIGHT_MM),
+    },
     a5: normalizeLayout(input.a5),
     a4: normalizeLayout(input.a4),
   };

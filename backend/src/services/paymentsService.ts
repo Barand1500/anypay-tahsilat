@@ -12,7 +12,7 @@ import {
   getCustomerAgreementCode,
   resolveAgreementRates,
 } from './cardAgreementsService.js';
-import { lookupBinByCard } from './binsService.js';
+import { listBins, lookupBinByCard, segmentFromBinKind, segmentLabelTr } from './binsService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 
 export class PaymentsError extends Error {
@@ -80,6 +80,10 @@ export type PublicPaymentRow = {
     transactionNo: string;
     authCode: string;
     cardMasked: string;
+    /** BIN → Bireysel / Ticari */
+    cardSegment: string;
+    /** BIN → Visa / MasterCard / TROY … */
+    cardBrand: string;
     threeDSecure: boolean;
   };
   detail: {
@@ -157,6 +161,33 @@ function bankResponseDetails(raw: string | null | undefined) {
     referenceNo: find(['refno', 'referenceNo', 'hostRefNum', 'rrn']),
     authCode: find(['authcode', 'authCode', 'approvalCode', 'procreturncode']),
   };
+}
+
+/** Ödeme meta — taksitDetay / bankaCevabi JSON’dan kart segmenti + marka */
+export function parseCardBinMeta(
+  taksitDetay: string | null | undefined,
+  bankaCevabi?: string | null,
+): { cardSegment: string; cardBrand: string } {
+  const read = (raw: string | null | undefined) => {
+    if (!raw?.trim()) return { cardSegment: '', cardBrand: '' };
+    try {
+      const j = JSON.parse(raw) as Record<string, unknown>;
+      const segRaw = String(j.cardSegment ?? j.segment ?? '').trim();
+      const brand = String(j.cardBrand ?? j.brand ?? '').trim();
+      let cardSegment = '';
+      if (segRaw === 'ticari' || /^ticari$/i.test(segRaw)) cardSegment = 'Ticari';
+      else if (segRaw === 'bireysel' || /^bireysel$/i.test(segRaw)) cardSegment = 'Bireysel';
+      else if (/ticari/i.test(segRaw)) cardSegment = 'Ticari';
+      else if (/bireysel/i.test(segRaw)) cardSegment = 'Bireysel';
+      else if (segRaw === 'Ticari' || segRaw === 'Bireysel') cardSegment = segRaw;
+      return { cardSegment, cardBrand: brand };
+    } catch {
+      return { cardSegment: '', cardBrand: '' };
+    }
+  };
+  const fromDetay = read(taksitDetay);
+  if (fromDetay.cardSegment || fromDetay.cardBrand) return fromDetay;
+  return read(bankaCevabi);
 }
 
 function makeOdemeNo(): string {
@@ -251,6 +282,7 @@ type OdemeRow = {
   tahsilGunu: string | null;
   blokeGunu: string | null;
   taksitOran: number | null;
+  taksitDetay: string | null;
   odemeTipi: number;
 };
 
@@ -296,7 +328,7 @@ async function hydrate(
     ),
   ];
 
-  const [musteriler, users, branches, banks] = await Promise.all([
+  const [musteriler, users, branches, banks, binRows] = await Promise.all([
     musteriIds.length
       ? prisma.musteri.findMany({
           where: { id: { in: musteriIds } },
@@ -321,12 +353,23 @@ async function hydrate(
           select: { id: true, adi: true, kisaAdi: true, logo: true },
         })
       : Promise.resolve([]),
+    listBins().catch(() => []),
   ]);
 
   const mMap = new Map(musteriler.map((m) => [m.id, m]));
   const uMap = new Map(users.map((u) => [u.id, u]));
   const bMap = new Map(branches.map((b) => [b.id, b]));
   const bankMap = new Map(banks.map((b) => [b.id, b]));
+
+  const matchBinPrefix = (digits: string) => {
+    const d = digits.replace(/\D/g, '');
+    if (d.length < 4) return null;
+    let best: (typeof binRows)[number] | null = null;
+    for (const row of binRows) {
+      if (d.startsWith(row.bin) && (!best || row.bin.length > best.bin.length)) best = row;
+    }
+    return best;
+  };
 
   return rows.map((r) => {
     const m = r.musteriId != null ? mMap.get(r.musteriId) : undefined;
@@ -341,6 +384,16 @@ async function hydrate(
     const responseDetails = bankResponseDetails(r.bankaCevabi);
     const referenceNo = responseDetails.referenceNo;
     const authCode = responseDetails.authCode;
+    let cardBin = parseCardBinMeta(r.taksitDetay, r.bankaCevabi);
+    if (!cardBin.cardSegment && !cardBin.cardBrand) {
+      const hit = matchBinPrefix((r.kartNo || '').trim());
+      if (hit) {
+        cardBin = {
+          cardSegment: segmentLabelTr(segmentFromBinKind(hit.kind)) || '',
+          cardBrand: (hit.brand || '').trim(),
+        };
+      }
+    }
     const customerCommission = Math.max(0, amount - Number(r.gercekTutar ?? r.tutar ?? 0));
     const historyStatus = statusOf(r.durum, r.iptalIadeHareket);
 
@@ -375,6 +428,8 @@ async function hydrate(
         transactionNo: r.odemeNo || String(r.id),
         authCode,
         cardMasked: maskCard((r.kartNo || '').trim()),
+        cardSegment: cardBin.cardSegment || '—',
+        cardBrand: cardBin.cardBrand || '—',
         threeDSecure: true,
       },
       detail: {
@@ -492,8 +547,12 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
 
   // Vade farkı: kart BIN bankası (UI / Taksit Seçenekleri ile aynı). POS yalnızca geçit.
   let commissionPct = 0;
+  let cardSegment: 'bireysel' | 'ticari' | null = null;
+  let cardBrand = '';
   try {
     const cardBank = await lookupBinByCard(digits);
+    cardSegment = cardBank?.segment ?? null;
+    cardBrand = (cardBank?.brand || '').trim();
     const code = await getCustomerAgreementCode(input.musteriId);
     const rates = await resolveAgreementRates({
       agreementCode: code,
@@ -508,6 +567,12 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   } catch {
     /* oran yoksa 0 */
   }
+
+  const cardBinMeta = JSON.stringify({
+    cardSegment,
+    cardBrand,
+    cardSegmentLabel: segmentLabelTr(cardSegment),
+  });
 
   const chargedAmount = input.commissionIncluded
     ? input.amount * (1 + commissionPct / 100)
@@ -542,6 +607,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     securityType: pos.securityType,
     startedAt: now.toISOString(),
     commissionPct,
+    cardSegment,
+    cardBrand,
     ...(istekNo ? { istekNo } : {}),
   });
 
@@ -560,6 +627,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       kartNo: maskCard(digits).slice(0, 255),
       taksit: installment,
       taksitOran: commissionPct || null,
+      taksitDetay: cardBinMeta,
       bankaKomisyonu: commissionPct || null,
       odemeNo,
       durum: 3,

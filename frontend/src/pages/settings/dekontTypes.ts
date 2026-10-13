@@ -13,6 +13,8 @@ export type DekontBlockType =
   | 'installmentLine'
   | 'slipTitle'
   | 'cardMasked'
+  | 'cardBrand'
+  | 'cardSegment'
   | 'amountBlock'
   | 'approvedLine'
   | 'authRef'
@@ -42,6 +44,8 @@ export type DekontContentField =
   | 'identityNo'
   | 'bankName'
   | 'cardMasked'
+  | 'cardBrand'
+  | 'cardSegment'
   | 'date'
   | 'time'
   | 'atLabel'
@@ -76,6 +80,8 @@ export const DEKONT_CONTENT_FIELD_META: Array<{
   { id: 'identityNo', label: 'T.C. / kimlik' },
   { id: 'bankName', label: 'Banka adı', bold: true },
   { id: 'cardMasked', label: 'Kart no' },
+  { id: 'cardBrand', label: 'Kart markası' },
+  { id: 'cardSegment', label: 'Kart türü (Bireysel/Ticari)' },
   { id: 'date', label: 'Tarih' },
   { id: 'time', label: 'Saat' },
   { id: 'atLabel', label: 'Tarih+saat' },
@@ -116,13 +122,40 @@ export type DekontBlock = {
   text?: string;
 };
 
-export type DekontFormatLayout = { blocks: DekontBlock[] };
+export type DekontFormatLayout = {
+  blocks: DekontBlock[];
+  /** Fiş boyu (mm) — yalnızca 80mm fiş; varsayılan 254 */
+  heightMm?: number;
+};
 
 export type DekontSettings = {
   fis: DekontFormatLayout;
   a5: DekontFormatLayout | null;
   a4: DekontFormatLayout | null;
 };
+
+/** Mevcut 227×720 pt ≈ 80×254 mm */
+export const DEFAULT_FIS_HEIGHT_MM = 254;
+export const FIS_HEIGHT_MM_MIN = 120;
+export const FIS_HEIGHT_MM_MAX = 400;
+
+export function clampFisHeightMm(n: unknown): number {
+  const v = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(v)) return DEFAULT_FIS_HEIGHT_MM;
+  return Math.min(FIS_HEIGHT_MM_MAX, Math.max(FIS_HEIGHT_MM_MIN, Math.round(v)));
+}
+
+/** Önizleme kağıt stili — fişte boy ayarlanabilir */
+export function paperStyleFor(
+  format: DekontPaperFormat,
+  heightMm?: number,
+): { width: string; aspectRatio: string; label: string } {
+  if (format === 'fis') {
+    const h = clampFisHeightMm(heightMm ?? DEFAULT_FIS_HEIGHT_MM);
+    return { width: '80mm', aspectRatio: `80 / ${h}`, label: `Fiş 80×${h} mm` };
+  }
+  return PAPER_CSS[format];
+}
 
 /** Önizleme işlem tipi — tuvalde örnek içerik değiştirir */
 export type DekontPreviewSlipKind = 'sale' | 'installment' | 'cancel' | 'refund';
@@ -131,10 +164,10 @@ export const DEKONT_PREVIEW_SLIP_OPTIONS: Array<{
   id: DekontPreviewSlipKind;
   label: string;
 }> = [
-  { id: 'sale', label: 'Satış' },
-  { id: 'installment', label: 'Taksitli satış' },
-  { id: 'cancel', label: 'Satış iptali' },
-  { id: 'refund', label: 'İade' },
+  { id: 'sale', label: 'Peşin Satış' },
+  { id: 'installment', label: 'Taksitli Satış' },
+  { id: 'cancel', label: 'Satış İptali' },
+  { id: 'refund', label: 'Satış İadesi' },
 ];
 
 export type DekontSampleContext = {
@@ -151,6 +184,8 @@ export type DekontSampleContext = {
   referenceNo: string;
   cardHolderName: string;
   cardMasked: string;
+  cardBrand: string;
+  cardSegment: string;
   installments: number;
   slipTitle: string;
   amountLabel: string;
@@ -195,8 +230,10 @@ export const DEKONT_VARIABLE_META: Array<{
   { type: 'dateTimeRow', label: 'Tarih / Saat', hint: 'İki kolon' },
   { type: 'txnMeta', label: 'İşlem meta', hint: 'No / onay / ref' },
   { type: 'installmentLine', label: 'Taksit sayısı', hint: 'TAKSİT SAYISI' },
-  { type: 'slipTitle', label: 'İşlem tipi', hint: 'SATIŞ / İADE…' },
+  { type: 'slipTitle', label: 'İşlem tipi', hint: 'PEŞİN / TAKSİTLİ / İPTAL / İADE' },
   { type: 'cardMasked', label: 'Kart no', hint: 'Maskeli' },
+  { type: 'cardBrand', label: 'Kart markası', hint: 'Visa / MasterCard / TROY — BIN' },
+  { type: 'cardSegment', label: 'Kart türü', hint: 'Bireysel / Ticari — BIN' },
   { type: 'amountBlock', label: 'Tutar', hint: 'Büyük tutar' },
   { type: 'approvedLine', label: 'Onaylandı', hint: 'İŞLEM ONAYLANDI', fisOnly: true },
   { type: 'authRef', label: 'Onay / Ref', hint: 'Kod satırları' },
@@ -210,7 +247,11 @@ export const PAPER_CSS: Record<
   DekontPaperFormat,
   { width: string; aspectRatio: string; label: string }
 > = {
-  fis: { width: '80mm', aspectRatio: '227 / 720', label: 'Fiş 80mm' },
+  fis: {
+    width: '80mm',
+    aspectRatio: `80 / ${DEFAULT_FIS_HEIGHT_MM}`,
+    label: `Fiş 80×${DEFAULT_FIS_HEIGHT_MM} mm`,
+  },
   a5: { width: '148mm', aspectRatio: '148 / 210', label: 'A5' },
   a4: { width: '210mm', aspectRatio: '210 / 297', label: 'A4' },
 };
@@ -236,6 +277,8 @@ export function newDekontBlock(
     installmentLine: { w: 90, h: 2.8, fontScale: 1, align: 'center' },
     slipTitle: { w: 90, h: 4, fontScale: 1.35, align: 'center' },
     cardMasked: { w: 90, h: 3, fontScale: 1.05, align: 'center' },
+    cardBrand: { w: 90, h: 2.4, fontScale: 0.95, align: 'center' },
+    cardSegment: { w: 90, h: 2.4, fontScale: 0.95, align: 'center' },
     amountBlock: { w: 90, h: 8, fontScale: 1.2, align: 'center' },
     approvedLine: { w: 90, h: 3, fontScale: 1.1, align: 'center' },
     authRef: { w: 90, h: 4.5, fontScale: 0.85, align: 'center' },
@@ -304,16 +347,18 @@ export function getDefaultFisBlocks(): DekontBlock[] {
     newDekontBlock('txnMeta', { x: 4, y: 37, w: 92, h: 8, fontScale: 0.8, align: 'left' }),
     newDekontBlock('installmentLine', { x: 4, y: 46, w: 92, h: 2.4, fontScale: 0.95 }),
     newDekontBlock('slipTitle', { x: 4, y: 49, w: 92, h: 3.2, fontScale: 1.25 }),
-    newDekontBlock('cardMasked', { x: 4, y: 53, w: 92, h: 4.2, fontScale: 1 }),
-    newDekontBlock('amountBlock', { x: 4, y: 58, w: 92, h: 9, fontScale: 1.35 }),
-    newDekontBlock('authRef', { x: 4, y: 68, w: 92, h: 6.5, fontScale: 0.8 }),
-    newDekontBlock('legalLine', { x: 4, y: 75.5, w: 92, h: 3.5, fontScale: 0.75 }),
-    newDekontBlock('maliDeger', { x: 4, y: 79.5, w: 92, h: 2.2, fontScale: 0.9 }),
+    newDekontBlock('cardMasked', { x: 4, y: 53, w: 92, h: 3.2, fontScale: 1 }),
+    newDekontBlock('cardBrand', { x: 4, y: 56.2, w: 92, h: 2.2, fontScale: 0.95 }),
+    newDekontBlock('cardSegment', { x: 4, y: 58.4, w: 92, h: 2.2, fontScale: 0.95 }),
+    newDekontBlock('amountBlock', { x: 4, y: 61, w: 92, h: 8.5, fontScale: 1.3 }),
+    newDekontBlock('authRef', { x: 4, y: 70.5, w: 92, h: 6, fontScale: 0.8 }),
+    newDekontBlock('legalLine', { x: 4, y: 77, w: 92, h: 3.2, fontScale: 0.75 }),
+    newDekontBlock('maliDeger', { x: 4, y: 80.5, w: 92, h: 2.2, fontScale: 0.9 }),
     newDekontBlock('customText', {
       x: 4,
-      y: 82.5,
+      y: 83.2,
       w: 92,
-      h: 4,
+      h: 3.5,
       fontScale: 0.85,
       align: 'center',
       text: '--------------------\nİMZA',
@@ -380,6 +425,8 @@ export function resolveContentField(
     identityNo: string;
     bankName: string;
     cardMasked: string;
+    cardBrand: string;
+    cardSegment: string;
     date: string;
     time: string;
     atLabel: string;
@@ -416,6 +463,10 @@ export function resolveContentField(
       return { text: ctx.bankName, bold };
     case 'cardMasked':
       return { text: ctx.cardMasked, bold };
+    case 'cardBrand':
+      return { text: ctx.cardBrand, bold };
+    case 'cardSegment':
+      return { text: ctx.cardSegment, bold };
     case 'date':
       return { text: ctx.date, bold };
     case 'time':
@@ -463,7 +514,7 @@ export function resolveContentField(
 
 export function getDefaultDekontSettings(): DekontSettings {
   return {
-    fis: { blocks: getDefaultFisBlocks() },
+    fis: { blocks: getDefaultFisBlocks(), heightMm: DEFAULT_FIS_HEIGHT_MM },
     a5: { blocks: getDefaultSheetBlocks() },
     a4: { blocks: getDefaultSheetBlocks() },
   };
@@ -477,7 +528,7 @@ export function applyPreviewSlipKind(
     return {
       ...base,
       installments: 1,
-      slipTitle: 'SATIŞ',
+      slipTitle: 'PEŞİN SATIŞ',
       status: 'paid',
       legalLine: 'TUTAR KARŞILIĞI MAL VEYA HİZMET ALDIM',
       amountDetail: 'Tutar 1.000,00 · Komisyon 53,40',
@@ -506,7 +557,7 @@ export function applyPreviewSlipKind(
   return {
     ...base,
     installments: 1,
-    slipTitle: 'İADE',
+    slipTitle: 'SATIŞ İADESİ',
     status: 'refunded',
     legalLine: 'TUTAR KARŞILIĞI İŞLEM İADE EDİLMİŞTİR',
     amountDetail: '',
@@ -528,6 +579,8 @@ export const SAMPLE_DEKONT_CTX = (brandLogoUrl: string): DekontSampleContext => 
   referenceNo: '628567824487',
   cardHolderName: 'ÖRNEK KART SAHİBİ',
   cardMasked: '5218 **** **** 9313',
+  cardBrand: 'MasterCard',
+  cardSegment: 'Bireysel',
   installments: 3,
   slipTitle: 'TAKSİTLİ SATIŞ',
   amountLabel: 'İŞLEM TUTARI',

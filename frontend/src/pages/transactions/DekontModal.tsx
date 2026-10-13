@@ -10,6 +10,8 @@ import {
   ctxFromTransaction,
 } from '../settings/DekontTemplateView';
 import {
+  DEFAULT_FIS_HEIGHT_MM,
+  clampFisHeightMm,
   getDefaultFisBlocks,
   getDefaultSheetBlocks,
   type DekontBlock,
@@ -52,6 +54,7 @@ export function DekontModal({ tx, onClose }: Props) {
     a5: getDefaultSheetBlocks(),
     a4: getDefaultSheetBlocks(),
   }));
+  const [fisHeightMm, setFisHeightMm] = useState(DEFAULT_FIS_HEIGHT_MM);
   const renderCtx = useMemo(
     () => ctxFromTransaction(tx, logoUrl, systemName),
     [tx, logoUrl, systemName],
@@ -65,11 +68,12 @@ export function DekontModal({ tx, onClose }: Props) {
     void (async () => {
       try {
         const data = await api.get<{
-          fis?: { blocks?: DekontBlock[] };
+          fis?: { blocks?: DekontBlock[]; heightMm?: number };
           a5?: { blocks?: DekontBlock[] } | null;
           a4?: { blocks?: DekontBlock[] } | null;
         }>('/api/settings/dekont', token);
         if (cancelled) return;
+        setFisHeightMm(clampFisHeightMm(data.fis?.heightMm ?? DEFAULT_FIS_HEIGHT_MM));
         setLayouts({
           fis: data.fis?.blocks?.length
             ? data.fis.blocks.map((b) => ({ ...b, fields: b.fields ? [...b.fields] : undefined }))
@@ -377,6 +381,7 @@ ${styles}
                 ctx={renderCtx}
                 mode="print"
                 format={format}
+                heightMm={fisHeightMm}
                 className="!w-full shadow-none"
                 style={{ width: '100%', maxWidth: PAPER_WIDTH[format] }}
               />

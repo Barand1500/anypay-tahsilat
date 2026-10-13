@@ -15,6 +15,10 @@ export type TxDekont = {
   transactionNo: string;
   authCode: string;
   cardMasked: string;
+  /** BIN → Bireysel / Ticari */
+  cardSegment: string;
+  /** BIN → Visa / MasterCard / TROY … */
+  cardBrand: string;
   threeDSecure: boolean;
 };
 
@@ -114,9 +118,9 @@ export function maskPhoneForDekont(raw: string): string {
 /** 80mm fiş — işlem tipi başlığı */
 export function dekontSlipTitle(tx: Pick<Transaction, 'status' | 'installments'>): string {
   if (tx.status === 'cancelled') return 'SATIŞ İPTALİ';
-  if (tx.status === 'refunded') return 'İADE';
+  if (tx.status === 'refunded') return 'SATIŞ İADESİ';
   if (tx.installments > 1) return 'TAKSİTLİ SATIŞ';
-  return 'SATIŞ';
+  return 'PEŞİN SATIŞ';
 }
 
 /** Fiş iki kolon: tarih / saat (TR) */

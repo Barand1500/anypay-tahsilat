@@ -4,6 +4,8 @@ import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import sharp from 'sharp';
 import {
+  clampFisHeightMm,
+  DEFAULT_FIS_HEIGHT_MM,
   getDekontSettings,
   getDefaultFisBlocks,
   getDefaultSheetBlocks,
@@ -144,17 +146,25 @@ async function embedPdfFonts(doc: PDFDocument): Promise<{ font: PDFFont; bold: P
   return { font, bold, unicode: false };
 }
 
-function pageSize(format: DekontPdfFormat): [number, number] {
-  if (format === 'fis') return [227, 720]; // ~80mm x uzun fiş
+/** mm → PDF point (1 in = 25.4 mm = 72 pt) */
+function mmToPt(mm: number): number {
+  return (mm * 72) / 25.4;
+}
+
+function pageSize(format: DekontPdfFormat, fisHeightMm?: number): [number, number] {
+  if (format === 'fis') {
+    const hMm = clampFisHeightMm(fisHeightMm ?? DEFAULT_FIS_HEIGHT_MM);
+    return [mmToPt(80), mmToPt(hMm)]; // 80mm × ayarlanan boy
+  }
   if (format === 'a5') return [420, 595];
   return [595, 842];
 }
 
 function slipTitle(tx: PublicPaymentRow): string {
   if (tx.status === 'cancelled') return 'SATIŞ İPTALİ';
-  if (tx.status === 'refunded') return 'İADE';
+  if (tx.status === 'refunded') return 'SATIŞ İADESİ';
   if (tx.installments > 1) return 'TAKSİTLİ SATIŞ';
-  return 'SATIŞ';
+  return 'PEŞİN SATIŞ';
 }
 
 function splitDateTime(iso: string): { date: string; time: string } {
@@ -435,6 +445,8 @@ type FisPdfCtx = {
   referenceNo: string;
   cardHolderName: string;
   cardMasked: string;
+  cardBrand: string;
+  cardSegment: string;
   identityNo: string;
   holderPhone: string;
   description: string;
@@ -509,6 +521,14 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       }
       return lines;
     }
+    case 'cardBrand':
+      return ctx.cardBrand && ctx.cardBrand !== '—'
+        ? [{ text: ctx.cardBrand, bold: false, size: 8 }]
+        : [];
+    case 'cardSegment':
+      return ctx.cardSegment && ctx.cardSegment !== '—'
+        ? [{ text: ctx.cardSegment, bold: false, size: 8 }]
+        : [];
     case 'amountBlock':
       return [
         { text: 'İŞLEM TUTAR', bold: false, size: 7 },
@@ -628,6 +648,8 @@ function drawRichBlock(
       ['ONAY KODU', ctx.authCode],
       ['BANKA', ctx.bankName],
       ['KART', ctx.cardMasked],
+      ['KART MARKASI', ctx.cardBrand],
+      ['KART TÜRÜ', ctx.cardSegment],
       ['TAKSİT', String(ctx.installments)],
       ['TUTAR', ctx.amountOnly],
       ['KOMİSYON', ctx.commissionOnly],
@@ -704,6 +726,10 @@ function fieldText(field: DekontContentField, ctx: FisPdfCtx): { text: string; b
       return { text: ctx.bankName, bold: true };
     case 'cardMasked':
       return { text: ctx.cardMasked, bold: false };
+    case 'cardBrand':
+      return { text: ctx.cardBrand || '—', bold: false };
+    case 'cardSegment':
+      return { text: ctx.cardSegment || '—', bold: false };
     case 'date':
       return { text: ctx.date, bold: false };
     case 'time':
@@ -751,8 +777,14 @@ function fieldText(field: DekontContentField, ctx: FisPdfCtx): { text: string; b
 
 /** Kayıtlı blok şablonuna göre PDF (fis / a5 / a4) */
 async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Promise<Buffer> {
+  const settings = await getDekontSettings();
+  const fisHeightMm =
+    format === 'fis'
+      ? clampFisHeightMm(settings.fis.heightMm ?? DEFAULT_FIS_HEIGHT_MM)
+      : undefined;
+
   const doc = await PDFDocument.create();
-  const [w, h] = pageSize(format);
+  const [w, h] = pageSize(format, fisHeightMm);
   const page = doc.addPage([w, h]);
   const { font, bold } = await embedPdfFonts(doc);
   const d = tx.dekont;
@@ -767,7 +799,6 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     /* yok */
   }
 
-  const settings = await getDekontSettings();
   const layout =
     format === 'fis'
       ? settings.fis
@@ -806,6 +837,8 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     referenceNo: d.referenceNo || '',
     cardHolderName: d.cardHolderName || '',
     cardMasked: maskCard(d.cardMasked || ''),
+    cardBrand: (d.cardBrand || '').trim() || '—',
+    cardSegment: (d.cardSegment || '').trim() || '—',
     identityNo: maskIdentity(d.identityNo || ''),
     holderPhone: maskPhone(d.cardHolderPhone || d.cardHolderPhoneMasked || ''),
     description: d.description || '-',

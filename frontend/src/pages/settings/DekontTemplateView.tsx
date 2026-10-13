@@ -12,7 +12,7 @@ import {
   type Transaction,
 } from '../transactions/transactionTypes';
 import {
-  PAPER_CSS,
+  paperStyleFor,
   resolveContentField,
   type DekontBlock,
   type DekontBlockType,
@@ -36,6 +36,8 @@ export type DekontRenderCtx = {
   referenceNo: string;
   cardHolderName: string;
   cardMasked: string;
+  cardBrand: string;
+  cardSegment: string;
   installments: number;
   status: 'paid' | 'cancelled' | 'refunded' | string;
   slipTitle: string;
@@ -72,6 +74,8 @@ export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknol
     referenceNo: s.referenceNo,
     cardHolderName: s.cardHolderName,
     cardMasked: s.cardMasked,
+    cardBrand: s.cardBrand,
+    cardSegment: s.cardSegment,
     installments: s.installments,
     status: s.status,
     slipTitle: s.slipTitle,
@@ -121,6 +125,8 @@ export function ctxFromTransaction(
     referenceNo: d.referenceNo || '',
     cardHolderName: d.cardHolderName || '',
     cardMasked: maskCardForDekont(d.cardMasked),
+    cardBrand: (d.cardBrand || '').trim() || '—',
+    cardSegment: (d.cardSegment || '').trim() || '—',
     installments: tx.installments,
     status: tx.status,
     slipTitle: dekontSlipTitle(tx),
@@ -153,6 +159,8 @@ type Props = {
   ctx: DekontRenderCtx;
   mode: 'edit' | 'print';
   format?: DekontPaperFormat;
+  /** Fiş boyu mm — yalnızca format=fis */
+  heightMm?: number;
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   onMove?: (id: string, x: number, y: number) => void;
@@ -368,6 +376,18 @@ function BlockContent({
           ) : null}
         </div>
       );
+    case 'cardBrand':
+      return (
+        <p className="w-full tracking-wide" style={fs(10)}>
+          {ctx.cardBrand && ctx.cardBrand !== '—' ? ctx.cardBrand : '—'}
+        </p>
+      );
+    case 'cardSegment':
+      return (
+        <p className="w-full tracking-wide" style={fs(10)}>
+          {ctx.cardSegment && ctx.cardSegment !== '—' ? ctx.cardSegment : '—'}
+        </p>
+      );
     case 'amountBlock':
       return (
         <div className="flex w-full flex-col gap-1">
@@ -468,6 +488,8 @@ function BlockContent({
         ['ONAY KODU', ctx.authCode],
         ['BANKA', ctx.bankName],
         ['KART', ctx.cardMasked],
+        ['KART MARKASI', ctx.cardBrand],
+        ['KART TÜRÜ', ctx.cardSegment],
         ['TAKSİT', String(ctx.installments)],
         ['TUTAR', ctx.amountOnly],
         ['KOMİSYON', ctx.commissionOnly],
@@ -542,6 +564,7 @@ export function DekontTemplateView({
   ctx,
   mode,
   format = 'fis',
+  heightMm,
   selectedId,
   onSelect,
   onMove,
@@ -549,7 +572,7 @@ export function DekontTemplateView({
   className = '',
   style,
 }: Props) {
-  const paper = PAPER_CSS[format];
+  const paper = paperStyleFor(format, heightMm);
   const sorted = [...blocks].sort((a, b) => a.z - b.z || a.y - b.y);
   const maxH = format === 'fis' ? 40 : 55;
 

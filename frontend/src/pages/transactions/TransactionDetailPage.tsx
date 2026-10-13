@@ -133,6 +133,8 @@ export default function TransactionDetailPage() {
           <Value label="Referans Kodu" value={tx.detail.referenceNo} />
           <Value label="Onay Kodu" value={tx.detail.authCode} />
           <Value label="Kart No" value={maskCardForDekont(tx.dekont.cardMasked)} />
+          <Value label="Kart Markası" value={tx.dekont.cardBrand || '—'} />
+          <Value label="Kart Türü" value={tx.dekont.cardSegment || '—'} />
         </Section>
       </div>
 
