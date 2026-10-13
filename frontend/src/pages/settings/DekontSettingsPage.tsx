@@ -429,8 +429,10 @@ export default function DekontSettingsPage() {
               </p>
               {selected ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-[11px] text-[var(--panel-muted)]">
-                    Boyut
+                  <div className="flex h-9 items-center gap-2.5 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-2.5 shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--panel-muted)]">
+                      Boyut
+                    </span>
                     <input
                       type="range"
                       min={0.7}
@@ -440,7 +442,7 @@ export default function DekontSettingsPage() {
                       onChange={(e) =>
                         updateBlock(selected.id, { fontScale: Number(e.target.value) })
                       }
-                      className="w-24"
+                      className="h-1.5 w-24 cursor-pointer appearance-none rounded-full bg-[var(--panel-line)] accent-[var(--color-brand-500)]"
                       aria-label="Yazı boyutu"
                     />
                     <input
@@ -456,19 +458,28 @@ export default function DekontSettingsPage() {
                           fontScale: Math.min(1.6, Math.max(0.7, Math.round(n * 20) / 20)),
                         });
                       }}
-                      className="h-7 w-14 rounded-md border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-1.5 text-center text-[11px] font-semibold tabular-nums text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)]"
+                      className="h-7 w-[3.25rem] rounded-lg border border-[var(--panel-line)] bg-[var(--panel-surface)] px-1 text-center text-[11px] font-bold tabular-nums text-[var(--panel-ink)] outline-none transition focus:border-[var(--color-brand-500)] focus:ring-1 focus:ring-[var(--color-brand-500)]/30"
                       aria-label="Yazı boyutu sayı"
                     />
-                  </label>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
                       patchLayout(tab, (list) => list.filter((b) => b.id !== selected.id));
                       setSelectedId(null);
                     }}
-                    className="rounded-lg border border-red-300/70 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 text-[11px] font-bold text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
                     title="Sil (Delete)"
                   >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M4 7h16M9 7V5h6v2M10 11v6M14 11v6M6 7l1 12h10l1-12"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                     Sil
                   </button>
                 </div>
