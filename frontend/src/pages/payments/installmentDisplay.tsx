@@ -191,8 +191,7 @@ export function InstallmentPlanCardBody({
       <InstallmentCardWatermark n={rate.n} plusN={rate.plusN} selected={selected} />
       <p
         className={[
-          'install-card-ink relative z-[2] mt-1 text-right text-[0.95rem] font-bold leading-snug tabular-nums sm:text-[1.125rem] lg:text-xl',
-          selected ? '' : 'text-[var(--panel-ink)]',
+          'install-card-muted relative z-[2] mt-1 text-right text-[0.8rem] font-semibold leading-snug tabular-nums text-[var(--panel-muted)] sm:text-[0.95rem] lg:text-[1.05rem]',
           rate.plusN > 0 ? 'mt-6' : '',
         ].join(' ')}
       >

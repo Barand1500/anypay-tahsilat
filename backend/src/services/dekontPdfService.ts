@@ -469,14 +469,19 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
     case 'txnMeta': {
       const lines: { text: string; bold: boolean; size: number }[] = [
         {
-          text: `İŞLEM NO: ${ctx.transactionNo}${ctx.authCode ? `   ONAY: ${ctx.authCode}` : ''}`,
+          text: `İŞLEM NO: ${ctx.transactionNo}${ctx.authCode ? `   STAN: ${ctx.authCode}` : ''}`,
           bold: false,
           size: 7,
         },
       ];
-      if (ctx.referenceNo) lines.push({ text: `REF: ${ctx.referenceNo}`, bold: false, size: 7 });
-      if (ctx.cardHolderName && ctx.cardHolderName !== '—') {
-        lines.push({ text: `KART SAHİBİ: ${ctx.cardHolderName}`, bold: false, size: 7 });
+      if (ctx.referenceNo) {
+        lines.push({
+          text: `RRN: ${ctx.referenceNo}   DEKONT: ${ctx.dekontNo || ctx.transactionNo}`,
+          bold: false,
+          size: 7,
+        });
+      } else {
+        lines.push({ text: `DEKONT: ${ctx.dekontNo || ctx.transactionNo}`, bold: false, size: 7 });
       }
       return lines;
     }
@@ -486,24 +491,39 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
         : [];
     case 'slipTitle':
       return [{ text: ctx.slipTitle, bold: true, size: 11 }];
-    case 'cardMasked':
-      return [{ text: ctx.cardMasked, bold: false, size: 9 }];
-    case 'amountBlock': {
-      const lines = [
+    case 'cardMasked': {
+      const lines = [{ text: ctx.cardMasked, bold: false, size: 9 }];
+      if (ctx.bankName && ctx.bankName !== '—') {
+        lines.push({ text: `/ ${ctx.bankName}`, bold: false, size: 7 });
+      }
+      return lines;
+    }
+    case 'amountBlock':
+      return [
         { text: 'İŞLEM TUTARI', bold: true, size: 7 },
         { text: ctx.amountTotal, bold: true, size: 14 },
       ];
-      if (ctx.amountDetail) lines.push({ text: ctx.amountDetail, bold: false, size: 6.5 });
-      return lines;
-    }
     case 'approvedLine':
       return [{ text: 'İŞLEM ONAYLANDI', bold: true, size: 9 }];
     case 'authRef': {
       const lines: { text: string; bold: boolean; size: number }[] = [];
-      if (ctx.authCode) lines.push({ text: `ONAY KODU: ${ctx.authCode}`, bold: false, size: 7 });
-      if (ctx.referenceNo) lines.push({ text: `BANKA REFERANS: ${ctx.referenceNo}`, bold: false, size: 7 });
+      if (ctx.authCode || ctx.referenceNo) {
+        lines.push({
+          text: [ctx.authCode ? `ONAY KODU: ${ctx.authCode}` : '', ctx.referenceNo ? `RRN: ${ctx.referenceNo}` : '']
+            .filter(Boolean)
+            .join('   '),
+          bold: false,
+          size: 7,
+        });
+      }
+      if (ctx.referenceNo) {
+        lines.push({ text: `BANKA REFERANS: ${ctx.referenceNo}`, bold: false, size: 7 });
+      }
+      if (ctx.bankName && ctx.bankName !== '—') {
+        lines.push({ text: ctx.bankName, bold: false, size: 7 });
+      }
       if (ctx.threeDSecure) {
-        lines.push({ text: '3D Secure ile tamamlanmıştır.', bold: false, size: 6.5 });
+        lines.push({ text: 'İŞLEM 3D SECURE İLE TAMAMLANMIŞTIR', bold: true, size: 6.5 });
       }
       return lines;
     }

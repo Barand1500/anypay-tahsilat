@@ -206,27 +206,26 @@ function block(
   return b;
 }
 
-/** Varsayılan 80mm fiş — mevcut FisSlip sırasına yakın */
+/** Varsayılan 80mm — POS termal fiş düzeni */
 export function getDefaultFisBlocks(): DekontBlock[] {
   return [
-    block('brandLogo', { x: 20, y: 1.5, w: 60, h: 7, align: 'center', z: 2 }),
-    block('keepSlip', { x: 5, y: 9, w: 90, h: 2.5, fontScale: 0.85, align: 'center', z: 1 }),
-    block('merchantTitle', { x: 5, y: 12, w: 90, h: 3.5, fontScale: 1.15, align: 'center', z: 1 }),
-    block('merchantAddress', { x: 5, y: 16, w: 90, h: 3.5, fontScale: 0.85, align: 'center', z: 1 }),
-    block('merchantPhone', { x: 5, y: 20, w: 90, h: 2.5, fontScale: 0.85, align: 'center', z: 1 }),
-    block('bankName', { x: 5, y: 23.5, w: 90, h: 3, fontScale: 1.05, align: 'center', z: 1 }),
-    block('dateTimeRow', { x: 4, y: 28, w: 92, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
-    block('txnMeta', { x: 4, y: 31.5, w: 92, h: 5, fontScale: 0.85, align: 'left', z: 1 }),
-    block('installmentLine', { x: 5, y: 37.5, w: 90, h: 2.8, fontScale: 1, align: 'center', z: 1 }),
-    block('slipTitle', { x: 5, y: 41, w: 90, h: 4, fontScale: 1.35, align: 'center', z: 1 }),
-    block('cardMasked', { x: 5, y: 46, w: 90, h: 3, fontScale: 1.05, align: 'center', z: 1 }),
-    block('amountBlock', { x: 5, y: 50, w: 90, h: 8, fontScale: 1.2, align: 'center', z: 1 }),
-    block('approvedLine', { x: 5, y: 59, w: 90, h: 3, fontScale: 1.1, align: 'center', z: 1 }),
-    block('authRef', { x: 5, y: 63, w: 90, h: 4.5, fontScale: 0.85, align: 'center', z: 1 }),
-    block('legalLine', { x: 5, y: 69, w: 90, h: 4, fontScale: 0.8, align: 'center', z: 1 }),
-    block('maliDeger', { x: 5, y: 74, w: 90, h: 2.5, fontScale: 0.95, align: 'center', z: 1 }),
-    block('musteriNushasi', { x: 5, y: 77, w: 90, h: 2.5, fontScale: 0.9, align: 'center', z: 1 }),
-    block('bankLogo', { x: 22, y: 82, w: 56, h: 7, align: 'center', z: 2 }),
+    block('merchantTitle', { x: 4, y: 2, w: 92, h: 3.5, fontScale: 1.2, align: 'center', z: 1 }),
+    block('merchantAddress', { x: 4, y: 6, w: 92, h: 4, fontScale: 0.85, align: 'center', z: 1 }),
+    block('merchantPhone', { x: 4, y: 10.5, w: 92, h: 2.5, fontScale: 0.85, align: 'center', z: 1 }),
+    block('bankName', { x: 4, y: 13.5, w: 92, h: 3, fontScale: 1.05, align: 'center', z: 1 }),
+    block('dateTimeRow', { x: 4, y: 18, w: 92, h: 2.8, fontScale: 0.9, align: 'left', z: 1 }),
+    block('txnMeta', { x: 4, y: 21.5, w: 92, h: 6, fontScale: 0.85, align: 'left', z: 1 }),
+    block('installmentLine', { x: 4, y: 28.5, w: 92, h: 2.8, fontScale: 1, align: 'center', z: 1 }),
+    block('slipTitle', { x: 4, y: 32, w: 92, h: 4, fontScale: 1.4, align: 'center', z: 1 }),
+    block('cardMasked', { x: 4, y: 37, w: 92, h: 4.5, fontScale: 1.05, align: 'center', z: 1 }),
+    block('amountBlock', { x: 4, y: 42.5, w: 92, h: 7.5, fontScale: 1.25, align: 'center', z: 1 }),
+    block('approvedLine', { x: 4, y: 51, w: 92, h: 3, fontScale: 1.15, align: 'center', z: 1 }),
+    block('authRef', { x: 4, y: 55, w: 92, h: 8, fontScale: 0.85, align: 'center', z: 1 }),
+    block('legalLine', { x: 4, y: 64, w: 92, h: 4, fontScale: 0.8, align: 'center', z: 1 }),
+    block('maliDeger', { x: 4, y: 69, w: 92, h: 2.5, fontScale: 0.95, align: 'center', z: 1 }),
+    block('musteriNushasi', { x: 4, y: 72.5, w: 92, h: 2.5, fontScale: 0.95, align: 'center', z: 1 }),
+    block('keepSlip', { x: 4, y: 76, w: 92, h: 2.5, fontScale: 0.85, align: 'center', z: 1 }),
+    block('bankLogo', { x: 22, y: 80, w: 56, h: 7, align: 'center', z: 2 }),
   ];
 }
 

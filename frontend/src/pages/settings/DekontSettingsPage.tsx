@@ -82,18 +82,44 @@ export default function DekontSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState(false);
+  /** İletişim Bilgileri — önizleme üye işyeri satırları */
+  const [merchantPreview, setMerchantPreview] = useState({
+    title: '',
+    address: '',
+    phoneLine: '',
+  });
 
   const sampleCtx = useMemo(() => {
     const base = SAMPLE_DEKONT_CTX(logoUrl);
-    return ctxFromSample(applyPreviewSlipKind(base, previewKind), systemName);
-  }, [logoUrl, systemName, previewKind]);
+    const title = (merchantPreview.title || systemName || '').trim() || '—';
+    const withMerchant = {
+      ...base,
+      merchantTitle: title,
+      merchantAddress: (merchantPreview.address || '').trim() || '—',
+      merchantPhone: (merchantPreview.phoneLine || '').trim() || '—',
+      legalBox1: `Kredi kartımdan / banka kartımdan 1.053,40 ₺ tutarın ${title} adına çekilmesini kabul ederim.`,
+      legalBox2: `Banka veya kart kuruluşunun ödemeyi bloke etmesi halinde tutarı ${title}’ne bizzat ödemeyi taahhüt ederim.`,
+    };
+    return ctxFromSample(applyPreviewSlipKind(withMerchant, previewKind), systemName);
+  }, [logoUrl, systemName, previewKind, merchantPreview]);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<DekontSettings>('/api/settings/dekont', token);
+      const [data, contact] = await Promise.all([
+        api.get<DekontSettings>('/api/settings/dekont', token),
+        api.get<{
+          title?: string;
+          address?: string;
+          phone?: string;
+          gsm?: string;
+          taxOffice?: string;
+          taxNo?: string;
+          identityNo?: string;
+        }>('/api/settings/contact', token).catch(() => null),
+      ]);
       const next = cloneSettings({
         fis: data.fis?.blocks?.length ? data.fis : { blocks: getDefaultFisBlocks() },
         a5: data.a5?.blocks?.length ? data.a5 : { blocks: getDefaultSheetBlocks() },
@@ -102,6 +128,18 @@ export default function DekontSettingsPage() {
       setDraft(next);
       setBaseline(cloneSettings(next));
       setSelectedId(null);
+      if (contact) {
+        const taxLine = [contact.taxOffice, contact.taxNo || contact.identityNo]
+          .map((x) => (x || '').trim())
+          .filter(Boolean)
+          .join(' ');
+        const phone = (contact.phone || contact.gsm || '').trim();
+        setMerchantPreview({
+          title: (contact.title || '').trim(),
+          address: (contact.address || '').trim(),
+          phoneLine: taxLine || phone,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Dekont ayarları yüklenemedi');
     } finally {

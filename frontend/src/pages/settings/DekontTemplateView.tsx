@@ -282,7 +282,7 @@ function BlockContent({
       );
     case 'merchantAddress':
       return (
-        <p className="w-full leading-relaxed text-[#222]" style={fs(9)}>
+        <p className="w-full whitespace-pre-line leading-snug text-[#222]" style={fs(9)}>
           {ctx.merchantAddress}
         </p>
       );
@@ -300,22 +300,26 @@ function BlockContent({
       );
     case 'dateTimeRow':
       return (
-        <div className="flex w-full justify-between gap-2 tabular-nums" style={fs(9)}>
+        <div className="flex w-full justify-between gap-1 tabular-nums tracking-tight" style={fs(9)}>
           <span>TARİH: {ctx.date}</span>
           <span>SAAT: {ctx.time}</span>
         </div>
       );
     case 'txnMeta':
       return (
-        <div className="w-full space-y-0.5 text-left tabular-nums" style={fs(9)}>
+        <div className="w-full space-y-0.5 text-left tabular-nums tracking-tight" style={fs(9)}>
           <div className="flex justify-between gap-2">
             <span className="min-w-0 break-all">İŞLEM NO: {ctx.transactionNo}</span>
-            {ctx.authCode ? <span className="shrink-0">ONAY: {ctx.authCode}</span> : null}
+            {ctx.authCode ? <span className="shrink-0">STAN: {ctx.authCode}</span> : null}
           </div>
-          {ctx.referenceNo ? <p>REF: {ctx.referenceNo}</p> : null}
-          {ctx.cardHolderName && ctx.cardHolderName !== '—' ? (
-            <p>KART SAHİBİ: {ctx.cardHolderName}</p>
-          ) : null}
+          {ctx.referenceNo ? (
+            <div className="flex justify-between gap-2">
+              <span className="min-w-0 break-all">RRN: {ctx.referenceNo}</span>
+              <span className="shrink-0">DEKONT: {ctx.dekontNo || ctx.transactionNo}</span>
+            </div>
+          ) : (
+            <p>DEKONT: {ctx.dekontNo || ctx.transactionNo}</p>
+          )}
         </div>
       );
     case 'installmentLine':
@@ -339,24 +343,26 @@ function BlockContent({
       );
     case 'cardMasked':
       return (
-        <p className="w-full tabular-nums tracking-wider" style={fs(11)}>
-          {ctx.cardMasked}
-        </p>
+        <div className="flex w-full flex-col gap-0.5">
+          <p className="tabular-nums tracking-wider" style={fs(11)}>
+            {ctx.cardMasked}
+          </p>
+          {ctx.bankName && ctx.bankName !== '—' ? (
+            <p className="tracking-wide text-[#333]" style={fs(9)}>
+              / {ctx.bankName}
+            </p>
+          ) : null}
+        </div>
       );
     case 'amountBlock':
       return (
         <div className="flex w-full flex-col gap-0.5">
-          <p className="font-semibold tracking-wide" style={fs(9)}>
-            {ctx.amountLabel}
+          <p className="font-bold tracking-wide" style={fs(9)}>
+            {ctx.amountLabel || 'İŞLEM TUTARI'}
           </p>
           <p className="font-bold tabular-nums leading-none" style={fs(18)}>
             {ctx.amountTotal}
           </p>
-          {ctx.amountDetail ? (
-            <p className="tabular-nums text-[#333]" style={fs(9)}>
-              {ctx.amountDetail}
-            </p>
-          ) : null}
         </div>
       );
     case 'approvedLine':
@@ -367,10 +373,18 @@ function BlockContent({
       );
     case 'authRef':
       return (
-        <div className="w-full space-y-0.5 tabular-nums" style={fs(9)}>
-          {ctx.authCode ? <p>ONAY KODU: {ctx.authCode}</p> : null}
+        <div className="w-full space-y-0.5 tabular-nums tracking-tight" style={fs(9)}>
+          {(ctx.authCode || ctx.referenceNo) ? (
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5">
+              {ctx.authCode ? <span>ONAY KODU: {ctx.authCode}</span> : null}
+              {ctx.referenceNo ? <span>RRN: {ctx.referenceNo}</span> : null}
+            </div>
+          ) : null}
           {ctx.referenceNo ? <p>BANKA REFERANS: {ctx.referenceNo}</p> : null}
-          {ctx.threeDSecure ? <p className="italic text-[#444]">3D Secure ile tamamlanmıştır.</p> : null}
+          {ctx.bankName && ctx.bankName !== '—' ? <p>{ctx.bankName}</p> : null}
+          {ctx.threeDSecure ? (
+            <p className="font-semibold tracking-wide">İŞLEM 3D SECURE İLE TAMAMLANMIŞTIR</p>
+          ) : null}
         </div>
       );
     case 'legalLine':

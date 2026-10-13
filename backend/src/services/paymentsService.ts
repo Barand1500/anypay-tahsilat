@@ -259,12 +259,24 @@ async function merchantDefaults() {
     prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } }),
     prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } }),
   ]);
-  return {
-    merchantTitle:
-      (iletisim?.unvan || ayar?.sistemAdi || 'GÜZEL Teknoloji').trim() || 'GÜZEL Teknoloji',
-    merchantAddress: (iletisim?.adres || '').trim() || '—',
-    merchantPhone: (iletisim?.telefon || iletisim?.gsm || '').trim() || '—',
-  };
+  const title = (iletisim?.unvan || ayar?.sistemAdi || '').trim() || '—';
+  const address = (iletisim?.adres || '').trim() || '—';
+
+  // POS alt satır: vergi dairesi + VN/TC; yoksa telefon/GSM (iletisim_bilgileri)
+  let taxOffice = '';
+  if (iletisim?.vdId != null) {
+    const vd = await prisma.vergiDairesi.findFirst({
+      where: { id: iletisim.vdId },
+      select: { adi: true },
+    });
+    taxOffice = (vd?.adi || '').trim();
+  }
+  const taxNo = (iletisim?.vn || '').trim();
+  const taxLine = [taxOffice, taxNo].filter(Boolean).join(' ');
+  const phone = (iletisim?.telefon || iletisim?.gsm || '').trim();
+  const merchantPhone = taxLine || phone || '—';
+
+  return { merchantTitle: title, merchantAddress: address, merchantPhone };
 }
 
 async function hydrate(

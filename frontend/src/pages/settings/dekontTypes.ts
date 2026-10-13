@@ -70,7 +70,7 @@ export const DEKONT_CONTENT_FIELD_META: Array<{
 }> = [
   { id: 'merchantTitle', label: 'Üye işyeri', bold: true },
   { id: 'merchantAddress', label: 'Adres' },
-  { id: 'merchantPhone', label: 'İşyeri telefon' },
+  { id: 'merchantPhone', label: 'Vergi / telefon' },
   { id: 'cardHolderName', label: 'Kart sahibi', bold: true },
   { id: 'holderPhone', label: 'Kart sahibi telefon' },
   { id: 'identityNo', label: 'T.C. / kimlik' },
@@ -188,9 +188,9 @@ export const DEKONT_VARIABLE_META: Array<{
   { type: 'legalBox', label: 'Yasal kutu', hint: 'İmza alanı', sheetOnly: true },
   { type: 'amountWords', label: 'Yazıyla tutar', hint: 'Yalnız; …', sheetOnly: true },
   { type: 'keepSlip', label: 'Saklayınız', hint: 'BU BELGEYİ SAKLAYINIZ', fisOnly: true },
-  { type: 'merchantTitle', label: 'Üye işyeri', hint: 'Unvan' },
-  { type: 'merchantAddress', label: 'Adres', hint: 'İşyeri adresi' },
-  { type: 'merchantPhone', label: 'Telefon', hint: 'İşyeri telefon' },
+  { type: 'merchantTitle', label: 'Üye işyeri', hint: 'İletişim › ünvan' },
+  { type: 'merchantAddress', label: 'Adres', hint: 'İletişim › adres' },
+  { type: 'merchantPhone', label: 'Vergi / telefon', hint: 'VD + VN veya telefon' },
   { type: 'bankName', label: 'Banka adı', hint: 'Metin' },
   { type: 'dateTimeRow', label: 'Tarih / Saat', hint: 'İki kolon' },
   { type: 'txnMeta', label: 'İşlem meta', hint: 'No / onay / ref' },
@@ -286,26 +286,26 @@ export function newDekontBlock(
   return base;
 }
 
+/** Varsayılan 80mm — POS termal fiş (işyeri → meta → satış → tutar → onay → nüsha) */
 export function getDefaultFisBlocks(): DekontBlock[] {
   return [
-    newDekontBlock('brandLogo', { x: 20, y: 1.5, w: 60, h: 7, z: 2 }),
-    newDekontBlock('keepSlip', { x: 5, y: 9, w: 90, h: 2.5, fontScale: 0.85 }),
-    newDekontBlock('merchantTitle', { x: 5, y: 12, w: 90, h: 3.5, fontScale: 1.15 }),
-    newDekontBlock('merchantAddress', { x: 5, y: 16, w: 90, h: 3.5, fontScale: 0.85 }),
-    newDekontBlock('merchantPhone', { x: 5, y: 20, w: 90, h: 2.5, fontScale: 0.85 }),
-    newDekontBlock('bankName', { x: 5, y: 23.5, w: 90, h: 3, fontScale: 1.05 }),
-    newDekontBlock('dateTimeRow', { x: 4, y: 28, w: 92, h: 3, fontScale: 0.9, align: 'left' }),
-    newDekontBlock('txnMeta', { x: 4, y: 31.5, w: 92, h: 5, fontScale: 0.85, align: 'left' }),
-    newDekontBlock('installmentLine', { x: 5, y: 37.5, w: 90, h: 2.8 }),
-    newDekontBlock('slipTitle', { x: 5, y: 41, w: 90, h: 4, fontScale: 1.35 }),
-    newDekontBlock('cardMasked', { x: 5, y: 46, w: 90, h: 3, fontScale: 1.05 }),
-    newDekontBlock('amountBlock', { x: 5, y: 50, w: 90, h: 8, fontScale: 1.2 }),
-    newDekontBlock('approvedLine', { x: 5, y: 59, w: 90, h: 3, fontScale: 1.1 }),
-    newDekontBlock('authRef', { x: 5, y: 63, w: 90, h: 4.5, fontScale: 0.85 }),
-    newDekontBlock('legalLine', { x: 5, y: 69, w: 90, h: 4, fontScale: 0.8 }),
-    newDekontBlock('maliDeger', { x: 5, y: 74, w: 90, h: 2.5, fontScale: 0.95 }),
-    newDekontBlock('musteriNushasi', { x: 5, y: 77, w: 90, h: 2.5, fontScale: 0.9 }),
-    newDekontBlock('bankLogo', { x: 22, y: 82, w: 56, h: 7, z: 2 }),
+    newDekontBlock('merchantTitle', { x: 4, y: 2, w: 92, h: 3.5, fontScale: 1.2 }),
+    newDekontBlock('merchantAddress', { x: 4, y: 6, w: 92, h: 4, fontScale: 0.85 }),
+    newDekontBlock('merchantPhone', { x: 4, y: 10.5, w: 92, h: 2.5, fontScale: 0.85 }),
+    newDekontBlock('bankName', { x: 4, y: 13.5, w: 92, h: 3, fontScale: 1.05 }),
+    newDekontBlock('dateTimeRow', { x: 4, y: 18, w: 92, h: 2.8, fontScale: 0.9, align: 'left' }),
+    newDekontBlock('txnMeta', { x: 4, y: 21.5, w: 92, h: 6, fontScale: 0.85, align: 'left' }),
+    newDekontBlock('installmentLine', { x: 4, y: 28.5, w: 92, h: 2.8, fontScale: 1 }),
+    newDekontBlock('slipTitle', { x: 4, y: 32, w: 92, h: 4, fontScale: 1.4 }),
+    newDekontBlock('cardMasked', { x: 4, y: 37, w: 92, h: 4.5, fontScale: 1.05 }),
+    newDekontBlock('amountBlock', { x: 4, y: 42.5, w: 92, h: 7.5, fontScale: 1.25 }),
+    newDekontBlock('approvedLine', { x: 4, y: 51, w: 92, h: 3, fontScale: 1.15 }),
+    newDekontBlock('authRef', { x: 4, y: 55, w: 92, h: 8, fontScale: 0.85 }),
+    newDekontBlock('legalLine', { x: 4, y: 64, w: 92, h: 4, fontScale: 0.8 }),
+    newDekontBlock('maliDeger', { x: 4, y: 69, w: 92, h: 2.5, fontScale: 0.95 }),
+    newDekontBlock('musteriNushasi', { x: 4, y: 72.5, w: 92, h: 2.5, fontScale: 0.95 }),
+    newDekontBlock('keepSlip', { x: 4, y: 76, w: 92, h: 2.5, fontScale: 0.85 }),
+    newDekontBlock('bankLogo', { x: 22, y: 80, w: 56, h: 7, z: 2 }),
   ];
 }
 
@@ -488,16 +488,17 @@ export function applyPreviewSlipKind(
   };
 }
 
+/** Önizleme örnek işlem alanları — üye işyeri satırları İletişim ayarlarından gelir */
 export const SAMPLE_DEKONT_CTX = (brandLogoUrl: string): DekontSampleContext => ({
   brandLogoUrl,
   bankLogoUrl: '/banks/tgarantibankasias_logo_1750065698.webp',
   bankName: 'Garanti BBVA',
-  merchantTitle: 'GÜZEL TEKNOLOJİ',
-  merchantAddress: 'YENİ EMEK MAH. YILDIRIM 130A ANTALYA',
-  merchantPhone: '0242 000 00 00',
+  merchantTitle: '—',
+  merchantAddress: '—',
+  merchantPhone: '—',
   date: '12/10/2026',
   time: '15:54',
-  transactionNo: '2026TABC123',
+  transactionNo: '000014',
   authCode: '046728',
   referenceNo: '628567824487',
   cardHolderName: 'ÖRNEK KART SAHİBİ',
@@ -506,16 +507,16 @@ export const SAMPLE_DEKONT_CTX = (brandLogoUrl: string): DekontSampleContext => 
   slipTitle: 'TAKSİTLİ SATIŞ',
   amountLabel: 'İŞLEM TUTARI',
   amountTotal: '1.053,40 TL',
-  amountDetail: 'Tutar 1.000,00 · Komisyon 53,40',
+  amountDetail: '',
   legalLine: 'TUTAR KARŞILIĞI MAL VEYA HİZMET ALDIM',
-  dekontNo: '2026TABC123',
+  dekontNo: '000014',
   identityNo: '123******90',
   holderPhone: '530 *** ** 50',
   description: 'Örnek tahsilat',
   amountOnly: '1.000,00',
   commissionOnly: '53,40',
   legalBox1:
-    'Kredi kartımdan / banka kartımdan 1.053,40 ₺ tutarın GÜZEL TEKNOLOJİ adına çekilmesini kabul ederim.',
+    'Kredi kartımdan / banka kartımdan 1.053,40 ₺ tutarın üye işyeri adına çekilmesini kabul ederim.',
   legalBox2:
     'Banka veya kart kuruluşunun ödemeyi bloke etmesi halinde tutarı bizzat ödemeyi taahhüt ederim.',
   status: 'paid',

@@ -245,7 +245,7 @@ async function merchantTitle(): Promise<string> {
     prisma.ayarlar.findFirst({ orderBy: { id: 'asc' } }),
     prisma.iletisimBilgileri.findFirst({ orderBy: { id: 'asc' } }),
   ]);
-  return (iletisim?.unvan || ayar?.sistemAdi || 'GÜZEL Teknoloji').trim() || 'GÜZEL Teknoloji';
+  return (iletisim?.unvan || ayar?.sistemAdi || '').trim() || '—';
 }
 
 export async function createPaymentRequest(
