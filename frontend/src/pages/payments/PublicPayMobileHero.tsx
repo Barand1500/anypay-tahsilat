@@ -383,8 +383,8 @@ function LegalDocsBottomSheet({
     >
       <div className="absolute inset-0 bg-black/45" aria-hidden />
       <div className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-hidden rounded-t-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_-12px_40px_rgba(0,0,0,0.25)]">
-        <div className="flex items-center justify-between border-b border-[var(--panel-line)] px-4 py-3">
-          <div>
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-brand-600)]">
               Yasal
             </p>
@@ -393,9 +393,11 @@ function LegalDocsBottomSheet({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[var(--panel-line)] px-2.5 py-1 text-[11px] font-bold text-[var(--panel-muted)]"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--panel-line)] px-2.5 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+            aria-label="Kapat"
           >
-            X Esc
+            <span className="text-base leading-none">X</span>
+            ESC
           </button>
         </div>
         <ul

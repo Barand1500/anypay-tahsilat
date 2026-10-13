@@ -293,47 +293,47 @@ export function InstallmentOptionsModal({
         className="relative z-10 flex h-[min(92vh,740px)] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_-12px_40px_rgba(0,0,0,0.25)] lg:h-[min(82vh,740px)] lg:rounded-2xl lg:shadow-xl"
       >
         <header className="shrink-0 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <h2
                 id="taksit-title"
                 className="text-lg font-bold leading-tight text-[var(--panel-ink)]"
               >
                 Taksit Seçenekleri
               </h2>
-              <p className="text-xs text-[var(--panel-muted)]">
+              <p className="mt-0.5 text-xs text-[var(--panel-muted)]">
                 Banka bazlı taksit seçeneklerini karşılaştırın. Taksit tutarları, toplam tutarlar ve varsa taksit alt limitleri görüntülenir.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              {visibleSegments.length > 0 ? <div className="flex rounded-xl border border-[var(--panel-line)] p-0.5">
-                {visibleSegments.map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setSegment(k)}
-                    className={[
-                      "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
-                      segment === k
-                        ? "bg-[var(--color-brand-600)] text-white"
-                        : "text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]",
-                    ].join(" ")}
-                  >
-                    {k === "tumu" ? "Tümü" : k === "bireysel" ? "Bireysel" : "Ticari"}
-                  </button>
-                ))}
-              </div> : null}
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
-                aria-label="Kapat"
-              >
-                <span className="text-base leading-none">X</span>
-                ESC
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--panel-line)] px-2.5 py-1 text-[11px] font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+              aria-label="Kapat"
+            >
+              <span className="text-base leading-none">X</span>
+              ESC
+            </button>
           </div>
+          {visibleSegments.length > 0 ? (
+            <div className="mt-3 flex rounded-xl border border-[var(--panel-line)] p-0.5">
+              {visibleSegments.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setSegment(k)}
+                  className={[
+                    "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
+                    segment === k
+                      ? "bg-[var(--color-brand-600)] text-white"
+                      : "text-[var(--panel-muted)] hover:bg-[var(--panel-hover)]",
+                  ].join(" ")}
+                >
+                  {k === "tumu" ? "Tümü" : k === "bireysel" ? "Bireysel" : "Ticari"}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
