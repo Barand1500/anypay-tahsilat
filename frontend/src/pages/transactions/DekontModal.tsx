@@ -58,6 +58,7 @@ export function DekontModal({ tx, onClose }: Props) {
   );
   const activeBlocks = layouts[format];
 
+  // Açılış + format değişiminde şablonu yenile (ayar kaydı yansısın)
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
@@ -70,9 +71,15 @@ export function DekontModal({ tx, onClose }: Props) {
         }>('/api/settings/dekont', token);
         if (cancelled) return;
         setLayouts({
-          fis: data.fis?.blocks?.length ? data.fis.blocks.map((b) => ({ ...b })) : getDefaultFisBlocks(),
-          a5: data.a5?.blocks?.length ? data.a5.blocks.map((b) => ({ ...b })) : getDefaultSheetBlocks(),
-          a4: data.a4?.blocks?.length ? data.a4.blocks.map((b) => ({ ...b })) : getDefaultSheetBlocks(),
+          fis: data.fis?.blocks?.length
+            ? data.fis.blocks.map((b) => ({ ...b, fields: b.fields ? [...b.fields] : undefined }))
+            : getDefaultFisBlocks(),
+          a5: data.a5?.blocks?.length
+            ? data.a5.blocks.map((b) => ({ ...b, fields: b.fields ? [...b.fields] : undefined }))
+            : getDefaultSheetBlocks(),
+          a4: data.a4?.blocks?.length
+            ? data.a4.blocks.map((b) => ({ ...b, fields: b.fields ? [...b.fields] : undefined }))
+            : getDefaultSheetBlocks(),
         });
       } catch {
         /* varsayılanlar */
@@ -81,7 +88,7 @@ export function DekontModal({ tx, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, format]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;

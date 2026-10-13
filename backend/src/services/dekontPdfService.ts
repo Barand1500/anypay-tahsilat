@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import {
   getDekontSettings,
+  getDefaultFisBlocks,
+  getDefaultSheetBlocks,
   type DekontBlock,
   type DekontBlockType,
   type DekontContentField,
@@ -37,7 +40,107 @@ function asciiSafe(raw: string): string {
     .replace(/Ö/g, 'O')
     .replace(/Ç/g, 'C')
     .replace(/[^\x20-\x7E]/g, '?')
-    .slice(0, 120);
+    .slice(0, 200);
+}
+
+/** Unicode font varken kontrol karakterlerini temizle */
+function unicodeSafe(raw: string): string {
+  return String(raw ?? '')
+    .replace(/[—–−]/g, '-')
+    .replace(/₺/g, 'TL ')
+    .replace(/[\u0000-\u001F]/g, '')
+    .slice(0, 500);
+}
+
+/** Metin kodlama — TR font yoksa ASCII */
+let encodePdfText: (raw: string) => string = asciiSafe;
+
+const ONES = ['', 'BİR', 'İKİ', 'ÜÇ', 'DÖRT', 'BEŞ', 'ALTI', 'YEDİ', 'SEKİZ', 'DOKUZ'];
+const TENS = ['', 'ON', 'YİRMİ', 'OTUZ', 'KIRK', 'ELLİ', 'ALTMIŞ', 'YETMİŞ', 'SEKSEN', 'DOKSAN'];
+
+function underThousand(n: number): string {
+  if (n === 0) return '';
+  const h = Math.floor(n / 100);
+  const t = Math.floor((n % 100) / 10);
+  const o = n % 10;
+  const parts: string[] = [];
+  if (h === 1) parts.push('YÜZ');
+  else if (h > 1) parts.push(`${ONES[h]} YÜZ`);
+  if (t) parts.push(TENS[t]);
+  if (o) parts.push(ONES[o]);
+  return parts.join(' ');
+}
+
+/** Tam lira tutarını yazıya (ekran amountInWordsTr ile aynı) */
+function amountInWordsTr(amount: number): string {
+  const n = Math.round(Math.abs(amount));
+  if (n === 0) return 'SIFIR TÜRK LİRASI';
+  const millions = Math.floor(n / 1_000_000);
+  const thousands = Math.floor((n % 1_000_000) / 1000);
+  const rest = n % 1000;
+  let s = '';
+  if (millions === 1) s += 'BİR MİLYON';
+  else if (millions > 1) s += `${underThousand(millions)} MİLYON`;
+  if (thousands === 1) s += (s ? ' ' : '') + 'BİN';
+  else if (thousands > 1) s += (s ? ' ' : '') + `${underThousand(thousands)} BİN`;
+  if (rest) s += (s ? ' ' : '') + underThousand(rest);
+  return `${s} TÜRK LİRASI`;
+}
+
+const TR_FONT_CANDIDATES = [
+  path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts', 'arial.ttf'),
+  path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts', 'arialbd.ttf'),
+  path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts', 'segoeui.ttf'),
+  path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts', 'segoeuib.ttf'),
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+];
+
+async function readFirstFont(paths: string[]): Promise<Uint8Array | null> {
+  for (const p of paths) {
+    try {
+      const buf = await fs.readFile(p);
+      if (buf.length > 1000) return new Uint8Array(buf);
+    } catch {
+      /* sonraki */
+    }
+  }
+  return null;
+}
+
+async function embedPdfFonts(doc: PDFDocument): Promise<{ font: PDFFont; bold: PDFFont; unicode: boolean }> {
+  doc.registerFontkit(fontkit);
+  const regularBytes = await readFirstFont([
+    TR_FONT_CANDIDATES[0],
+    TR_FONT_CANDIDATES[2],
+    TR_FONT_CANDIDATES[4],
+    TR_FONT_CANDIDATES[6],
+  ]);
+  const boldBytes =
+    (await readFirstFont([
+      TR_FONT_CANDIDATES[1],
+      TR_FONT_CANDIDATES[3],
+      TR_FONT_CANDIDATES[5],
+      TR_FONT_CANDIDATES[7],
+    ])) || regularBytes;
+
+  if (regularBytes && boldBytes) {
+    try {
+      const font = await doc.embedFont(regularBytes, { subset: true });
+      const bold = await doc.embedFont(boldBytes, { subset: true });
+      encodePdfText = unicodeSafe;
+      return { font, bold, unicode: true };
+    } catch (err) {
+      console.warn('[dekont-pdf] TR font yüklenemedi, Helvetica:', err);
+    }
+  }
+
+  encodePdfText = asciiSafe;
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  return { font, bold, unicode: false };
 }
 
 function pageSize(format: DekontPdfFormat): [number, number] {
@@ -47,10 +150,10 @@ function pageSize(format: DekontPdfFormat): [number, number] {
 }
 
 function slipTitle(tx: PublicPaymentRow): string {
-  if (tx.status === 'cancelled') return 'SATIS IPTALI';
-  if (tx.status === 'refunded') return 'IADE';
-  if (tx.installments > 1) return 'TAKSITLI SATIS';
-  return 'SATIS';
+  if (tx.status === 'cancelled') return 'SATIŞ İPTALİ';
+  if (tx.status === 'refunded') return 'İADE';
+  if (tx.installments > 1) return 'TAKSİTLİ SATIŞ';
+  return 'SATIŞ';
 }
 
 function splitDateTime(iso: string): { date: string; time: string } {
@@ -149,7 +252,9 @@ async function embedLogo(
   }
 }
 
-function blockBox(pageW: number, pageH: number, b: DekontBlock) {
+type PdfBox = { x: number; boxW: number; top: number; boxH: number; bottom: number };
+
+function blockBox(pageW: number, pageH: number, b: DekontBlock): PdfBox {
   const x = (b.x / 100) * pageW;
   const boxH = (b.h / 100) * pageH;
   const boxW = (b.w / 100) * pageW;
@@ -161,25 +266,68 @@ function drawInBlock(
   page: PDFPage,
   font: PDFFont,
   text: string,
-  box: { x: number; boxW: number; top: number; boxH: number },
+  box: PdfBox,
   size: number,
   align: DekontBlock['align'],
   lineOffset = 0,
+  padX = 0,
 ) {
-  const t = asciiSafe(text);
+  const t = encodePdfText(text);
   if (!t) return;
   const tw = font.widthOfTextAtSize(t, size);
-  let x = box.x;
+  const innerW = Math.max(8, box.boxW - padX * 2);
+  let x = box.x + padX;
   if (align === 'center') x = box.x + Math.max(0, (box.boxW - tw) / 2);
-  else if (align === 'right') x = box.x + Math.max(0, box.boxW - tw);
+  else if (align === 'right') x = box.x + Math.max(0, box.boxW - tw - padX);
   const y = box.top - size - 2 - lineOffset;
-  if (y < box.top - box.boxH) return;
-  page.drawText(t, {
-    x: Math.max(4, x),
+  if (y < box.bottom) return;
+  // Taşan metni kısalt
+  let draw = t;
+  if (tw > innerW && align === 'left') {
+    while (draw.length > 1 && font.widthOfTextAtSize(`${draw}…`, size) > innerW) {
+      draw = draw.slice(0, -1);
+    }
+    draw = `${draw}…`;
+  }
+  page.drawText(draw, {
+    x: Math.max(2, x),
     y,
     size,
     font,
     color: rgb(0.08, 0.08, 0.08),
+  });
+}
+
+function wrapWords(
+  font: PDFFont,
+  text: string,
+  size: number,
+  maxW: number,
+): string[] {
+  const words = encodePdfText(text).split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const trial = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(trial, size) > maxW && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = trial;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawBorderBox(page: PDFPage, box: PdfBox) {
+  page.drawRectangle({
+    x: box.x,
+    y: box.bottom,
+    width: box.boxW,
+    height: box.boxH,
+    borderColor: rgb(0.2, 0.2, 0.2),
+    borderWidth: 0.8,
   });
 }
 
@@ -235,7 +383,7 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
   const showInstallment = ctx.installments > 1 && ctx.status === 'paid';
   switch (type) {
     case 'keepSlip':
-      return [{ text: 'BU BELGEYI SAKLAYINIZ', bold: true, size: 7 }];
+      return [{ text: 'BU BELGEYİ SAKLAYINIZ', bold: true, size: 7 }];
     case 'merchantTitle':
       return [{ text: ctx.merchantTitle || '-', bold: true, size: 9 }];
     case 'merchantAddress':
@@ -245,24 +393,24 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
     case 'bankName':
       return [{ text: ctx.bankName || '-', bold: true, size: 8 }];
     case 'dateTimeRow':
-      return [{ text: `TARIH: ${ctx.date}          SAAT: ${ctx.time}`, bold: false, size: 7 }];
+      return [{ text: `TARİH: ${ctx.date}          SAAT: ${ctx.time}`, bold: false, size: 7 }];
     case 'txnMeta': {
       const lines: { text: string; bold: boolean; size: number }[] = [
         {
-          text: `ISLEM NO: ${ctx.transactionNo}${ctx.authCode ? `   ONAY: ${ctx.authCode}` : ''}`,
+          text: `İŞLEM NO: ${ctx.transactionNo}${ctx.authCode ? `   ONAY: ${ctx.authCode}` : ''}`,
           bold: false,
           size: 7,
         },
       ];
       if (ctx.referenceNo) lines.push({ text: `REF: ${ctx.referenceNo}`, bold: false, size: 7 });
       if (ctx.cardHolderName && ctx.cardHolderName !== '—') {
-        lines.push({ text: `KART SAHIBI: ${ctx.cardHolderName}`, bold: false, size: 7 });
+        lines.push({ text: `KART SAHİBİ: ${ctx.cardHolderName}`, bold: false, size: 7 });
       }
       return lines;
     }
     case 'installmentLine':
       return showInstallment
-        ? [{ text: `TAKSIT SAYISI: ${ctx.installments}`, bold: true, size: 8 }]
+        ? [{ text: `TAKSİT SAYISI: ${ctx.installments}`, bold: true, size: 8 }]
         : [];
     case 'slipTitle':
       return [{ text: ctx.slipTitle, bold: true, size: 11 }];
@@ -270,65 +418,172 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       return [{ text: ctx.cardMasked, bold: false, size: 9 }];
     case 'amountBlock': {
       const lines = [
-        { text: 'ISLEM TUTARI', bold: true, size: 7 },
+        { text: 'İŞLEM TUTARI', bold: true, size: 7 },
         { text: ctx.amountTotal, bold: true, size: 14 },
       ];
       if (ctx.amountDetail) lines.push({ text: ctx.amountDetail, bold: false, size: 6.5 });
       return lines;
     }
     case 'approvedLine':
-      return [{ text: 'ISLEM ONAYLANDI', bold: true, size: 9 }];
+      return [{ text: 'İŞLEM ONAYLANDI', bold: true, size: 9 }];
     case 'authRef': {
       const lines: { text: string; bold: boolean; size: number }[] = [];
       if (ctx.authCode) lines.push({ text: `ONAY KODU: ${ctx.authCode}`, bold: false, size: 7 });
       if (ctx.referenceNo) lines.push({ text: `BANKA REFERANS: ${ctx.referenceNo}`, bold: false, size: 7 });
       if (ctx.threeDSecure) {
-        lines.push({ text: '3D Secure ile tamamlanmistir.', bold: false, size: 6.5 });
+        lines.push({ text: '3D Secure ile tamamlanmıştır.', bold: false, size: 6.5 });
       }
       return lines;
     }
     case 'legalLine':
       return [{ text: ctx.legalLine, bold: false, size: 6.5 }];
     case 'maliDeger':
-      return [{ text: 'MALI DEGERI YOKTUR', bold: true, size: 7 }];
+      return [{ text: 'MALİ DEĞERİ YOKTUR', bold: true, size: 7 }];
     case 'musteriNushasi':
-      return [{ text: 'MUSTERI NUSHASI', bold: true, size: 7 }];
+      return [{ text: 'MÜŞTERİ NÜSHASI', bold: true, size: 7 }];
     case 'docTitle':
-      return [{ text: 'SANAL POS E-DEKONT', bold: true, size: 12 }];
+    case 'partiesCards':
+    case 'detailTable':
+    case 'legalBox':
+      // Özel çizim (drawRichBlock)
+      return [];
     case 'dekontNoDate':
       return [
         { text: `Dekont No: ${ctx.dekontNo}     ${ctx.atLabel}`, bold: false, size: 8 },
       ];
-    case 'partiesCards':
-      return [
-        { text: ctx.merchantTitle || '-', bold: true, size: 8 },
-        { text: ctx.merchantAddress || '', bold: false, size: 7 },
-        { text: ctx.merchantPhone || '', bold: false, size: 7 },
-        { text: ctx.cardHolderName || '-', bold: true, size: 8 },
-        { text: ctx.holderPhone || '', bold: false, size: 7 },
-      ];
-    case 'detailTable':
-      return [
-        { text: `ONAY: ${ctx.atLabel}  REF: ${ctx.referenceNo}`, bold: false, size: 7 },
-        { text: `ISLEM: ${ctx.transactionNo}  ONAY KODU: ${ctx.authCode}`, bold: false, size: 7 },
-        { text: `KART: ${ctx.cardMasked}  TAKSIT: ${ctx.installments}`, bold: false, size: 7 },
-        {
-          text: `TUTAR: ${ctx.amountOnly}  KOMISYON: ${ctx.commissionOnly}  TOPLAM: ${ctx.amountTotal}`,
-          bold: true,
-          size: 8,
-        },
-      ];
-    case 'legalBox':
-      return [
-        { text: ctx.legalBox1, bold: false, size: 6.5 },
-        { text: `${ctx.cardHolderName}                    IMZA`, bold: true, size: 7 },
-      ];
     case 'amountWords':
-      return [{ text: `Yalniz; ${ctx.amountInWords}`, bold: true, size: 8 }];
+      return [{ text: `Yalnız; ${ctx.amountInWords}`, bold: true, size: 8 }];
     case 'emptyBox':
       return [];
     default:
       return [];
+  }
+}
+
+function drawRichBlock(
+  page: PDFPage,
+  block: DekontBlock,
+  box: PdfBox,
+  ctx: FisPdfCtx,
+  font: PDFFont,
+  bold: PDFFont,
+  scale: number,
+) {
+  if (block.type === 'docTitle') {
+    drawBorderBox(page, box);
+    const size = 11 * scale;
+    drawInBlock(page, bold, 'SANAL POS E-DEKONT', box, size, 'center', Math.max(0, (box.boxH - size) / 2 - 2));
+    return;
+  }
+
+  if (block.type === 'partiesCards') {
+    const gap = 4;
+    const half = (box.boxW - gap) / 2;
+    const left = { x: box.x, boxW: half, top: box.top, boxH: box.boxH, bottom: box.bottom };
+    const right = {
+      x: box.x + half + gap,
+      boxW: half,
+      top: box.top,
+      boxH: box.boxH,
+      bottom: box.bottom,
+    };
+    drawBorderBox(page, left);
+    drawBorderBox(page, right);
+    const s = 7.5 * scale;
+    let o = 4;
+    for (const [f, t] of [
+      [bold, ctx.merchantTitle || '-'],
+      [font, ctx.merchantAddress || ''],
+      [font, ctx.merchantPhone || ''],
+    ] as const) {
+      if (!t) continue;
+      drawInBlock(page, f, t, left, s, 'left', o, 4);
+      o += s + 2;
+    }
+    o = 4;
+    for (const [f, t] of [
+      [bold, ctx.cardHolderName || '-'],
+      [font, '-'],
+      [font, ctx.holderPhone || ''],
+    ] as const) {
+      drawInBlock(page, f, t, right, s, 'left', o, 4);
+      o += s + 2;
+    }
+    return;
+  }
+
+  if (block.type === 'detailTable') {
+    drawBorderBox(page, box);
+    const gap = 0;
+    const half = box.boxW / 2;
+    const leftRows: [string, string][] = [
+      ['ONAY ZAMANI', ctx.atLabel],
+      ['REFERANS NO', ctx.referenceNo],
+      ['ADI SOYADI', ctx.cardHolderName],
+      ['T.C. KİMLİK', ctx.identityNo],
+      ['TELEFONU', ctx.holderPhone],
+      ['AÇIKLAMA', ctx.description],
+    ];
+    const rightRows: [string, string][] = [
+      ['İŞLEM NO', ctx.transactionNo],
+      ['ONAY KODU', ctx.authCode],
+      ['BANKA', ctx.bankName],
+      ['KART', ctx.cardMasked],
+      ['TAKSİT', String(ctx.installments)],
+      ['TUTAR', ctx.amountOnly],
+      ['KOMİSYON', ctx.commissionOnly],
+      ['TOPLAM', ctx.amountTotal],
+    ];
+    page.drawRectangle({
+      x: box.x + half,
+      y: box.bottom,
+      width: 0.6,
+      height: box.boxH,
+      color: rgb(0.35, 0.35, 0.35),
+    });
+    const rowH = Math.min(12, box.boxH / Math.max(leftRows.length, rightRows.length));
+    const size = Math.min(8 * scale, rowH - 2);
+    leftRows.forEach(([k, v], i) => {
+      const yOff = 3 + i * rowH;
+      const cell = {
+        x: box.x,
+        boxW: half - gap,
+        top: box.top,
+        boxH: box.boxH,
+        bottom: box.bottom,
+      };
+      drawInBlock(page, bold, `${k}:`, cell, size, 'left', yOff, 3);
+      drawInBlock(page, font, v || '—', cell, size, 'left', yOff, 72);
+    });
+    rightRows.forEach(([k, v], i) => {
+      const yOff = 3 + i * rowH;
+      const cell = {
+        x: box.x + half,
+        boxW: half,
+        top: box.top,
+        boxH: box.boxH,
+        bottom: box.bottom,
+      };
+      const useBold = k === 'TOPLAM' ? bold : font;
+      drawInBlock(page, bold, `${k}:`, cell, size, 'left', yOff, 3);
+      drawInBlock(page, useBold, v || '—', cell, size, 'left', yOff, 62);
+    });
+    return;
+  }
+
+  if (block.type === 'legalBox') {
+    drawBorderBox(page, box);
+    const size = 7 * scale;
+    const maxW = Math.max(20, box.boxW - 10);
+    const lines = wrapWords(font, ctx.legalBox1, size, maxW);
+    let o = 4;
+    for (const ln of lines.slice(0, 8)) {
+      drawInBlock(page, font, ln, box, size, 'left', o, 4);
+      o += size + 2;
+    }
+    const signY = Math.max(o + 6, box.boxH - 14);
+    drawInBlock(page, bold, ctx.cardHolderName || '', box, size, 'left', signY, 4);
+    drawInBlock(page, bold, 'İMZA', box, size, 'right', signY, 8);
   }
 }
 
@@ -383,13 +638,13 @@ function fieldText(field: DekontContentField, ctx: FisPdfCtx): { text: string; b
     case 'staticDocTitle':
       return { text: 'SANAL POS E-DEKONT', bold: true };
     case 'staticKeepSlip':
-      return { text: 'BU BELGEYI SAKLAYINIZ', bold: false };
+      return { text: 'BU BELGEYİ SAKLAYINIZ', bold: false };
     case 'staticApproved':
-      return { text: 'ISLEM ONAYLANDI', bold: true };
+      return { text: 'İŞLEM ONAYLANDI', bold: true };
     case 'staticMali':
-      return { text: 'MALI DEGERI YOKTUR', bold: true };
+      return { text: 'MALİ DEĞERİ YOKTUR', bold: true };
     case 'staticMusteri':
-      return { text: 'MUSTERI NUSHASI', bold: false };
+      return { text: 'MÜŞTERİ NÜSHASI', bold: false };
     default:
       return { text: '', bold: false };
   }
@@ -400,8 +655,7 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
   const doc = await PDFDocument.create();
   const [w, h] = pageSize(format);
   const page = doc.addPage([w, h]);
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const { font, bold } = await embedPdfFonts(doc);
   const d = tx.dekont;
   const total = tx.amount + tx.commission;
   const { date, time } = splitDateTime(tx.at);
@@ -421,16 +675,22 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
       : format === 'a5'
         ? settings.a5
         : settings.a4;
-  const blocks = [...(layout?.blocks ?? [])].sort((a, b) => a.z - b.z || a.y - b.y);
+  const rawBlocks = layout?.blocks?.length
+    ? layout.blocks
+    : format === 'fis'
+      ? getDefaultFisBlocks()
+      : getDefaultSheetBlocks();
+  const drawList = [...rawBlocks].sort((a, b) => a.z - b.z || a.y - b.y);
 
   const legal =
     tx.status === 'refunded'
-      ? 'TUTAR KARSILIGI ISLEM IADE EDILMISTIR'
+      ? 'TUTAR KARŞILIĞI İŞLEM İADE EDİLMİŞTİR'
       : tx.status === 'cancelled'
-        ? 'TUTAR KARSILIGI ISLEM IPTAL EDILMISTIR'
-        : 'TUTAR KARSILIGI MAL VEYA HIZMET ALDIM';
+        ? 'TUTAR KARŞILIĞI İŞLEM İPTAL EDİLMİŞTİR'
+        : 'TUTAR KARŞILIĞI MAL VEYA HİZMET ALDIM';
 
   const moneyStr = money(total);
+  const words = amountInWordsTr(total);
   const ctx: FisPdfCtx = {
     brandLogoUrl,
     bankLogoUrl: tx.bankLogo || '',
@@ -461,15 +721,15 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
         ? `Tutar ${money(tx.amount)} · Komisyon ${money(tx.commission)}`
         : null,
     legalLine: legal,
-    legalBox1: `Kredi kartimdan ${moneyStr} TL tutarin ${d.merchantTitle || ''} adina cekilmesini kabul ederim.`,
-    amountInWords: '',
+    legalBox1: `Kredi kartımdan / banka kartımdan ${moneyStr} TL tutarın ${d.merchantTitle || ''} adına çekilmesini ve ilgili tutarın üye işyerine aktarılmasını kabul ederim.`,
+    amountInWords: words,
     threeDSecure: Boolean(d.threeDSecure),
   };
 
   const brandImg = brandLogoUrl ? await embedLogo(doc, brandLogoUrl) : null;
   const bankImg = tx.bankLogo ? await embedLogo(doc, tx.bankLogo) : null;
 
-  for (const block of blocks) {
+  for (const block of drawList) {
     const box = blockBox(w, h, block);
     const scale = block.fontScale || 1;
 
@@ -484,19 +744,20 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
       continue;
     }
 
+    if (
+      block.type === 'docTitle' ||
+      block.type === 'partiesCards' ||
+      block.type === 'detailTable' ||
+      block.type === 'legalBox'
+    ) {
+      drawRichBlock(page, block, box, ctx, font, bold, scale);
+      continue;
+    }
+
     if (block.type === 'emptyBox' || block.type === 'contentBox' || block.type === 'customText') {
       const showBorder =
         block.type === 'customText' ? block.border === true : block.border !== false;
-      if (showBorder) {
-        page.drawRectangle({
-          x: box.x,
-          y: box.bottom,
-          width: box.boxW,
-          height: box.boxH,
-          borderColor: rgb(0.2, 0.2, 0.2),
-          borderWidth: 0.8,
-        });
-      }
+      if (showBorder) drawBorderBox(page, box);
       if (block.type === 'contentBox') {
         const fields = block.fields?.length
           ? block.fields
@@ -506,29 +767,21 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
           const line = fieldText(f, ctx);
           if (!line.text) continue;
           const size = 8 * scale;
-          drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset);
+          drawInBlock(page, line.bold ? bold : font, line.text, box, size, block.align, offset, 4);
           offset += size + 2;
         }
       }
       if (block.type === 'customText') {
-        const raw = (block.text || '').trim() || 'Istek metin';
+        const raw = (block.text || '').trim() || 'İstek metin';
         const size = 8 * scale;
-        // Satır satır çiz (basit kelime bölme)
-        const words = asciiSafe(raw).split(/\s+/).filter(Boolean);
-        let line = '';
+        const maxW = Math.max(20, box.boxW - 8);
+        const wrapped = wrapWords(font, raw, size, maxW);
         let offset = 4;
-        const maxW = Math.max(20, box.boxW - 6);
-        for (const word of words) {
-          const trial = line ? `${line} ${word}` : word;
-          if (font.widthOfTextAtSize(trial, size) > maxW && line) {
-            drawInBlock(page, font, line, box, size, block.align, offset);
-            offset += size + 2;
-            line = word;
-          } else {
-            line = trial;
-          }
+        for (const ln of wrapped) {
+          drawInBlock(page, font, ln, box, size, block.align, offset, 4);
+          offset += size + 2;
+          if (offset > box.boxH - size) break;
         }
-        if (line) drawInBlock(page, font, line, box, size, block.align, offset);
       }
       continue;
     }

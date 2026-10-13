@@ -242,3 +242,4 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth yalnızca AuthProvider içinde kullanılabilir');
   return ctx;
 }
+
