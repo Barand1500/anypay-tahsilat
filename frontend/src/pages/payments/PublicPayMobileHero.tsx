@@ -277,7 +277,27 @@ export function PublicPayMobileHero(props: Props) {
 
       {/* Sticky pay bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--panel-line)] bg-[color-mix(in_srgb,var(--panel-elevated)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md lg:hidden">
-        <div className="mb-2 flex items-start gap-2">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold text-[var(--panel-muted)]">Ödenecek</p>
+            <p className="truncate text-base font-bold tabular-nums text-[var(--panel-ink)]">
+              {Number.isFinite(displayAmount) && displayAmount > 0
+                ? formatMoneyDisplay(
+                    selectedRate && commissionIncluded ? selectedRate.totalAmount : displayAmount,
+                    currencySymbol,
+                  )
+                : '—'}
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className="h-12 min-w-[9.5rem] shrink-0 rounded-xl bg-[var(--color-brand-600)] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:cursor-wait disabled:opacity-60"
+          >
+            {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
+          </button>
+        </div>
+        <div className="mt-2.5 flex items-start gap-2">
           <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-[11px] leading-snug text-[var(--panel-ink)]">
             <input
               type="checkbox"
@@ -308,27 +328,7 @@ export function PublicPayMobileHero(props: Props) {
             <LegalDocIcon />
           </button>
         </div>
-        {errors.agree ? <p className="mb-1.5 text-[10px] text-rose-500">{errors.agree}</p> : null}
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold text-[var(--panel-muted)]">Ödenecek</p>
-            <p className="truncate text-base font-bold tabular-nums text-[var(--panel-ink)]">
-              {Number.isFinite(displayAmount) && displayAmount > 0
-                ? formatMoneyDisplay(
-                    selectedRate && commissionIncluded ? selectedRate.totalAmount : displayAmount,
-                    currencySymbol,
-                  )
-                : '—'}
-            </p>
-          </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="h-12 min-w-[9.5rem] shrink-0 rounded-xl bg-[var(--color-brand-600)] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-brand-500)] disabled:cursor-wait disabled:opacity-60"
-          >
-            {saving ? 'İşleniyor…' : 'Ödemeyi Tamamla'}
-          </button>
-        </div>
+        {errors.agree ? <p className="mt-1 text-[10px] text-rose-500">{errors.agree}</p> : null}
       </div>
 
       {legalSheetOpen

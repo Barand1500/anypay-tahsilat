@@ -526,45 +526,57 @@ function BadgeRow({
   onRemove: () => void;
 }) {
   const [hover, setHover] = useState(false);
-  const inputId = `badge-file-${badge.id}`;
+  const fileRef = useRef<HTMLInputElement>(null);
 
   return (
     <tr className="border-b border-[var(--panel-line)]/80 last:border-0">
       <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div
-            className="relative flex h-12 w-16 items-center justify-center overflow-visible rounded-lg border border-[var(--panel-line)] bg-white"
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-          >
-            <img
-              src={badge.src}
-              alt=""
-              style={{ height: Math.min(badge.heightPx, 36) }}
-              className="w-auto max-w-[3.5rem] object-contain"
-            />
-            <AnimatePresence>
-              {hover ? (
-                <motion.div
-                  key="pop"
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.2)]"
-                  initial={{ opacity: 0, scale: 0.4 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.4 }}
-                  transition={{ type: 'spring', duration: 0.28, bounce: 0.15 }}
-                >
-                  <img src={badge.src} alt={badge.name} className="h-16 w-auto max-w-[8rem] object-contain" />
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
-          <label
-            htmlFor={inputId}
-            className="cursor-pointer rounded-md bg-[color-mix(in_srgb,var(--color-brand-500)_14%,var(--panel-elevated))] px-2 py-1 text-[10px] font-semibold text-[var(--panel-ink)] transition hover:bg-[color-mix(in_srgb,var(--color-brand-500)_24%,var(--panel-elevated))]"
-          >
-            Değiştir
-          </label>
-          <input id={inputId} type="file" accept="image/*" className="sr-only" onChange={onFile} />
+        <div
+          role="button"
+          tabIndex={0}
+          title="Çift tıkla — logoyu değiştir"
+          className="relative flex h-12 w-16 cursor-pointer items-center justify-center overflow-visible rounded-lg border border-[var(--panel-line)] bg-white outline-none transition hover:border-[var(--color-brand-500)]/50 focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]/40"
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onDoubleClick={() => fileRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileRef.current?.click();
+            }
+          }}
+        >
+          <img
+            src={badge.src}
+            alt=""
+            style={{ height: Math.min(badge.heightPx, 36) }}
+            className="pointer-events-none w-auto max-w-[3.5rem] object-contain"
+            draggable={false}
+          />
+          <AnimatePresence>
+            {hover ? (
+              <motion.div
+                key="pop"
+                className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.2)]"
+                initial={{ opacity: 0, scale: 0.4 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.4 }}
+                transition={{ type: 'spring', duration: 0.28, bounce: 0.15 }}
+              >
+                <img src={badge.src} alt={badge.name} className="h-16 w-auto max-w-[8rem] object-contain" />
+                <p className="mt-1.5 text-center text-[9px] font-semibold text-[var(--panel-muted)]">
+                  Çift tıkla · değiştir
+                </p>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={onFile}
+          />
         </div>
       </td>
       <td className="px-3 py-3">
