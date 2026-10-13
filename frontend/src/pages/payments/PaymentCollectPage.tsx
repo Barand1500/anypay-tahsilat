@@ -81,6 +81,8 @@ export default function PaymentCollectPage() {
   const [cvc, setCvc] = useState('');
 
   const [installment, setInstallment] = useState(1);
+  /** Kullanıcı taksit seçmeden Seçili özeti gösterme */
+  const [installmentTouched, setInstallmentTouched] = useState(false);
   const [agree, setAgree] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
@@ -214,11 +216,17 @@ export default function PaymentCollectPage() {
   function onCardChange(raw: string) {
     setCard(formatCardNumber(raw));
     setCardChecked(false);
+    setInstallmentTouched(false);
     setErrors((prev) => {
       if (!prev.card) return prev;
       const { card: _, ...rest } = prev;
       return rest;
     });
+  }
+
+  function pickInstallment(n: number) {
+    setInstallment(n);
+    setInstallmentTouched(true);
   }
 
   function onExpiryChange(raw: string) {
@@ -621,7 +629,7 @@ export default function PaymentCollectPage() {
                   Taksit Seçenekleri
                 </button>
 
-                {selected && bank ? (
+                {selected && bank && installmentTouched && cardDigits.length >= 6 ? (
                   <SelectedInstallmentSummary
                     rate={selected}
                     baseAmount={amount}
@@ -639,7 +647,7 @@ export default function PaymentCollectPage() {
           <InstallmentPlanSection
             rows={installmentRows}
             selectedN={installment}
-            onSelect={setInstallment}
+            onSelect={pickInstallment}
             baseAmount={amount}
             commissionIncluded={commissionIncluded}
             loading={ratesLoading}

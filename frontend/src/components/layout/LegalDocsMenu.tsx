@@ -1,4 +1,3 @@
-import gsap from 'gsap';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
@@ -100,34 +99,6 @@ export function LegalDocsMenu() {
     };
   }, [open, active]);
 
-  useEffect(() => {
-    if (!open) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-
-    const items = Array.from(panel.querySelectorAll('[data-menu-item]'));
-    gsap.set(panel, { transformOrigin: 'bottom right' });
-    gsap.set(items, { autoAlpha: 0, y: 8 });
-    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-    tl.fromTo(
-      panel,
-      { autoAlpha: 0, y: 12, scale: 0.94 },
-      { autoAlpha: 1, y: 0, scale: 1, duration: 0.32 },
-    ).to(items, { autoAlpha: 1, y: 0, duration: 0.26, stagger: 0.035 }, '-=0.14');
-
-    if (btnRef.current) {
-      gsap.fromTo(
-        btnRef.current,
-        { scale: 1 },
-        { scale: 1.05, duration: 0.14, yoyo: true, repeat: 1, ease: 'power2.out' },
-      );
-    }
-
-    return () => {
-      tl.kill();
-    };
-  }, [open]);
-
   function openDoc(doc: LegalDoc) {
     setOpen(false);
     setActive(doc);
@@ -139,7 +110,7 @@ export function LegalDocsMenu() {
           <div
             ref={panelRef}
             role="menu"
-            className="fixed z-[10050] w-[280px] overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_16px_48px_rgba(0,0,0,0.18)]"
+            className="fixed z-[10050] w-[280px] overflow-hidden rounded-2xl border border-[var(--panel-line)]/80 bg-[var(--panel-elevated)] shadow-[0_12px_36px_rgba(0,0,0,0.12)]"
             style={{ bottom: pos.bottom, left: pos.left }}
             onDoubleClick={(e) => e.stopPropagation()}
           >
@@ -194,15 +165,15 @@ export function LegalDocsMenu() {
         onClick={() => setOpen((v) => !v)}
         onDoubleClick={(e) => e.stopPropagation()}
         className={[
-          'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition',
+          'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition',
           open
-            ? 'border-[var(--color-brand-500)]/45 bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)]'
-            : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/40 hover:text-[var(--color-brand-600)]',
+            ? 'border-[var(--color-brand-500)]/30 bg-[var(--brand-soft-bg)]/80 text-[var(--color-brand-600)]'
+            : 'border-[var(--panel-line)]/70 bg-[var(--panel-elevated)]/90 text-[var(--panel-muted)] hover:border-[var(--panel-line)] hover:text-[var(--panel-ink)]',
         ].join(' ')}
       >
         <DocSmIcon />
         Sözleşmeler
-        <span className={['transition', open ? 'rotate-180' : ''].join(' ')}>
+        <span className={open ? 'rotate-180' : ''}>
           <ChevronUpIcon />
         </span>
       </button>

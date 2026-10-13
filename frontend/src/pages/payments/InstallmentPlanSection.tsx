@@ -91,7 +91,7 @@ export function InstallmentPlanSection({
                 aria-pressed={active}
                 onClick={() => onSelect(n)}
                 className={[
-                  'relative overflow-hidden rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
+                  'relative overflow-visible rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-500)]',
                   density === 'dense' ? 'min-h-[148px] max-w-none' : 'min-h-[176px] max-w-[320px]',
                   active
                     ? 'install-card-selected'

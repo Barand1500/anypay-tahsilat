@@ -107,25 +107,33 @@ export function InstallmentCardWatermark({
   );
 }
 
-/** Taksit kartı — 3D şerit «Komisyon yok» */
+/** Taksit kartı — 3D şerit «Komisyon yok» (taşma için parent overflow-visible olmalı) */
 export function NoCommissionRibbon() {
   return (
     <span
-      className="pointer-events-none absolute -left-2 top-2.5 z-20"
+      className="pointer-events-none absolute -left-2.5 top-2 z-30"
       aria-label="Komisyon yok"
     >
       <svg
-        width="112"
-        height="34"
-        viewBox="0 0 112 34"
-        className="overflow-visible drop-shadow-[2px_3px_4px_rgba(0,0,0,0.28)]"
+        width="118"
+        height="38"
+        viewBox="0 0 118 38"
+        className="overflow-visible drop-shadow-[3px_4px_6px_rgba(0,0,0,0.35)]"
         aria-hidden
       >
-        <path d="M8 24 L8 33 L0 24 Z" fill="#9a3412" />
-        <path d="M0 0 H92 L112 12 L92 24 H0 Z" fill="#f97316" />
+        {/* Sol kıvrım (arka) */}
+        <path d="M10 26 L10 36 L0 26 Z" fill="#7c2d12" />
+        {/* Ana şerit */}
+        <path d="M2 2 H96 L116 14 L96 26 H2 Z" fill="#f97316" />
+        {/* Üst ışık */}
+        <path d="M2 2 H96 L116 14 L112 14 L94 4 H2 Z" fill="#fb923c" opacity="0.55" />
+        {/* Alt gölge kıvrım */}
+        <path d="M2 26 H96 L92 30 H6 Z" fill="#c2410c" />
+        {/* Sol ön kıvrım */}
+        <path d="M2 2 L10 8 L10 26 L2 26 Z" fill="#ea580c" />
         <text
-          x="46"
-          y="13.5"
+          x="50"
+          y="15"
           textAnchor="middle"
           dominantBaseline="middle"
           fill="#fff8f0"
@@ -183,7 +191,7 @@ export function InstallmentPlanCardBody({
       <InstallmentCardWatermark n={rate.n} plusN={rate.plusN} selected={selected} />
       <p
         className={[
-          'install-card-ink relative z-[2] mt-1 text-right text-xl font-bold tabular-nums',
+          'install-card-ink relative z-[2] mt-1 text-right text-[1.125rem] font-bold leading-snug tabular-nums sm:text-xl',
           selected ? '' : 'text-[var(--panel-ink)]',
           rate.plusN > 0 ? 'mt-6' : '',
         ].join(' ')}
@@ -191,7 +199,7 @@ export function InstallmentPlanCardBody({
         {formatInstallmentPaymentLine(rate, chargedTotal, commissionIncluded, formatMoney)}
       </p>
       {showTotalLine ? (
-        <p className="install-card-muted relative z-[2] mt-0.5 text-right text-[12px] font-semibold tabular-nums text-[var(--panel-muted)]">
+        <p className="install-card-muted relative z-[2] mt-1 text-right text-[0.95rem] font-semibold leading-snug tabular-nums text-[var(--panel-muted)] sm:text-[1.05rem]">
           Toplam {formatMoney(chargedTotal)}
         </p>
       ) : null}
@@ -221,7 +229,7 @@ export function SelectedInstallmentSummary({
 }: SelectedSummaryProps) {
   return (
     <div
-      className="install-card-selected relative mt-3 min-h-[148px] overflow-hidden rounded-xl border p-4 text-left"
+      className="install-card-selected relative mt-3 min-h-[148px] overflow-visible rounded-xl border p-4 text-left"
       aria-label="Seçili taksit"
     >
       <InstallmentPlanCardBody

@@ -113,6 +113,8 @@ export default function PublicPayPage() {
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [installment, setInstallment] = useState(1);
+  /** Kullanıcı taksit seçmeden Seçili özeti gösterme */
+  const [installmentTouched, setInstallmentTouched] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [installmentRates, setInstallmentRates] = useState<InstallmentRow[]>([]);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -359,11 +361,24 @@ export default function PublicPayPage() {
     [pricedInstallments, installment],
   );
 
+  const summaryRate =
+    installmentTouched && bank && cardDigits.length >= 6 ? selectedRate : null;
+
   useEffect(() => {
     if (!pricedInstallments.length) return;
     if (pricedInstallments.some((r) => r.n === installment)) return;
     setInstallment(pricedInstallments[0]!.n);
   }, [pricedInstallments, installment]);
+
+  function pickInstallment(n: number) {
+    setInstallment(n);
+    setInstallmentTouched(true);
+  }
+
+  function onCardChange(raw: string) {
+    setCard(raw);
+    setInstallmentTouched(false);
+  }
 
 
   function validateStep(step: 0 | 1 | 2 | 'all'): boolean {
@@ -704,7 +719,7 @@ export default function PublicPayPage() {
                   onHolder={setHolder}
                   onTc={setTc}
                   onPhone={setPhone}
-                  onCard={setCard}
+                  onCard={onCardChange}
                   onExpiry={setExpiry}
                   onCvc={setCvc}
                   clearPhoneError={() =>
@@ -715,9 +730,9 @@ export default function PublicPayPage() {
                     })
                   }
                   installment={installment}
-                  onInstallment={setInstallment}
+                  onInstallment={pickInstallment}
                   pricedInstallments={pricedInstallments}
-                  selectedRate={selectedRate}
+                  selectedRate={summaryRate}
                   ratesLoading={ratesLoading}
                   ratesError={ratesError}
                   emptyRatesHint={
@@ -769,7 +784,7 @@ export default function PublicPayPage() {
                   onHolder={setHolder}
                   onTc={setTc}
                   onPhone={setPhone}
-                  onCard={setCard}
+                  onCard={onCardChange}
                   onExpiry={setExpiry}
                   onCvc={setCvc}
                   clearPhoneError={() =>
@@ -780,9 +795,9 @@ export default function PublicPayPage() {
                     })
                   }
                   installment={installment}
-                  onInstallment={setInstallment}
+                  onInstallment={pickInstallment}
                   pricedInstallments={pricedInstallments}
-                  selectedRate={selectedRate}
+                  selectedRate={summaryRate}
                   ratesLoading={ratesLoading}
                   ratesError={ratesError}
                   emptyRatesHint={
@@ -991,7 +1006,7 @@ export default function PublicPayPage() {
                           return rest;
                         });
                       }}
-                      onCard={(v) => setCard(digitsOnly(v).slice(0, 16))}
+                      onCard={(v) => onCardChange(digitsOnly(v).slice(0, 16))}
                       onExpiry={(v) => setExpiry(formatExpiryInput(v))}
                       onCvc={(v) => setCvc(digitsOnly(v).slice(0, 4))}
                     />
@@ -1038,9 +1053,9 @@ export default function PublicPayPage() {
                         Taksit Seçenekleri
                       </button>
 
-                      {selectedRate ? (
+                      {summaryRate ? (
                         <SelectedInstallmentSummary
-                          rate={selectedRate}
+                          rate={summaryRate}
                           baseAmount={payableAmount}
                           commissionIncluded={view.commissionIncluded}
                           formatMoney={(v) => formatMoneyDisplay(v)}
@@ -1057,7 +1072,7 @@ export default function PublicPayPage() {
                   sectionRef={planRef}
                   rows={pricedInstallments}
                   selectedN={installment}
-                  onSelect={setInstallment}
+                  onSelect={pickInstallment}
                   baseAmount={payableAmount}
                   commissionIncluded={view.commissionIncluded}
                   loading={ratesLoading}
@@ -1247,31 +1262,13 @@ function PublicLegalMenu({ onOpenDoc }: { onOpenDoc: (doc: LegalDoc) => void }) 
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const items = Array.from(panel.querySelectorAll('[data-menu-item]'));
-    gsap.set(panel, { transformOrigin: 'top left' });
-    gsap.set(items, { autoAlpha: 0, y: -6 });
-    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-    tl.fromTo(
-      panel,
-      { autoAlpha: 0, y: -10, scale: 0.96 },
-      { autoAlpha: 1, y: 0, scale: 1, duration: 0.3 },
-    ).to(items, { autoAlpha: 1, y: 0, duration: 0.24, stagger: 0.03 }, '-=0.12');
-    return () => {
-      tl.kill();
-    };
-  }, [open]);
-
   const panel =
     open && typeof document !== 'undefined'
       ? createPortal(
           <div
             ref={panelRef}
             role="menu"
-            className="fixed z-[10050] w-[280px] overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[0_16px_48px_rgba(0,0,0,0.18)]"
+            className="fixed z-[10050] w-[280px] overflow-hidden rounded-2xl border border-[var(--panel-line)]/80 bg-[var(--panel-elevated)] shadow-[0_12px_36px_rgba(0,0,0,0.12)]"
             style={{ top: pos.top, left: pos.left }}
           >
             <div className="border-b border-[var(--panel-line)] px-4 py-3" data-menu-item>
@@ -1325,15 +1322,15 @@ function PublicLegalMenu({ onOpenDoc }: { onOpenDoc: (doc: LegalDoc) => void }) 
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
         className={[
-          'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition',
+          'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition',
           open
-            ? 'border-[var(--color-brand-500)]/45 bg-[var(--brand-soft-bg)] text-[var(--color-brand-700)]'
-            : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-ink)] hover:border-[var(--color-brand-500)]/40 hover:text-[var(--color-brand-600)]',
+            ? 'border-[var(--color-brand-500)]/30 bg-[var(--brand-soft-bg)]/80 text-[var(--color-brand-600)]'
+            : 'border-[var(--panel-line)]/70 bg-[var(--panel-elevated)]/90 text-[var(--panel-muted)] hover:border-[var(--panel-line)] hover:text-[var(--panel-ink)]',
         ].join(' ')}
       >
         <DocSmIcon />
         Sözleşmeler
-        <span className={['transition', open ? 'rotate-180' : ''].join(' ')}>
+        <span className={open ? 'rotate-180' : ''}>
           <ChevronDownIcon />
         </span>
       </button>

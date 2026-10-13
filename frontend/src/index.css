@@ -755,13 +755,13 @@ html[data-theme='dark'] .log-chip--other {
   }
 }
 
-/* Taksit planı — seçili kart (sabit koyu mavi; tema renginden bağımsız) */
+/* Taksit planı — seçili kart = Ödemeyi Tamamla mavisi */
 .install-card-selected {
-  background: linear-gradient(155deg, #1a56b0 0%, #143d7a 55%, #0f2f5c 100%) !important;
-  border-color: #0c2749 !important;
+  background: var(--color-brand-600) !important;
+  border-color: color-mix(in srgb, var(--color-brand-700) 85%, black) !important;
   box-shadow:
-    0 10px 28px color-mix(in srgb, #143d7a 42%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 14%, transparent);
+    0 10px 24px color-mix(in srgb, var(--color-brand-600) 35%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 16%, transparent);
   color: #f8fbff;
 }
 
