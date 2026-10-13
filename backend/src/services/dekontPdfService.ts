@@ -464,44 +464,56 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       return ctx.merchantPhone ? [{ text: ctx.merchantPhone, bold: false, size: 7 }] : [];
     case 'bankName':
       return [{ text: ctx.bankName || '-', bold: true, size: 8 }];
-    case 'dateTimeRow':
-      return [{ text: `TARİH: ${ctx.date}          SAAT: ${ctx.time}`, bold: false, size: 7 }];
+    case 'dateTimeRow': {
+      const fisNo = ctx.dekontNo || ctx.transactionNo;
+      return [
+        { text: `TARİH    : ${ctx.date}`, bold: false, size: 7 },
+        { text: `SAAT     : ${ctx.time}`, bold: false, size: 7 },
+        { text: `FİŞ NO   : ${fisNo}`, bold: false, size: 7 },
+      ];
+    }
     case 'txnMeta': {
       const lines: { text: string; bold: boolean; size: number }[] = [
         {
-          text: `İŞLEM NO: ${ctx.transactionNo}${ctx.authCode ? `   STAN: ${ctx.authCode}` : ''}`,
+          text: `TARİH:${ctx.date.replace(/\//g, '.')}          SAAT:${ctx.time}`,
           bold: false,
-          size: 7,
+          size: 6.5,
+        },
+        {
+          text: `İŞLEM NO:${ctx.transactionNo}${ctx.authCode ? `     STAN:${ctx.authCode}` : ''}`,
+          bold: false,
+          size: 6.5,
         },
       ];
       if (ctx.referenceNo) {
         lines.push({
-          text: `RRN: ${ctx.referenceNo}   DEKONT: ${ctx.dekontNo || ctx.transactionNo}`,
+          text: `RRN:${ctx.referenceNo}     SN:${ctx.dekontNo || ctx.transactionNo}`,
           bold: false,
-          size: 7,
+          size: 6.5,
         });
       } else {
-        lines.push({ text: `DEKONT: ${ctx.dekontNo || ctx.transactionNo}`, bold: false, size: 7 });
+        lines.push({ text: `SN:${ctx.dekontNo || ctx.transactionNo}`, bold: false, size: 6.5 });
       }
       return lines;
     }
     case 'installmentLine':
       return showInstallment
-        ? [{ text: `TAKSİT SAYISI: ${ctx.installments}`, bold: true, size: 8 }]
+        ? [{ text: `TAKSİT SAYISI: ${ctx.installments}`, bold: false, size: 8 }]
         : [];
     case 'slipTitle':
       return [{ text: ctx.slipTitle, bold: true, size: 11 }];
     case 'cardMasked': {
       const lines = [{ text: ctx.cardMasked, bold: false, size: 9 }];
       if (ctx.bankName && ctx.bankName !== '—') {
-        lines.push({ text: `/ ${ctx.bankName}`, bold: false, size: 7 });
+        lines.push({ text: ctx.bankName, bold: false, size: 7 });
       }
       return lines;
     }
     case 'amountBlock':
       return [
-        { text: 'İŞLEM TUTARI', bold: true, size: 7 },
-        { text: ctx.amountTotal, bold: true, size: 14 },
+        { text: 'İŞLEM TUTAR', bold: false, size: 7 },
+        { text: ctx.amountTotal, bold: true, size: 15 },
+        { text: `HARCAMA TUTARI: ${ctx.amountTotal}`, bold: false, size: 6.5 },
       ];
     case 'approvedLine':
       return [{ text: 'İŞLEM ONAYLANDI', bold: true, size: 9 }];
@@ -509,21 +521,18 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       const lines: { text: string; bold: boolean; size: number }[] = [];
       if (ctx.authCode || ctx.referenceNo) {
         lines.push({
-          text: [ctx.authCode ? `ONAY KODU: ${ctx.authCode}` : '', ctx.referenceNo ? `RRN: ${ctx.referenceNo}` : '']
+          text: [ctx.authCode ? `ONAY KODU:${ctx.authCode}` : '', ctx.referenceNo ? `RRN:${ctx.referenceNo}` : '']
             .filter(Boolean)
-            .join('   '),
+            .join('     '),
           bold: false,
-          size: 7,
+          size: 6.5,
         });
       }
       if (ctx.referenceNo) {
-        lines.push({ text: `BANKA REFERANS: ${ctx.referenceNo}`, bold: false, size: 7 });
-      }
-      if (ctx.bankName && ctx.bankName !== '—') {
-        lines.push({ text: ctx.bankName, bold: false, size: 7 });
+        lines.push({ text: `BANKA REFERANS:${ctx.referenceNo}`, bold: false, size: 6.5 });
       }
       if (ctx.threeDSecure) {
-        lines.push({ text: 'İŞLEM 3D SECURE İLE TAMAMLANMIŞTIR', bold: true, size: 6.5 });
+        lines.push({ text: 'İŞLEM 3D SECURE İLE TAMAMLANMIŞTIR', bold: false, size: 6.5 });
       }
       return lines;
     }

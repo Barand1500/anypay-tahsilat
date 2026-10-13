@@ -286,26 +286,51 @@ export function newDekontBlock(
   return base;
 }
 
-/** Varsayılan 80mm — POS termal fiş (işyeri → meta → satış → tutar → onay → nüsha) */
+/**
+ * Varsayılan 80mm — POS termal fiş (Akbank tipi sıra):
+ * saklayınız → banka → müşteri nüshası → tarih/saat/fiş → işyeri → meta →
+ * taksit/satış/kart → tutar → onay → yasal → imza → alt banka
+ */
 export function getDefaultFisBlocks(): DekontBlock[] {
   return [
-    newDekontBlock('merchantTitle', { x: 4, y: 2, w: 92, h: 3.5, fontScale: 1.2 }),
-    newDekontBlock('merchantAddress', { x: 4, y: 6, w: 92, h: 4, fontScale: 0.85 }),
-    newDekontBlock('merchantPhone', { x: 4, y: 10.5, w: 92, h: 2.5, fontScale: 0.85 }),
-    newDekontBlock('bankName', { x: 4, y: 13.5, w: 92, h: 3, fontScale: 1.05 }),
-    newDekontBlock('dateTimeRow', { x: 4, y: 18, w: 92, h: 2.8, fontScale: 0.9, align: 'left' }),
-    newDekontBlock('txnMeta', { x: 4, y: 21.5, w: 92, h: 6, fontScale: 0.85, align: 'left' }),
-    newDekontBlock('installmentLine', { x: 4, y: 28.5, w: 92, h: 2.8, fontScale: 1 }),
-    newDekontBlock('slipTitle', { x: 4, y: 32, w: 92, h: 4, fontScale: 1.4 }),
-    newDekontBlock('cardMasked', { x: 4, y: 37, w: 92, h: 4.5, fontScale: 1.05 }),
-    newDekontBlock('amountBlock', { x: 4, y: 42.5, w: 92, h: 7.5, fontScale: 1.25 }),
-    newDekontBlock('approvedLine', { x: 4, y: 51, w: 92, h: 3, fontScale: 1.15 }),
-    newDekontBlock('authRef', { x: 4, y: 55, w: 92, h: 8, fontScale: 0.85 }),
-    newDekontBlock('legalLine', { x: 4, y: 64, w: 92, h: 4, fontScale: 0.8 }),
-    newDekontBlock('maliDeger', { x: 4, y: 69, w: 92, h: 2.5, fontScale: 0.95 }),
-    newDekontBlock('musteriNushasi', { x: 4, y: 72.5, w: 92, h: 2.5, fontScale: 0.95 }),
-    newDekontBlock('keepSlip', { x: 4, y: 76, w: 92, h: 2.5, fontScale: 0.85 }),
-    newDekontBlock('bankLogo', { x: 22, y: 80, w: 56, h: 7, z: 2 }),
+    newDekontBlock('keepSlip', { x: 4, y: 1, w: 92, h: 2.2, fontScale: 0.8 }),
+    newDekontBlock('bankLogo', { x: 18, y: 3.5, w: 64, h: 7, z: 2 }),
+    newDekontBlock('musteriNushasi', { x: 4, y: 11, w: 92, h: 2.2, fontScale: 0.9 }),
+    newDekontBlock('dateTimeRow', { x: 8, y: 14, w: 84, h: 7.5, fontScale: 0.95, align: 'left' }),
+    newDekontBlock('merchantTitle', { x: 4, y: 22.5, w: 92, h: 3.2, fontScale: 1.1 }),
+    newDekontBlock('merchantAddress', { x: 4, y: 26, w: 92, h: 4.5, fontScale: 0.85 }),
+    newDekontBlock('merchantPhone', { x: 4, y: 31, w: 92, h: 2.2, fontScale: 0.85 }),
+    newDekontBlock('bankName', { x: 4, y: 33.5, w: 92, h: 2.5, fontScale: 0.95 }),
+    newDekontBlock('txnMeta', { x: 4, y: 37, w: 92, h: 8, fontScale: 0.8, align: 'left' }),
+    newDekontBlock('installmentLine', { x: 4, y: 46, w: 92, h: 2.4, fontScale: 0.95 }),
+    newDekontBlock('slipTitle', { x: 4, y: 49, w: 92, h: 3.2, fontScale: 1.25 }),
+    newDekontBlock('cardMasked', { x: 4, y: 53, w: 92, h: 4.2, fontScale: 1 }),
+    newDekontBlock('amountBlock', { x: 4, y: 58, w: 92, h: 9, fontScale: 1.35 }),
+    newDekontBlock('authRef', { x: 4, y: 68, w: 92, h: 6.5, fontScale: 0.8 }),
+    newDekontBlock('legalLine', { x: 4, y: 75.5, w: 92, h: 3.5, fontScale: 0.75 }),
+    newDekontBlock('maliDeger', { x: 4, y: 79.5, w: 92, h: 2.2, fontScale: 0.9 }),
+    newDekontBlock('customText', {
+      x: 4,
+      y: 82.5,
+      w: 92,
+      h: 4,
+      fontScale: 0.85,
+      align: 'center',
+      text: '--------------------\nİMZA',
+      border: false,
+    }),
+    newDekontBlock('keepSlip', { x: 4, y: 87.5, w: 92, h: 2.2, fontScale: 0.8 }),
+    newDekontBlock('bankLogo', { x: 22, y: 90.5, w: 56, h: 5.5, z: 2 }),
+    newDekontBlock('customText', {
+      x: 4,
+      y: 96.5,
+      w: 92,
+      h: 2.2,
+      fontScale: 0.9,
+      align: 'center',
+      text: 'İŞYERİ NÜSHASI',
+      border: false,
+    }),
   ];
 }
 

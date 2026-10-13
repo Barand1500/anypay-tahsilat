@@ -269,32 +269,40 @@ export default function DekontSettingsPage() {
       selected.type === 'emptyBox' ||
       selected.type === 'partiesCards');
 
-  function resetCurrent() {
-    if (tab === 'fis') {
-      setDraft((prev) => ({ ...prev, fis: { blocks: getDefaultFisBlocks() } }));
-    } else if (tab === 'a5') {
-      setDraft((prev) => ({ ...prev, a5: { blocks: getDefaultSheetBlocks() } }));
-    } else {
-      setDraft((prev) => ({ ...prev, a4: { blocks: getDefaultSheetBlocks() } }));
-    }
-    setSelectedId(null);
+  function buildPayload(s: DekontSettings): DekontSettings {
+    return {
+      fis: s.fis.blocks.length ? s.fis : { blocks: getDefaultFisBlocks() },
+      a5: s.a5?.blocks?.length ? s.a5 : { blocks: getDefaultSheetBlocks() },
+      a4: s.a4?.blocks?.length ? s.a4 : { blocks: getDefaultSheetBlocks() },
+    };
   }
 
-  async function save() {
-    if (!token || saving || !dirty) return;
-    if (!draft.fis.blocks.length) {
-      setError('Fiş düzeninde en az bir blok gerekli');
-      return;
+  /** Aktif sekmenin düzenini sistem varsayılanına alır (kaydetmeden önce önizleme) */
+  function applyDefaultToDraft(): DekontSettings {
+    let next: DekontSettings = draft;
+    if (tab === 'fis') {
+      next = { ...draft, fis: { blocks: getDefaultFisBlocks() } };
+    } else if (tab === 'a5') {
+      next = { ...draft, a5: { blocks: getDefaultSheetBlocks() } };
+    } else {
+      next = { ...draft, a4: { blocks: getDefaultSheetBlocks() } };
     }
+    setDraft(next);
+    setSelectedId(null);
+    return next;
+  }
+
+  async function persistSettings(s: DekontSettings) {
+    if (!token) return;
     setSaving(true);
     setError(null);
     setSaveOk(false);
     try {
-      const payload: DekontSettings = {
-        fis: draft.fis,
-        a5: draft.a5?.blocks?.length ? draft.a5 : { blocks: getDefaultSheetBlocks() },
-        a4: draft.a4?.blocks?.length ? draft.a4 : { blocks: getDefaultSheetBlocks() },
-      };
+      const payload = buildPayload(s);
+      if (!payload.fis.blocks.length) {
+        setError('Fiş düzeninde en az bir blok gerekli');
+        return;
+      }
       const data = await api.patch<DekontSettings>('/api/settings/dekont', payload, token);
       const next = cloneSettings({
         fis: data.fis,
@@ -312,23 +320,42 @@ export default function DekontSettingsPage() {
     }
   }
 
+  async function restoreDefaultAndSave() {
+    if (!token || saving) return;
+    const label =
+      tab === 'fis' ? 'Fiş (80mm)' : tab === 'a5' ? 'A5' : 'A4';
+    const ok = window.confirm(
+      `${label} düzeni varsayılana döndürülsün mü? Mevcut yerleşim kaydedilince değişir.`,
+    );
+    if (!ok) return;
+    const next = applyDefaultToDraft();
+    await persistSettings(next);
+  }
+
+  async function save() {
+    if (!token || saving || !dirty) return;
+    await persistSettings(draft);
+  }
+
   return (
     <div ref={rootRef} className="space-y-4 pb-8">
       <div data-anim className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--panel-ink)]">Dekont Ayarları</h1>
           <p className="mt-1 text-sm text-[var(--panel-muted)]">
-            Fiş, A5 ve A4 düzenlerini sürükleyerek düzenleyin. Önizleme örnek içerik gösterir.
+            Varsayılan POS düzeni hazır gelir; sürükleyerek özelleştirin. İsterseniz tekrar
+            varsayılana dönebilirsiniz.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={loading || saving}
-            onClick={resetCurrent}
+            onClick={() => void restoreDefaultAndSave()}
             className="rounded-xl border border-[var(--panel-line)] px-3 py-2 text-sm font-semibold text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)] disabled:opacity-50"
+            title="Aktif sekmenin düzenini sistem varsayılanına döndürür ve kaydeder"
           >
-            Sıfırla
+            Varsayılana dön
           </button>
           <div className="w-36">
             <Button
@@ -414,6 +441,23 @@ export default function DekontSettingsPage() {
                         updateBlock(selected.id, { fontScale: Number(e.target.value) })
                       }
                       className="w-24"
+                      aria-label="Yazı boyutu"
+                    />
+                    <input
+                      type="number"
+                      min={0.7}
+                      max={1.6}
+                      step={0.05}
+                      value={Number(selected.fontScale.toFixed(2))}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (!Number.isFinite(n)) return;
+                        updateBlock(selected.id, {
+                          fontScale: Math.min(1.6, Math.max(0.7, Math.round(n * 20) / 20)),
+                        });
+                      }}
+                      className="h-7 w-14 rounded-md border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-1.5 text-center text-[11px] font-semibold tabular-nums text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)]"
+                      aria-label="Yazı boyutu sayı"
                     />
                   </label>
                   <button

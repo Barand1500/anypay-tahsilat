@@ -298,27 +298,41 @@ function BlockContent({
           {ctx.bankName}
         </p>
       );
-    case 'dateTimeRow':
-      return (
-        <div className="flex w-full justify-between gap-1 tabular-nums tracking-tight" style={fs(9)}>
-          <span>TARİH: {ctx.date}</span>
-          <span>SAAT: {ctx.time}</span>
+    case 'dateTimeRow': {
+      const fisNo = ctx.dekontNo || ctx.transactionNo;
+      const row = (label: string, value: string) => (
+        <div className="flex w-full gap-2 tabular-nums">
+          <span className="w-[4.5rem] shrink-0">{label}</span>
+          <span className="shrink-0">:</span>
+          <span className="min-w-0 flex-1">{value}</span>
         </div>
       );
+      return (
+        <div className="w-full space-y-0.5 text-left tracking-tight" style={fs(9)}>
+          {row('TARİH', ctx.date)}
+          {row('SAAT', ctx.time)}
+          {row('FİŞ NO', fisNo)}
+        </div>
+      );
+    }
     case 'txnMeta':
       return (
-        <div className="w-full space-y-0.5 text-left tabular-nums tracking-tight" style={fs(9)}>
+        <div className="w-full space-y-0.5 text-left tabular-nums tracking-tight" style={fs(8)}>
           <div className="flex justify-between gap-2">
-            <span className="min-w-0 break-all">İŞLEM NO: {ctx.transactionNo}</span>
-            {ctx.authCode ? <span className="shrink-0">STAN: {ctx.authCode}</span> : null}
+            <span>TARİH:{ctx.date.replace(/\//g, '.')}</span>
+            <span>SAAT:{ctx.time}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="min-w-0 break-all">İŞLEM NO:{ctx.transactionNo}</span>
+            {ctx.authCode ? <span className="shrink-0">STAN:{ctx.authCode}</span> : null}
           </div>
           {ctx.referenceNo ? (
             <div className="flex justify-between gap-2">
-              <span className="min-w-0 break-all">RRN: {ctx.referenceNo}</span>
-              <span className="shrink-0">DEKONT: {ctx.dekontNo || ctx.transactionNo}</span>
+              <span className="min-w-0 break-all">RRN:{ctx.referenceNo}</span>
+              <span className="shrink-0">SN:{ctx.dekontNo || ctx.transactionNo}</span>
             </div>
           ) : (
-            <p>DEKONT: {ctx.dekontNo || ctx.transactionNo}</p>
+            <p>SN:{ctx.dekontNo || ctx.transactionNo}</p>
           )}
         </div>
       );
@@ -331,13 +345,13 @@ function BlockContent({
         );
       }
       return (
-        <p className="w-full font-bold" style={fs(10)}>
+        <p className="w-full tracking-wide" style={fs(10)}>
           TAKSİT SAYISI: {ctx.installments}
         </p>
       );
     case 'slipTitle':
       return (
-        <p className="w-full font-bold tracking-wide" style={fs(14)}>
+        <p className="w-full font-bold tracking-wide" style={fs(13)}>
           {ctx.slipTitle}
         </p>
       );
@@ -349,19 +363,22 @@ function BlockContent({
           </p>
           {ctx.bankName && ctx.bankName !== '—' ? (
             <p className="tracking-wide text-[#333]" style={fs(9)}>
-              / {ctx.bankName}
+              {ctx.bankName}
             </p>
           ) : null}
         </div>
       );
     case 'amountBlock':
       return (
-        <div className="flex w-full flex-col gap-0.5">
-          <p className="font-bold tracking-wide" style={fs(9)}>
-            {ctx.amountLabel || 'İŞLEM TUTARI'}
+        <div className="flex w-full flex-col gap-1">
+          <p className="tracking-wide" style={fs(9)}>
+            İŞLEM TUTAR
           </p>
-          <p className="font-bold tabular-nums leading-none" style={fs(18)}>
+          <p className="font-bold tabular-nums leading-none" style={fs(20)}>
             {ctx.amountTotal}
+          </p>
+          <p className="tabular-nums tracking-wide text-[#222]" style={fs(8)}>
+            HARCAMA TUTARI: {ctx.amountTotal}
           </p>
         </div>
       );
@@ -373,17 +390,16 @@ function BlockContent({
       );
     case 'authRef':
       return (
-        <div className="w-full space-y-0.5 tabular-nums tracking-tight" style={fs(9)}>
+        <div className="w-full space-y-0.5 tabular-nums tracking-tight" style={fs(8)}>
           {(ctx.authCode || ctx.referenceNo) ? (
-            <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5">
-              {ctx.authCode ? <span>ONAY KODU: {ctx.authCode}</span> : null}
-              {ctx.referenceNo ? <span>RRN: {ctx.referenceNo}</span> : null}
+            <div className="flex justify-between gap-2">
+              {ctx.authCode ? <span>ONAY KODU:{ctx.authCode}</span> : <span />}
+              {ctx.referenceNo ? <span>RRN:{ctx.referenceNo}</span> : null}
             </div>
           ) : null}
-          {ctx.referenceNo ? <p>BANKA REFERANS: {ctx.referenceNo}</p> : null}
-          {ctx.bankName && ctx.bankName !== '—' ? <p>{ctx.bankName}</p> : null}
+          {ctx.referenceNo ? <p>BANKA REFERANS:{ctx.referenceNo}</p> : null}
           {ctx.threeDSecure ? (
-            <p className="font-semibold tracking-wide">İŞLEM 3D SECURE İLE TAMAMLANMIŞTIR</p>
+            <p className="tracking-wide">İŞLEM 3D SECURE İLE TAMAMLANMIŞTIR</p>
           ) : null}
         </div>
       );
