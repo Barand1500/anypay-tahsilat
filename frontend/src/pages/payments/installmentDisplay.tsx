@@ -116,31 +116,27 @@ export function NoCommissionRibbon() {
     >
       <svg
         width="118"
-        height="38"
-        viewBox="0 0 118 38"
-        className="overflow-visible drop-shadow-[3px_4px_6px_rgba(0,0,0,0.35)]"
+        height="34"
+        viewBox="0 0 118 34"
+        className="overflow-visible drop-shadow-[2px_3px_5px_rgba(0,0,0,0.22)]"
         aria-hidden
       >
-        {/* Sol kıvrım (arka) */}
-        <path d="M10 26 L10 36 L0 26 Z" fill="#7c2d12" />
-        {/* Ana şerit — uç hafif yuvarlatılmış, sivri değil */}
+        {/* Ana şerit — yumuşak uç, altta koyu kıvrım yok */}
         <path
-          d="M2 2 H94 C102 2 108 7 110 14 C108 21 102 26 94 26 H2 Z"
+          d="M4 3 H94 C102 3 108 8 110 15 C108 22 102 27 94 27 H4 C2.5 27 2 26 2 24.5 V5.5 C2 3.8 2.8 3 4 3 Z"
           fill="#f97316"
         />
         {/* Üst ışık */}
         <path
-          d="M2 2 H94 C100 2 105 5 107 10 H2 Z"
+          d="M4 3 H94 C100 3 105 6 107 11 H4 C3 11 2.5 10 2.5 8.5 V5.5 C2.5 4 3.2 3 4 3 Z"
           fill="#fb923c"
-          opacity="0.5"
+          opacity="0.45"
         />
-        {/* Alt gölge kıvrım */}
-        <path d="M2 26 H94 C98 26 100 28 98 30 H6 Z" fill="#c2410c" />
-        {/* Sol ön kıvrım */}
-        <path d="M2 2 L10 8 L10 26 L2 26 Z" fill="#ea580c" />
+        {/* Sol ince gölge (kıvrım hissi, altta turunculuk yok) */}
+        <path d="M2 5.5 V24.5 C2 26 2.5 27 4 27 H7 V3 H4 C2.8 3 2 3.8 2 5.5 Z" fill="#ea580c" />
         <text
-          x="50"
-          y="15"
+          x="52"
+          y="16"
           textAnchor="middle"
           dominantBaseline="middle"
           fill="#fff8f0"

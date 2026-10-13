@@ -771,7 +771,8 @@ html[data-theme='dark'] .log-chip--other {
 }
 
 .install-card-selected .install-card-vade {
-  color: #ef4444 !important;
+  /* Mavi zeminde net okunsun — pembemsi kırmızı */
+  color: #fda4af !important;
 }
 
 .install-card-selected .install-card-watermark-num {
