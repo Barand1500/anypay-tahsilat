@@ -15,14 +15,7 @@ import {
   type BankInfo,
   type InstallmentRow,
 } from './mockBanks';
-import {
-  formatInstallmentPaymentLine,
-  formatInstallmentTitle,
-  InstallmentCardWatermark,
-  installmentPaymentCount,
-  NoCommissionRibbon,
-  SelectedInstallmentSummary,
-} from './installmentDisplay';
+import { InstallmentPlanCardBody, SelectedInstallmentSummary } from './installmentDisplay';
 import { PayAttachmentChips } from './PayAttachmentChips';
 import type { PayAttachmentFile } from './PayAttachmentPreviewModal';
 
@@ -500,9 +493,6 @@ function InstallmentBottomSheet({
           <div className="grid grid-cols-2 gap-2.5">
             {rows.map((rate) => {
               const active = selectedN === rate.n;
-              const charged = commissionIncluded ? rate.totalAmount : baseAmount;
-              const count = installmentPaymentCount(rate.n, rate.plusN);
-              const vade = Math.max(0, rate.totalAmount - baseAmount);
               return (
                 <button
                   key={rate.n}
@@ -511,34 +501,17 @@ function InstallmentBottomSheet({
                   className={[
                     'relative min-h-[7.5rem] overflow-visible rounded-xl border p-3 text-left transition',
                     active
-                      ? 'border-[var(--color-brand-500)] bg-[var(--panel-hover)] shadow-md'
+                      ? 'install-card-selected'
                       : 'border-[var(--panel-line)] bg-[var(--panel-surface)]',
                   ].join(' ')}
                 >
-                  {rate.commissionPct === 0 ? <NoCommissionRibbon /> : null}
-                  {rate.plusN > 0 ? (
-                    <span className="absolute right-2 top-2 z-10 rounded-full bg-[var(--brand-soft-bg)] px-1.5 py-0.5 text-[8px] font-bold text-[var(--color-brand-700)]">
-                      +{rate.plusN} Ek Taksit
-                    </span>
-                  ) : null}
-                  <InstallmentCardWatermark n={rate.n} plusN={rate.plusN} />
-                  <p className="relative text-xs font-semibold text-[var(--panel-muted)]">
-                    {formatInstallmentTitle(rate.n, rate.plusN)}
-                  </p>
-                  <p className="relative mt-1 text-sm font-bold tabular-nums text-[var(--panel-ink)]">
-                    {formatInstallmentPaymentLine(rate, charged, commissionIncluded, formatMoneyTr)}
-                  </p>
-                  {count > 1 ? (
-                    <p className="relative mt-0.5 text-[10px] font-semibold text-[var(--panel-muted)]">
-                      Toplam {formatMoneyTr(charged)}
-                    </p>
-                  ) : null}
-                  {rate.commissionPct > 0 ? (
-                    <p className="relative mt-1 text-[9px] font-semibold text-rose-500">
-                      Vade farkı %{formatMoneyTr(rate.commissionPct)}
-                      {commissionIncluded && vade > 0 ? ` · ${formatMoneyTr(vade)}` : ''}
-                    </p>
-                  ) : null}
+                  <InstallmentPlanCardBody
+                    rate={rate}
+                    baseAmount={baseAmount}
+                    commissionIncluded={commissionIncluded}
+                    formatMoney={formatMoneyTr}
+                    selected={active}
+                  />
                 </button>
               );
             })}

@@ -20,7 +20,7 @@ import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
-import { SelectedInstallmentSummary, formatInstallmentTitle } from './installmentDisplay';
+import { SelectedInstallmentSummary } from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
 import { applyPosDisplayBank, buildPricedInstallments, ratesBankQuery } from './pricedInstallments';
 import {
@@ -597,7 +597,7 @@ export default function QuickPayPage() {
               <button type="button" data-km-jump disabled={!amount || amount <= 0} onClick={() => setInstallOpen(true)} className="mt-auto w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45">
                 Taksit Seçenekleri
               </button>
-              {pickedInstall && bank && selectedRate ? (
+              {pickedInstall && bank && selectedRate && cardDigits.length >= 6 ? (
                 <SelectedInstallmentSummary
                   rate={selectedRate}
                   baseAmount={amount}
@@ -605,16 +605,6 @@ export default function QuickPayPage() {
                   formatMoney={(v) => formatMoneyDisplay(v)}
                   formatPct={formatMoneyTr}
                 />
-              ) : pickedInstall && bank ? (
-                <div className="mt-3 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-3 text-left">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                    Seçili
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-[var(--panel-ink)]">
-                    {formatInstallmentTitle(pickedInstall.n)}
-                  </p>
-                  <p className="mt-0.5 text-sm text-[var(--panel-muted)]">{pickedInstall.bank.name}</p>
-                </div>
               ) : errors.install ? (
                 <p className="mt-2 text-xs text-rose-500">{errors.install}</p>
               ) : null}
