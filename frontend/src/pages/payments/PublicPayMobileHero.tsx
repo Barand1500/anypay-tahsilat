@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
-import { TextInput } from '../../components/ui/TextInput';
 import { LEGAL_DOCS } from '../../components/layout/legalDocs';
 import type { LegalDoc } from '../../components/layout/legalDocs';
 import { normalizePhoneInput } from '../customers/mockCustomers';
@@ -161,17 +160,33 @@ export function PublicPayMobileHero(props: Props) {
             {typeLabel}
           </p>
           {variableAmount ? (
-            <div className="mx-auto mt-3 max-w-[16rem] rounded-xl bg-white/15 p-2 backdrop-blur-sm">
-              <TextInput
-                id="public-pay-amount-hero"
-                label={`Tutar (${currencySymbol})`}
-                value={amountText}
-                onChange={(e) => onAmountText(maskMoneyInput(e.target.value))}
-                inputMode="decimal"
-                autoComplete="off"
-                error={errors.amount}
-                className="!border-0 !bg-white text-center text-2xl font-bold tabular-nums text-[var(--panel-ink)]"
-              />
+            <div className="mx-auto mt-3 w-full max-w-[16rem]">
+              <label
+                htmlFor="public-pay-amount-hero"
+                className="mb-1.5 block text-center text-[11px] font-bold uppercase tracking-[0.14em] text-white/70"
+              >
+                Tutar ({currencySymbol})
+              </label>
+              <div className="rounded-xl bg-white/15 p-2 backdrop-blur-sm">
+                <input
+                  id="public-pay-amount-hero"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={amountText}
+                  onChange={(e) => onAmountText(maskMoneyInput(e.target.value))}
+                  placeholder="0,00"
+                  aria-invalid={Boolean(errors.amount)}
+                  className={[
+                    'h-14 w-full rounded-xl border-0 bg-white px-3 text-center text-2xl font-bold tabular-nums text-[var(--panel-ink)] outline-none',
+                    'placeholder:font-semibold placeholder:text-[var(--panel-muted)]/50',
+                    errors.amount ? 'ring-2 ring-red-400' : '',
+                  ].join(' ')}
+                />
+              </div>
+              {errors.amount ? (
+                <p className="mt-1.5 text-center text-xs font-medium text-red-200">{errors.amount}</p>
+              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight">
