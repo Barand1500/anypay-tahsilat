@@ -510,14 +510,15 @@ export default function PublicPayPage() {
       className={[
         'flex min-h-screen',
         isFullscreen
-          ? 'flex-col bg-[var(--panel-bg)] lg:flex-row'
+          ? // Mobil: kompakt ile aynı responsive his; yan panel yalnız lg+
+            'flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),var(--panel-bg)_52%)] lg:flex-row lg:bg-[var(--panel-bg)]'
           : 'flex-col bg-[radial-gradient(ellipse_at_top,_var(--brand-soft-bg),var(--panel-bg)_52%)]',
       ].join(' ')}
     >
       {isFullscreen ? (
         <aside
           data-anim
-          className="relative flex min-h-[200px] flex-col overflow-visible bg-[linear-gradient(165deg,var(--color-brand-600)_0%,var(--color-brand-700)_48%,color-mix(in_srgb,var(--color-brand-700)_88%,#0f172a)_100%)] px-6 py-7 text-white sm:px-8 lg:sticky lg:top-0 lg:h-screen lg:w-[min(38vw,26rem)] lg:shrink-0 lg:px-9 lg:py-10 xl:w-[min(36vw,28rem)]"
+          className="relative hidden min-h-[200px] flex-col overflow-visible bg-[linear-gradient(165deg,var(--color-brand-600)_0%,var(--color-brand-700)_48%,color-mix(in_srgb,var(--color-brand-700)_88%,#0f172a)_100%)] px-6 py-7 text-white sm:px-8 lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[min(38vw,26rem)] lg:shrink-0 lg:px-9 lg:py-10 xl:w-[min(36vw,28rem)]"
         >
           <div
             className="pointer-events-none absolute -right-16 top-10 h-64 w-64 rounded-full bg-white/10 blur-2xl"
@@ -617,6 +618,23 @@ export default function PublicPayPage() {
                 'mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3',
                 useMobileHero ? 'hidden lg:flex' : '',
               ].join(' ')}
+            >
+              <img
+                src={logoUrl}
+                alt="Firma logosu"
+                style={{ height: pageSettings.brandLogoHeightPx }}
+                className="w-auto max-w-[180px] object-contain object-left sm:max-w-[200px]"
+              />
+              <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
+                {headerBadgesRow}
+                <PublicLegalMenu onOpenDoc={(doc) => setActiveLegalDoc(doc)} />
+              </div>
+            </header>
+          ) : alreadyPaid ? (
+            /* Tam ekran + ödendi: mobilde logo bar (hero yok); masaüstünde yan panel var */
+            <header
+              data-anim
+              className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3 lg:hidden"
             >
               <img
                 src={logoUrl}
