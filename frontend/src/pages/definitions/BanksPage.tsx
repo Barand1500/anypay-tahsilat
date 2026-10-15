@@ -254,7 +254,7 @@ export default function BanksPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <h1 className="text-lg font-bold text-[var(--panel-ink)]">Bankalar</h1>
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            {!remoteSource ? <button
               type="button"
               data-km-jump
               disabled={refreshing}
@@ -262,8 +262,9 @@ export default function BanksPage() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
             >
               <RefreshIcon />
-              {refreshing ? 'Güncelleniyor…' : remoteSource ? 'Merkezden Yenile' : 'Bankaları Güncelle'}
+              {refreshing ? 'Güncelleniyor…' : 'Bankaları Güncelle'}
             </button>
+            : null}
             <ExportDropdown onCsv={exportCsv} onCopy={() => void copyList()} />
             {!remoteSource ? (
               <button

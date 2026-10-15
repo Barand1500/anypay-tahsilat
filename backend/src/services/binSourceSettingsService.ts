@@ -182,6 +182,7 @@ export function clearRemoteBinCache() {
   remoteBankCache = null;
   remoteLocationsCache = null;
   remoteTaxCache = null;
+  changelogHeadId = null;
   rawResourceCache.clear();
 }
 
@@ -310,8 +311,9 @@ export async function fetchRemoteTahsilatResource(
         Accept: 'application/json',
       },
     });
-  } catch {
-    throw new SettingsError(`Merkezi API'ye ulaşılamadı (${resource})`);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new SettingsError(`Merkezi API'ye ulaşılamadı (${resource}): ${detail.slice(0, 160)}`);
   }
   const json = (await res.json().catch(() => null)) as
     | { success?: boolean; message?: string; data?: unknown }
@@ -322,13 +324,26 @@ export async function fetchRemoteTahsilatResource(
       json && typeof json === 'object' && !Array.isArray(json) && 'message' in json
         ? String((json as { message?: string }).message || '')
         : '';
-    throw new SettingsError(msg || `Merkezi API hatası (${resource}, ${res.status})`);
+    throw new SettingsError(
+      msg
+        ? `Merkezi API hatası (${resource}, ${res.status}): ${msg.slice(0, 180)}`
+        : `Merkezi API hatası (${resource}, ${res.status})`,
+    );
   }
   let rows: Record<string, unknown>[] = [];
   if (Array.isArray(json)) rows = json as Record<string, unknown>[];
-  else if (json && typeof json === 'object' && Array.isArray((json as { data?: unknown }).data)) {
-    rows = (json as { data: Record<string, unknown>[] }).data;
+  else if (json && typeof json === 'object') {
+    const envelope = json as { data?: unknown; rows?: unknown };
+    const candidates = [envelope.data, envelope.rows];
+    const rowArray = candidates.find(Array.isArray);
+    if (Array.isArray(rowArray)) rows = rowArray as Record<string, unknown>[];
+    else if (envelope.data && typeof envelope.data === 'object') {
+      const nested = envelope.data as { rows?: unknown; items?: unknown };
+      const nestedArray = [nested.rows, nested.items].find(Array.isArray);
+      if (Array.isArray(nestedArray)) rows = nestedArray as Record<string, unknown>[];
+    }
   }
+  console.info(`[central-catalog] resource=${resource} status=${res.status} rows=${rows.length}`);
   rawResourceCache.set(key, { at: Date.now(), rows });
   return rows;
 }

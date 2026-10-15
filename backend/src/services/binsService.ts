@@ -418,7 +418,10 @@ export async function listBinCatalog(): Promise<
     }
   } catch (err) {
     const src = await getBinSourceSettings().catch(() => null);
-    if (src?.source === 'remote') throw new Error('Merkezi BIN kataloğu yüklenemedi', { cause: err });
+    if (src?.source === 'remote') {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`Merkezi BIN kataloğu yüklenemedi: ${detail.slice(0, 160)}`, { cause: err });
+    }
   }
 
   await ensureBinKayitlariTable();

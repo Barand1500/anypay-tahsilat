@@ -32,12 +32,11 @@ const upsertSchema = z.object({
  */
 binsRouter.get('/catalog', async (_req, res) => {
   try {
-    const { ensureBinKayitlariTable } = await import('../lib/ensureSchema.js');
-    await ensureBinKayitlariTable();
     return sendSuccess(res, await listBinCatalog());
   } catch (err) {
-    console.error(err);
-    return sendError(res, 500, 'BIN kataloğu yüklenemedi');
+    console.error('[bins/catalog] Merkezi/yerel katalog okunamadı:', err);
+    const detail = err instanceof Error ? err.message : String(err);
+    return sendError(res, 500, `BIN kataloğu yüklenemedi (${detail.slice(0, 180)})`);
   }
 });
 

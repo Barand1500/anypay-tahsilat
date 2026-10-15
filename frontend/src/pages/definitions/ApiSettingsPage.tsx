@@ -61,6 +61,7 @@ export default function ApiSettingsPage() {
   const [binSourceBusy, setBinSourceBusy] = useState(false);
   const [centralLogOpen, setCentralLogOpen] = useState(false);
   const [centralLogBusy, setCentralLogBusy] = useState(false);
+  const [centralCatalogRefreshBusy, setCentralCatalogRefreshBusy] = useState(false);
   const [centralLogRows, setCentralLogRows] = useState<
     {
       id: string;
@@ -209,6 +210,26 @@ export default function ApiSettingsPage() {
       setCentralLogBusy(false);
     }
   }, [token]);
+
+  async function refreshCentralCatalog() {
+    if (!token) return;
+    setCentralCatalogRefreshBusy(true);
+    try {
+      await api.post('/api/settings/central-catalog/refresh', {}, token);
+      if (category === 'bin') await loadBins();
+      if (category === 'locations') {
+        await loadLocations();
+        await loadTaxOffices();
+      }
+      if (category === 'tax-offices') await loadTaxOffices();
+      await reloadRuntimeBins();
+      setToast({ kind: 'ok', text: 'Merkezi katalog yenilendi.' });
+    } catch (err) {
+      setToast({ kind: 'err', text: err instanceof Error ? err.message : 'Merkezi katalog yenilenemedi' });
+    } finally {
+      setCentralCatalogRefreshBusy(false);
+    }
+  }
 
   const DEFAULT_GTK_TAHSILAT_URL = 'https://api.guzelteknoloji.com/v1/tahsilat';
 
@@ -891,7 +912,7 @@ export default function ApiSettingsPage() {
               />
             </button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {!remoteBinsActive ? <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <TextInput
               label="API yolu"
               value={binRemoteUrl}
@@ -908,7 +929,7 @@ export default function ApiSettingsPage() {
               placeholder={remoteApiKeyConfigured ? 'Kayıtlı anahtar korunuyor; değiştirmek için yenisini girin' : 'gtk_…'}
               disabled={binSourceBusy}
             />
-          </div>
+          </div> : null}
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {remoteBinsActive ? (
               <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
@@ -919,17 +940,17 @@ export default function ApiSettingsPage() {
                 Kapalı — yerel veri kullanılır.
               </p>
             )}
-            <button
+            {!remoteBinsActive ? <button
               type="button"
               disabled={binSourceBusy}
               onClick={() => {
                 if (!binRemoteUrl.trim()) setBinRemoteUrl(DEFAULT_GTK_TAHSILAT_URL);
-                void saveBinSource(remoteBinsActive ? 'remote' : 'local');
+                void saveBinSource('local');
               }}
               className="text-[11px] font-semibold text-[var(--panel-muted)] underline-offset-2 hover:underline disabled:opacity-50"
             >
               Yol / anahtarı kaydet
-            </button>
+            </button> : null}
             {remoteBinsActive ? (
               <button
                 type="button"
@@ -1053,7 +1074,7 @@ export default function ApiSettingsPage() {
         </div>
       </div>
 
-      {category === 'bin' ? (
+      {category === 'bin' && !remoteBinsActive ? (
         <div
           data-anim
           className={[
@@ -1092,7 +1113,7 @@ export default function ApiSettingsPage() {
               />
             </button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {!remoteBinsActive ? <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <TextInput
               label="Uzak API yolu"
               value={binRemoteUrl}
@@ -1109,26 +1130,33 @@ export default function ApiSettingsPage() {
               placeholder="gtk_…"
               disabled={binSourceBusy}
             />
-          </div>
+          </div> : null}
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {remoteBinsActive ? (
               <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
                 Aktif — katalog merkezi API’den. Yerel ekle / Excel bu modda kapalı.
               </p>
             ) : null}
-            <button
+            {remoteBinsActive ? <button
+              type="button"
+              disabled={centralCatalogRefreshBusy}
+              onClick={() => void refreshCentralCatalog()}
+              className="text-[11px] font-semibold text-emerald-800 underline-offset-2 hover:underline disabled:opacity-50 dark:text-emerald-300"
+            >
+              {centralCatalogRefreshBusy ? 'Yenileniyor…' : 'Merkezi verileri yenile'}
+            </button> : <button
               type="button"
               disabled={binSourceBusy}
-              onClick={() => void saveBinSource(remoteBinsActive ? 'remote' : 'local')}
+              onClick={() => void saveBinSource('local')}
               className="text-[11px] font-semibold text-[var(--panel-muted)] underline-offset-2 hover:underline disabled:opacity-50"
             >
               Yol / anahtarı kaydet
-            </button>
+            </button>}
           </div>
         </div>
       ) : null}
 
-      <div
+      {!remoteCatalogLocked ? <div
         data-anim
         className="mb-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] sm:p-5 [--input-notch:var(--panel-elevated)]"
       >
@@ -1206,7 +1234,14 @@ export default function ApiSettingsPage() {
             </button>
           </div>
         </div>
-      </div>
+      </div> : (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
+          <span>Merkezi API aktif. Katalog salt okunur olarak merkezden yükleniyor.</span>
+          <button type="button" disabled={centralCatalogRefreshBusy} onClick={() => void refreshCentralCatalog()} className="rounded-xl border border-emerald-600/35 bg-emerald-600/10 px-3 py-2 text-xs font-semibold disabled:opacity-50">
+            {centralCatalogRefreshBusy ? 'Yenileniyor…' : 'Merkezi verileri yenile'}
+          </button>
+        </div>
+      )}
 
       <section
         data-anim
