@@ -235,7 +235,12 @@ export function DekontModal({ tx, onClose }: Props) {
 
     const width = PAPER_WIDTH[format];
     const pageSize =
-      format === 'a4' ? 'A4' : format === 'a5' ? 'A5' : '80mm auto';
+      format === 'a4'
+        ? 'A4'
+        : format === 'a5'
+          ? 'A5'
+          : `80mm ${fisHeightMm}mm`;
+    const pageMargin = format === 'fis' ? '0' : '8mm';
     const styles = Array.from(
       document.querySelectorAll('link[rel="stylesheet"], style'),
     )
@@ -247,11 +252,12 @@ export function DekontModal({ tx, onClose }: Props) {
     doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><base href="${baseHref}"/><title>Dekont ${tx.id}</title>
 ${styles}
 <style>
-  @page { size: ${pageSize}; margin: 8mm; }
-  html, body { margin: 0; background: #fff !important; }
+  @page { size: ${pageSize}; margin: ${pageMargin}; }
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .sheet { width: ${width}; max-width: 100%; margin: 0 auto; }
-  #dekont-print-root { box-shadow: none !important; border: none !important; }
+  .sheet { box-sizing: border-box; width: ${width}; max-width: 100%; margin: 0 auto; }
+  #dekont-print-root { box-sizing: border-box; width: ${width} !important; max-width: ${width} !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
+  #dekont-print-root [data-dekont-canvas] { break-inside: avoid; page-break-inside: avoid; }
 </style></head><body><div class="sheet">${el.outerHTML}</div></body></html>`);
     doc.close();
 
