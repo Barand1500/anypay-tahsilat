@@ -70,6 +70,10 @@ import {
   updateDekontSettings,
   type DekontBlockType,
 } from '../services/dekontSettingsService.js';
+import {
+  getBinSourceSettings,
+  updateBinSourceSettings,
+} from '../services/binSourceSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
 import {
   getInstallmentPriority,
@@ -954,6 +958,50 @@ settingsRouter.patch('/dekont', async (req: AuthedRequest, res) => {
   }
 });
 
+
+/** BIN kaynağı — local DB veya Güzel Teknoloji merkezi API */
+const binSourceSchema = z.object({
+  source: z.enum(['local', 'remote']),
+  remoteBaseUrl: z.string().max(512).optional(),
+  remoteApiKey: z.string().max(512).optional(),
+});
+
+settingsRouter.get('/bin-source', async (_req, res) => {
+  try {
+    return sendSuccess(res, await getBinSourceSettings());
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 404, err.message);
+    console.error(err);
+    return sendError(res, 500, 'BIN kaynak ayarları yüklenemedi');
+  }
+});
+
+settingsRouter.patch('/bin-source', async (req: AuthedRequest, res) => {
+  const parsed = binSourceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
+  }
+  try {
+    const data = await updateBinSourceSettings(parsed.data);
+    await writePanelLog(
+      req.auth!.sub,
+      data.source === 'remote'
+        ? 'Api Ayarları - Merkezi BIN (Güzel API) açıldı.'
+        : 'Api Ayarları - Merkezi BIN kapatıldı; yerel liste kullanılıyor.',
+    );
+    return sendSuccess(
+      res,
+      data,
+      data.source === 'remote'
+        ? 'Merkezi BIN API açıldı'
+        : 'Yerel BIN listesine dönüldü',
+    );
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'BIN kaynak ayarları kaydedilemedi');
+  }
+});
 const whatsappSchema = z.object({
   active: z.boolean(),
   appId: z.string().max(64),

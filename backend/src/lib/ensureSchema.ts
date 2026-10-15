@@ -333,6 +333,7 @@ export async function ensureSchema(): Promise<void> {
   await ensureOdemeSayfaModule();
   await ensureDekontAyarlariColumn();
   await ensureDekontModule();
+  await ensureBinKaynakAyarlariColumn();
   await ensureEpostaSablonlariTable();
   await ensureSmsSchema();
   await ensureBankPosColumns();
@@ -413,6 +414,27 @@ export async function ensureDekontModule(): Promise<void> {
     console.log('[schema] izinler: Dekont Ayarları eklendi');
   } catch (err) {
     console.warn('[schema] Dekont modülü atlandı:', err);
+  }
+}
+
+/** BIN kaynağı — local | remote (Güzel API) JSON */
+export async function ensureBinKaynakAyarlariColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'ayarlar'
+        AND COLUMN_NAME = 'bin_kaynak_ayarlari'
+      LIMIT 1
+    `;
+    if (rows[0]) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `ayarlar` ADD COLUMN `bin_kaynak_ayarlari` LONGTEXT NULL',
+    );
+    console.log('[schema] ayarlar.bin_kaynak_ayarlari eklendi');
+  } catch (err) {
+    console.warn('[schema] bin_kaynak_ayarlari atlandı:', err);
   }
 }
 

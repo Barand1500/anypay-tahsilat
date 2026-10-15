@@ -71,7 +71,16 @@ function mapCatalog(rows: CatalogRow[]): RuntimeBin[] {
   });
 }
 
-/** Panel + public ödeme — Api Ayarları BIN kataloğunu yükler (auth gerekmez) */
+/** Panel + public ödeme — BIN kataloğunu yükler (local veya merkezi API; auth gerekmez) */
+export async function reloadRuntimeBins(): Promise<void> {
+  try {
+    const list = await api.get<CatalogRow[]>('/api/bins/catalog');
+    setRuntimeBins(mapCatalog(list));
+  } catch {
+    setRuntimeBins([]);
+  }
+}
+
 export function useLoadBins() {
   useEffect(() => {
     let cancelled = false;

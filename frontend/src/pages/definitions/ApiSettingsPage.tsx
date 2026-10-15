@@ -9,6 +9,7 @@ import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
 import { TextInput } from '../../components/ui/TextInput';
 import { setRuntimeBins } from '../../lib/binStore';
+import { reloadRuntimeBins } from '../../hooks/useLoadBins';
 import { api } from '../../lib/api';
 import { ApiCategoryModal } from './ApiCategoryModal';
 import { ApiExcelModal } from './ApiExcelModal';
@@ -53,11 +54,16 @@ export default function ApiSettingsPage() {
   const [toast, setToast] = useState<Toast>(null);
   const [apiBusy, setApiBusy] = useState(false);
   const [, setBinsLoading] = useState(false);
+  const [binSource, setBinSource] = useState<'local' | 'remote'>('local');
+  const [binRemoteUrl, setBinRemoteUrl] = useState(() => getApiBaseUrl());
+  const [binRemoteKey, setBinRemoteKey] = useState(() => getApiAccessKey());
+  const [binSourceBusy, setBinSourceBusy] = useState(false);
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [taxOffices, setTaxOffices] = useState<TaxOfficeRow[]>([]);
   const [banks, setBanks] = useState<BankRow[]>([]);
   const [bins, setBins] = useState<BinRow[]>([]);
+  const remoteBinsActive = binSource === 'remote';
 
   const syncRuntimeBins = useCallback((list: BinRow[]) => {
     setRuntimeBins(
@@ -104,6 +110,24 @@ export default function ApiSettingsPage() {
     if (!token) return;
     setBinsLoading(true);
     try {
+      // Merkezi API açıksa katalog (runtime ile aynı); değilse yerel CRUD listesi
+      if (remoteBinsActive) {
+        const list = await api.get<
+          { bin: string; bankId: string; bank: string; kind?: string; brand?: string; type?: string }[]
+        >('/api/bins/catalog');
+        const mapped: BinRow[] = list.map((r, i) => ({
+          id: `remote-${r.bin}-${i}`,
+          bank: r.bank,
+          bin: r.bin,
+          type: r.type || '',
+          brand: r.brand || '',
+          kind: r.kind || '',
+          bankId: r.bankId,
+        }));
+        setBins(mapped);
+        syncRuntimeBins(mapped);
+        return mapped.length;
+      }
       const list = await api.get<
         { id: string; bankId: string; bank: string; bin: string; type: string; brand: string; kind: string }[]
       >('/api/bins', token);
@@ -128,16 +152,93 @@ export default function ApiSettingsPage() {
     } finally {
       setBinsLoading(false);
     }
-  }, [token, syncRuntimeBins]);
+  }, [token, syncRuntimeBins, remoteBinsActive]);
+
+  const loadBinSource = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.get<{
+        source: 'local' | 'remote';
+        remoteBaseUrl: string;
+        remoteApiKey: string;
+      }>('/api/settings/bin-source', token);
+      setBinSource(data.source === 'remote' ? 'remote' : 'local');
+      if (data.remoteBaseUrl) setBinRemoteUrl(data.remoteBaseUrl);
+      if (data.remoteApiKey) setBinRemoteKey(data.remoteApiKey);
+    } catch {
+      /* varsayılan local */
+    }
+  }, [token]);
+
+  const DEFAULT_GTK_TAHSILAT_URL = 'https://api.guzelteknoloji.com/v1/tahsilat';
+
+  async function saveBinSource(next: 'local' | 'remote') {
+    if (!token) return;
+    const key = (binRemoteKey.trim() || apiAccessKey.trim()).slice(0, 512);
+    if (next === 'remote' && !key) {
+      setToast({
+        kind: 'err',
+        text: 'Merkezi API için API Key gerekli (Güzel Teknoloji panelinden alın).',
+      });
+      return;
+    }
+    setBinSourceBusy(true);
+    try {
+      const data = await api.patch<{
+        source: 'local' | 'remote';
+        remoteBaseUrl: string;
+        remoteApiKey: string;
+      }>(
+        '/api/settings/bin-source',
+        {
+          source: next,
+          remoteBaseUrl:
+            binRemoteUrl.trim() || getApiBaseUrl() || DEFAULT_GTK_TAHSILAT_URL,
+          remoteApiKey: key,
+        },
+        token,
+      );
+      const sourceChanged = data.source !== binSource;
+      setBinSource(data.source);
+      setBinRemoteUrl(data.remoteBaseUrl);
+      setBinRemoteKey(data.remoteApiKey);
+      if (data.remoteApiKey) {
+        setApiAccessKey(data.remoteApiKey);
+        setApiAccessKeyDraft(data.remoteApiKey);
+      }
+      if (data.remoteBaseUrl) {
+        setApiBaseUrl(data.remoteBaseUrl);
+        setBaseUrl(data.remoteBaseUrl);
+      }
+      await reloadRuntimeBins();
+      setToast({
+        kind: 'ok',
+        text:
+          data.source === 'remote'
+            ? 'Güzel Teknoloji API açık — ortak veriler merkezden geliyor.'
+            : 'Merkezi API kapandı — yerel listeler kullanılıyor.',
+      });
+      if (!sourceChanged && category === 'bin') void loadBins();
+    } catch (err) {
+      setToast({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'Merkezi API ayarı kaydedilemedi',
+      });
+    } finally {
+      setBinSourceBusy(false);
+    }
+  }
 
   useEffect(() => {
+    // Hub + BIN detay: merkezi kaynak durumunu yükle
+    if (!category || category === 'bin') void loadBinSource();
     if (category === 'bin') void loadBins();
     if (category === 'locations') void loadLocations();
     if (category === 'tax-offices') {
       void loadTaxOffices();
       void loadLocations();
     }
-  }, [category, loadBins, loadLocations, loadTaxOffices]);
+  }, [category, loadBins, loadBinSource, loadLocations, loadTaxOffices]);
 
   const [endpointDraft, setEndpointDraft] = useState('');
   const [query, setQuery] = useState('');
@@ -702,13 +803,101 @@ export default function ApiSettingsPage() {
 
         <div
           data-anim
+          className={[
+            'mb-6 rounded-2xl border p-5 shadow-[var(--panel-shadow)] sm:p-6',
+            remoteBinsActive
+              ? 'border-emerald-500/40 bg-emerald-500/10'
+              : 'border-[var(--panel-line)] bg-[var(--panel-elevated)]',
+          ].join(' ')}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-[var(--panel-ink)]">
+                Güzel Teknoloji merkezi API
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--panel-muted)]">
+                Açıkken BIN ve ortak tanımlar api.guzelteknoloji.com üzerinden çekilir. Tek API Key
+                yeterlidir. Kapalıysa yerel listeler aynen kullanılır.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={binSourceBusy}
+              onClick={() => {
+                if (!binRemoteUrl.trim()) setBinRemoteUrl(DEFAULT_GTK_TAHSILAT_URL);
+                if (!binRemoteKey.trim() && apiAccessKey.trim()) {
+                  setBinRemoteKey(apiAccessKey.trim());
+                }
+                void saveBinSource(remoteBinsActive ? 'local' : 'remote');
+              }}
+              className={[
+                'relative h-8 w-14 shrink-0 rounded-full transition',
+                remoteBinsActive ? 'bg-emerald-600' : 'bg-[var(--panel-line)]',
+                binSourceBusy ? 'opacity-50' : '',
+              ].join(' ')}
+              role="switch"
+              aria-checked={remoteBinsActive}
+              aria-label="Güzel Teknoloji merkezi API"
+            >
+              <span
+                className={[
+                  'absolute top-1 h-6 w-6 rounded-full bg-white shadow transition',
+                  remoteBinsActive ? 'left-7' : 'left-1',
+                ].join(' ')}
+              />
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <TextInput
+              label="API yolu"
+              value={binRemoteUrl}
+              onChange={(e) => setBinRemoteUrl(e.target.value)}
+              placeholder={DEFAULT_GTK_TAHSILAT_URL}
+              disabled={binSourceBusy}
+            />
+            <TextInput
+              label="API Key"
+              type="password"
+              autoComplete="off"
+              value={binRemoteKey}
+              onChange={(e) => setBinRemoteKey(e.target.value)}
+              placeholder="gtk_…"
+              disabled={binSourceBusy}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {remoteBinsActive ? (
+              <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                Aktif — ortak veriler merkezden geliyor.
+              </p>
+            ) : (
+              <p className="text-[11px] text-[var(--panel-muted)]">
+                Kapalı — yerel veri kullanılır.
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={binSourceBusy}
+              onClick={() => {
+                if (!binRemoteUrl.trim()) setBinRemoteUrl(DEFAULT_GTK_TAHSILAT_URL);
+                void saveBinSource(remoteBinsActive ? 'remote' : 'local');
+              }}
+              className="text-[11px] font-semibold text-[var(--panel-muted)] underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Yol / anahtarı kaydet
+            </button>
+          </div>
+        </div>
+
+        <div
+          data-anim
           className="mb-6 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] sm:p-6 [--input-notch:var(--panel-elevated)]"
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
               <TextInput
                 data-km-jump
-                label="Genel API"
+                label="Genel API (yerel / diğer)"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder="https://api.ornek.com/v1"
@@ -774,6 +963,81 @@ export default function ApiSettingsPage() {
         </div>
       </div>
 
+      {category === 'bin' ? (
+        <div
+          data-anim
+          className={[
+            'mb-4 rounded-2xl border p-4 shadow-[var(--panel-shadow)] sm:p-5',
+            remoteBinsActive
+              ? 'border-emerald-500/40 bg-emerald-500/10'
+              : 'border-[var(--panel-line)] bg-[var(--panel-elevated)]',
+          ].join(' ')}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-[var(--panel-ink)]">Güzel Teknoloji merkezi API</p>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--panel-muted)]">
+                Anahtar Api Ayarları ana ekranındaki ile aynıdır. Açıkken BIN merkezden gelir; kapalıysa
+                yerel liste kullanılır.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={binSourceBusy}
+              onClick={() => void saveBinSource(remoteBinsActive ? 'local' : 'remote')}
+              className={[
+                'relative h-8 w-14 shrink-0 rounded-full transition',
+                remoteBinsActive ? 'bg-emerald-600' : 'bg-[var(--panel-line)]',
+                binSourceBusy ? 'opacity-50' : '',
+              ].join(' ')}
+              role="switch"
+              aria-checked={remoteBinsActive}
+              aria-label="Merkezi BIN API"
+            >
+              <span
+                className={[
+                  'absolute top-1 h-6 w-6 rounded-full bg-white shadow transition',
+                  remoteBinsActive ? 'left-7' : 'left-1',
+                ].join(' ')}
+              />
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <TextInput
+              label="Uzak API yolu"
+              value={binRemoteUrl}
+              onChange={(e) => setBinRemoteUrl(e.target.value)}
+              placeholder={DEFAULT_GTK_TAHSILAT_URL}
+              disabled={binSourceBusy}
+            />
+            <TextInput
+              label="API Key"
+              type="password"
+              autoComplete="off"
+              value={binRemoteKey}
+              onChange={(e) => setBinRemoteKey(e.target.value)}
+              placeholder="gtk_…"
+              disabled={binSourceBusy}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {remoteBinsActive ? (
+              <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                Aktif — katalog merkezi API’den. Yerel ekle / Excel bu modda kapalı.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              disabled={binSourceBusy}
+              onClick={() => void saveBinSource(remoteBinsActive ? 'remote' : 'local')}
+              className="text-[11px] font-semibold text-[var(--panel-muted)] underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Yol / anahtarı kaydet
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div
         data-anim
         className="mb-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] sm:p-5 [--input-notch:var(--panel-elevated)]"
@@ -818,8 +1082,14 @@ export default function ApiSettingsPage() {
             <button
               type="button"
               data-km-jump
+              disabled={category === 'bin' && remoteBinsActive}
+              title={
+                category === 'bin' && remoteBinsActive
+                  ? 'Merkezi BIN açıkken yerel Excel yükleme kapalı'
+                  : undefined
+              }
               onClick={() => setExcelOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)]"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] px-3 py-2.5 text-sm font-semibold text-[var(--panel-ink)] transition hover:bg-[var(--panel-hover)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               <ExcelPillIcon />
               Excel&apos;den Yükle
@@ -828,12 +1098,18 @@ export default function ApiSettingsPage() {
             <button
               type="button"
               data-km-jump
+              disabled={category === 'bin' && remoteBinsActive}
+              title={
+                category === 'bin' && remoteBinsActive
+                  ? 'Merkezi BIN açıkken yerel ekleme kapalı'
+                  : undefined
+              }
               onClick={() => {
                 setEditId(null);
                 setLocFocus(category === 'locations' ? 'level' : null);
                 setModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <span className="text-lg leading-none">+</span>
               Ekle
@@ -929,6 +1205,7 @@ export default function ApiSettingsPage() {
             locationViewLevel={locationViewLevel}
             allLocations={locations}
             rows={slice}
+            readOnly={category === 'bin' && remoteBinsActive}
             onEdit={(id, focus) => {
               setEditId(id);
               setLocFocus(focus ?? 'name');
@@ -1210,6 +1487,7 @@ function CategoryTable({
   locationViewLevel,
   allLocations,
   rows,
+  readOnly = false,
   onEdit,
   onDelete,
 }: {
@@ -1217,6 +1495,7 @@ function CategoryTable({
   locationViewLevel: LocationLevel;
   allLocations: LocationRow[];
   rows: { id: string }[];
+  readOnly?: boolean;
   onEdit: (id: string, focus?: string | null) => void;
   onDelete: (id: string) => void;
 }) {
@@ -1440,9 +1719,14 @@ function CategoryTable({
   const list = rows as BinRow[];
   return (
     <Sheet
-      cols="grid-cols-[minmax(110px,0.9fr)_88px_88px_100px_100px_44px]"
+      cols={
+        readOnly
+          ? 'grid-cols-[minmax(110px,0.9fr)_88px_88px_100px_100px]'
+          : 'grid-cols-[minmax(110px,0.9fr)_88px_88px_100px_100px_44px]'
+      }
       headers={['Banka', 'BIN', 'Tip', 'Marka', 'Tür']}
       empty={!list.length}
+      readOnly={readOnly}
       rows={list.map((r) => ({
         id: r.id,
         onEdit: (e) => onEdit(r.id, focusFromEvent(e, 'bank')),
@@ -1482,10 +1766,12 @@ function Sheet({
   headers,
   rows,
   empty,
+  readOnly = false,
 }: {
   cols: string;
   headers: string[];
   empty: boolean;
+  readOnly?: boolean;
   rows: {
     id: string;
     onEdit: (e: ReactMouseEvent) => void;
@@ -1501,7 +1787,7 @@ function Sheet({
         {headers.map((h) => (
           <span key={h}>{h}</span>
         ))}
-        <span className="sr-only">Sil</span>
+        {readOnly ? null : <span className="sr-only">Sil</span>}
       </div>
       {empty ? (
         <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">Kayıt bulunamadı</p>
@@ -1512,25 +1798,31 @@ function Sheet({
             data-api-row
             data-km-row
             tabIndex={-1}
-            title="Çift tıkla: düzenle"
-            onDoubleClick={r.onEdit}
-            className={`grid ${cols} cursor-pointer items-center gap-3 border-b border-[var(--panel-line)]/70 px-5 py-3 transition hover:bg-[var(--panel-hover)]`}
+            title={readOnly ? undefined : 'Çift tıkla: düzenle'}
+            onDoubleClick={readOnly ? undefined : r.onEdit}
+            className={`grid ${cols} items-center gap-3 border-b border-[var(--panel-line)]/70 px-5 py-3 transition ${
+              readOnly ? '' : 'cursor-pointer hover:bg-[var(--panel-hover)]'
+            }`}
           >
             {r.cells}
-            <div className="flex justify-end">
-              <CanRemove><button
-                type="button"
-                aria-label="Sil"
-                title="Sil"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  r.onDelete();
-                }}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
-              >
-                <TrashIcon />
-              </button></CanRemove>
-            </div>
+            {readOnly ? null : (
+              <div className="flex justify-end">
+                <CanRemove>
+                  <button
+                    type="button"
+                    aria-label="Sil"
+                    title="Sil"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      r.onDelete();
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-rose-500/10 hover:text-rose-500"
+                  >
+                    <TrashIcon />
+                  </button>
+                </CanRemove>
+              </div>
+            )}
           </div>
         ))
       )}

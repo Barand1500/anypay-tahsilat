@@ -386,8 +386,28 @@ export function segmentFromBinKind(kind: string | null | undefined): 'bireysel' 
 
 /** Ödeme ekranı — bin + banka + tür (auth gerekmez) */
 export async function listBinCatalog(): Promise<
-  { bin: string; bankId: string; bank: string; kind: string }[]
+  { bin: string; bankId: string; bank: string; kind: string; brand?: string; type?: string }[]
 > {
+  const { getBinSourceSettings, fetchRemoteBinCatalog } = await import(
+    './binSourceSettingsService.js'
+  );
+  try {
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteBinCatalog();
+      return remote.map((r) => ({
+        bin: r.bin,
+        bankId: r.bankId,
+        bank: r.bank,
+        kind: r.kind || '',
+        brand: r.brand || '',
+        type: r.type || '',
+      }));
+    }
+  } catch {
+    /* uzak hata → yerel yedek */
+  }
+
   await ensureBinKayitlariTable();
   const rows = await listBins();
   return rows
@@ -397,6 +417,8 @@ export async function listBinCatalog(): Promise<
       bankId: r.bankId,
       bank: r.bank,
       kind: r.kind || '',
+      brand: r.brand || '',
+      type: r.type || '',
     }));
 }
 
@@ -412,6 +434,28 @@ export async function lookupBinByCard(cardDigits: string): Promise<{
 } | null> {
   const d = cardDigits.replace(/\D/g, '');
   if (d.length < 4) return null;
+
+  const { getBinSourceSettings, lookupRemoteBin } = await import('./binSourceSettingsService.js');
+  try {
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const hit = await lookupRemoteBin(d);
+      if (hit) {
+        return {
+          bin: hit.bin,
+          bankId: null,
+          bankName: hit.bank,
+          kind: hit.kind || '',
+          brand: hit.brand || '',
+          type: hit.type || '',
+          segment: segmentFromBinKind(hit.kind),
+        };
+      }
+      return null;
+    }
+  } catch {
+    /* uzak hata → yerel */
+  }
 
   const rows = await listBins();
   let best: PublicBin | null = null;
