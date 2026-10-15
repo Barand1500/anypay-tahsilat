@@ -91,10 +91,10 @@ export async function listVersions(): Promise<PublicVersion[]> {
         };
       });
     }
-  } catch {
+  } catch (err) {
     const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
     const src = await getBinSourceSettings().catch(() => null);
-    if (src?.source === 'remote') return [];
+    if (src?.source === 'remote') throw new Error('Merkezi sürüm listesi yüklenemedi', { cause: err });
   }
 
   const rows = await prisma.surumler.findMany({

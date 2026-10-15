@@ -1,15 +1,9 @@
 import type { Initiate3dInput, Initiate3dResult, PaymentGateway, PosCredentials } from './types.js';
+import { getPaymentAdapter } from './adapters/index.js';
 import { akbankV2Gateway, looksLikeAkbankV2 } from './adapters/akbankV2.js';
 import { garantiGateway, looksLikeGaranti } from './adapters/garanti.js';
 import { nestpayGateway, looksLikeNestPay } from './adapters/nestpay.js';
 import { vakifbankGateway, looksLikeVakifBank } from './adapters/vakifbank.js';
-
-const gateways: PaymentGateway[] = [
-  akbankV2Gateway,
-  garantiGateway,
-  nestpayGateway,
-  vakifbankGateway,
-];
 
 /** Bilinen ama henüz adapter’ı olmayan altyapılar */
 function unsupportedPlatform(pos: PosCredentials): string | null {
@@ -81,11 +75,22 @@ export async function initiateThreeD(input: Initiate3dInput): Promise<Initiate3d
       message: `${input.pos.bankName}: bu 3D geçit için uygun ödeme adaptörü bulunamadı (${url})`,
     };
   }
-  return gw.initiate3d(input);
+  console.info(`[payment-adapter] source=local adapter=${gw.id} stage=3ds-initiation result=started`);
+  try {
+    const result = await gw.initiate3d(input);
+    console.info(
+      `[payment-adapter] source=local adapter=${gw.id} stage=3ds-initiation result=${result.kind === 'form' ? 'form-ready' : 'rejected'}`,
+    );
+    return result;
+  } catch (error) {
+    // Never log gateway request/response bodies here; they may contain card or merchant data.
+    console.error(`[payment-adapter] source=local adapter=${gw.id} stage=3ds-initiation result=error`);
+    throw error;
+  }
 }
 
 export function getGatewayById(id: string): PaymentGateway | undefined {
-  return gateways.find((g) => g.id === id);
+  return getPaymentAdapter(id);
 }
 
 export type { PosCredentials, ThreeDForm, Initiate3dResult, CallbackResult } from './types.js';

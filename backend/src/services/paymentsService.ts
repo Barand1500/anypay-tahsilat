@@ -14,6 +14,8 @@ import {
 } from './cardAgreementsService.js';
 import { listBins, lookupBinByCard, segmentFromBinKind, segmentLabelTr } from './binsService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
+import { fetchRemoteBanks, getBinSourceSettings, startCentralPayment } from './binSourceSettingsService.js';
+import { SettingsError } from './settingsService.js';
 
 export class PaymentsError extends Error {
   constructor(message: string) {
@@ -510,6 +512,10 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   if (expiry.length !== 4) throw new PaymentsError('Son kullanma tarihi MMYY olmalı');
   if (cvc.length < 3) throw new PaymentsError('CVC gerekli');
 
+  const sourceSettings = await getBinSourceSettings();
+  const paymentSource = sourceSettings.source === 'remote' ? 'central' : 'local';
+  console.info(`[payment-route] source=${paymentSource} result=selected`);
+
   let currency;
   try {
     currency = await resolveCurrencyId(input.parabirimiId ?? null);
@@ -526,17 +532,6 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     assertInstallmentsAllowed(allowed, [input.installment > 0 ? input.installment : 1]);
   } catch (err) {
     if (err instanceof UsersError) throw new PaymentsError(err.message);
-    throw err;
-  }
-
-  let pos;
-  try {
-    pos = await resolvePosForPayment({
-      cardDigits: digits,
-      bankId: input.bankId ?? null,
-    });
-  } catch (err) {
-    if (err instanceof PosResolveError) throw new PaymentsError(err.message);
     throw err;
   }
 
@@ -578,33 +573,82 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     ? input.amount * (1 + commissionPct / 100)
     : input.amount;
 
-  const threeDResult = await initiateThreeD({
-    pos,
-    orderId: odemeNo,
-    amount: chargedAmount,
-    currencyCode: currency.shortName || 'TRY',
-    installment,
-    card: {
-      number: digits,
-      holder: input.holder.trim(),
-      expiry,
-      cvc,
-    },
-    okUrl: `${apiBase}/api/payments/3d/ok`,
-    failUrl: `${apiBase}/api/payments/3d/fail`,
-    clientIp: input.clientIp,
-    email: (input.email || customerEmail || '').trim() || undefined,
-  });
+  let pos: Awaited<ReturnType<typeof resolvePosForPayment>> | null = null;
+  let threeDResult: { kind: 'form'; form: ThreeDForm; adapter: string } | { kind: 'error'; message: string };
+  let paymentBankId: number;
+  let paymentBankName: string;
+  let paymentPosId: number;
+  if (paymentSource === 'central') {
+    const cardBank = await lookupBinByCard(digits).catch(() => null);
+    let centralBankName = '';
+    if (input.bankId != null) {
+      let remoteBanks;
+      try {
+        remoteBanks = await fetchRemoteBanks();
+      } catch (err) {
+        if (err instanceof SettingsError) throw new PaymentsError(err.message);
+        throw err;
+      }
+      const selected = remoteBanks.find((bank) => bank.id === String(input.bankId));
+      if (!selected) throw new PaymentsError('Seçilen banka merkez kataloğunda bulunamadı');
+      centralBankName = selected.name;
+    } else centralBankName = cardBank?.bankName || '';
+    if (!centralBankName) throw new PaymentsError('Kart bankası merkez kataloğunda bulunamadı');
+    try {
+      const central = await startCentralPayment({
+        orderId: odemeNo,
+        bankName: centralBankName,
+        amount: chargedAmount,
+        currencyCode: currency.shortName || 'TRY',
+        installment,
+        card: { number: digits, holder: input.holder.trim(), expiry, cvc },
+        clientIp: input.clientIp,
+        email: (input.email || customerEmail || '').trim() || undefined,
+        istekNo: (input.istekNo || '').trim() || undefined,
+      });
+      paymentBankId = central.bankId;
+      paymentBankName = central.bankName;
+      paymentPosId = central.posId;
+      threeDResult = { kind: 'form', form: central.form, adapter: central.adapter };
+    } catch (err) {
+      console.info('[payment-flow] source=central stage=3ds-initiation result=rejected');
+      if (err instanceof SettingsError) throw new PaymentsError(err.message);
+      throw err;
+    }
+  } else {
+    try {
+      pos = await resolvePosForPayment({ cardDigits: digits, bankId: input.bankId ?? null });
+    } catch (err) {
+      if (err instanceof PosResolveError) throw new PaymentsError(err.message);
+      throw err;
+    }
+    paymentBankId = pos.bankId;
+    paymentBankName = pos.bankName;
+    paymentPosId = pos.posId;
+    threeDResult = await initiateThreeD({
+      pos,
+      orderId: odemeNo,
+      amount: chargedAmount,
+      currencyCode: currency.shortName || 'TRY',
+      installment,
+      card: { number: digits, holder: input.holder.trim(), expiry, cvc },
+      okUrl: `${apiBase}/api/payments/3d/ok`,
+      failUrl: `${apiBase}/api/payments/3d/fail`,
+      clientIp: input.clientIp,
+      email: (input.email || customerEmail || '').trim() || undefined,
+    });
+  }
 
   if (threeDResult.kind === 'error') {
+    console.info(`[payment-flow] source=${paymentSource} stage=3ds-initiation result=rejected`);
     throw new PaymentsError(threeDResult.message);
   }
 
   const istekNo = (input.istekNo || '').trim() || null;
   const meta = JSON.stringify({
     adapter: threeDResult.adapter,
-    posId: pos.posId,
-    securityType: pos.securityType,
+    posId: paymentPosId,
+    securityType: pos?.securityType || '',
     startedAt: now.toISOString(),
     commissionPct,
     cardSegment,
@@ -635,13 +679,17 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       odemeTipi: tipFromPayType(input.payType),
       tarih: now,
       kullaniciId: input.kullaniciId,
-      bankaId: pos.bankId,
-      sanalposBankaId: pos.bankId,
+      bankaId: paymentBankId,
+      sanalposBankaId: paymentBankId,
       ip: (input.clientIp || '').slice(0, 255) || null,
       arsiv: false,
       istekNo,
     },
   });
+
+  console.info(
+    `[payment-flow] source=${paymentSource} stage=payment-record result=pending-3ds adapter=${threeDResult.adapter}`,
+  );
 
   return {
     id: row.id,
@@ -651,7 +699,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     durum: row.durum,
     tarih: row.tarih ? row.tarih.toISOString() : null,
     status: 'pending_3d',
-    bankName: pos.bankName,
+    bankName: paymentBankName,
     threeD: threeDResult.form,
   };
 }

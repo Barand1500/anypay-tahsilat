@@ -121,6 +121,21 @@ export async function getDefaultVirtualPosBrand(): Promise<{
   bankLogoUrl: string;
   posName: string;
 } | null> {
+  const { getBinSourceSettings, fetchRemoteVirtualPos } = await import('./binSourceSettingsService.js');
+  const source = await getBinSourceSettings();
+  if (source.source === 'remote') {
+    const remote = await fetchRemoteVirtualPos();
+    const preferred = remote[0];
+    if (!preferred) return null;
+    const banks = await import('./banksService.js');
+    const bank = (await banks.listBanks()).find((item) => item.name === preferred.bank);
+    return {
+      bankId: bank?.id || '',
+      bankName: preferred.bank || bank?.name || '—',
+      bankLogoUrl: bank?.logoUrl || '',
+      posName: preferred.name,
+    };
+  }
   let row = await prisma.sanalPosTanim.findFirst({
     where: { varsayilan: true, aktif: { not: false }, ...notRemoved() },
     orderBy: { id: 'asc' },

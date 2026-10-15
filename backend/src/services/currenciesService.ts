@@ -148,6 +148,10 @@ export async function resolveCurrencyId(raw?: number | null): Promise<{
     }
   } catch (err) {
     if (err instanceof CurrenciesError) throw err;
+    const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+    if (await isCentralRemoteActive().catch(() => false)) {
+      throw new CurrenciesError(err instanceof Error ? err.message : 'Merkezi para birimleri yüklenemedi');
+    }
   }
 
   if (raw != null && Number.isFinite(raw)) {

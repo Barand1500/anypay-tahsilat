@@ -252,8 +252,12 @@ export async function refreshBanksFromDisk(): Promise<{ matched: number }> {
       const remote = await fetchRemoteBanks(true);
       return { matched: remote.length };
     }
-  } catch {
-    /* yerel */
+  } catch (err) {
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new BanksError(err instanceof Error ? err.message : 'Merkezi bankalar yüklenemedi');
+    }
   }
   const n = await prisma.banka.count({ where: notRemoved() });
   return { matched: n };

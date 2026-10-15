@@ -244,6 +244,8 @@ export async function resolvePosForPayment(opts: {
   cardDigits: string;
   bankId?: number | null;
 }): Promise<PosCredentials> {
+  const { isCentralRemoteActive } = await import('../services/binSourceSettingsService.js');
+  const centralMode = await isCentralRemoteActive();
   if (opts.bankId != null && Number.isFinite(opts.bankId)) {
     return loadPosForBank(opts.bankId);
   }
@@ -256,6 +258,11 @@ export async function resolvePosForPayment(opts: {
   if (dbHit?.bankName) {
     const byName = await findBankIdByHints([dbHit.bankName]);
     if (byName != null) return loadPosForBank(byName);
+  }
+
+  // Merkezi modda yerel sabit BIN kataloğu ve yerel varsayılan POS kullanılmaz.
+  if (centralMode) {
+    throw new PosResolveError('Merkezi BIN kaydına karşılık gelen kullanılabilir POS bulunamadı');
   }
 
   const binKey = matchBinKey(opts.cardDigits);

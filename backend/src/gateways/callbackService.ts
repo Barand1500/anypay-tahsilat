@@ -78,6 +78,7 @@ export async function handleThreeDCallback(
 
   // Zaten sonuçlanmışsa tekrar işleme
   if (row.durum === 1 || row.durum === 2 || row.durum === 0 || row.durum === -1) {
+    console.info('[payment-callback] source=local result=already-final');
     return {
       odemeNo: orderId,
       success: row.durum === 1,
@@ -119,6 +120,7 @@ export async function handleThreeDCallback(
   }
 
   const gw = getGatewayById(adapterId) ?? akbankV2Gateway;
+  console.info(`[payment-callback] source=local adapter=${gw.id} result=received`);
   let parsed: CallbackResult = gw.parseCallback(asStringMap(body), secretKey);
 
   if (outcome === 'ok' && parsed.success && parsed.needsProvision && gw.finalizeCallback && posCreds) {
@@ -152,6 +154,9 @@ export async function handleThreeDCallback(
   }
 
   const success = outcome === 'ok' && parsed.success && !parsed.needsProvision;
+  console.info(
+    `[payment-callback] source=local adapter=${gw.id} outcome=${outcome} result=${success ? 'success' : 'failure'}`,
+  );
 
   // BIN kart meta (taksitDetay / önceki bankaCevabi) — 3DS sonrası kaybolmasın
   let cardSegment: string | null = null;

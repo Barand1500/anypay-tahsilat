@@ -72,7 +72,7 @@ import {
 } from '../services/dekontSettingsService.js';
 import {
   fetchCentralChangeLog,
-  getBinSourceSettings,
+  getPublicBinSourceSettings,
   invalidateCentralCatalogCache,
   updateBinSourceSettings,
 } from '../services/binSourceSettingsService.js';
@@ -970,7 +970,7 @@ const binSourceSchema = z.object({
 
 settingsRouter.get('/bin-source', async (_req, res) => {
   try {
-    return sendSuccess(res, await getBinSourceSettings());
+    return sendSuccess(res, await getPublicBinSourceSettings());
   } catch (err) {
     if (err instanceof SettingsError) return sendError(res, 404, err.message);
     console.error(err);

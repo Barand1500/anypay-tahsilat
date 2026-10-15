@@ -58,9 +58,16 @@ export async function getBinSourceSettings(): Promise<BinSourceSettings> {
   return parseStored(rows[0]?.bin_kaynak_ayarlari);
 }
 
+/** Ayarlar UI için anahtarı açığa çıkarmayan görünüm. */
+export async function getPublicBinSourceSettings(): Promise<Omit<BinSourceSettings, 'remoteApiKey'> & { remoteApiKeyConfigured: boolean }> {
+  const settings = await getBinSourceSettings();
+  const { remoteApiKey, ...publicSettings } = settings;
+  return { ...publicSettings, remoteApiKeyConfigured: Boolean(remoteApiKey) };
+}
+
 export async function updateBinSourceSettings(
   input: Partial<BinSourceSettings>,
-): Promise<BinSourceSettings> {
+): Promise<Omit<BinSourceSettings, 'remoteApiKey'> & { remoteApiKeyConfigured: boolean }> {
   await ensureBinKaynakAyarlariColumn();
   const current = await getBinSourceSettings();
   const next: BinSourceSettings = {
@@ -83,7 +90,8 @@ export async function updateBinSourceSettings(
   `;
   // cache invalidate
   clearRemoteBinCache();
-  return next;
+  const { remoteApiKey, ...publicSettings } = next;
+  return { ...publicSettings, remoteApiKeyConfigured: Boolean(remoteApiKey) };
 }
 
 /** Public katalog satırı (FE / BE ortak) */
@@ -113,6 +121,58 @@ export type RemoteBankRow = {
   apiUrl: string;
   xmlUrl: string;
 };
+
+export type CentralPaymentStartResult = {
+  sessionId: string;
+  adapter: string;
+  bankId: number;
+  posId: number;
+  bankName: string;
+  form: { actionUrl: string; method: 'POST'; fields: Record<string, string> };
+};
+
+/** Send card data only over TLS to the company's authenticated central payment executor. */
+export async function startCentralPayment(input: {
+  orderId: string;
+  bankName: string;
+  amount: number;
+  currencyCode: string;
+  installment: number;
+  card: { number: string; holder: string; expiry: string; cvc: string };
+  clientIp?: string;
+  email?: string;
+  istekNo?: string;
+}): Promise<CentralPaymentStartResult> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote' || !settings.remoteApiKey) {
+    throw new SettingsError('Merkezi ödeme için API ayarı gerekli');
+  }
+  const url = `${settings.remoteBaseUrl.replace(/\/+$/, '')}/payments/start`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(20_000),
+      headers: {
+        'X-API-Key': settings.remoteApiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new SettingsError('Merkezi ödeme hizmetine ulaşılamadı');
+  }
+  const json = await response.json().catch(() => null) as {
+    success?: boolean;
+    message?: string;
+    data?: CentralPaymentStartResult;
+  } | null;
+  if (!response.ok || !json?.success || !json.data?.form?.actionUrl || !json.data.form.fields) {
+    throw new SettingsError(json?.message || `Merkezi ödeme başlatılamadı (${response.status})`);
+  }
+  return json.data;
+}
 
 type RemoteBankCache = { at: number; rows: RemoteBankRow[] };
 let remoteBankCache: RemoteBankCache | null = null;
@@ -241,12 +301,18 @@ export async function fetchRemoteTahsilatResource(
   }
   const base = settings.remoteBaseUrl.replace(/\/+$/, '');
   const url = `${base}/${key}`;
-  const res = await fetch(url, {
-    headers: {
-      'X-API-Key': settings.remoteApiKey,
-      Accept: 'application/json',
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      signal: AbortSignal.timeout(8_000),
+      headers: {
+        'X-API-Key': settings.remoteApiKey,
+        Accept: 'application/json',
+      },
+    });
+  } catch {
+    throw new SettingsError(`Merkezi API'ye ulaşılamadı (${resource})`);
+  }
   const json = (await res.json().catch(() => null)) as
     | { success?: boolean; message?: string; data?: unknown }
     | unknown[]
@@ -409,6 +475,7 @@ export async function fetchCentralChangeLog(limit = 100): Promise<CentralChangeL
   const base = settings.remoteBaseUrl.replace(/\/+$/, '');
   const url = `${base}/changelog?limit=${Math.min(500, Math.max(1, limit))}`;
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(8_000),
     headers: {
       'X-API-Key': settings.remoteApiKey,
       Accept: 'application/json',
@@ -457,32 +524,32 @@ export async function lookupRemoteBin(cardDigits: string): Promise<RemoteBinRow 
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return null;
 
-  try {
-    const catalog = await fetchRemoteBinCatalog();
-    let best: RemoteBinRow | null = null;
-    for (const r of catalog) {
-      if (d.startsWith(r.bin) && (!best || r.bin.length > best.bin.length)) best = r;
-    }
-    if (best) return best;
-  } catch {
-    /* lookup endpoint dene */
+  const catalog = await fetchRemoteBinCatalog();
+  let best: RemoteBinRow | null = null;
+  for (const r of catalog) {
+    if (d.startsWith(r.bin) && (!best || r.bin.length > best.bin.length)) best = r;
   }
+  if (best) return best;
 
   const base = settings.remoteBaseUrl.replace(/\/+$/, '');
   const url = new URL(`${base}/bins/lookup`);
   url.searchParams.set('bin', d.slice(0, 8));
   const res = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(8_000),
     headers: {
       'X-API-Key': settings.remoteApiKey,
       Accept: 'application/json',
     },
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new SettingsError(`Merkezi BIN arama hatası (${res.status})`);
+  }
   const json = (await res.json().catch(() => null)) as {
     data?: Record<string, unknown> | null;
   } | null;
   const hit = json?.data;
-  if (!hit || typeof hit !== 'object') return null;
+  if (!hit || typeof hit !== 'object') throw new SettingsError('Merkezi BIN kaydı bulunamadı');
   const bin = pickField(hit, ['bin', 'iin']).replace(/\D/g, '').slice(0, 8);
   const bank = pickField(hit, ['bank', 'banka']);
   if (bin.length < 4 || !bank) return null;

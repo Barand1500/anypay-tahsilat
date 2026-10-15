@@ -416,8 +416,9 @@ export async function listBinCatalog(): Promise<
         type: r.type || '',
       }));
     }
-  } catch {
-    /* uzak hata → yerel yedek */
+  } catch (err) {
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') throw new Error('Merkezi BIN kataloğu yüklenemedi', { cause: err });
   }
 
   await ensureBinKayitlariTable();
@@ -465,8 +466,12 @@ export async function lookupBinByCard(cardDigits: string): Promise<{
       }
       return null;
     }
-  } catch {
-    /* uzak hata → yerel */
+  } catch (err) {
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      if (err instanceof Error && err.message === 'Merkezi BIN kaydı bulunamadı') return null;
+      throw new Error('Merkezi BIN kaynağında kart aranamadı', { cause: err });
+    }
   }
 
   const rows = await listBins();

@@ -56,7 +56,8 @@ export default function ApiSettingsPage() {
   const [, setBinsLoading] = useState(false);
   const [binSource, setBinSource] = useState<'local' | 'remote'>('local');
   const [binRemoteUrl, setBinRemoteUrl] = useState(() => getApiBaseUrl());
-  const [binRemoteKey, setBinRemoteKey] = useState(() => getApiAccessKey());
+  const [binRemoteKey, setBinRemoteKey] = useState('');
+  const [remoteApiKeyConfigured, setRemoteApiKeyConfigured] = useState(false);
   const [binSourceBusy, setBinSourceBusy] = useState(false);
   const [centralLogOpen, setCentralLogOpen] = useState(false);
   const [centralLogBusy, setCentralLogBusy] = useState(false);
@@ -173,11 +174,11 @@ export default function ApiSettingsPage() {
       const data = await api.get<{
         source: 'local' | 'remote';
         remoteBaseUrl: string;
-        remoteApiKey: string;
+        remoteApiKeyConfigured: boolean;
       }>('/api/settings/bin-source', token);
       setBinSource(data.source === 'remote' ? 'remote' : 'local');
       if (data.remoteBaseUrl) setBinRemoteUrl(data.remoteBaseUrl);
-      if (data.remoteApiKey) setBinRemoteKey(data.remoteApiKey);
+      setRemoteApiKeyConfigured(data.remoteApiKeyConfigured);
     } catch {
       /* varsayılan local */
     }
@@ -213,8 +214,8 @@ export default function ApiSettingsPage() {
 
   async function saveBinSource(next: 'local' | 'remote') {
     if (!token) return;
-    const key = (binRemoteKey.trim() || apiAccessKey.trim()).slice(0, 512);
-    if (next === 'remote' && !key) {
+    const key = binRemoteKey.trim().slice(0, 512);
+    if (next === 'remote' && !key && !remoteApiKeyConfigured) {
       setToast({
         kind: 'err',
         text: 'Merkezi API için API Key gerekli (Güzel Teknoloji → Firmalar’dan kopyalayın).',
@@ -226,24 +227,21 @@ export default function ApiSettingsPage() {
       const data = await api.patch<{
         source: 'local' | 'remote';
         remoteBaseUrl: string;
-        remoteApiKey: string;
+        remoteApiKeyConfigured: boolean;
       }>(
         '/api/settings/bin-source',
         {
           source: next,
           remoteBaseUrl:
             binRemoteUrl.trim() || getApiBaseUrl() || DEFAULT_GTK_TAHSILAT_URL,
-          remoteApiKey: key,
+          ...(key ? { remoteApiKey: key } : {}),
         },
         token,
       );
       setBinSource(data.source);
       setBinRemoteUrl(data.remoteBaseUrl);
-      setBinRemoteKey(data.remoteApiKey);
-      if (data.remoteApiKey) {
-        setApiAccessKey(data.remoteApiKey);
-        setApiAccessKeyDraft(data.remoteApiKey);
-      }
+      setBinRemoteKey('');
+      setRemoteApiKeyConfigured(data.remoteApiKeyConfigured);
       if (data.remoteBaseUrl) {
         setApiBaseUrl(data.remoteBaseUrl);
         setBaseUrl(data.remoteBaseUrl);
@@ -874,9 +872,6 @@ export default function ApiSettingsPage() {
               disabled={binSourceBusy}
               onClick={() => {
                 if (!binRemoteUrl.trim()) setBinRemoteUrl(DEFAULT_GTK_TAHSILAT_URL);
-                if (!binRemoteKey.trim() && apiAccessKey.trim()) {
-                  setBinRemoteKey(apiAccessKey.trim());
-                }
                 void saveBinSource(remoteBinsActive ? 'local' : 'remote');
               }}
               className={[
@@ -910,7 +905,7 @@ export default function ApiSettingsPage() {
               autoComplete="off"
               value={binRemoteKey}
               onChange={(e) => setBinRemoteKey(e.target.value)}
-              placeholder="gtk_…"
+              placeholder={remoteApiKeyConfigured ? 'Kayıtlı anahtar korunuyor; değiştirmek için yenisini girin' : 'gtk_…'}
               disabled={binSourceBusy}
             />
           </div>

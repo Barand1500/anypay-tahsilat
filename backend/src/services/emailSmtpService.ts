@@ -130,8 +130,12 @@ export async function resolveSmtpConfig(): Promise<SmtpConfig> {
         from: (remote.from || remote.email).trim(),
       };
     }
-  } catch {
-    /* yerel yedek */
+  } catch (err) {
+    if (err instanceof SettingsError && /bulunamadı/i.test(err.message)) throw err;
+    const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+    if (await isCentralRemoteActive().catch(() => false)) {
+      throw new SettingsError('Merkezi e-posta ayarları yüklenemedi; yerel ayarlar kullanılmadı');
+    }
   }
   const row = await getRow();
   const stored = parseStored(row.smtpAyarlar);
@@ -165,10 +169,13 @@ export async function getSmtpSettings(): Promise<PublicSmtpSettings> {
       };
     }
     const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-    if (await isCentralRemoteActive()) return emptyPublic();
-  } catch {
+    if (await isCentralRemoteActive()) {
+      throw new SettingsError('Merkezi e-posta ayarı bulunamadı');
+    }
+  } catch (err) {
+    if (err instanceof SettingsError && /bulunamadı/i.test(err.message)) throw err;
     const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-    if (await isCentralRemoteActive().catch(() => false)) return emptyPublic();
+    if (await isCentralRemoteActive().catch(() => false)) throw err;
   }
 
   const row = await getRow();
