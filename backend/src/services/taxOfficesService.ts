@@ -32,7 +32,35 @@ function mapRow(r: {
   };
 }
 
+async function assertLocalTaxWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new TaxOfficesError(
+      'Merkezi API açık — vergi daireleri salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function listTaxOffices(): Promise<PublicTaxOffice[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteTaxOffices } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      return await fetchRemoteTaxOffices();
+    }
+  } catch (err) {
+    if (err instanceof TaxOfficesError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new TaxOfficesError(
+        err instanceof Error ? err.message : 'Merkezi vergi daireleri yüklenemedi',
+      );
+    }
+  }
+
   const rows = await prisma.vergiDairesi.findMany({
     where: notRemoved(),
     orderBy: { adi: 'asc' },
@@ -45,6 +73,7 @@ export async function createTaxOffice(input: {
   district: string;
   name: string;
 }): Promise<PublicTaxOffice> {
+  await assertLocalTaxWritable();
   const name = input.name.trim();
   if (!name) throw new TaxOfficesError('Vergi dairesi adı gerekli');
   const city = input.city.trim();
@@ -72,6 +101,7 @@ export async function updateTaxOffice(
   id: number,
   input: { city: string; district: string; name: string },
 ): Promise<PublicTaxOffice> {
+  await assertLocalTaxWritable();
   const existing = await prisma.vergiDairesi.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -101,6 +131,7 @@ export async function updateTaxOffice(
 }
 
 export async function softDeleteTaxOffice(id: number): Promise<void> {
+  await assertLocalTaxWritable();
   const existing = await prisma.vergiDairesi.findFirst({
     where: { id, ...notRemoved() },
   });

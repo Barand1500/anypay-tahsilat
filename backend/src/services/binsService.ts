@@ -256,7 +256,17 @@ export type BinUpsert = {
   kind?: string;
 };
 
+async function assertLocalBinsWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new BinsError(
+      'Merkezi API açık — BIN kayıtları salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function createBin(input: BinUpsert): Promise<PublicBin> {
+  await assertLocalBinsWritable();
   await ensureBinKayitlariTable();
   const code = input.bin.replace(/\D/g, '').slice(0, 8);
   if (code.length < 4 || code.length > 8) throw new BinsError('BIN 4–8 rakam olmalı');
@@ -307,6 +317,7 @@ export async function createBin(input: BinUpsert): Promise<PublicBin> {
 }
 
 export async function updateBin(id: number, input: BinUpsert): Promise<PublicBin> {
+  await assertLocalBinsWritable();
   await ensureBinKayitlariTable();
   const code = input.bin.replace(/\D/g, '').slice(0, 8);
   if (code.length < 4 || code.length > 8) throw new BinsError('BIN 4–8 rakam olmalı');
@@ -358,6 +369,7 @@ export async function updateBin(id: number, input: BinUpsert): Promise<PublicBin
 }
 
 export async function softDeleteBin(id: number): Promise<void> {
+  await assertLocalBinsWritable();
   await ensureBinKayitlariTable();
   const cols = await tableColumns('bin_kayitlari');
   if (cols.has('remove')) {

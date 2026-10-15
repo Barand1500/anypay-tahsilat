@@ -28,6 +28,7 @@ taxOfficesRouter.get('/', async (_req, res) => {
     await ensureVergiDairesiLocationColumns();
     return sendSuccess(res, await listTaxOffices());
   } catch (err) {
+    if (err instanceof TaxOfficesError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Vergi daireleri yüklenemedi');
   }

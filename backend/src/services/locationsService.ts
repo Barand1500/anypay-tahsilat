@@ -30,8 +30,36 @@ function dec(raw: string): { kind: 'u' | 'i' | 'c' | 'm'; id: number } | null {
   return { kind: m[1] as 'u' | 'i' | 'c' | 'm', id: Number(m[2]) };
 }
 
+async function assertLocalLocationsWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new LocationsError(
+      'Merkezi API açık — lokasyonlar salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 /** Api Ayarları — düz ağaç listesi */
 export async function listLocationsFlat(): Promise<PublicLocation[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteLocations } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      return await fetchRemoteLocations();
+    }
+  } catch (err) {
+    if (err instanceof LocationsError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new LocationsError(
+        err instanceof Error ? err.message : 'Merkezi lokasyonlar yüklenemedi',
+      );
+    }
+  }
+
   const [ulkeler, iller, ilceler, mahalleler, semtler] = await Promise.all([
     prisma.ulke.findMany({ where: notRemoved(), orderBy: { adi: 'asc' } }),
     prisma.il.findMany({ where: notRemoved(), orderBy: { adi: 'asc' } }),
@@ -91,6 +119,7 @@ export async function createLocation(input: {
   level: LocationLevel;
   parentId?: string | null;
 }): Promise<PublicLocation> {
+  await assertLocalLocationsWritable();
   const name = input.name.trim();
   if (!name) throw new LocationsError('Ad gerekli');
 
@@ -169,6 +198,7 @@ export async function updateLocation(
   id: string,
   input: { name: string; parentId?: string | null },
 ): Promise<PublicLocation> {
+  await assertLocalLocationsWritable();
   const parsed = dec(id);
   if (!parsed) throw new LocationsError('Geçersiz lokasyon');
   const name = input.name.trim();
@@ -239,6 +269,7 @@ export async function updateLocation(
 }
 
 export async function softDeleteLocation(id: string): Promise<void> {
+  await assertLocalLocationsWritable();
   const parsed = dec(id);
   if (!parsed) throw new LocationsError('Geçersiz lokasyon');
   if (parsed.kind === 'u') {
@@ -259,6 +290,7 @@ export async function ensureLocationPathNames(parts: {
   district?: string;
   neighborhood?: string;
 }): Promise<PublicLocation[]> {
+  await assertLocalLocationsWritable();
   let countryId: string | null = null;
   let cityId: string | null = null;
   let districtId: string | null = null;

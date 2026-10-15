@@ -24,6 +24,7 @@ locationsRouter.get('/', async (_req, res) => {
   try {
     return sendSuccess(res, await listLocationsFlat());
   } catch (err) {
+    if (err instanceof LocationsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Lokasyonlar yüklenemedi');
   }

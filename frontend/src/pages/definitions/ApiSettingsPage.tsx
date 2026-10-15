@@ -58,12 +58,25 @@ export default function ApiSettingsPage() {
   const [binRemoteUrl, setBinRemoteUrl] = useState(() => getApiBaseUrl());
   const [binRemoteKey, setBinRemoteKey] = useState(() => getApiAccessKey());
   const [binSourceBusy, setBinSourceBusy] = useState(false);
+  const [centralLogOpen, setCentralLogOpen] = useState(false);
+  const [centralLogBusy, setCentralLogBusy] = useState(false);
+  const [centralLogRows, setCentralLogRows] = useState<
+    {
+      id: string;
+      resource: string;
+      action: string;
+      rowId: string;
+      summary: string;
+      createdAt: string;
+    }[]
+  >([]);
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [taxOffices, setTaxOffices] = useState<TaxOfficeRow[]>([]);
   const [banks, setBanks] = useState<BankRow[]>([]);
   const [bins, setBins] = useState<BinRow[]>([]);
   const remoteBinsActive = binSource === 'remote';
+  const remoteCatalogLocked = remoteBinsActive;
 
   const syncRuntimeBins = useCallback((list: BinRow[]) => {
     setRuntimeBins(
@@ -170,6 +183,32 @@ export default function ApiSettingsPage() {
     }
   }, [token]);
 
+  const loadCentralLog = useCallback(async () => {
+    if (!token) return;
+    setCentralLogBusy(true);
+    try {
+      const list = await api.get<
+        {
+          id: string;
+          resource: string;
+          action: string;
+          rowId: string;
+          summary: string;
+          createdAt: string;
+        }[]
+      >('/api/settings/central-changelog?limit=100', token);
+      setCentralLogRows(Array.isArray(list) ? list : []);
+    } catch (err) {
+      setToast({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'Merkezi log yüklenemedi',
+      });
+      setCentralLogRows([]);
+    } finally {
+      setCentralLogBusy(false);
+    }
+  }, [token]);
+
   const DEFAULT_GTK_TAHSILAT_URL = 'https://api.guzelteknoloji.com/v1/tahsilat';
 
   async function saveBinSource(next: 'local' | 'remote') {
@@ -198,7 +237,6 @@ export default function ApiSettingsPage() {
         },
         token,
       );
-      const sourceChanged = data.source !== binSource;
       setBinSource(data.source);
       setBinRemoteUrl(data.remoteBaseUrl);
       setBinRemoteKey(data.remoteApiKey);
@@ -218,7 +256,17 @@ export default function ApiSettingsPage() {
             ? 'Güzel Teknoloji API açık — ortak veriler merkezden geliyor.'
             : 'Merkezi API kapandı — yerel listeler kullanılıyor.',
       });
-      if (!sourceChanged && category === 'bin') void loadBins();
+      if (category === 'bin') void loadBins();
+      if (category === 'locations') void loadLocations();
+      if (category === 'tax-offices') {
+        void loadTaxOffices();
+        void loadLocations();
+      }
+      if (data.source === 'remote' && centralLogOpen) void loadCentralLog();
+      if (data.source !== 'remote') {
+        setCentralLogOpen(false);
+        setCentralLogRows([]);
+      }
     } catch (err) {
       setToast({
         kind: 'err',
@@ -230,8 +278,7 @@ export default function ApiSettingsPage() {
   }
 
   useEffect(() => {
-    // Hub + BIN detay: merkezi kaynak durumunu yükle
-    if (!category || category === 'bin') void loadBinSource();
+    void loadBinSource();
     if (category === 'bin') void loadBins();
     if (category === 'locations') void loadLocations();
     if (category === 'tax-offices') {
@@ -816,8 +863,9 @@ export default function ApiSettingsPage() {
                 Güzel Teknoloji merkezi API
               </p>
               <p className="mt-1 text-xs leading-relaxed text-[var(--panel-muted)]">
-                Açıkken BIN ve ortak tanımlar api.guzelteknoloji.com üzerinden çekilir. API Key’i
-                Güzel Teknoloji → Firmalar ekranından kopyalayın. Kapalıysa yerel listeler kullanılır.
+                Açıkken bankalar, BIN, lokasyonlar, vergi daireleri ve diğer Tahsilat ortak verileri
+                merkezden gelir (boş kaynaklar da boş listelenir). API Key’i Güzel Teknoloji →
+                Firmalar’dan kopyalayın. Kapalıysa yerel listeler kullanılır.
               </p>
             </div>
             <button
@@ -868,7 +916,7 @@ export default function ApiSettingsPage() {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {remoteBinsActive ? (
               <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                Aktif — ortak veriler merkezden geliyor.
+                Aktif — ortak veriler merkezden geliyor (salt okunur).
               </p>
             ) : (
               <p className="text-[11px] text-[var(--panel-muted)]">
@@ -886,7 +934,53 @@ export default function ApiSettingsPage() {
             >
               Yol / anahtarı kaydet
             </button>
+            {remoteBinsActive ? (
+              <button
+                type="button"
+                disabled={centralLogBusy}
+                onClick={() => {
+                  const next = !centralLogOpen;
+                  setCentralLogOpen(next);
+                  if (next) void loadCentralLog();
+                }}
+                className="rounded-lg border border-emerald-600/35 bg-emerald-600/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition hover:bg-emerald-600/15 disabled:opacity-50 dark:text-emerald-300"
+              >
+                {centralLogBusy ? 'Log…' : centralLogOpen ? 'Logu gizle' : 'Log'}
+              </button>
+            ) : null}
           </div>
+          {remoteBinsActive && centralLogOpen ? (
+            <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-emerald-600/20 bg-[var(--panel-elevated)]">
+              {centralLogRows.length === 0 ? (
+                <p className="px-3 py-4 text-center text-xs text-[var(--panel-muted)]">
+                  {centralLogBusy
+                    ? 'Yükleniyor…'
+                    : 'Henüz merkezi değişiklik yok. Tahsilat panelinde kayıt eklenince burada görünür.'}
+                </p>
+              ) : (
+                <ul className="divide-y divide-[var(--panel-line)]">
+                  {centralLogRows.map((row) => (
+                    <li key={row.id} className="px-3 py-2.5 text-xs">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="font-semibold text-[var(--panel-ink)]">
+                          {row.summary || `${row.resource} · ${row.action}`}
+                        </span>
+                        <span className="tabular-nums text-[var(--panel-muted)]">
+                          {row.createdAt
+                            ? new Date(row.createdAt).toLocaleString('tr-TR')
+                            : ''}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-[var(--panel-muted)]">
+                        {row.resource}
+                        {row.rowId ? ` · #${row.rowId}` : ''} · {row.action}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -1082,9 +1176,9 @@ export default function ApiSettingsPage() {
             <button
               type="button"
               data-km-jump
-              disabled={(category === 'bin' || category === 'banks') && remoteBinsActive}
+              disabled={remoteCatalogLocked}
               title={
-                (category === 'bin' || category === 'banks') && remoteBinsActive
+                remoteCatalogLocked
                   ? 'Merkezi API açıkken yerel Excel yükleme kapalı'
                   : undefined
               }
@@ -1098,9 +1192,9 @@ export default function ApiSettingsPage() {
             <button
               type="button"
               data-km-jump
-              disabled={(category === 'bin' || category === 'banks') && remoteBinsActive}
+              disabled={remoteCatalogLocked}
               title={
-                (category === 'bin' || category === 'banks') && remoteBinsActive
+                remoteCatalogLocked
                   ? 'Merkezi API açıkken yerel ekleme kapalı'
                   : undefined
               }
@@ -1205,7 +1299,7 @@ export default function ApiSettingsPage() {
             locationViewLevel={locationViewLevel}
             allLocations={locations}
             rows={slice}
-            readOnly={(category === 'bin' || category === 'banks') && remoteBinsActive}
+            readOnly={remoteCatalogLocked}
             onEdit={(id, focus) => {
               setEditId(id);
               setLocFocus(focus ?? 'name');

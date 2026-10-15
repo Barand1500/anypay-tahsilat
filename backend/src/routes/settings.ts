@@ -71,6 +71,7 @@ import {
   type DekontBlockType,
 } from '../services/dekontSettingsService.js';
 import {
+  fetchCentralChangeLog,
   getBinSourceSettings,
   updateBinSourceSettings,
 } from '../services/binSourceSettingsService.js';
@@ -1002,6 +1003,19 @@ settingsRouter.patch('/bin-source', async (req: AuthedRequest, res) => {
     return sendError(res, 500, 'BIN kaynak ayarları kaydedilemedi');
   }
 });
+
+/** Merkezi Tahsilat değişiklik günlüğü (Güzel Teknoloji → AnyPay) */
+settingsRouter.get('/central-changelog', async (req: AuthedRequest, res) => {
+  try {
+    const limit = Number(req.query.limit || 100);
+    return sendSuccess(res, await fetchCentralChangeLog(limit));
+  } catch (err) {
+    if (err instanceof SettingsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Merkezi değişiklik günlüğü alınamadı');
+  }
+});
+
 const whatsappSchema = z.object({
   active: z.boolean(),
   appId: z.string().max(64),

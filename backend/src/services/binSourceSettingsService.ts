@@ -116,7 +116,50 @@ let remoteBankCache: RemoteBankCache | null = null;
 export function clearRemoteBinCache() {
   remoteCache = null;
   remoteBankCache = null;
+  remoteLocationsCache = null;
+  remoteTaxCache = null;
 }
+
+export async function isCentralRemoteActive(): Promise<boolean> {
+  const src = await getBinSourceSettings();
+  return src.source === 'remote';
+}
+
+export async function assertLocalCatalogWritable(label = 'Bu tanımlar') {
+  if (await isCentralRemoteActive()) {
+    throw new SettingsError(
+      `${label} merkezi API üzerinden geliyor (salt okunur). Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.`,
+    );
+  }
+}
+
+type RemoteLocationsCache = { at: number; rows: RemoteLocationRow[] };
+let remoteLocationsCache: RemoteLocationsCache | null = null;
+type RemoteTaxCache = { at: number; rows: RemoteTaxOfficeRow[] };
+let remoteTaxCache: RemoteTaxCache | null = null;
+
+export type RemoteLocationRow = {
+  id: string;
+  name: string;
+  level: 'Ülke' | 'İl' | 'İlçe' | 'Mahalle';
+  parentId: string | null;
+};
+
+export type RemoteTaxOfficeRow = {
+  id: string;
+  city: string;
+  district: string;
+  name: string;
+};
+
+export type CentralChangeLogRow = {
+  id: string;
+  resource: string;
+  action: string;
+  rowId: string;
+  summary: string;
+  createdAt: string;
+};
 
 function pickField(row: Record<string, unknown>, aliases: string[]): string {
   const keyFor = (value: string) =>
@@ -222,6 +265,115 @@ export async function fetchRemoteBanks(force = false): Promise<RemoteBankRow[]> 
   const rows = mapRemoteBanks(raw);
   remoteBankCache = { at: Date.now(), rows };
   return rows;
+}
+
+function flattenRemoteItem(item: Record<string, unknown>): Record<string, unknown> {
+  if (item.data && typeof item.data === 'object' && !Array.isArray(item.data)) {
+    return { ...item, ...(item.data as Record<string, unknown>) };
+  }
+  return item;
+}
+
+/** Merkez iller + ilçeler → AnyPay lokasyon ağacı (Mahalle boş olabilir) */
+export async function fetchRemoteLocations(force = false): Promise<RemoteLocationRow[]> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote') return [];
+  if (!force && remoteLocationsCache && Date.now() - remoteLocationsCache.at < CACHE_TTL_MS) {
+    return remoteLocationsCache.rows;
+  }
+  const [provinces, districts] = await Promise.all([
+    fetchRemoteTahsilatResource('provinces'),
+    fetchRemoteTahsilatResource('districts'),
+  ]);
+  const countryId = 'u-remote-tr';
+  const out: RemoteLocationRow[] = [
+    { id: countryId, name: 'Türkiye', level: 'Ülke', parentId: null },
+  ];
+  const provinceIdByName = new Map<string, string>();
+  for (const item of provinces) {
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi', 'il']);
+    if (!name) continue;
+    const id = `i-${flat.id != null ? String(flat.id) : name}`;
+    provinceIdByName.set(name.toLocaleLowerCase('tr-TR'), id);
+    out.push({ id, name, level: 'İl', parentId: countryId });
+  }
+  for (const item of districts) {
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi', 'ilce']);
+    if (!name) continue;
+    const provinceName = pickField(flat, ['province', 'il', 'provinceName']);
+    const provinceIdField = pickField(flat, ['provinceId', 'ilId']);
+    let parentId =
+      (provinceIdField ? `i-${provinceIdField}` : '') ||
+      (provinceName ? provinceIdByName.get(provinceName.toLocaleLowerCase('tr-TR')) || '' : '');
+    if (!parentId) parentId = countryId;
+    const id = `c-${flat.id != null ? String(flat.id) : name}`;
+    out.push({ id, name, level: 'İlçe', parentId });
+  }
+  remoteLocationsCache = { at: Date.now(), rows: out };
+  return out;
+}
+
+/** Merkez vergi daireleri */
+export async function fetchRemoteTaxOffices(force = false): Promise<RemoteTaxOfficeRow[]> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote') return [];
+  if (!force && remoteTaxCache && Date.now() - remoteTaxCache.at < CACHE_TTL_MS) {
+    return remoteTaxCache.rows;
+  }
+  const raw = await fetchRemoteTahsilatResource('tax-offices');
+  const out: RemoteTaxOfficeRow[] = [];
+  for (const item of raw) {
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi']);
+    if (!name) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `tax-${name}`,
+      name,
+      city: pickField(flat, ['province', 'city', 'il', 'code']) || '',
+      district: pickField(flat, ['district', 'ilce']) || '',
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  remoteTaxCache = { at: Date.now(), rows: out };
+  return out;
+}
+
+/** Merkez değişiklik günlüğü */
+export async function fetchCentralChangeLog(limit = 100): Promise<CentralChangeLogRow[]> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote') return [];
+  if (!settings.remoteApiKey) throw new SettingsError('Merkezi API anahtarı yok');
+  const base = settings.remoteBaseUrl.replace(/\/+$/, '');
+  const url = `${base}/changelog?limit=${Math.min(500, Math.max(1, limit))}`;
+  const res = await fetch(url, {
+    headers: {
+      'X-API-Key': settings.remoteApiKey,
+      Accept: 'application/json',
+    },
+  });
+  const json = (await res.json().catch(() => null)) as {
+    success?: boolean;
+    message?: string;
+    data?: unknown;
+  } | null;
+  if (!res.ok) {
+    throw new SettingsError(
+      (json && typeof json === 'object' && json.message) || `Merkezi log alınamadı (${res.status})`,
+    );
+  }
+  const raw = Array.isArray(json?.data) ? json!.data! : [];
+  return raw
+    .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object' && !Array.isArray(r))
+    .map((r) => ({
+      id: String(r.id ?? ''),
+      resource: String(r.resource ?? ''),
+      action: String(r.action ?? ''),
+      rowId: String(r.rowId ?? r.row_id ?? ''),
+      summary: String(r.summary ?? ''),
+      createdAt: String(r.createdAt ?? r.created_at ?? ''),
+    }));
 }
 
 /** Güzel API’den tam BIN kataloğu (bellek cache) */
