@@ -1082,10 +1082,10 @@ export default function ApiSettingsPage() {
             <button
               type="button"
               data-km-jump
-              disabled={category === 'bin' && remoteBinsActive}
+              disabled={(category === 'bin' || category === 'banks') && remoteBinsActive}
               title={
-                category === 'bin' && remoteBinsActive
-                  ? 'Merkezi BIN açıkken yerel Excel yükleme kapalı'
+                (category === 'bin' || category === 'banks') && remoteBinsActive
+                  ? 'Merkezi API açıkken yerel Excel yükleme kapalı'
                   : undefined
               }
               onClick={() => setExcelOpen(true)}
@@ -1098,10 +1098,10 @@ export default function ApiSettingsPage() {
             <button
               type="button"
               data-km-jump
-              disabled={category === 'bin' && remoteBinsActive}
+              disabled={(category === 'bin' || category === 'banks') && remoteBinsActive}
               title={
-                category === 'bin' && remoteBinsActive
-                  ? 'Merkezi BIN açıkken yerel ekleme kapalı'
+                (category === 'bin' || category === 'banks') && remoteBinsActive
+                  ? 'Merkezi API açıkken yerel ekleme kapalı'
                   : undefined
               }
               onClick={() => {
@@ -1205,7 +1205,7 @@ export default function ApiSettingsPage() {
             locationViewLevel={locationViewLevel}
             allLocations={locations}
             rows={slice}
-            readOnly={category === 'bin' && remoteBinsActive}
+            readOnly={(category === 'bin' || category === 'banks') && remoteBinsActive}
             onEdit={(id, focus) => {
               setEditId(id);
               setLocFocus(focus ?? 'name');

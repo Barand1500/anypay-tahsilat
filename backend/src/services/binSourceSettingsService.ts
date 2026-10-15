@@ -100,8 +100,22 @@ type CacheEntry = { at: number; rows: RemoteBinRow[] };
 let remoteCache: CacheEntry | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+export type RemoteBankRow = {
+  id: string;
+  name: string;
+  shortName: string;
+  logo: string;
+  gateway3dUrl: string;
+  apiUrl: string;
+  xmlUrl: string;
+};
+
+type RemoteBankCache = { at: number; rows: RemoteBankRow[] };
+let remoteBankCache: RemoteBankCache | null = null;
+
 export function clearRemoteBinCache() {
   remoteCache = null;
+  remoteBankCache = null;
 }
 
 function pickField(row: Record<string, unknown>, aliases: string[]): string {
@@ -142,15 +156,13 @@ function mapRemoteRows(raw: unknown[]): RemoteBinRow[] {
   return out;
 }
 
-/** Güzel API’den tam BIN kataloğu (bellek cache) */
-export async function fetchRemoteBinCatalog(force = false): Promise<RemoteBinRow[]> {
+/** Merkez /v1/tahsilat/{resource} — ham satırlar */
+export async function fetchRemoteTahsilatResource(resource: string): Promise<Record<string, unknown>[]> {
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return [];
-  if (!force && remoteCache && Date.now() - remoteCache.at < CACHE_TTL_MS) {
-    return remoteCache.rows;
-  }
+  if (!settings.remoteApiKey) throw new SettingsError('Merkezi API anahtarı yok');
   const base = settings.remoteBaseUrl.replace(/\/+$/, '');
-  const url = `${base}/bins`;
+  const url = `${base}/${resource.replace(/^\/+|\/+$/g, '')}`;
   const res = await fetch(url, {
     headers: {
       'X-API-Key': settings.remoteApiKey,
@@ -166,13 +178,60 @@ export async function fetchRemoteBinCatalog(force = false): Promise<RemoteBinRow
       json && typeof json === 'object' && !Array.isArray(json) && 'message' in json
         ? String((json as { message?: string }).message || '')
         : '';
-    throw new SettingsError(msg || `Uzak BIN API hatası (${res.status})`);
+    throw new SettingsError(msg || `Merkezi API hatası (${resource}, ${res.status})`);
   }
-  const rawRows: unknown[] = Array.isArray(json)
-    ? json
-    : json && typeof json === 'object' && Array.isArray((json as { data?: unknown }).data)
-      ? ((json as { data: unknown[] }).data)
-      : [];
+  if (Array.isArray(json)) return json as Record<string, unknown>[];
+  if (json && typeof json === 'object' && Array.isArray((json as { data?: unknown }).data)) {
+    return (json as { data: Record<string, unknown>[] }).data;
+  }
+  return [];
+}
+
+function mapRemoteBanks(raw: Record<string, unknown>[]): RemoteBankRow[] {
+  const out: RemoteBankRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat =
+      item.data && typeof item.data === 'object' && !Array.isArray(item.data)
+        ? { ...item, ...(item.data as Record<string, unknown>) }
+        : item;
+    const name = pickField(flat, ['name', 'adi', 'banka']);
+    if (!name) continue;
+    const idRaw = flat.id != null ? String(flat.id) : '';
+    out.push({
+      id: idRaw || `remote-${name}`,
+      name,
+      shortName: pickField(flat, ['shortName', 'shortname', 'kisaAd', 'kisaAdi', 'kisaadi']) || name.slice(0, 8),
+      logo: pickField(flat, ['logo', 'logoUrl', 'image']),
+      gateway3dUrl: pickField(flat, ['gateway3dsUrl', 'gateway3dUrl', 'sanalPos3dUrl']),
+      apiUrl: pickField(flat, ['apiUrl', 'sanalPosApiUrl']),
+      xmlUrl: pickField(flat, ['xmlUrl', 'sanalPosXmlUrl']),
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+}
+
+/** Merkez bankalar listesi (cache) */
+export async function fetchRemoteBanks(force = false): Promise<RemoteBankRow[]> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote') return [];
+  if (!force && remoteBankCache && Date.now() - remoteBankCache.at < CACHE_TTL_MS) {
+    return remoteBankCache.rows;
+  }
+  const raw = await fetchRemoteTahsilatResource('banks');
+  const rows = mapRemoteBanks(raw);
+  remoteBankCache = { at: Date.now(), rows };
+  return rows;
+}
+
+/** Güzel API’den tam BIN kataloğu (bellek cache) */
+export async function fetchRemoteBinCatalog(force = false): Promise<RemoteBinRow[]> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote') return [];
+  if (!force && remoteCache && Date.now() - remoteCache.at < CACHE_TTL_MS) {
+    return remoteCache.rows;
+  }
+  const rawRows = await fetchRemoteTahsilatResource('bins');
   const rows = mapRemoteRows(rawRows);
   remoteCache = { at: Date.now(), rows };
   return rows;

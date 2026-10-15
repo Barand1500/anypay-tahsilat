@@ -32,6 +32,7 @@ banksRouter.get('/', async (_req, res) => {
   try {
     return sendSuccess(res, await listBanks());
   } catch (err) {
+    if (err instanceof BanksError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Bankalar yüklenemedi');
   }

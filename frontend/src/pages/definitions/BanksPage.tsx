@@ -31,6 +31,7 @@ export default function BanksPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [remoteSource, setRemoteSource] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -51,7 +52,13 @@ export default function BanksPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const list = await api.get<BankDef[]>('/api/banks', token);
+      const [src, list] = await Promise.all([
+        api
+          .get<{ source: 'local' | 'remote' }>('/api/settings/bin-source', token)
+          .catch(() => ({ source: 'local' as const })),
+        api.get<BankDef[]>('/api/banks', token),
+      ]);
+      setRemoteSource(src.source === 'remote');
       setRows(list);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Bankalar yüklenemedi');
@@ -202,12 +209,14 @@ export default function BanksPage() {
   }
 
   function onRowDoubleClick(r: BankDef, e: ReactMouseEvent) {
+    if (remoteSource) return;
     const col = (e.target as HTMLElement).closest('[data-bank-col]')?.getAttribute('data-bank-col');
     const focus = col ? COL_FOCUS[col] : 'name';
     setModal({ type: 'edit', bank: r, focusField: focus ?? 'name' });
   }
 
   function openMenu(e: ReactMouseEvent, id: string) {
+    if (remoteSource) return;
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setMenu({ id, top: rect.bottom + 4, left: Math.min(rect.right - 160, window.innerWidth - 172) });
@@ -234,6 +243,13 @@ export default function BanksPage() {
         </p>
       ) : null}
 
+      {remoteSource ? (
+        <p className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
+          Merkezi API açık — listede yalnızca Güzel Teknoloji’deki bankalar var (ör. Yunus Bank). Yerel
+          ekle / düzenle kapalı. Kapatınca yerel veritabanı yeniden kullanılır.
+        </p>
+      ) : null}
+
       <section className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <h1 className="text-lg font-bold text-[var(--panel-ink)]">Bankalar</h1>
@@ -246,18 +262,20 @@ export default function BanksPage() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
             >
               <RefreshIcon />
-              {refreshing ? 'Güncelleniyor…' : 'Bankaları Güncelle'}
+              {refreshing ? 'Güncelleniyor…' : remoteSource ? 'Merkezden Yenile' : 'Bankaları Güncelle'}
             </button>
             <ExportDropdown onCsv={exportCsv} onCopy={() => void copyList()} />
-            <button
-              type="button"
-              data-km-jump
-              onClick={() => setModal({ type: 'create' })}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-            >
-              <span className="text-lg leading-none">+</span>
-              Ekle
-            </button>
+            {!remoteSource ? (
+              <button
+                type="button"
+                data-km-jump
+                onClick={() => setModal({ type: 'create' })}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                <span className="text-lg leading-none">+</span>
+                Ekle
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -292,15 +310,24 @@ export default function BanksPage() {
 
         <div ref={tableRef} className="overflow-x-auto">
           <div className="min-w-[480px]">
-            <div className="grid grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.8fr)_44px] gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-surface)]/40 px-5 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[var(--panel-ink)]/50">
+            <div
+              className={[
+                'grid gap-3 border-b border-[var(--panel-line)] bg-[var(--panel-surface)]/40 px-5 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[var(--panel-ink)]/50',
+                remoteSource
+                  ? 'grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.8fr)]'
+                  : 'grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.8fr)_44px]',
+              ].join(' ')}
+            >
               <span>Adı</span>
               <span>Kısa Adı</span>
-              <span />
+              {!remoteSource ? <span /> : null}
             </div>
 
             {slice.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-[var(--panel-muted)]">
-                Kayıt bulunamadı.
+                {remoteSource
+                  ? 'Merkezde banka yok veya API Key yetkisiz.'
+                  : 'Kayıt bulunamadı.'}
               </p>
             ) : (
               slice.map((r) => (
@@ -310,8 +337,13 @@ export default function BanksPage() {
                   data-km-row
                   tabIndex={-1}
                   onDoubleClick={(e) => onRowDoubleClick(r, e)}
-                  title="Çift tıkla: düzenle"
-                  className="grid cursor-pointer grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.8fr)_44px] items-center gap-3 border-b border-[var(--panel-line)] px-5 py-3 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45"
+                  title={remoteSource ? 'Merkezi kayıt — salt okunur' : 'Çift tıkla: düzenle'}
+                  className={[
+                    'grid items-center gap-3 border-b border-[var(--panel-line)] px-5 py-3 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45',
+                    remoteSource
+                      ? 'grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.8fr)]'
+                      : 'cursor-pointer grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.8fr)_44px]',
+                  ].join(' ')}
                 >
                   <div data-bank-col="name" className="flex min-w-0 items-center gap-3">
                     {r.logoUrl ? (
@@ -333,17 +365,19 @@ export default function BanksPage() {
                   >
                     {r.shortName}
                   </span>
-                  <div className="relative flex justify-end">
-                    <button
-                      type="button"
-                      data-bank-menu-btn
-                      aria-label="Menü"
-                      onClick={(e) => openMenu(e, r.id)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
-                    >
-                      <DotsIcon />
-                    </button>
-                  </div>
+                  {!remoteSource ? (
+                    <div className="relative flex justify-end">
+                      <button
+                        type="button"
+                        data-bank-menu-btn
+                        aria-label="Menü"
+                        onClick={(e) => openMenu(e, r.id)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+                      >
+                        <DotsIcon />
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}

@@ -33,6 +33,7 @@ export function resolveBankLogoUrl(logo: string | null | undefined): string {
   if (!logo) return '';
   const raw = logo.trim();
   if (!raw) return '';
+  if (/^data:image\//i.test(raw)) return raw;
   if (/^https?:\/\//i.test(raw)) return raw;
   if (raw.startsWith('/banks/') || raw.startsWith('/uploads/')) return raw;
   if (raw.startsWith('uploads/')) return `/${raw}`;
@@ -83,7 +84,46 @@ async function saveBankLogo(dataUrl: string): Promise<string> {
   return `bankalar/${name}`;
 }
 
+async function assertLocalBanksWritable() {
+  const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+  const src = await getBinSourceSettings();
+  if (src.source === 'remote') {
+    throw new BanksError(
+      'Merkezi API açık — bankalar salt okunur. Düzenlemek için API Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function listBanks(): Promise<PublicBank[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteBanks } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteBanks();
+      return remote.map((r) => ({
+        id: r.id,
+        name: r.name,
+        shortName: r.shortName,
+        logo: r.logo || null,
+        logoUrl: resolveBankLogoUrl(r.logo || null),
+        securityTypes: '',
+        gateway3dUrl: r.gateway3dUrl,
+        apiUrl: r.apiUrl,
+        xmlUrl: r.xmlUrl,
+      }));
+    }
+  } catch (err) {
+    if (err instanceof BanksError) throw err;
+    /* uzak hata → aşağıda yerel yedek yok; merkezi modda boş dönme riski — hata fırlat */
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new BanksError(
+        err instanceof Error ? err.message : 'Merkezi bankalar yüklenemedi',
+      );
+    }
+  }
+
   const rows = await prisma.banka.findMany({
     where: notRemoved(),
     orderBy: { adi: 'asc' },
@@ -110,6 +150,7 @@ function trimUrl(v: string | undefined): string | null {
 }
 
 export async function createBank(input: BankUpsertInput): Promise<PublicBank> {
+  await assertLocalBanksWritable();
   const name = input.name.trim();
   const shortName = input.shortName.trim();
   if (!name) throw new BanksError('Adı gerekli');
@@ -145,6 +186,7 @@ export async function createBank(input: BankUpsertInput): Promise<PublicBank> {
 }
 
 export async function updateBank(id: number, input: BankUpsertInput): Promise<PublicBank> {
+  await assertLocalBanksWritable();
   const existing = await prisma.banka.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -187,6 +229,7 @@ export async function updateBank(id: number, input: BankUpsertInput): Promise<Pu
 }
 
 export async function softDeleteBank(id: number): Promise<void> {
+  await assertLocalBanksWritable();
   const existing = await prisma.banka.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -197,8 +240,21 @@ export async function softDeleteBank(id: number): Promise<void> {
   });
 }
 
-/** Kullanılmayan — liste FE’de yeniden yüklenir */
+/** Yerel sayım veya merkezi yeniden çek */
 export async function refreshBanksFromDisk(): Promise<{ matched: number }> {
+  try {
+    const { getBinSourceSettings, fetchRemoteBanks, clearRemoteBinCache } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      clearRemoteBinCache();
+      const remote = await fetchRemoteBanks(true);
+      return { matched: remote.length };
+    }
+  } catch {
+    /* yerel */
+  }
   const n = await prisma.banka.count({ where: notRemoved() });
   return { matched: n };
 }
