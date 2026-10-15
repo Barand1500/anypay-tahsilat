@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { SimpleNameModal } from './SimpleNameModal';
 import type { CardNamedRow } from './mockKart';
 
@@ -63,6 +64,11 @@ export function CardListPage(config: Config) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const resource = config.apiPath.endsWith('card-types') ? 'card-types' : 'card-kinds';
+    return onCentralCatalogChange(resource, () => void load());
+  }, [config.apiPath, load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');

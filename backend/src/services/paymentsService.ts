@@ -599,7 +599,11 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         orderId: odemeNo,
         bankName: centralBankName,
         amount: chargedAmount,
-        currencyCode: currency.shortName || 'TRY',
+        // The central payment executor accepts ISO currency codes. Older
+        // tenants commonly label the Turkish lira as "TL" in the UI.
+        currencyCode: currency.shortName?.trim().toUpperCase() === 'TL'
+          ? 'TRY'
+          : currency.shortName || 'TRY',
         installment,
         card: { number: digits, holder: input.holder.trim(), expiry, cvc },
         clientIp: input.clientIp,

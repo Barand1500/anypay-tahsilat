@@ -11,6 +11,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { setRuntimeBins } from '../../lib/binStore';
 import { reloadRuntimeBins } from '../../hooks/useLoadBins';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { ApiCategoryModal } from './ApiCategoryModal';
 import { ApiExcelModal } from './ApiExcelModal';
 import { LocationModal, type LocationFocusField } from './LocationModal';
@@ -305,6 +306,17 @@ export default function ApiSettingsPage() {
       void loadLocations();
     }
   }, [category, loadBins, loadBinSource, loadLocations, loadTaxOffices]);
+
+  useEffect(() => onCentralCatalogChange(
+    ['bins', 'provinces', 'districts', 'tax-offices'],
+    (change) => {
+      if (change.resource === 'bins' && category === 'bin') void loadBins();
+      if ((change.resource === 'provinces' || change.resource === 'districts') && category === 'locations') {
+        void loadLocations();
+      }
+      if (change.resource === 'tax-offices' && category === 'tax-offices') void loadTaxOffices();
+    },
+  ), [category, loadBins, loadLocations, loadTaxOffices]);
 
   const [endpointDraft, setEndpointDraft] = useState('');
   const [query, setQuery] = useState('');

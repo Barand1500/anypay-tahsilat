@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../lib/api';
+import { onCentralCatalogChange } from '../lib/centralCatalogEvents';
 import type { CurrencyDef } from '../pages/definitions/currencyTypes';
 import { getDefaultCurrency } from '../pages/settings/defaultsStore';
 
@@ -29,6 +30,8 @@ export function useActiveCurrencies() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => onCentralCatalogChange('currencies', () => void load()), [load]);
 
   const preferred = getDefaultCurrency().trim();
   const byId = preferred ? currencies.find((c) => c.id === preferred) : undefined;

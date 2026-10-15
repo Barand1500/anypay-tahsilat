@@ -400,6 +400,7 @@ function mapRemoteBanks(raw: Record<string, unknown>[]): RemoteBankRow[] {
 export async function fetchRemoteBanks(force = false): Promise<RemoteBankRow[]> {
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return [];
+  if (!force) await maybeInvalidateFromChangelog();
   if (!force && remoteBankCache && Date.now() - remoteBankCache.at < CACHE_TTL_MS) {
     return remoteBankCache.rows;
   }
@@ -420,6 +421,7 @@ function flattenRemoteItem(item: Record<string, unknown>): Record<string, unknow
 export async function fetchRemoteLocations(force = false): Promise<RemoteLocationRow[]> {
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return [];
+  if (!force) await maybeInvalidateFromChangelog();
   if (!force && remoteLocationsCache && Date.now() - remoteLocationsCache.at < CACHE_TTL_MS) {
     return remoteLocationsCache.rows;
   }
@@ -461,6 +463,7 @@ export async function fetchRemoteLocations(force = false): Promise<RemoteLocatio
 export async function fetchRemoteTaxOffices(force = false): Promise<RemoteTaxOfficeRow[]> {
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return [];
+  if (!force) await maybeInvalidateFromChangelog();
   if (!force && remoteTaxCache && Date.now() - remoteTaxCache.at < CACHE_TTL_MS) {
     return remoteTaxCache.rows;
   }
@@ -523,6 +526,7 @@ export async function fetchCentralChangeLog(limit = 100): Promise<CentralChangeL
 export async function fetchRemoteBinCatalog(force = false): Promise<RemoteBinRow[]> {
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return [];
+  if (!force) await maybeInvalidateFromChangelog();
   if (!force && remoteCache && Date.now() - remoteCache.at < CACHE_TTL_MS) {
     return remoteCache.rows;
   }

@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { ContractModal } from './ContractModal';
 import {
   clearLocalContractsCache,
@@ -76,6 +77,8 @@ export default function ContractsPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => onCentralCatalogChange('contracts', () => void reload()), [reload]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { api } from '../lib/api';
+import { onCentralCatalogChange } from '../lib/centralCatalogEvents';
 import { setRuntimeBins, type RuntimeBin } from '../lib/binStore';
 
 type CatalogRow = {
@@ -93,8 +94,10 @@ export function useLoadBins() {
         if (!cancelled) setRuntimeBins([]);
       }
     })();
+    const unsubscribe = onCentralCatalogChange('bins', () => void reloadRuntimeBins());
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 }

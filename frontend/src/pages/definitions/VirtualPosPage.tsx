@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import type { BankDef } from './bankTypes';
 import { setVirtualPosList, type VirtualPosRow } from './mockPos';
 import { VirtualPosModal, type VirtualPosModalMode } from './VirtualPosModal';
@@ -50,6 +51,8 @@ export default function VirtualPosPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => onCentralCatalogChange(['virtual-pos', 'banks'], () => void load()), [load]);
 
   useEffect(() => {
     setVirtualPosList(rows);

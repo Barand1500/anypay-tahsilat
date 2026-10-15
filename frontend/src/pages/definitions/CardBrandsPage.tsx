@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { CardBrandModal, type CardBrandModalMode } from './CardBrandModal';
 import type { CardBrandRow } from './mockKart';
 
@@ -51,6 +52,8 @@ export default function CardBrandsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => onCentralCatalogChange('card-brands', () => void load()), [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');

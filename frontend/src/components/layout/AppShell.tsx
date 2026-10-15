@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { useLoadBins } from '../../hooks/useLoadBins';
+import { api } from '../../lib/api';
 import { KeyboardModeProvider } from '../../keyboard/KeyboardModeContext';
 import {
   applyDisplayMode,
@@ -52,6 +53,69 @@ function AppShellInner() {
   const location = useLocation();
   const navigate = useNavigate();
   useLoadBins();
+
+  // AnyPay tabs poll the server-side proxy (never the central API key) while
+  // central mode is enabled. A changed changelog head busts server caches and
+  // notifies mounted catalog screens to reload their current data.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    let polling = false;
+    let remoteEnabled = false;
+    let changelogHead: string | null = null;
+
+    const poll = async () => {
+      if (cancelled || polling || document.visibilityState !== 'visible') return;
+      polling = true;
+      try {
+        if (!remoteEnabled) {
+          const source = await api.get<{ source: 'local' | 'remote' }>('/api/settings/bin-source', token);
+          remoteEnabled = source.source === 'remote';
+          if (!remoteEnabled) {
+            changelogHead = null;
+            return;
+          }
+        }
+
+        const rows = await api.get<{ id: string; resource: string; action: string }[]>(
+          '/api/settings/central-changelog?limit=1',
+          token,
+        );
+        const latest = rows[0];
+        if (!latest?.id) return;
+        if (changelogHead === null) {
+          changelogHead = latest.id;
+          return;
+        }
+        if (latest.id === changelogHead) return;
+
+        await api.post('/api/settings/central-catalog/refresh', {}, token);
+        changelogHead = latest.id;
+        window.dispatchEvent(
+          new CustomEvent('central-catalog-changed', {
+            detail: { resource: latest.resource, action: latest.action, id: latest.id },
+          }),
+        );
+      } catch {
+        // Keep the last head so a transient failure is retried on the next tick.
+      } finally {
+        polling = false;
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => {
+      // Recheck source periodically so a mode toggle takes effect without reload.
+      remoteEnabled = false;
+      void poll();
+    }, 20_000);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', poll);
+    };
+  }, [token]);
   const { applyTheme } = useTheme();
   const { enabled: dockOn, animating } = useDockMode();
   const { phase: ratesPhase } = useRates();

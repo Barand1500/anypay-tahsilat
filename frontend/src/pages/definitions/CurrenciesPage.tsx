@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { CurrencyModal, type CurrencyFocusField } from './CurrencyModal';
 import { formatRate, type CurrencyDef } from './currencyTypes';
 
@@ -68,6 +69,8 @@ export default function CurrenciesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => onCentralCatalogChange('currencies', () => void load()), [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');

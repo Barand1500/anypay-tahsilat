@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { BankModal } from './BankModal';
 import type { BankDef, BankFocusField } from './bankTypes';
 
@@ -71,6 +72,8 @@ export default function BanksPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => onCentralCatalogChange('banks', () => void load()), [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');

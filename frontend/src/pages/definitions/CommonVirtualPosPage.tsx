@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { api } from '../../lib/api';
+import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import type { BankDef } from './bankTypes';
 import { type CommonVirtualPosRow } from './mockPos';
 import {
@@ -51,6 +52,8 @@ export default function CommonVirtualPosPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => onCentralCatalogChange(['virtual-pos', 'banks'], () => void load()), [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
