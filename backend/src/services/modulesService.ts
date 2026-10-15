@@ -88,7 +88,41 @@ async function buildRoleIndex(): Promise<Map<number, string[]>> {
   return index;
 }
 
+async function assertLocalModulesWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new ModulesError(
+      'Merkezi API açık — modüller salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function listModules(): Promise<PublicModule[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteModules } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteModules();
+      return remote.map((r) => ({
+        id: Number(r.id) || 0,
+        name: r.name,
+        dbTable: r.code || '',
+        urlPrefix: r.code ? `/${r.code}` : '/',
+        roles: [],
+        createdAt: null,
+      }));
+    }
+  } catch (err) {
+    if (err instanceof ModulesError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new ModulesError(err instanceof Error ? err.message : 'Merkezi modüller yüklenemedi');
+    }
+  }
+
   const [rows, roleIndex] = await Promise.all([
     prisma.izinler.findMany({
       where: { OR: [{ remove: null }, { remove: false }] },
@@ -105,6 +139,7 @@ export async function createModule(input: {
   dbTable: string;
   urlPrefix: string;
 }): Promise<PublicModule> {
+  await assertLocalModulesWritable();
   const name = input.name.trim();
   const dbTable = input.dbTable.trim();
   const urlPrefix = cleanModuleRoute(input.urlPrefix);
@@ -129,6 +164,7 @@ export async function updateModule(
   id: number,
   input: { name?: string; dbTable?: string; urlPrefix?: string },
 ): Promise<PublicModule> {
+  await assertLocalModulesWritable();
   const existing = await prisma.izinler.findFirst({
     where: { id, OR: [{ remove: null }, { remove: false }] },
   });
@@ -158,6 +194,7 @@ export async function updateModule(
 }
 
 export async function softDeleteModule(id: number): Promise<void> {
+  await assertLocalModulesWritable();
   const existing = await prisma.izinler.findFirst({
     where: { id, OR: [{ remove: null }, { remove: false }] },
   });

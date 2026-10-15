@@ -52,7 +52,53 @@ export async function listModules(): Promise<ModuleOption[]> {
   return rows.map((r) => ({ id: String(r.id), label: r.adi }));
 }
 
+async function assertLocalTemplateVarsWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new SettingsError(
+      'Merkezi API açık — şablon değişkenleri salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function listTemplateVariables(): Promise<PublicTemplateVariable[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteTemplateVars } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteTemplateVars();
+      return remote.map((r, i) => {
+        const pairs = String(r.variables || '')
+          .split(/[,;\n]+/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((key) => ({ key: key.replace(/^#|#$/g, ''), dbColumn: '-' }));
+        const tip = r.type.toLocaleLowerCase('tr');
+        return {
+          id: r.id,
+          displayId: Number(r.id) || i + 1,
+          name: r.name,
+          moduleId: '0',
+          module: 'Merkez',
+          type: (tip.includes('sms') ? 'sms' : 'email') as 'email' | 'sms',
+          code: null,
+          variables: pairs,
+        };
+      });
+    }
+  } catch (err) {
+    if (err instanceof SettingsError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new SettingsError(
+        err instanceof Error ? err.message : 'Merkezi şablon değişkenleri yüklenemedi',
+      );
+    }
+  }
+
   const rows = await prisma.$queryRaw<
     {
       id: number;
@@ -90,6 +136,7 @@ export async function createTemplateVariable(input: {
   variables: PublicTemplateVarPair[];
   code?: string | null;
 }): Promise<PublicTemplateVariable> {
+  await assertLocalTemplateVarsWritable();
   const name = input.name.trim();
   const moduleId = Number(input.moduleId);
   if (!name) throw new SettingsError('Ad gerekli');
@@ -137,6 +184,7 @@ export async function updateTemplateVariable(
     code?: string | null;
   },
 ): Promise<PublicTemplateVariable> {
+  await assertLocalTemplateVarsWritable();
   const existing = await prisma.$queryRaw<{ id: number }[]>`
     SELECT \`id\` FROM \`essablonlar\`
     WHERE \`id\` = ${id} AND (\`remove\` IS NULL OR \`remove\` = 0)
@@ -180,6 +228,7 @@ export async function updateTemplateVariable(
 }
 
 export async function softDeleteTemplateVariable(id: number): Promise<void> {
+  await assertLocalTemplateVarsWritable();
   const existing = await prisma.$queryRaw<{ id: number }[]>`
     SELECT \`id\` FROM \`essablonlar\`
     WHERE \`id\` = ${id} AND (\`remove\` IS NULL OR \`remove\` = 0)

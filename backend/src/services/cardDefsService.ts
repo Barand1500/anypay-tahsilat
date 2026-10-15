@@ -77,9 +77,39 @@ function isDupName(
   );
 }
 
+async function assertLocalCardDefsWritable(label: string) {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new CardDefsError(
+      `${label} merkezi API üzerinden geliyor (salt okunur). Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.`,
+    );
+  }
+}
+
+async function listRemoteNamed(resource: string): Promise<PublicCardNamed[] | null> {
+  try {
+    const { getBinSourceSettings, fetchRemoteNamedResource } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source !== 'remote') return null;
+    return await fetchRemoteNamedResource(resource);
+  } catch (err) {
+    if (err instanceof CardDefsError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new CardDefsError(err instanceof Error ? err.message : 'Merkezi kart tanımları yüklenemedi');
+    }
+    return null;
+  }
+}
+
 /* ─── Kart Tipleri ─── */
 
 export async function listCardTypes(): Promise<PublicCardNamed[]> {
+  const remote = await listRemoteNamed('card-types');
+  if (remote) return remote;
   const rows = await prisma.kartTipi.findMany({
     where: notRemoved(),
     orderBy: { adi: 'asc' },
@@ -88,6 +118,7 @@ export async function listCardTypes(): Promise<PublicCardNamed[]> {
 }
 
 export async function createCardType(nameRaw: string): Promise<PublicCardNamed> {
+  await assertLocalCardDefsWritable('Kart tipleri');
   const name = nameRaw.trim();
   if (!name) throw new CardDefsError('Adı gerekli');
   const all = await prisma.kartTipi.findMany({
@@ -102,6 +133,7 @@ export async function createCardType(nameRaw: string): Promise<PublicCardNamed> 
 }
 
 export async function updateCardType(id: number, nameRaw: string): Promise<PublicCardNamed> {
+  await assertLocalCardDefsWritable('Kart tipleri');
   const existing = await prisma.kartTipi.findFirst({ where: { id, ...notRemoved() } });
   if (!existing) throw new CardDefsError('Kart tipi bulunamadı');
   const name = nameRaw.trim();
@@ -119,6 +151,7 @@ export async function updateCardType(id: number, nameRaw: string): Promise<Publi
 }
 
 export async function softDeleteCardType(id: number): Promise<void> {
+  await assertLocalCardDefsWritable('Kart tipleri');
   const existing = await prisma.kartTipi.findFirst({ where: { id, ...notRemoved() } });
   if (!existing) throw new CardDefsError('Kart tipi bulunamadı');
   await prisma.kartTipi.update({ where: { id }, data: { remove: true } });
@@ -127,6 +160,8 @@ export async function softDeleteCardType(id: number): Promise<void> {
 /* ─── Kart Türleri ─── */
 
 export async function listCardKinds(): Promise<PublicCardNamed[]> {
+  const remote = await listRemoteNamed('card-kinds');
+  if (remote) return remote;
   const rows = await prisma.kartTuru.findMany({
     where: notRemoved(),
     orderBy: { adi: 'asc' },
@@ -135,6 +170,7 @@ export async function listCardKinds(): Promise<PublicCardNamed[]> {
 }
 
 export async function createCardKind(nameRaw: string): Promise<PublicCardNamed> {
+  await assertLocalCardDefsWritable('Kart türleri');
   const name = nameRaw.trim();
   if (!name) throw new CardDefsError('Adı gerekli');
   const all = await prisma.kartTuru.findMany({
@@ -149,6 +185,7 @@ export async function createCardKind(nameRaw: string): Promise<PublicCardNamed> 
 }
 
 export async function updateCardKind(id: number, nameRaw: string): Promise<PublicCardNamed> {
+  await assertLocalCardDefsWritable('Kart türleri');
   const existing = await prisma.kartTuru.findFirst({ where: { id, ...notRemoved() } });
   if (!existing) throw new CardDefsError('Kart türü bulunamadı');
   const name = nameRaw.trim();
@@ -166,6 +203,7 @@ export async function updateCardKind(id: number, nameRaw: string): Promise<Publi
 }
 
 export async function softDeleteCardKind(id: number): Promise<void> {
+  await assertLocalCardDefsWritable('Kart türleri');
   const existing = await prisma.kartTuru.findFirst({ where: { id, ...notRemoved() } });
   if (!existing) throw new CardDefsError('Kart türü bulunamadı');
   await prisma.kartTuru.update({ where: { id }, data: { remove: true } });
@@ -189,6 +227,29 @@ function mapBrand(r: {
 }
 
 export async function listCardBrands(): Promise<PublicCardBrand[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteCardBrands } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteCardBrands();
+      return remote.map((r) => ({
+        id: r.id,
+        name: r.name,
+        logo: r.logo || null,
+        logoUrl: resolveBrandLogoUrl(r.logo || null),
+        initials: initialsFromName(r.name),
+      }));
+    }
+  } catch (err) {
+    if (err instanceof CardDefsError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new CardDefsError(err instanceof Error ? err.message : 'Merkezi kart markaları yüklenemedi');
+    }
+  }
   const rows = await prisma.kartMarka.findMany({
     where: notRemoved(),
     orderBy: { adi: 'asc' },
@@ -201,6 +262,7 @@ export async function createCardBrand(input: {
   logoDataUrl?: string | null;
   initials?: string;
 }): Promise<PublicCardBrand> {
+  await assertLocalCardDefsWritable('Kart markaları');
   const name = input.name.trim();
   if (!name) throw new CardDefsError('Adı gerekli');
   const all = await prisma.kartMarka.findMany({
@@ -223,6 +285,7 @@ export async function updateCardBrand(
   id: number,
   input: { name: string; logoDataUrl?: string | null; initials?: string },
 ): Promise<PublicCardBrand> {
+  await assertLocalCardDefsWritable('Kart markaları');
   const existing = await prisma.kartMarka.findFirst({ where: { id, ...notRemoved() } });
   if (!existing) throw new CardDefsError('Kart markası bulunamadı');
 
@@ -248,6 +311,7 @@ export async function updateCardBrand(
 }
 
 export async function softDeleteCardBrand(id: number): Promise<void> {
+  await assertLocalCardDefsWritable('Kart markaları');
   const existing = await prisma.kartMarka.findFirst({ where: { id, ...notRemoved() } });
   if (!existing) throw new CardDefsError('Kart markası bulunamadı');
   await prisma.kartMarka.update({ where: { id }, data: { remove: true } });

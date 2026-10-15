@@ -62,7 +62,49 @@ async function mapRow(r: {
   };
 }
 
+async function assertLocalVirtualPosWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new VirtualPosError(
+      'Merkezi API açık — sanal POS salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteVirtualPos } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteVirtualPos();
+      return remote.map((r) => ({
+        id: r.id,
+        bankId: '',
+        bankName: r.bank || '—',
+        bankLogoUrl: '',
+        posName: r.name,
+        infrastructureId: r.variables || '',
+        merchantId: '',
+        terminalSafeId: '',
+        securityKey: '',
+        terminalPassword: '',
+        securityType: '',
+        isDefault: false,
+        active: true,
+      }));
+    }
+  } catch (err) {
+    if (err instanceof VirtualPosError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new VirtualPosError(
+        err instanceof Error ? err.message : 'Merkezi sanal POS yüklenemedi',
+      );
+    }
+  }
   const rows = await prisma.sanalPosTanim.findMany({
     where: notRemoved(),
     orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
@@ -205,6 +247,7 @@ function assertCredentials(input: {
 }
 
 export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicVirtualPos> {
+  await assertLocalVirtualPosWritable();
   const bankId = Number(input.bankId);
   if (!Number.isFinite(bankId)) throw new VirtualPosError('Banka seçiniz');
   await assertBank(bankId);
@@ -266,6 +309,7 @@ export async function updateVirtualPos(
   id: number,
   input: VirtualPosUpsert,
 ): Promise<PublicVirtualPos> {
+  await assertLocalVirtualPosWritable();
   const existing = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -363,6 +407,7 @@ export async function patchVirtualPosFlags(
 }
 
 export async function softDeleteVirtualPos(id: number): Promise<void> {
+  await assertLocalVirtualPosWritable();
   const existing = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },
   });

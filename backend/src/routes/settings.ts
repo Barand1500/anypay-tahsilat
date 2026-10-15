@@ -73,6 +73,7 @@ import {
 import {
   fetchCentralChangeLog,
   getBinSourceSettings,
+  invalidateCentralCatalogCache,
   updateBinSourceSettings,
 } from '../services/binSourceSettingsService.js';
 import { sendSmtpTestMail } from '../lib/mail.js';
@@ -1013,6 +1014,17 @@ settingsRouter.get('/central-changelog', async (req: AuthedRequest, res) => {
     if (err instanceof SettingsError) return sendError(res, 400, err.message);
     console.error(err);
     return sendError(res, 500, 'Merkezi değişiklik günlüğü alınamadı');
+  }
+});
+
+/** Merkez katalog cache temizle — API’de yeni kayıt sonrası AnyPay’de görünmesi için */
+settingsRouter.post('/central-catalog/refresh', async (_req, res) => {
+  try {
+    invalidateCentralCatalogCache();
+    return sendSuccess(res, { ok: true }, 'Merkez katalog yenilenecek');
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Cache temizlenemedi');
   }
 });
 

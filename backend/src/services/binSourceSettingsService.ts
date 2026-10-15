@@ -98,7 +98,11 @@ export type RemoteBinRow = {
 
 type CacheEntry = { at: number; rows: RemoteBinRow[] };
 let remoteCache: CacheEntry | null = null;
-const CACHE_TTL_MS = 5 * 60 * 1000;
+/** Kısa TTL — API’de yeni kayıt için toggle gerekmez; arada yenilenir */
+const CACHE_TTL_MS = 60 * 1000;
+const rawResourceCache = new Map<string, { at: number; rows: Record<string, unknown>[] }>();
+let changelogHeadId: string | null = null;
+let lastChangelogCheckAt = 0;
 
 export type RemoteBankRow = {
   id: string;
@@ -118,6 +122,13 @@ export function clearRemoteBinCache() {
   remoteBankCache = null;
   remoteLocationsCache = null;
   remoteTaxCache = null;
+  rawResourceCache.clear();
+}
+
+/** Merkez katalog cache’ini zorla temizle (yenile butonu / changelog) */
+export function invalidateCentralCatalogCache() {
+  clearRemoteBinCache();
+  lastChangelogCheckAt = 0;
 }
 
 export async function isCentralRemoteActive(): Promise<boolean> {
@@ -199,13 +210,37 @@ function mapRemoteRows(raw: unknown[]): RemoteBinRow[] {
   return out;
 }
 
-/** Merkez /v1/tahsilat/{resource} — ham satırlar */
-export async function fetchRemoteTahsilatResource(resource: string): Promise<Record<string, unknown>[]> {
+async function maybeInvalidateFromChangelog() {
+  if (Date.now() - lastChangelogCheckAt < 20_000) return;
+  lastChangelogCheckAt = Date.now();
+  try {
+    const rows = await fetchCentralChangeLog(5);
+    const head = rows[0]?.id || '';
+    if (changelogHeadId && head && head !== changelogHeadId) {
+      clearRemoteBinCache();
+    }
+    if (head) changelogHeadId = head;
+  } catch {
+    /* log yoksa cache TTL ile devam */
+  }
+}
+
+/** Merkez /v1/tahsilat/{resource} — ham satırlar (cache + changelog bust) */
+export async function fetchRemoteTahsilatResource(
+  resource: string,
+  force = false,
+): Promise<Record<string, unknown>[]> {
   const settings = await getBinSourceSettings();
   if (settings.source !== 'remote') return [];
   if (!settings.remoteApiKey) throw new SettingsError('Merkezi API anahtarı yok');
+  const key = resource.replace(/^\/+|\/+$/g, '');
+  if (!force) {
+    await maybeInvalidateFromChangelog();
+    const hit = rawResourceCache.get(key);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.rows;
+  }
   const base = settings.remoteBaseUrl.replace(/\/+$/, '');
-  const url = `${base}/${resource.replace(/^\/+|\/+$/g, '')}`;
+  const url = `${base}/${key}`;
   const res = await fetch(url, {
     headers: {
       'X-API-Key': settings.remoteApiKey,
@@ -223,11 +258,37 @@ export async function fetchRemoteTahsilatResource(resource: string): Promise<Rec
         : '';
     throw new SettingsError(msg || `Merkezi API hatası (${resource}, ${res.status})`);
   }
-  if (Array.isArray(json)) return json as Record<string, unknown>[];
-  if (json && typeof json === 'object' && Array.isArray((json as { data?: unknown }).data)) {
-    return (json as { data: Record<string, unknown>[] }).data;
+  let rows: Record<string, unknown>[] = [];
+  if (Array.isArray(json)) rows = json as Record<string, unknown>[];
+  else if (json && typeof json === 'object' && Array.isArray((json as { data?: unknown }).data)) {
+    rows = (json as { data: Record<string, unknown>[] }).data;
   }
-  return [];
+  rawResourceCache.set(key, { at: Date.now(), rows });
+  return rows;
+}
+
+export type RemoteNamedRow = { id: string; name: string };
+
+/** Ad listesi — card-types / card-kinds / contracts vb. */
+export async function fetchRemoteNamedResource(
+  resource: string,
+  force = false,
+): Promise<RemoteNamedRow[]> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote') return [];
+  const raw = await fetchRemoteTahsilatResource(resource, force);
+  const out: RemoteNamedRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi', 'title', 'baslik']);
+    if (!name) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `remote-${name}`,
+      name,
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 }
 
 function mapRemoteBanks(raw: Record<string, unknown>[]): RemoteBankRow[] {
@@ -433,4 +494,199 @@ export async function lookupRemoteBin(cardDigits: string): Promise<RemoteBinRow 
     brand: pickField(hit, ['brand', 'marka']) || '',
     type: pickField(hit, ['type', 'tip']) || '',
   };
+}
+
+export type RemoteCurrencyRow = {
+  id: string;
+  name: string;
+  shortName: string;
+  symbol: string;
+};
+
+export async function fetchRemoteCurrencies(force = false): Promise<RemoteCurrencyRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('currencies', force);
+  const out: RemoteCurrencyRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi']);
+    if (!name) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `cur-${name}`,
+      name,
+      shortName: pickField(flat, ['shortName', 'kisaAd', 'kisaAdi']) || name.slice(0, 3).toUpperCase(),
+      symbol: pickField(flat, ['symbol', 'sembol']) || '',
+    });
+  }
+  return out;
+}
+
+export type RemoteVirtualPosRow = {
+  id: string;
+  name: string;
+  bank: string;
+  variables: string;
+};
+
+export async function fetchRemoteVirtualPos(force = false): Promise<RemoteVirtualPosRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('virtual-pos', force);
+  const out: RemoteVirtualPosRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi', 'posName', 'posAdi']);
+    if (!name) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `vpos-${name}`,
+      name,
+      bank: pickField(flat, ['bank', 'banka', 'bankName']),
+      variables: pickField(flat, ['variables', 'degiskenler']),
+    });
+  }
+  return out;
+}
+
+export type RemoteCardBrandRow = {
+  id: string;
+  name: string;
+  logo: string;
+};
+
+export async function fetchRemoteCardBrands(force = false): Promise<RemoteCardBrandRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('card-brands', force);
+  const out: RemoteCardBrandRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi']);
+    if (!name) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `brand-${name}`,
+      name,
+      logo: pickField(flat, ['logo', 'logoUrl', 'image']),
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+}
+
+export type RemoteModuleRow = {
+  id: string;
+  name: string;
+  code: string;
+  icon: string;
+  sortOrder: number;
+  parentId: string;
+  parentName: string;
+};
+
+export async function fetchRemoteModules(force = false): Promise<RemoteModuleRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('modules', force);
+  const out: RemoteModuleRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi']);
+    if (!name) continue;
+    const sortRaw = pickField(flat, ['sortOrder', 'sira']);
+    out.push({
+      id: flat.id != null ? String(flat.id) : `mod-${name}`,
+      name,
+      code: pickField(flat, ['code', 'kod']),
+      icon: pickField(flat, ['icon', 'ikon']),
+      sortOrder: Number(sortRaw) || 0,
+      parentId: pickField(flat, ['parentId']),
+      parentName: pickField(flat, ['parentName']),
+    });
+  }
+  return out.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'tr'));
+}
+
+export type RemoteTemplateVarRow = {
+  id: string;
+  name: string;
+  type: string;
+  variables: string;
+};
+
+export async function fetchRemoteTemplateVars(force = false): Promise<RemoteTemplateVarRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('template-vars', force);
+  const out: RemoteTemplateVarRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const name = pickField(flat, ['name', 'adi']);
+    if (!name) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `tv-${name}`,
+      name,
+      type: pickField(flat, ['type', 'tip']) || 'email',
+      variables: pickField(flat, ['variables', 'degiskenler']),
+    });
+  }
+  return out;
+}
+
+export type RemoteEmailSettingsRow = {
+  id: string;
+  host: string;
+  port: string;
+  address: string;
+  password: string;
+  ssl: string;
+  tls: string;
+};
+
+export async function fetchRemoteEmailSettings(force = false): Promise<RemoteEmailSettingsRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('email-settings', force);
+  const out: RemoteEmailSettingsRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    out.push({
+      id: flat.id != null ? String(flat.id) : 'email-1',
+      host: pickField(flat, ['host']),
+      port: pickField(flat, ['port']) || '587',
+      address: pickField(flat, ['address', 'email', 'from']),
+      password: pickField(flat, ['password']),
+      ssl: pickField(flat, ['ssl']),
+      tls: pickField(flat, ['tls']),
+    });
+  }
+  return out;
+}
+
+export type RemoteVersionRow = {
+  id: string;
+  version: string;
+  releasedAt: string;
+  added: string;
+  fixed: string;
+  removed: string;
+};
+
+export async function fetchRemoteVersions(force = false): Promise<RemoteVersionRow[]> {
+  if (!(await isCentralRemoteActive())) return [];
+  const raw = await fetchRemoteTahsilatResource('versions', force);
+  const out: RemoteVersionRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const flat = flattenRemoteItem(item);
+    const version = pickField(flat, ['version', 'versionNumber', 'surum']);
+    if (!version) continue;
+    out.push({
+      id: flat.id != null ? String(flat.id) : `ver-${version}`,
+      version,
+      releasedAt: pickField(flat, ['releasedAt', 'date', 'tarih', 'at']),
+      added: pickField(flat, ['added', 'eklenen']),
+      fixed: pickField(flat, ['fixed', 'duzeltilen']),
+      removed: pickField(flat, ['removed', 'cikartilan']),
+    });
+  }
+  return out;
 }

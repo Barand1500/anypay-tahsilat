@@ -27,6 +27,7 @@ export function CardListPage(config: Config) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [remoteSource, setRemoteSource] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -43,7 +44,14 @@ export function CardListPage(config: Config) {
     setLoading(true);
     setLoadError(null);
     try {
-      setRows(await api.get<CardNamedRow[]>(config.apiPath, token));
+      const [src, list] = await Promise.all([
+        api
+          .get<{ source: 'local' | 'remote' }>('/api/settings/bin-source', token)
+          .catch(() => ({ source: 'local' as const })),
+        api.get<CardNamedRow[]>(config.apiPath, token),
+      ]);
+      setRemoteSource(src.source === 'remote');
+      setRows(list);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Liste yüklenemedi');
       setRows([]);
@@ -130,17 +138,26 @@ export function CardListPage(config: Config) {
         <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">{config.title}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDropdown onCsv={exportCsv} />
-          <button
-            type="button"
-            data-km-jump
-            onClick={() => setModal({ type: 'create' })}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-          >
-            <span className="text-lg leading-none">+</span>
-            Ekle
-          </button>
+          {!remoteSource ? (
+            <button
+              type="button"
+              data-km-jump
+              onClick={() => setModal({ type: 'create' })}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+            >
+              <span className="text-lg leading-none">+</span>
+              Ekle
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {remoteSource ? (
+        <p className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
+          Merkezi API açık — yalnızca Güzel Teknoloji’deki kayıtlar listelenir (boşsa boş kalır). Yerel
+          ekle / düzenle kapalı.
+        </p>
+      ) : null}
 
       {loadError ? (
         <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">
@@ -203,12 +220,16 @@ export function CardListPage(config: Config) {
                   data-card-row
                   data-km-row
                   tabIndex={-1}
-                  onDoubleClick={() => setModal({ type: 'edit', id: r.id, name: r.name })}
-                  title="Çift tıkla: düzenle"
+                  onDoubleClick={() => {
+                    if (remoteSource) return;
+                    setModal({ type: 'edit', id: r.id, name: r.name });
+                  }}
+                  title={remoteSource ? 'Merkezi kayıt — salt okunur' : 'Çift tıkla: düzenle'}
                   className="grid cursor-pointer grid-cols-[minmax(200px,1fr)_44px] items-center gap-3 border-b border-[var(--panel-line)]/70 px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45"
                 >
                   <span className="truncate font-semibold text-[var(--panel-ink)]">{r.name}</span>
                   <div className="flex justify-end">
+                    {!remoteSource ? (
                     <CanRemove><button
                       type="button"
                       aria-label="Sil"
@@ -222,6 +243,7 @@ export function CardListPage(config: Config) {
                     >
                       <TrashIcon />
                     </button></CanRemove>
+                    ) : null}
                   </div>
                 </div>
               ))

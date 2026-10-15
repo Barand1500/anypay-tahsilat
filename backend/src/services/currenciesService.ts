@@ -64,9 +64,47 @@ function mapRow(r: {
   };
 }
 
+async function assertLocalCurrenciesWritable() {
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  if (await isCentralRemoteActive()) {
+    throw new CurrenciesError(
+      'Merkezi API açık — para birimleri salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
+    );
+  }
+}
+
 export async function listCurrencies(opts?: {
   activeOnly?: boolean;
 }): Promise<PublicCurrency[]> {
+  try {
+    const { getBinSourceSettings, fetchRemoteCurrencies } = await import(
+      './binSourceSettingsService.js'
+    );
+    const src = await getBinSourceSettings();
+    if (src.source === 'remote') {
+      const remote = await fetchRemoteCurrencies();
+      return remote.map((r) => ({
+        id: r.id,
+        name: r.name,
+        shortName: r.shortName,
+        symbol: r.symbol,
+        rateType: 'Efektif Satış' as const,
+        rate: 1,
+        autoUpdate: false,
+        apiUrl: '',
+        status: 'Aktif' as const,
+      }));
+    }
+  } catch (err) {
+    if (err instanceof CurrenciesError) throw err;
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
+    const src = await getBinSourceSettings().catch(() => null);
+    if (src?.source === 'remote') {
+      throw new CurrenciesError(
+        err instanceof Error ? err.message : 'Merkezi para birimleri yüklenemedi',
+      );
+    }
+  }
   const where: Record<string, unknown> = { ...notRemoved() };
   if (opts?.activeOnly) where.aktif = true;
   const rows = await prisma.parabirimi.findMany({
@@ -90,6 +128,28 @@ export async function resolveCurrencyId(raw?: number | null): Promise<{
   symbol: string;
   shortName: string;
 }> {
+  try {
+    const { isCentralRemoteActive, fetchRemoteCurrencies } = await import(
+      './binSourceSettingsService.js'
+    );
+    if (await isCentralRemoteActive()) {
+      const remote = await fetchRemoteCurrencies();
+      const hit =
+        (raw != null && Number.isFinite(raw)
+          ? remote.find((r) => String(r.id) === String(raw))
+          : null) || remote[0];
+      if (!hit) throw new CurrenciesError('Merkezi para birimi yok');
+      return {
+        id: Number(hit.id) || 0,
+        kur: 1,
+        symbol: hit.symbol || hit.shortName,
+        shortName: hit.shortName,
+      };
+    }
+  } catch (err) {
+    if (err instanceof CurrenciesError) throw err;
+  }
+
   if (raw != null && Number.isFinite(raw)) {
     const row = await prisma.parabirimi.findFirst({
       where: { id: raw, aktif: true, ...notRemoved() },
@@ -135,6 +195,7 @@ export type UpsertCurrencyInput = {
 };
 
 export async function createCurrency(input: UpsertCurrencyInput): Promise<PublicCurrency> {
+  await assertLocalCurrenciesWritable();
   const name = input.name.trim();
   const shortName = input.shortName.trim().toUpperCase();
   const symbol = input.symbol.trim();
@@ -173,6 +234,7 @@ export async function updateCurrency(
   id: number,
   input: UpsertCurrencyInput,
 ): Promise<PublicCurrency> {
+  await assertLocalCurrenciesWritable();
   const existing = await prisma.parabirimi.findFirst({
     where: { id, ...notRemoved() },
     select: { id: true },
@@ -214,6 +276,7 @@ export async function updateCurrency(
 }
 
 export async function softDeleteCurrency(id: number): Promise<void> {
+  await assertLocalCurrenciesWritable();
   const existing = await prisma.parabirimi.findFirst({
     where: { id, ...notRemoved() },
     select: { id: true },
@@ -228,6 +291,7 @@ export async function softDeleteCurrency(id: number): Promise<void> {
 
 /** TCMB today.xml — ForexBuying/Selling / BanknoteBuying/Selling */
 export async function refreshCurrencyRate(id: number): Promise<PublicCurrency> {
+  await assertLocalCurrenciesWritable();
   const row = await prisma.parabirimi.findFirst({
     where: { id, ...notRemoved() },
   });

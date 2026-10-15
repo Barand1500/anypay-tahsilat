@@ -863,9 +863,10 @@ export default function ApiSettingsPage() {
                 Güzel Teknoloji merkezi API
               </p>
               <p className="mt-1 text-xs leading-relaxed text-[var(--panel-muted)]">
-                Açıkken bankalar, BIN, lokasyonlar, vergi daireleri ve diğer Tahsilat ortak verileri
-                merkezden gelir (boş kaynaklar da boş listelenir). API Key’i Güzel Teknoloji →
-                Firmalar’dan kopyalayın. Kapalıysa yerel listeler kullanılır.
+                Açıkken bankalar, BIN, sanal POS, para birimleri, sözleşmeler, vergi daireleri, kart
+                tipi/tür/marka, iller/ilçeler, modüller, şablon değişkenleri, e-posta ve sürümler
+                merkezden gelir (boşsa boş). Yeni kayıt için API’yi yeniden bağlamaya gerek yok —
+                yaklaşık 1 dk içinde yenilenir. Kapalıysa yerel listeler kullanılır.
               </p>
             </div>
             <button
