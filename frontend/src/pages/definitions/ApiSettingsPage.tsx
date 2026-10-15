@@ -178,7 +178,7 @@ export default function ApiSettingsPage() {
     if (next === 'remote' && !key) {
       setToast({
         kind: 'err',
-        text: 'Merkezi API için API Key gerekli (Güzel Teknoloji panelinden alın).',
+        text: 'Merkezi API için API Key gerekli (Güzel Teknoloji → Firmalar’dan kopyalayın).',
       });
       return;
     }
@@ -319,7 +319,7 @@ export default function ApiSettingsPage() {
     if (!category) return;
     const key = apiAccessKey.trim();
     if (!key) {
-      setToast({ kind: 'err', text: 'API Keys ekranından bu API için oluşturduğunuz anahtarı girin.' });
+      setToast({ kind: 'err', text: 'Güzel Teknoloji → Firmalar’daki API Key’i girin.' });
       return;
     }
     let url: URL;
@@ -816,8 +816,8 @@ export default function ApiSettingsPage() {
                 Güzel Teknoloji merkezi API
               </p>
               <p className="mt-1 text-xs leading-relaxed text-[var(--panel-muted)]">
-                Açıkken BIN ve ortak tanımlar api.guzelteknoloji.com üzerinden çekilir. Tek API Key
-                yeterlidir. Kapalıysa yerel listeler aynen kullanılır.
+                Açıkken BIN ve ortak tanımlar api.guzelteknoloji.com üzerinden çekilir. API Key’i
+                Güzel Teknoloji → Firmalar ekranından kopyalayın. Kapalıysa yerel listeler kullanılır.
               </p>
             </div>
             <button
@@ -1065,7 +1065,7 @@ export default function ApiSettingsPage() {
                 setApiAccessKeyDraft(e.target.value);
                 setApiAccessKey(e.target.value);
               }}
-              placeholder="API Keys ekranındaki anahtarı girin"
+              placeholder="Firmalar ekranındaki gtk_ anahtarı"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 xl:pb-0.5">
