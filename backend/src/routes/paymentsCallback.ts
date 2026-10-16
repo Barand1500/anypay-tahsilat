@@ -4,7 +4,11 @@ import {
   handleThreeDCallback,
 } from '../gateways/callbackService.js';
 
-/** Banka 3DS dönüşü — auth yok (okUrl / failUrl) */
+/**
+ * Yerel 3DS dönüşü (Api KAPALI yolu).
+ * okUrl/failUrl → /api/payments/3d/ok|fail — merkez callback ile karıştırma.
+ * Merkez açıkken banka → api .../payments/callback/:sessionId döner.
+ */
 export const paymentsCallbackRouter = Router();
 
 function publicAppBase(): string {
@@ -45,3 +49,25 @@ paymentsCallbackRouter.post('/ok', (req, res) => void handle(req, res, 'ok'));
 paymentsCallbackRouter.get('/ok', (req, res) => void handle(req, res, 'ok'));
 paymentsCallbackRouter.post('/fail', (req, res) => void handle(req, res, 'fail'));
 paymentsCallbackRouter.get('/fail', (req, res) => void handle(req, res, 'fail'));
+
+/**
+ * PayTR sunucu bildirimi — yanıt gövdesi düz metin "OK" olmalı.
+ * Mağaza paneli Bildirim URL: /api/payments/3d/notify/paytr
+ */
+paymentsCallbackRouter.post('/notify/paytr', (req, res) => {
+  void (async () => {
+    const body = {
+      ...(typeof req.query === 'object' ? req.query : {}),
+      ...(typeof req.body === 'object' && req.body ? req.body : {}),
+    } as Record<string, unknown>;
+    try {
+      // outcome=ok → finalizeCallback (hash) çalışsın; başarı status alanından gelir
+      await handleThreeDCallback(body, 'ok');
+      res.status(200).type('text/plain').send('OK');
+    } catch (err) {
+      console.error('[paytr-notify]', err);
+      // PayTR tekrar denemesin diye yine OK (kayıt yoksa da); log’da kalır
+      res.status(200).type('text/plain').send('OK');
+    }
+  })();
+});

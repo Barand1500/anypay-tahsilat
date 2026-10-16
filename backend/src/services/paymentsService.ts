@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import {
+  getGatewayById,
   initiateThreeD,
+  pickGateway,
   PosResolveError,
   resolvePosForPayment,
   type ThreeDForm,
@@ -15,6 +17,7 @@ import {
 import { listBins, lookupBinByCard, segmentFromBinKind, segmentLabelTr } from './binsService.js';
 import { assertInstallmentsAllowed, UsersError } from './usersService.js';
 import { fetchRemoteBanks, getBinSourceSettings, startCentralPayment } from './binSourceSettingsService.js';
+import { writePanelLog } from './logsService.js';
 import { SettingsError } from './settingsService.js';
 
 export class PaymentsError extends Error {
@@ -466,6 +469,8 @@ export type PublicPayment = {
   tarih: string | null;
   status: 'pending_3d' | 'paid' | 'failed';
   bankName?: string;
+  /** Log / teşhis: merkezi API mi yerel POS mu */
+  paymentSource: 'central' | 'local';
   /** Bankaya POST edilecek 3DS formu — kart alanları yalnızca burada (DB’de yok) */
   threeD?: ThreeDForm;
 };
@@ -512,6 +517,9 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   if (expiry.length !== 4) throw new PaymentsError('Son kullanma tarihi MMYY olmalı');
   if (cvc.length < 3) throw new PaymentsError('CVC gerekli');
 
+  // --- Ödeme yolu seçimi (A modeli) ---
+  // local  = Api kapalı → aşağıdaki else dalı (resolvePos + initiateThreeD). DOKUNMA.
+  // central = Api açık → startCentralPayment; ağır POS/3DS merkezde, kayıt bu fonksiyonda.
   const sourceSettings = await getBinSourceSettings();
   const paymentSource = sourceSettings.source === 'remote' ? 'central' : 'local';
   console.info(`[payment-route] source=${paymentSource} result=selected`);
@@ -573,11 +581,10 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     ? input.amount * (1 + commissionPct / 100)
     : input.amount;
 
-  let pos: Awaited<ReturnType<typeof resolvePosForPayment>> | null = null;
-  let threeDResult: { kind: 'form'; form: ThreeDForm; adapter: string } | { kind: 'error'; message: string };
-  let paymentBankId: number;
-  let paymentBankName: string;
-  let paymentPosId: number;
+  const istekNo = (input.istekNo || '').trim() || null;
+
+  // ========== Api AÇIK (central) — yerel else'e dokunma ==========
+  // Callback merkezde odemeler.durum=3 arar; 3DS'ten ÖNCE kayıt yazılmalı (yarış riski).
   if (paymentSource === 'central') {
     const cardBank = await lookupBinByCard(digits).catch(() => null);
     let centralBankName = '';
@@ -590,17 +597,77 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         throw err;
       }
       const selected = remoteBanks.find((bank) => bank.id === String(input.bankId));
-      if (!selected) throw new PaymentsError('Seçilen banka merkez kataloğunda bulunamadı');
+      if (!selected) {
+        await writePanelLog(
+          input.kullaniciId,
+          `Ödeme - Merkezi API HATA · #${odemeNo} · seçilen banka merkez kataloğunda yok`,
+        );
+        throw new PaymentsError('Seçilen banka merkez kataloğunda bulunamadı');
+      }
       centralBankName = selected.name;
     } else centralBankName = cardBank?.bankName || '';
-    if (!centralBankName) throw new PaymentsError('Kart bankası merkez kataloğunda bulunamadı');
+    if (!centralBankName) {
+      await writePanelLog(
+        input.kullaniciId,
+        `Ödeme - Merkezi API HATA · #${odemeNo} · kart bankası merkez kataloğunda yok`,
+      );
+      throw new PaymentsError('Kart bankası merkez kataloğunda bulunamadı');
+    }
+
+    // Geçici banka id — merkez start sonrası gerçek POS bankId ile güncellenir
+    const provisionalBankId =
+      (typeof input.bankId === 'number' && Number.isFinite(input.bankId) ? input.bankId : null) ??
+      cardBank?.bankId ??
+      null;
+
+    const pendingMeta = JSON.stringify({
+      source: 'central',
+      stage: 'awaiting-3ds-start',
+      startedAt: now.toISOString(),
+      commissionPct,
+      cardSegment,
+      cardBrand,
+      ...(istekNo ? { istekNo } : {}),
+    });
+
+    const pendingRow = await prisma.odeme.create({
+      data: {
+        parabirimiId: currency.id,
+        musteriId: input.musteriId,
+        tutar: input.amount,
+        kur: currency.kur,
+        gercekTutar: chargedAmount,
+        komisyonDahil: input.commissionIncluded,
+        aciklama: (input.note || '').trim() || null,
+        adsoyad: input.holder.trim().slice(0, 255),
+        tc: (input.tc || '').trim() || null,
+        telefon: formatPhone(input.phone).slice(0, 255),
+        kartNo: maskCard(digits).slice(0, 255),
+        taksit: installment,
+        taksitOran: commissionPct || null,
+        taksitDetay: cardBinMeta,
+        bankaKomisyonu: commissionPct || null,
+        odemeNo,
+        durum: 3,
+        bankaCevabi: pendingMeta,
+        odemeTipi: tipFromPayType(input.payType),
+        tarih: now,
+        kullaniciId: input.kullaniciId,
+        bankaId: provisionalBankId,
+        sanalposBankaId: provisionalBankId,
+        ip: (input.clientIp || '').slice(0, 255) || null,
+        arsiv: false,
+        istekNo,
+      },
+    });
+
+    let central;
     try {
-      const central = await startCentralPayment({
+      central = await startCentralPayment({
         orderId: odemeNo,
         bankName: centralBankName,
         amount: chargedAmount,
-        // The central payment executor accepts ISO currency codes. Older
-        // tenants commonly label the Turkish lira as "TL" in the UI.
+        // Merkez ISO kod ister; eski UI'da TL → TRY
         currencyCode: currency.shortName?.trim().toUpperCase() === 'TL'
           ? 'TRY'
           : currency.shortName || 'TRY',
@@ -608,51 +675,110 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         card: { number: digits, holder: input.holder.trim(), expiry, cvc },
         clientIp: input.clientIp,
         email: (input.email || customerEmail || '').trim() || undefined,
-        istekNo: (input.istekNo || '').trim() || undefined,
+        istekNo: istekNo || undefined,
       });
-      paymentBankId = central.bankId;
-      paymentBankName = central.bankName;
-      paymentPosId = central.posId;
-      threeDResult = { kind: 'form', form: central.form, adapter: central.adapter };
     } catch (err) {
+      // Merkez start başarısız → bekleyen kayıt asılı kalmasın
+      const msg = err instanceof SettingsError ? err.message : err instanceof Error ? err.message : 'Merkezi ödeme başlatılamadı';
+      await prisma.odeme.update({
+        where: { id: pendingRow.id },
+        data: {
+          durum: 0,
+          bankError: msg.slice(0, 2000),
+          bankaCevabi: JSON.stringify({
+            source: 'central',
+            stage: '3ds-initiation',
+            result: 'rejected',
+            at: new Date().toISOString(),
+            message: msg.slice(0, 500),
+          }),
+        },
+      }).catch(() => undefined);
+      await writePanelLog(
+        input.kullaniciId,
+        `Ödeme - Merkezi API HATA · #${odemeNo} · ${chargedAmount.toFixed(2)} · ${msg.slice(0, 400)}`,
+      );
       console.info('[payment-flow] source=central stage=3ds-initiation result=rejected');
       if (err instanceof SettingsError) throw new PaymentsError(err.message);
       throw err;
     }
-  } else {
-    try {
-      pos = await resolvePosForPayment({ cardDigits: digits, bankId: input.bankId ?? null });
-    } catch (err) {
-      if (err instanceof PosResolveError) throw new PaymentsError(err.message);
-      throw err;
-    }
-    paymentBankId = pos.bankId;
-    paymentBankName = pos.bankName;
-    paymentPosId = pos.posId;
-    threeDResult = await initiateThreeD({
-      pos,
-      orderId: odemeNo,
-      amount: chargedAmount,
-      currencyCode: currency.shortName || 'TRY',
-      installment,
-      card: { number: digits, holder: input.holder.trim(), expiry, cvc },
-      okUrl: `${apiBase}/api/payments/3d/ok`,
-      failUrl: `${apiBase}/api/payments/3d/fail`,
-      clientIp: input.clientIp,
-      email: (input.email || customerEmail || '').trim() || undefined,
+
+    const readyMeta = JSON.stringify({
+      source: 'central',
+      adapter: central.adapter,
+      posId: central.posId,
+      centralSessionId: central.sessionId,
+      startedAt: now.toISOString(),
+      commissionPct,
+      cardSegment,
+      cardBrand,
+      ...(istekNo ? { istekNo } : {}),
     });
+
+    const row = await prisma.odeme.update({
+      where: { id: pendingRow.id },
+      data: {
+        bankaId: central.bankId,
+        sanalposBankaId: central.bankId,
+        bankaCevabi: readyMeta,
+      },
+    });
+
+    await writePanelLog(
+      input.kullaniciId,
+      `Ödeme - Merkezi API · 3DS başlatıldı · #${odemeNo} · ${chargedAmount.toFixed(2)} · ${central.bankName} · session=${central.sessionId}`,
+    );
+    console.info(
+      `[payment-flow] source=central stage=payment-record result=pending-3ds adapter=${central.adapter}`,
+    );
+
+    return {
+      id: row.id,
+      odemeNo: row.odemeNo,
+      musteriId: row.musteriId,
+      amount: row.tutar,
+      durum: row.durum,
+      tarih: row.tarih ? row.tarih.toISOString() : null,
+      status: 'pending_3d',
+      bankName: central.bankName,
+      paymentSource: 'central',
+      threeD: central.form,
+    };
   }
 
-  if (threeDResult.kind === 'error') {
-    console.info(`[payment-flow] source=${paymentSource} stage=3ds-initiation result=rejected`);
-    throw new PaymentsError(threeDResult.message);
+  // ========== Api KAPALI (local) — yerel POS motoru; create-before-3DS (merkez ile aynı yarış koruması) ==========
+  // Çift tıklama / aynı istek için ikinci 3DS oturumu engeli
+  if (istekNo) {
+    const live = await prisma.odeme.findFirst({
+      where: { istekNo, durum: 3 },
+      select: { odemeNo: true },
+      orderBy: { id: 'desc' },
+    });
+    if (live) {
+      throw new PaymentsError(
+        `Bu ödeme isteği için zaten devam eden bir 3D oturumu var (#${live.odemeNo})`,
+      );
+    }
   }
 
-  const istekNo = (input.istekNo || '').trim() || null;
-  const meta = JSON.stringify({
-    adapter: threeDResult.adapter,
-    posId: paymentPosId,
-    securityType: pos?.securityType || '',
+  let pos: Awaited<ReturnType<typeof resolvePosForPayment>>;
+  try {
+    pos = await resolvePosForPayment({ cardDigits: digits, bankId: input.bankId ?? null });
+  } catch (err) {
+    const msg = err instanceof PosResolveError ? err.message : err instanceof Error ? err.message : 'POS çözülemedi';
+    await writePanelLog(
+      input.kullaniciId,
+      `Ödeme - Yerel POS HATA · #${odemeNo} · ${chargedAmount.toFixed(2)} · ${msg.slice(0, 400)}`,
+    );
+    if (err instanceof PosResolveError) throw new PaymentsError(err.message);
+    throw err;
+  }
+
+  const pendingMeta = JSON.stringify({
+    source: 'local',
+    stage: 'awaiting-3ds-start',
+    posId: pos.posId,
+    securityType: pos.securityType || '',
     startedAt: now.toISOString(),
     commissionPct,
     cardSegment,
@@ -660,7 +786,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     ...(istekNo ? { istekNo } : {}),
   });
 
-  const row = await prisma.odeme.create({
+  const pendingRow = await prisma.odeme.create({
     data: {
       parabirimiId: currency.id,
       musteriId: input.musteriId,
@@ -679,20 +805,105 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       bankaKomisyonu: commissionPct || null,
       odemeNo,
       durum: 3,
-      bankaCevabi: meta,
+      bankaCevabi: pendingMeta,
       odemeTipi: tipFromPayType(input.payType),
       tarih: now,
       kullaniciId: input.kullaniciId,
-      bankaId: paymentBankId,
-      sanalposBankaId: paymentBankId,
+      bankaId: pos.bankId,
+      sanalposBankaId: pos.bankId,
       ip: (input.clientIp || '').slice(0, 255) || null,
       arsiv: false,
       istekNo,
     },
   });
 
+  let threeDResult: { kind: 'form'; form: ThreeDForm; adapter: string } | { kind: 'error'; message: string };
+  try {
+    threeDResult = await initiateThreeD({
+      pos,
+      orderId: odemeNo,
+      amount: chargedAmount,
+      currencyCode: currency.shortName || 'TRY',
+      installment,
+      card: { number: digits, holder: input.holder.trim(), expiry, cvc },
+      okUrl: `${apiBase}/api/payments/3d/ok`,
+      failUrl: `${apiBase}/api/payments/3d/fail`,
+      clientIp: input.clientIp,
+      email: (input.email || customerEmail || '').trim() || undefined,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '3D Secure başlatılamadı';
+    await prisma.odeme
+      .update({
+        where: { id: pendingRow.id },
+        data: {
+          durum: 0,
+          bankError: msg.slice(0, 2000),
+          bankaCevabi: JSON.stringify({
+            source: 'local',
+            stage: '3ds-initiation',
+            result: 'error',
+            at: new Date().toISOString(),
+            message: msg.slice(0, 500),
+          }),
+        },
+      })
+      .catch(() => undefined);
+    await writePanelLog(
+      input.kullaniciId,
+      `Ödeme - Yerel POS HATA · #${odemeNo} · ${chargedAmount.toFixed(2)} · ${msg.slice(0, 400)}`,
+    );
+    throw new PaymentsError(msg);
+  }
+
+  if (threeDResult.kind === 'error') {
+    await prisma.odeme
+      .update({
+        where: { id: pendingRow.id },
+        data: {
+          durum: 0,
+          bankError: threeDResult.message.slice(0, 2000),
+          bankaCevabi: JSON.stringify({
+            source: 'local',
+            stage: '3ds-initiation',
+            result: 'rejected',
+            at: new Date().toISOString(),
+            message: threeDResult.message.slice(0, 500),
+          }),
+        },
+      })
+      .catch(() => undefined);
+    await writePanelLog(
+      input.kullaniciId,
+      `Ödeme - Yerel POS HATA · #${odemeNo} · ${chargedAmount.toFixed(2)} · ${threeDResult.message.slice(0, 400)}`,
+    );
+    console.info(`[payment-flow] source=local stage=3ds-initiation result=rejected`);
+    throw new PaymentsError(threeDResult.message);
+  }
+
+  const readyMeta = JSON.stringify({
+    source: 'local',
+    adapter: threeDResult.adapter,
+    posId: pos.posId,
+    securityType: pos.securityType || '',
+    startedAt: now.toISOString(),
+    commissionPct,
+    cardSegment,
+    cardBrand,
+    ...(istekNo ? { istekNo } : {}),
+  });
+
+  const row = await prisma.odeme.update({
+    where: { id: pendingRow.id },
+    data: { bankaCevabi: readyMeta },
+  });
+
+  await writePanelLog(
+    input.kullaniciId,
+    `Ödeme - Yerel POS · 3DS başlatıldı · #${odemeNo} · ${chargedAmount.toFixed(2)} · ${pos.bankName} · adapter=${threeDResult.adapter}`,
+  );
   console.info(
-    `[payment-flow] source=${paymentSource} stage=payment-record result=pending-3ds adapter=${threeDResult.adapter}`,
+    `[payment-flow] source=local stage=payment-record result=pending-3ds adapter=${threeDResult.adapter}`,
   );
 
   return {
@@ -703,7 +914,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     durum: row.durum,
     tarih: row.tarih ? row.tarih.toISOString() : null,
     status: 'pending_3d',
-    bankName: paymentBankName,
+    bankName: pos.bankName,
+    paymentSource: 'local',
     threeD: threeDResult.form,
   };
 }
@@ -798,10 +1010,125 @@ export async function reversePayment(
   const at = row.tarih || new Date();
   const asVoid = isVoidWindowOpen(at);
   const tip = asVoid ? '1' : '2';
+  const kind = asVoid ? ('void' as const) : ('refund' as const);
+
+  // Banka iptal/iade (adapter reverse varsa) — yoksa yalnızca ledger
+  let bankReverse: {
+    success: boolean;
+    message: string;
+    responseCode?: string;
+    referenceCode?: string;
+  } | null = null;
+  const bankId = row.bankaId ?? row.sanalposBankaId;
+  let adapterId = '';
+  let paymentMeta: {
+    source?: string;
+    adapter?: string;
+    referenceCode?: string;
+    bankOrderId?: string;
+    authCode?: string;
+    centralSessionId?: string;
+  } = {};
+  if (row.bankaCevabi) {
+    try {
+      paymentMeta = JSON.parse(row.bankaCevabi) as typeof paymentMeta;
+      if (paymentMeta.adapter) adapterId = paymentMeta.adapter;
+    } catch {
+      /* */
+    }
+  }
+
+  if (paymentMeta.source === 'central') {
+    // Merkez oturumu — banka reverse merkez API üzerinden
+    try {
+      const { reverseCentralPayment } = await import('./binSourceSettingsService.js');
+      const central = await reverseCentralPayment({
+        orderId: row.odemeNo,
+        kind,
+        amount: Number(row.gercekTutar ?? row.tutar) || undefined,
+        referenceCode: paymentMeta.referenceCode,
+        bankOrderId: paymentMeta.bankOrderId,
+        clientIp: row.ip || undefined,
+      });
+      bankReverse = {
+        success: central.success,
+        message: central.message,
+        responseCode: central.responseCode,
+        referenceCode: central.referenceCode,
+      };
+      if (!central.success) {
+        await writePanelLog(
+          actorUserId,
+          `Ödeme - Merkezi API HATA · iptal/iade · #${row.odemeNo} · ${central.message.slice(0, 400)}`,
+        );
+        throw new PaymentsError(central.message || 'Merkezi iptal/iade reddetti');
+      }
+      await writePanelLog(
+        actorUserId,
+        `Ödeme - Merkezi API · ${kind === 'void' ? 'iptal' : 'iade'} · #${row.odemeNo}`,
+      );
+    } catch (err) {
+      if (err instanceof PaymentsError) throw err;
+      if (err instanceof SettingsError) throw new PaymentsError(err.message);
+      throw err;
+    }
+  } else if (bankId != null) {
+    try {
+      const pos = await resolvePosForPayment({
+        bankId,
+        cardDigits: '0000000000000000',
+      });
+      const gw = (adapterId ? getGatewayById(adapterId) : null) ?? pickGateway(pos);
+      if (gw?.reverse) {
+        const result = await gw.reverse({
+          pos,
+          orderId: row.odemeNo,
+          kind,
+          amount: Number(row.gercekTutar ?? row.tutar) || undefined,
+          clientIp: row.ip || undefined,
+          referenceCode: paymentMeta.referenceCode,
+          bankOrderId: paymentMeta.bankOrderId || row.odemeNo,
+        });
+        bankReverse = {
+          success: result.success,
+          message: result.message,
+          responseCode: result.responseCode,
+          referenceCode: result.referenceCode,
+        };
+        if (!result.success) {
+          await writePanelLog(
+            actorUserId,
+            `Ödeme - Yerel POS HATA · iptal/iade · #${row.odemeNo} · ${result.message.slice(0, 400)}`,
+          );
+          throw new PaymentsError(result.message || 'Banka iptal/iade reddetti');
+        }
+        await writePanelLog(
+          actorUserId,
+          `Ödeme - Yerel POS · ${kind === 'void' ? 'iptal' : 'iade'} · #${row.odemeNo} · adapter=${gw.id}`,
+        );
+      }
+    } catch (err) {
+      if (err instanceof PaymentsError) throw err;
+      if (err instanceof PosResolveError) {
+        console.info(`[payment-reverse] pos-resolve-skip: ${err.message}`);
+      } else {
+        throw err;
+      }
+    }
+  }
+
   const entry = {
     tip,
     tarih: new Date().toISOString(),
     kullaniciId: actorUserId,
+    ...(bankReverse
+      ? {
+          bankSuccess: bankReverse.success,
+          bankMessage: bankReverse.message,
+          bankCode: bankReverse.responseCode,
+          bankRef: bankReverse.referenceCode,
+        }
+      : { bankSkipped: true }),
   };
 
   let prev: unknown[] = [];

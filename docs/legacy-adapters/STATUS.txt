@@ -1,0 +1,35 @@
+Eski api.anypay.com.tr adapters → AnyPay/merkez taşıma durumu
+
+3DS + callback:
+[OK] akbank.adapter.js     → akbankV2.ts (+ reverse 1003/1002)
+[OK] denizbank.adapter.js  → denizbank.ts (+ reverse NonSecure)
+[OK] garanti.adapter.js    → garanti.ts (+ reverse void/refund GVPS)
+[OK] halkode.adapter.js    → halkode.ts (+ FE html + reverse refund API)
+[OK] isbankasi.adapter.js  → nestpay.ts (+ CC5 reverse)
+[OK] index.js              → looksLike*
+[OK] iyzico.adapter.js     → iyzico.ts (+ cancel/refund SDK)
+[OK] kuveytturk.adapter.js → kuveytturk.ts (XML + provizyon)
+[OK] paytr.adapter.js      → paytr.ts (iframe + notify hash)
+[OK] qnb.adapter.js        → qnb.ts (+ reverse NonSecure)
+[OK] tosla.adapter.js      → tosla.ts (+ void/refund)
+[OK] vakifbank.adapter.js  → vakifbank.ts (+ Cancel/Refund)
+[OK] yapikredi.adapter.js  → yapikredi.ts (+ reverse/return)
+
+Omurga:
+- Yerel + merkez: create-before-3DS, duplicate-session
+- Callback meta: authCode / referenceCode / bankOrderId saklanır
+- PayTR: /api/payments/3d/notify/paytr
+- reversePayment: yerel adapter.reverse VEYA merkez /payments/reverse
+- Merkez: POST /v1/tahsilat/payments/reverse
+
+reverse durumu:
+[OK] akbank, garanti, halkode, nestpay, qnb, denizbank, tosla, vakifbank, yapikredi, iyzico
+[ ] kuveytturk — legacy dosyada iptal/iade yok
+[ ] paytr — legacy dosyada iptal/iade yok (sadece bildirimDogrula; iade panel/API ayrı)
+
+Not: Eski ödemelerde referenceCode yoksa YK/iyzico reverse başarısız olabilir (yeni tahsilatlarda yazılır).
+
+Callback eşleme (adamlar URL odemeNo):
+[OK] pickOrderId: invoice_id / conversationId / merchant_oid / Xid
+[OK] yerel: xid=odemeNo+pad → findOdemeByCallbackOrderId prefix
+[OK] merkez: bankOrder startsWith session.order_id (YK)

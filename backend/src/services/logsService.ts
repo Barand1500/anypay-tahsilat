@@ -104,6 +104,9 @@ export function classifyIslem(islem: string | null | undefined): {
     lower.includes('excel')
   ) {
     kind = 'export';
+  } else if (lower.includes('ödeme') || lower.includes('odeme') || lower.includes('3ds') || lower.includes('3d ')) {
+    // Ödeme teşhis logları — Merkezi API / Yerel POS
+    kind = 'create';
   }
 
   const actionLabel =
@@ -112,15 +115,21 @@ export function classifyIslem(islem: string | null | undefined): {
       ? 'Giriş'
       : kind === 'logout'
         ? 'Çıkış'
-        : kind === 'create'
-          ? 'Ekleme'
-          : kind === 'update'
-            ? 'Güncelleme'
-            : kind === 'delete'
-              ? 'Silme'
-              : kind === 'export'
-                ? 'Dışa aktar'
-                : 'İşlem');
+        : lower.includes('merkezi api')
+          ? 'Ödeme (Merkezi API)'
+          : lower.includes('yerel pos') || lower.includes('yerel ·')
+            ? 'Ödeme (Yerel)'
+            : kind === 'create'
+              ? lower.startsWith('ödeme') || lower.startsWith('odeme')
+                ? 'Ödeme'
+                : 'Ekleme'
+              : kind === 'update'
+                ? 'Güncelleme'
+                : kind === 'delete'
+                  ? 'Silme'
+                  : kind === 'export'
+                    ? 'Dışa aktar'
+                    : 'İşlem');
 
   return { kind, actionLabel, detail: tail || raw };
 }

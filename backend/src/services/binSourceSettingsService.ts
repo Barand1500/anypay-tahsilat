@@ -2,16 +2,22 @@ import { prisma } from '../lib/prisma.js';
 import { ensureBinKaynakAyarlariColumn } from '../lib/ensureSchema.js';
 import { getOrCreateAyarlarRow, SettingsError } from './settingsService.js';
 
+/**
+ * Api Ayarları anahtarı (A modeli):
+ * - local  → AnyPay kendi içinde çalışır (katalog + ödeme). BU YOL BOZULMAZ.
+ * - remote → ortak katalog + ödeme motoru merkez API'de; kayıt AnyPay'de kalır.
+ */
 export type BinSourceMode = 'local' | 'remote';
 
 export type BinSourceSettings = {
-  /** local = bin_kayitlari; remote = Güzel Teknoloji API */
+  /** local = yerel DB; remote = Güzel Teknoloji /v1/tahsilat */
   source: BinSourceMode;
   remoteBaseUrl: string;
   remoteApiKey: string;
 };
 
 const DEFAULT: BinSourceSettings = {
+  // Varsayılan her zaman local — merkez kapalıyken mevcut iskelet
   source: 'local',
   /** Tercih: .../v1/tahsilat — eski .../v1 de (bins) çalışır */
   remoteBaseUrl: 'https://api.guzelteknoloji.com/v1/tahsilat',
@@ -128,10 +134,19 @@ export type CentralPaymentStartResult = {
   bankId: number;
   posId: number;
   bankName: string;
-  form: { actionUrl: string; method: 'POST'; fields: Record<string, string> };
+  form: {
+    actionUrl: string;
+    method: 'POST';
+    fields: Record<string, string>;
+    html?: string;
+  };
 };
 
-/** Send card data only over TLS to the company's authenticated central payment executor. */
+/**
+ * Merkezi ödeme motoru (yalnızca source=remote).
+ * Kart TLS ile merkeze gider; 3DS formu döner. Local yolu buraya GİRMEZ.
+ * Ödeme kaydı (odeme satırı) yine AnyPay createPayment içinde yazılır.
+ */
 export async function startCentralPayment(input: {
   orderId: string;
   bankName: string;
@@ -144,6 +159,7 @@ export async function startCentralPayment(input: {
   istekNo?: string;
 }): Promise<CentralPaymentStartResult> {
   const settings = await getBinSourceSettings();
+  // Güvenlik: Api kapalıysa veya anahtar yoksa merkezi motor çağrılmaz
   if (settings.source !== 'remote' || !settings.remoteApiKey) {
     throw new SettingsError('Merkezi ödeme için API ayarı gerekli');
   }
@@ -168,8 +184,71 @@ export async function startCentralPayment(input: {
     message?: string;
     data?: CentralPaymentStartResult;
   } | null;
-  if (!response.ok || !json?.success || !json.data?.form?.actionUrl || !json.data.form.fields) {
+  const data = json?.data;
+  // Eksik motor cevabıyla devam etme — callback / kayıt bağlanamaz
+  const formOk = Boolean(
+    data?.form &&
+      (data.form.html?.trim() || (data.form.actionUrl && data.form.fields)),
+  );
+  if (
+    !response.ok ||
+    !json?.success ||
+    !formOk ||
+    !data?.sessionId ||
+    !data.adapter ||
+    !Number.isFinite(Number(data.bankId)) ||
+    !Number.isFinite(Number(data.posId)) ||
+    !data.bankName
+  ) {
     throw new SettingsError(json?.message || `Merkezi ödeme başlatılamadı (${response.status})`);
+  }
+  return data;
+}
+
+export type CentralPaymentReverseResult = {
+  success: boolean;
+  message: string;
+  responseCode?: string;
+  referenceCode?: string;
+  adapter?: string;
+};
+
+/** Merkezi iptal/iade — Api AÇIK yolu; yerel reversePayment burayı çağırır */
+export async function reverseCentralPayment(input: {
+  orderId: string;
+  kind: 'void' | 'refund';
+  amount?: number;
+  referenceCode?: string;
+  bankOrderId?: string;
+  clientIp?: string;
+}): Promise<CentralPaymentReverseResult> {
+  const settings = await getBinSourceSettings();
+  if (settings.source !== 'remote' || !settings.remoteApiKey) {
+    throw new SettingsError('Merkezi iptal/iade için API ayarı gerekli');
+  }
+  const url = `${settings.remoteBaseUrl.replace(/\/+$/, '')}/payments/reverse`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(30_000),
+      headers: {
+        'X-API-Key': settings.remoteApiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new SettingsError('Merkezi iptal/iade hizmetine ulaşılamadı');
+  }
+  const json = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    message?: string;
+    data?: CentralPaymentReverseResult;
+  } | null;
+  if (!response.ok || !json?.success || !json.data) {
+    throw new SettingsError(json?.message || `Merkezi iptal/iade başarısız (${response.status})`);
   }
   return json.data;
 }

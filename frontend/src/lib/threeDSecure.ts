@@ -3,9 +3,19 @@ export type ThreeDFormPayload = {
   actionUrl: string;
   method: 'POST';
   fields: Record<string, string>;
+  /** Halk Öde vb. — API’den gelen HTML belgesi */
+  html?: string;
 };
 
 export function submitThreeDForm(form: ThreeDFormPayload): void {
+  // Halk Öde: sunucu HTML döner → belgeyi yaz
+  if (form.html?.trim()) {
+    document.open();
+    document.write(form.html);
+    document.close();
+    return;
+  }
+
   const el = document.createElement('form');
   el.method = form.method || 'POST';
   el.action = form.actionUrl;
@@ -34,9 +44,10 @@ export type PaymentCreateResult = {
   threeD?: ThreeDFormPayload;
 };
 
-/** 3DS formu varsa bankaya gönder; yoksa false */
+/** 3DS formu / HTML varsa bankaya gönder; yoksa false */
 export function maybeStartThreeD(data: PaymentCreateResult): boolean {
-  if (data.status === 'pending_3d' && data.threeD?.actionUrl) {
+  if (data.status !== 'pending_3d' || !data.threeD) return false;
+  if (data.threeD.html?.trim() || data.threeD.actionUrl) {
     submitThreeDForm(data.threeD);
     return true;
   }

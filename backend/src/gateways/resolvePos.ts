@@ -1,8 +1,14 @@
 import { prisma } from '../lib/prisma.js';
 import { looksLikeAkbankV2 } from './adapters/akbankV2.js';
 import { looksLikeGaranti } from './adapters/garanti.js';
+import { looksLikeHalkode } from './adapters/halkode.js';
+import { looksLikeIyzico } from './adapters/iyzico.js';
 import { looksLikeNestPay } from './adapters/nestpay.js';
+import { looksLikePaytr } from './adapters/paytr.js';
+import { looksLikeQnb } from './adapters/qnb.js';
+import { looksLikeTosla } from './adapters/tosla.js';
 import { looksLikeVakifBank } from './adapters/vakifbank.js';
+import { looksLikeYapiKredi } from './adapters/yapikredi.js';
 import { hintsForKey, matchBinKey, normalizeBankText } from './binCatalog.js';
 import { lookupBinByCard } from '../services/binsService.js';
 import { resolveRedirectBankId } from '../services/commonVirtualPosService.js';
@@ -109,10 +115,17 @@ function mapPos(
 function assertReady(c: PosCredentials): void {
   if (!c.merchantId) throw new PosResolveError('Sanal POS: işyeri numarası eksik');
   if (!c.securityKey) throw new PosResolveError('Sanal POS: mağaza / güvenlik anahtarı eksik');
-  if (!c.gateway3dUrl) {
+  // Halkode / iyzico / PayTR / Tosla sabit API — banka 3D URL zorunlu değil
+  const urlOptional =
+    looksLikeTosla(c) || looksLikeHalkode(c) || looksLikeIyzico(c) || looksLikePaytr(c);
+  if (!c.gateway3dUrl && !urlOptional) {
     throw new PosResolveError(
       `${c.bankName}: Sanal Pos 3D Geçit Url eksik (Banka Düzenle)`,
     );
+  }
+
+  if (looksLikePaytr(c) && !c.terminalPassword) {
+    throw new PosResolveError('PayTR: Merchant Salt eksik (Terminal Şifresi alanı)');
   }
 
   if (looksLikeGaranti(c)) {
@@ -132,6 +145,30 @@ function assertReady(c: PosCredentials): void {
     }
     if (!c.securityKey && !c.terminalPassword) {
       throw new PosResolveError('VakıfBank: Merchant Password eksik (güvenlik anahtarı)');
+    }
+    return;
+  }
+
+  if (looksLikeQnb(c)) {
+    if (!c.terminalSafeId || !c.terminalPassword) {
+      throw new PosResolveError('QNB: API Kullanıcı Adı / Şifre eksik (Terminal alanları)');
+    }
+    return;
+  }
+
+  if (looksLikeYapiKredi(c)) {
+    if (!c.terminalSafeId || !c.terminalPassword) {
+      throw new PosResolveError('Yapı Kredi: Terminal No / Posnet ID eksik');
+    }
+    if (!c.xmlUrl && !c.apiUrl) {
+      throw new PosResolveError('Yapı Kredi: XML servis URL eksik (Banka Düzenle)');
+    }
+    return;
+  }
+
+  if (looksLikeTosla(c)) {
+    if (!c.terminalSafeId) {
+      throw new PosResolveError('Tosla: Api User eksik (Terminal Safe ID)');
     }
     return;
   }

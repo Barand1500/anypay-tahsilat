@@ -113,12 +113,7 @@ paymentsRouter.post('/', async (req: AuthedRequest, res) => {
       kullaniciId: req.auth!.sub,
       clientIp: req.ip || req.socket.remoteAddress || undefined,
     });
-    await writePanelLog(
-      req.auth!.sub,
-      data.status === 'pending_3d'
-        ? `3D Secure başlatıldı — #${data.odemeNo} / ${data.amount.toFixed(2)}`
-        : `Ödeme alındı — #${data.odemeNo} / ${data.amount.toFixed(2)}`,
-    );
+    // Kaynak (Merkezi API / Yerel POS) createPayment içinde log’a yazıldı
     return sendSuccess(
       res,
       data,
@@ -126,8 +121,12 @@ paymentsRouter.post('/', async (req: AuthedRequest, res) => {
       201,
     );
   } catch (err) {
-    if (err instanceof PaymentsError) return sendError(res, 400, err.message);
+    if (err instanceof PaymentsError) {
+      // Kaynaklı hatalar createPayment içinde log’landı
+      return sendError(res, 400, err.message);
+    }
     console.error(err);
+    await writePanelLog(req.auth!.sub, `Ödeme - HATA · beklenmeyen sunucu hatası · ${err instanceof Error ? err.message.slice(0, 300) : ''}`);
     return sendError(res, 500, 'Ödeme kaydedilemedi');
   }
 });

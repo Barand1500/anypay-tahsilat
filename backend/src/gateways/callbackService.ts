@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { writePanelLog } from '../services/logsService.js';
 import { akbankV2Gateway } from './adapters/akbankV2.js';
 import { getGatewayById } from './index.js';
 import { resolvePosForPayment, PosResolveError } from './resolvePos.js';
@@ -15,22 +16,57 @@ function asStringMap(body: Record<string, unknown>): Record<string, unknown> {
   return body;
 }
 
+/**
+ * Banka body → sipariş anahtarı.
+ * Adamlar çoğu bankada URL’deki odemeNo ile bulur; biz body’den okuruz.
+ * Halkode invoice_id / iyzico conversationId / PayTR merchant_oid / YK Xid ekli.
+ */
 function pickOrderId(body: Record<string, unknown>): string {
   const keys = [
+    'oid',
+    'OID',
     'orderid',
     'orderId',
     'OrderId',
-    'oid',
-    'OID',
+    'MerchantOrderId',
+    'invoice_id',
+    'invoiceId',
+    'conversationId',
+    'merchant_oid',
+    'Echo',
+    'echo',
+    'Xid',
+    'XID',
+    'xid',
     'VerifyEnrollmentRequestId',
     'verifyEnrollmentRequestId',
-    'MerchantOrderId',
   ];
   for (const k of keys) {
     const v = body[k];
     if (v != null && String(v).trim()) return String(v).trim();
   }
   return '';
+}
+
+/**
+ * Tam eşleşme veya Yapı Kredi tarzı xid = odemeNo + pad (adamlar URL’de odemeNo kullanır).
+ */
+async function findOdemeByCallbackOrderId(orderId: string) {
+  const exact = await prisma.odeme.findFirst({ where: { odemeNo: orderId } });
+  if (exact) return exact;
+
+  // Güvenli prefix: odemeNo en az 8 karakter; xid bizim no ile başlamalı
+  if (orderId.length < 8) return null;
+  const recent = await prisma.odeme.findMany({
+    orderBy: { id: 'desc' },
+    take: 80,
+    select: { id: true, odemeNo: true },
+  });
+  const hit = recent.find(
+    (r) => r.odemeNo.length >= 8 && orderId.startsWith(r.odemeNo),
+  );
+  if (!hit) return null;
+  return prisma.odeme.findFirst({ where: { id: hit.id } });
 }
 
 function redirectForPayment(istekNo: string | null | undefined): string {
@@ -69,18 +105,17 @@ export async function handleThreeDCallback(
   const orderId = pickOrderId(body);
   if (!orderId) throw new GatewayCallbackError('Sipariş numarası yok');
 
-  const row = await prisma.odeme.findFirst({
-    where: { odemeNo: orderId },
-  });
+  const row = await findOdemeByCallbackOrderId(orderId);
   if (!row) throw new GatewayCallbackError('Ödeme kaydı bulunamadı');
 
+  const odemeNo = row.odemeNo;
   const redirectPath = redirectForPayment(row.istekNo);
 
   // Zaten sonuçlanmışsa tekrar işleme
   if (row.durum === 1 || row.durum === 2 || row.durum === 0 || row.durum === -1) {
     console.info('[payment-callback] source=local result=already-final');
     return {
-      odemeNo: orderId,
+      odemeNo,
       success: row.durum === 1,
       message: row.durum === 1 ? 'Ödeme zaten onaylı' : 'Ödeme zaten sonuçlanmış',
       redirectPath,
@@ -128,8 +163,9 @@ export async function handleThreeDCallback(
       parsed = await gw.finalizeCallback({
         body,
         pos: posCreds,
-        orderId,
+        orderId: odemeNo,
         clientIp: row.ip || undefined,
+        amount: Number(row.gercekTutar ?? row.tutar) || undefined,
       });
     } catch (err) {
       parsed = {
@@ -153,11 +189,6 @@ export async function handleThreeDCallback(
     };
   }
 
-  const success = outcome === 'ok' && parsed.success && !parsed.needsProvision;
-  console.info(
-    `[payment-callback] source=local adapter=${gw.id} outcome=${outcome} result=${success ? 'success' : 'failure'}`,
-  );
-
   // BIN kart meta (taksitDetay / önceki bankaCevabi) — 3DS sonrası kaybolmasın
   let cardSegment: string | null = null;
   let cardBrand = '';
@@ -178,6 +209,23 @@ export async function handleThreeDCallback(
   readCardMeta(row.taksitDetay);
   if (!cardSegment && !cardBrand) readCardMeta(row.bankaCevabi);
 
+  const authCode =
+    parsed.raw.AuthCode ||
+    parsed.raw.authCode ||
+    parsed.raw.OnayKodu ||
+    '';
+  const referenceCode =
+    parsed.raw.hostlogkey ||
+    parsed.raw.HostRefNum ||
+    parsed.raw.hostrefnum ||
+    parsed.raw.RetrefNum ||
+    parsed.raw.retrefnum ||
+    parsed.raw.Rrn ||
+    parsed.raw.rrn ||
+    parsed.raw.HostReferenceNumber ||
+    parsed.raw.paymentId ||
+    parsed.raw.TransId ||
+    '';
   const snippet = JSON.stringify({
     adapter: adapterId,
     at: new Date().toISOString(),
@@ -185,11 +233,41 @@ export async function handleThreeDCallback(
     message: parsed.message,
     hashOk: parsed.success,
     needsProvision: parsed.needsProvision,
+    awaitingExternalConfirm: parsed.awaitingExternalConfirm || false,
+    bankOrderId: parsed.orderId || undefined,
+    authCode: authCode || undefined,
+    referenceCode: referenceCode || undefined,
     istekNo: row.istekNo || undefined,
     ...(cardSegment ? { cardSegment } : {}),
     ...(cardBrand ? { cardBrand } : {}),
     keys: Object.keys(parsed.raw).filter((k) => !/card|cvv|pan|credit/i.test(k)),
   });
+
+  // PayTR kullanıcı dönüşü — banka bildirimi gelene kadar durum=3 (başarısız yazma)
+  if (parsed.awaitingExternalConfirm) {
+    await prisma.odeme.update({
+      where: { id: row.id },
+      data: {
+        durum: 3,
+        bankaCevabi: snippet,
+        bankError: 'Banka bildirimi bekleniyor',
+      },
+    });
+    console.info(
+      `[payment-callback] source=local adapter=${gw.id} outcome=${outcome} result=awaiting-notify`,
+    );
+    return {
+      odemeNo,
+      success: false,
+      message: parsed.message || 'Ödeme sonucu banka bildirimi ile kesinleşecek',
+      redirectPath,
+    };
+  }
+
+  const success = outcome === 'ok' && parsed.success && !parsed.needsProvision;
+  console.info(
+    `[payment-callback] source=local adapter=${gw.id} outcome=${outcome} result=${success ? 'success' : 'failure'}`,
+  );
 
   if (parsed.needsProvision) {
     await prisma.odeme.update({
@@ -201,7 +279,7 @@ export async function handleThreeDCallback(
       },
     });
     return {
-      odemeNo: orderId,
+      odemeNo,
       success: false,
       message: '3D doğrulandı; provizyon tamamlanacak',
       redirectPath,
@@ -221,10 +299,19 @@ export async function handleThreeDCallback(
     await markPaymentRequestPaid(row.istekNo, row.tutar);
   }
 
+  // Yerel 3DS sonucu — Log Kayıtları (Api kapalı yolu)
+  const resultMsg = success ? 'Ödeme onaylandı' : parsed.message || 'Ödeme reddedildi';
+  await writePanelLog(
+    row.kullaniciId,
+    success
+      ? `Ödeme - Yerel POS · BAŞARILI · #${odemeNo} · callback`
+      : `Ödeme - Yerel POS HATA · #${odemeNo} · ${resultMsg.slice(0, 400)}`,
+  );
+
   return {
-    odemeNo: orderId,
+    odemeNo,
     success,
-    message: success ? 'Ödeme onaylandı' : parsed.message || 'Ödeme reddedildi',
+    message: resultMsg,
     redirectPath,
   };
 }
