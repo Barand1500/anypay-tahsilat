@@ -476,7 +476,8 @@ export async function fetchRemoteTaxOffices(force = false): Promise<RemoteTaxOff
     out.push({
       id: flat.id != null ? String(flat.id) : `tax-${name}`,
       name,
-      city: pickField(flat, ['province', 'city', 'il', 'code']) || '',
+      // code vergi dairesi kodu — şehir alanına düşmesin
+      city: pickField(flat, ['city', 'province', 'il']) || '',
       district: pickField(flat, ['district', 'ilce']) || '',
     });
   }
