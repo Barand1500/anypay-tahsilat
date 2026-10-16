@@ -28,6 +28,16 @@ function notRemoved() {
   return { OR: [{ remove: null }, { remove: false }] };
 }
 
+/** Banka adı eşlemesi — merkez katalog ↔ yerel POS */
+function normBankLabel(value: unknown): string {
+  return String(value || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
 async function mapRow(r: {
   id: number;
   bankaId: number;
@@ -79,21 +89,60 @@ export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
     const src = await getBinSourceSettings();
     if (src.source === 'remote') {
       const remote = await fetchRemoteVirtualPos();
-      return remote.map((r) => ({
-        id: r.id,
-        bankId: '',
-        bankName: r.bank || '—',
-        bankLogoUrl: '',
-        posName: r.name,
-        infrastructureId: r.variables || '',
-        merchantId: '',
-        terminalSafeId: '',
-        securityKey: '',
-        terminalPassword: '',
-        securityType: '',
-        isDefault: false,
-        active: true,
-      }));
+      // Merkez katalog + yerel varsayılan/aktif bayrakları (ödeme tenant POS kullanır)
+      const localRows = await prisma.sanalPosTanim.findMany({
+        where: notRemoved(),
+        orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
+      });
+      const localByBank = new Map<string, (typeof localRows)[number]>();
+      for (const row of localRows) {
+        const bank = await prisma.banka.findFirst({
+          where: { id: row.bankaId, ...notRemoved() },
+          select: { adi: true, kisaAdi: true },
+        });
+        const keys = [bank?.adi, bank?.kisaAdi]
+          .map((v) => normBankLabel(v))
+          .filter(Boolean);
+        for (const key of keys) {
+          if (!localByBank.has(key)) localByBank.set(key, row);
+        }
+      }
+      const out: PublicVirtualPos[] = [];
+      for (const r of remote) {
+        const bankKey = normBankLabel(r.bank);
+        const local =
+          (bankKey && localByBank.get(bankKey)) ||
+          [...localByBank.entries()].find(
+            ([k]) => bankKey && (k.includes(bankKey) || bankKey.includes(k)),
+          )?.[1];
+        if (local) {
+          const mapped = await mapRow(local);
+          out.push({
+            ...mapped,
+            // Merkez adını göster; bayraklar yerel (toggle kalıcı olsun)
+            bankName: r.bank || mapped.bankName,
+            posName: r.name || mapped.posName,
+            infrastructureId: r.variables || mapped.infrastructureId,
+          });
+        } else {
+          out.push({
+            id: r.id,
+            bankId: '',
+            bankName: r.bank || '—',
+            bankLogoUrl: '',
+            posName: r.name,
+            infrastructureId: r.variables || '',
+            merchantId: '',
+            terminalSafeId: '',
+            securityKey: '',
+            terminalPassword: '',
+            securityType: '',
+            isDefault: false,
+            active: true,
+          });
+        }
+      }
+      return out;
     }
   } catch (err) {
     if (err instanceof VirtualPosError) throw err;
@@ -124,6 +173,20 @@ export async function getDefaultVirtualPosBrand(): Promise<{
   const { getBinSourceSettings, fetchRemoteVirtualPos } = await import('./binSourceSettingsService.js');
   const source = await getBinSourceSettings();
   if (source.source === 'remote') {
+    // Önce yerel varsayılan POS (logo / ödeme ekranı)
+    const localDefault = await prisma.sanalPosTanim.findFirst({
+      where: { varsayilan: true, aktif: { not: false }, ...notRemoved() },
+      orderBy: { id: 'asc' },
+    });
+    if (localDefault) {
+      const mapped = await mapRow(localDefault);
+      return {
+        bankId: mapped.bankId,
+        bankName: mapped.bankName,
+        bankLogoUrl: mapped.bankLogoUrl,
+        posName: mapped.posName,
+      };
+    }
     const remote = await fetchRemoteVirtualPos();
     const preferred = remote[0];
     if (!preferred) return null;
@@ -392,10 +455,16 @@ export async function patchVirtualPosFlags(
   id: number,
   patch: { isDefault?: boolean; active?: boolean },
 ): Promise<PublicVirtualPos> {
+  // Merkez açıkken kimlik/credential düzenlenmez; varsayılan/aktif bayrağı
+  // yerel tenant POS’ta kalır (ödeme resolveTenantPos / resolvePos buradan bakar).
   const existing = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },
   });
-  if (!existing) throw new VirtualPosError('Sanal POS bulunamadı');
+  if (!existing) {
+    throw new VirtualPosError(
+      'Sanal POS bulunamadı. Merkez kaydının AnyPay’de eşleşen yerel POS’u olmalı (aynı banka).',
+    );
+  }
 
   let varsayilan = existing.varsayilan;
   let aktif = existing.aktif;
