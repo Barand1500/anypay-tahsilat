@@ -158,7 +158,8 @@ export async function handleThreeDCallback(
   console.info(`[payment-callback] source=local adapter=${gw.id} result=received`);
   let parsed: CallbackResult = gw.parseCallback(asStringMap(body), secretKey);
 
-  if (outcome === 'ok' && parsed.success && parsed.needsProvision && gw.finalizeCallback && posCreds) {
+  // failUrl’e basssa bile 3D alanları varsa GVPS ile çek (Garanti 3D modeli)
+  if (parsed.success && parsed.needsProvision && gw.finalizeCallback && posCreds) {
     try {
       parsed = await gw.finalizeCallback({
         body,
@@ -177,15 +178,15 @@ export async function handleThreeDCallback(
     }
   }
 
-  // Provizyon gerekli ama adapter desteklemiyor → başarısız (durum=3'te asılı kalmasın)
-  if (parsed.needsProvision && !(gw.finalizeCallback && posCreds && outcome === 'ok')) {
+  // Provizyon gerekli ama adapter/POS yok → başarısız (durum=3'te asılı kalmasın)
+  if (parsed.needsProvision) {
     parsed = {
       ...parsed,
       success: false,
       needsProvision: false,
       message:
         parsed.message ||
-        '3D doğrulandı ancak provizyon tamamlanamadı (3D_PAY kullanın)',
+        '3D doğrulandı ancak provizyon tamamlanamadı (API URL / 3D_PAY)',
     };
   }
 
@@ -271,12 +272,10 @@ export async function handleThreeDCallback(
     };
   }
 
-  // Banka bazen successurl yerine failUrl’e basar; parse kesin başarıysa (00/Approved) kabul
+  // failUrl’e basssa bile sadece gerçek banka kodu 00/000 ile kabul (message=Approved yetmez — kod 92 tuzağı)
   const strongOk =
     parsed.success &&
-    (parsed.responseCode === '00' ||
-      parsed.responseCode === '000' ||
-      parsed.message === 'Approved');
+    (parsed.responseCode === '00' || parsed.responseCode === '000');
   const success =
     parsed.success &&
     !parsed.needsProvision &&

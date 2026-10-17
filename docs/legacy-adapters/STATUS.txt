@@ -34,11 +34,10 @@ Callback eşleme (adamlar URL odemeNo):
 [OK] yerel: xid=odemeNo+pad → findOdemeByCallbackOrderId prefix
 [OK] merkez: bankOrder startsWith session.order_id (YK)
 
-Garanti callback (Troy + klasik):
-[OK] Approved / ProcReturnCode 00|000 / TROY Code 000 Success
-[OK] Troy: Response boş olsa da mderrormessage içinde TROY Code 000 Success → BAŞARILI
-[OK] ek: approved=true / acqReturnCode|returnCode 00|000
-[OK] mdStatus 0/5–9 ise reddet; boş veya 1–4 OK
-[OK] ACS Challenge tek başına (Approved/Troy yok) → HATA reason=acs_challenge_no_payment_result
-[OK] yerel+merkez: strongOk (00/000/Approved) failUrl’e basssa da kabul
-[OK] panel log: reason + auth/ref + fieldSnap (_diag)
+Garanti callback (Troy + klasik + çekim):
+[OK] BAŞARILI yalnızca: Approved / ProcReturnCode 00|000 / (Troy Success + auth|hostref)
+[OK] proc!=00 (öz. 92) → HATA; Troy metni tek başına ÖDENDİ yazmaz
+[OK] md 1–4 + cavv/md/xid + çekim yok → GVPS sales finalize (3D model)
+[OK] mdStatus 0/5–9 → reddet
+[OK] strongOk: sadece responseCode 00|000 (message=Approved yetmez)
+[OK] panel log: reason + auth/ref + proc (_diag)
