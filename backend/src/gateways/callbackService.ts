@@ -226,6 +226,12 @@ export async function handleThreeDCallback(
     parsed.raw.paymentId ||
     parsed.raw.TransId ||
     '';
+  let diag: Record<string, unknown> | undefined;
+  try {
+    if (parsed.raw._diag) diag = JSON.parse(parsed.raw._diag) as Record<string, unknown>;
+  } catch {
+    diag = undefined;
+  }
   const snippet = JSON.stringify({
     adapter: adapterId,
     at: new Date().toISOString(),
@@ -238,9 +244,10 @@ export async function handleThreeDCallback(
     authCode: authCode || undefined,
     referenceCode: referenceCode || undefined,
     istekNo: row.istekNo || undefined,
+    diag,
     ...(cardSegment ? { cardSegment } : {}),
     ...(cardBrand ? { cardBrand } : {}),
-    keys: Object.keys(parsed.raw).filter((k) => !/card|cvv|pan|credit/i.test(k)),
+    keys: Object.keys(parsed.raw).filter((k) => !/card|cvv|pan|credit|_diag/i.test(k)),
   });
 
   // PayTR kullanıcı dönüşü — banka bildirimi gelene kadar durum=3 (başarısız yazma)
@@ -274,8 +281,21 @@ export async function handleThreeDCallback(
     parsed.success &&
     !parsed.needsProvision &&
     (outcome === 'ok' || strongOk);
+  const diagReason =
+    typeof diag?.reason === 'string'
+      ? diag.reason
+      : success
+        ? 'ok'
+        : !parsed.success
+          ? 'adapter_reject'
+          : outcome !== 'ok' && !strongOk
+            ? 'fail_url_without_strongOk'
+            : 'parse_fail';
   console.info(
-    `[payment-callback] source=local adapter=${gw.id} outcome=${outcome} result=${success ? 'success' : 'failure'}`,
+    `[payment-callback] source=local adapter=${gw.id} outcome=${outcome}` +
+      ` result=${success ? 'success' : 'failure'} strongOk=${strongOk}` +
+      ` code=${parsed.responseCode || '-'} auth=${authCode ? 'yes' : 'no'}` +
+      ` ref=${referenceCode ? 'yes' : 'no'} reason=${diagReason}`,
   );
 
   if (parsed.needsProvision) {
@@ -308,13 +328,22 @@ export async function handleThreeDCallback(
     await markPaymentRequestPaid(row.istekNo, row.tutar);
   }
 
-  // Yerel 3DS sonucu — Log Kayıtları (Api kapalı yolu)
+  // Yerel 3DS sonucu — Log Kayıtları (Api kapalı yolu) — teşhis alanları
   const resultMsg = success ? 'Ödeme onaylandı' : parsed.message || 'Ödeme reddedildi';
+  const detail = [
+    `adapter=${gw.id}`,
+    `outcome=${outcome}`,
+    `strongOk=${strongOk}`,
+    `code=${parsed.responseCode || '-'}`,
+    `auth=${authCode ? 'var' : 'yok'}`,
+    `ref=${referenceCode ? 'var' : 'yok'}`,
+    `reason=${diagReason}`,
+  ].join(' · ');
   await writePanelLog(
     row.kullaniciId,
     success
-      ? `Ödeme - Yerel POS · BAŞARILI · #${odemeNo} · callback`
-      : `Ödeme - Yerel POS HATA · #${odemeNo} · ${resultMsg.slice(0, 400)}`,
+      ? `Ödeme - Yerel POS · BAŞARILI · #${odemeNo} · ${detail}`
+      : `Ödeme - Yerel POS HATA · #${odemeNo} · ${resultMsg.slice(0, 220)} · ${detail}`,
   );
 
   return {

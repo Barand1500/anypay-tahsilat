@@ -36,5 +36,9 @@ Callback eşleme (adamlar URL odemeNo):
 
 Garanti callback (Troy + klasik):
 [OK] Approved / ProcReturnCode 00|000 / TROY Code 000 Success
+[OK] Troy: Response boş olsa da mderrormessage içinde TROY Code 000 Success → BAŞARILI
+[OK] ek: approved=true / acqReturnCode|returnCode 00|000
 [OK] mdStatus 0/5–9 ise reddet; boş veya 1–4 OK
-[OK] yerel+merkez: strongOk (00/Approved) failUrl’e basssa da kabul
+[OK] ACS Challenge tek başına (Approved/Troy yok) → HATA reason=acs_challenge_no_payment_result
+[OK] yerel+merkez: strongOk (00/000/Approved) failUrl’e basssa da kabul
+[OK] panel log: reason + auth/ref + fieldSnap (_diag)
