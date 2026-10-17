@@ -65,10 +65,8 @@ export const akbankV2Gateway: PaymentGateway = {
       return { kind: 'error', message: 'CVC geçersiz' };
     }
 
-    const emailAddress = (input.email || '').trim();
-    if (!emailAddress) {
-      return { kind: 'error', message: 'Ödeme için e-posta bilgisi bulunamadı' };
-    }
+    // Hızlı ödemede müşteri/e-posta olmayabilir; Garanti adaptöründeki gibi yedek adres kullan
+    const emailAddress = (input.email || '').trim() || 'musteri@anypay.com.tr';
 
     const orderId = input.orderId;
     const amount = formatAmount(input.amount);
