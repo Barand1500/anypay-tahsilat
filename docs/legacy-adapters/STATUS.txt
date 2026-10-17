@@ -33,3 +33,8 @@ Callback eşleme (adamlar URL odemeNo):
 [OK] pickOrderId: invoice_id / conversationId / merchant_oid / Xid
 [OK] yerel: xid=odemeNo+pad → findOdemeByCallbackOrderId prefix
 [OK] merkez: bankOrder startsWith session.order_id (YK)
+
+Garanti callback (Troy + klasik):
+[OK] Approved / ProcReturnCode 00|000 / TROY Code 000 Success
+[OK] mdStatus 0/5–9 ise reddet; boş veya 1–4 OK
+[OK] yerel+merkez: strongOk (00/Approved) failUrl’e basssa da kabul

@@ -264,7 +264,16 @@ export async function handleThreeDCallback(
     };
   }
 
-  const success = outcome === 'ok' && parsed.success && !parsed.needsProvision;
+  // Banka bazen successurl yerine failUrl’e basar; parse kesin başarıysa (00/Approved) kabul
+  const strongOk =
+    parsed.success &&
+    (parsed.responseCode === '00' ||
+      parsed.responseCode === '000' ||
+      parsed.message === 'Approved');
+  const success =
+    parsed.success &&
+    !parsed.needsProvision &&
+    (outcome === 'ok' || strongOk);
   console.info(
     `[payment-callback] source=local adapter=${gw.id} outcome=${outcome} result=${success ? 'success' : 'failure'}`,
   );
