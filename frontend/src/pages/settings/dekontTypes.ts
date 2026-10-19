@@ -27,6 +27,9 @@ export type DekontBlockType =
   | 'partiesCards'
   | 'detailTable'
   | 'legalBox'
+  /** Yeni A4/A5: kart sahibi / firma imza kutuları (#...# kalın) */
+  | 'legalBoxHolder'
+  | 'legalBoxFirm'
   | 'amountWords'
   /** Yönetilebilir kutular */
   | 'emptyBox'
@@ -61,6 +64,11 @@ export type DekontContentField =
   | 'slipTitle'
   | 'legalLine'
   | 'amountInWords'
+  | 'customerTitle'
+  | 'customerAddress'
+  | 'customerPhone'
+  | 'sheetLegalLine'
+  | 'secureNote'
   | 'staticDocTitle'
   | 'staticKeepSlip'
   | 'staticApproved'
@@ -97,6 +105,11 @@ export const DEKONT_CONTENT_FIELD_META: Array<{
   { id: 'slipTitle', label: 'İşlem tipi', bold: true },
   { id: 'legalLine', label: 'Yasal satır' },
   { id: 'amountInWords', label: 'Yazıyla tutar' },
+  { id: 'customerTitle', label: 'Müşteri ünvanı', bold: true },
+  { id: 'customerAddress', label: 'Müşteri adresi' },
+  { id: 'customerPhone', label: 'Müşteri telefon' },
+  { id: 'sheetLegalLine', label: 'Beyan cümlesi (A4/A5)' },
+  { id: 'secureNote', label: '3D Secure notu' },
   { id: 'staticDocTitle', label: 'SANAL POS E-DEKONT', bold: true },
   { id: 'staticKeepSlip', label: 'BU BELGEYİ SAKLAYINIZ' },
   { id: 'staticApproved', label: 'İŞLEM ONAYLANDI', bold: true },
@@ -195,6 +208,9 @@ export type DekontSampleContext = {
   dekontNo: string;
   identityNo: string;
   holderPhone: string;
+  customerTitle: string;
+  customerAddress: string;
+  customerPhone: string;
   description: string;
   amountOnly: string;
   commissionOnly: string;
@@ -221,6 +237,8 @@ export const DEKONT_VARIABLE_META: Array<{
   { type: 'partiesCards', label: 'Taraflar (çift)', hint: 'Hazır iki kutu', sheetOnly: true },
   { type: 'detailTable', label: 'Detay tablosu', hint: 'İki kolon KV', sheetOnly: true },
   { type: 'legalBox', label: 'Yasal kutu', hint: 'İmza alanı', sheetOnly: true },
+  { type: 'legalBoxHolder', label: 'Kart sahibi imza kutusu', hint: 'Beyan + kart sahibi imzası', sheetOnly: true },
+  { type: 'legalBoxFirm', label: 'Firma imza kutusu', hint: 'Taahhüt + müşteri firma imzası', sheetOnly: true },
   { type: 'amountWords', label: 'Yazıyla tutar', hint: 'Yalnız; …', sheetOnly: true },
   { type: 'keepSlip', label: 'Saklayınız', hint: 'BU BELGEYİ SAKLAYINIZ', fisOnly: true },
   { type: 'merchantTitle', label: 'Üye işyeri', hint: 'İletişim › ünvan' },
@@ -290,6 +308,8 @@ export function newDekontBlock(
     partiesCards: { w: 90, h: 12, fontScale: 0.95, align: 'left' },
     detailTable: { w: 90, h: 28, fontScale: 0.85, align: 'left' },
     legalBox: { w: 90, h: 12, fontScale: 0.8, align: 'left' },
+    legalBoxHolder: { w: 94, h: 12, fontScale: 1.1, align: 'left' },
+    legalBoxFirm: { w: 94, h: 12, fontScale: 1.1, align: 'left' },
     amountWords: { w: 90, h: 3, fontScale: 0.9, align: 'left' },
     emptyBox: { w: 44, h: 12, fontScale: 1, align: 'left' },
     contentBox: { w: 44, h: 12, fontScale: 0.95, align: 'left' },
@@ -379,39 +399,41 @@ export function getDefaultFisBlocks(): DekontBlock[] {
   ];
 }
 
-/** A5/A4 — ayrı yönetilebilir kutular */
+/**
+ * A5/A4 varsayılan (yeni tasarım). Kayıtlı (özelleştirilmiş) şablonlar etkilenmez.
+ * Yerleşim backend dekontSettingsService.getDefaultSheetBlocks ile aynıdır.
+ */
 export function getDefaultSheetBlocks(): DekontBlock[] {
   return [
-    newDekontBlock('brandLogo', { x: 4, y: 2, w: 30, h: 6, align: 'left', z: 2 }),
-    newDekontBlock('bankLogo', { x: 66, y: 2, w: 30, h: 6, align: 'right', z: 2 }),
-    newDekontBlock('docTitle', { x: 5, y: 10, w: 90, h: 4, fontScale: 1.1 }),
-    newDekontBlock('dekontNoDate', { x: 5, y: 15, w: 90, h: 3, fontScale: 0.9, align: 'left' }),
+    newDekontBlock('brandLogo', { x: 3, y: 1.6, w: 28, h: 5.2, align: 'left', z: 2 }),
+    newDekontBlock('bankLogo', { x: 69, y: 1.6, w: 28, h: 5.2, align: 'right', z: 2 }),
+    newDekontBlock('docTitle', { x: 3, y: 7.8, w: 94, h: 3.6, fontScale: 1.1 }),
+    newDekontBlock('dekontNoDate', { x: 3, y: 12.2, w: 94, h: 2.4, fontScale: 0.9, align: 'left' }),
     newDekontBlock('contentBox', {
-      x: 5,
-      y: 19,
-      w: 44,
-      h: 11,
-      fontScale: 0.95,
-      align: 'left',
-      border: true,
+      x: 3, y: 14.2, w: 47, h: 13.4, fontScale: 1.1, align: 'left', border: true,
       fields: ['merchantTitle', 'merchantAddress', 'merchantPhone'],
     }),
     newDekontBlock('contentBox', {
-      x: 51,
-      y: 19,
-      w: 44,
-      h: 11,
-      fontScale: 0.95,
-      align: 'left',
-      border: true,
-      fields: ['cardHolderName', 'holderPhone'],
+      x: 50, y: 14.2, w: 47, h: 13.4, fontScale: 1.1, align: 'left', border: true,
+      fields: ['customerTitle', 'customerAddress', 'customerPhone'],
     }),
-    newDekontBlock('detailTable', { x: 5, y: 31.5, w: 90, h: 30, fontScale: 0.85, align: 'left' }),
-    newDekontBlock('amountWords', { x: 5, y: 62.5, w: 90, h: 3, fontScale: 0.9, align: 'left' }),
-    newDekontBlock('legalBox', { x: 5, y: 67, w: 90, h: 14, fontScale: 0.8, align: 'left' }),
-    newDekontBlock('maliDeger', { x: 5, y: 83, w: 90, h: 3, fontScale: 0.95 }),
-    newDekontBlock('musteriNushasi', { x: 5, y: 87, w: 90, h: 3, fontScale: 0.9 }),
+    newDekontBlock('emptyBox', { x: 3, y: 29.2, w: 94, h: 27.3, z: 0, border: true }),
+    newDekontBlock('detailTable', { x: 3.5, y: 29.8, w: 93, h: 17, fontScale: 1.1, align: 'left', border: false }),
+    newDekontBlock('amountWords', { x: 3.5, y: 46.8, w: 93, h: 2.2, fontScale: 1.1, align: 'left' }),
+    newDekontBlock('contentBox', {
+      x: 3.5, y: 50, w: 93, h: 5, fontScale: 1.1, align: 'center', border: false,
+      fields: ['sheetLegalLine', 'secureNote'],
+    }),
+    newDekontBlock('legalBoxHolder', { x: 3, y: 58.2, w: 94, h: 12, fontScale: 1.1, align: 'left' }),
+    newDekontBlock('legalBoxFirm', { x: 3, y: 71.7, w: 94, h: 12, fontScale: 1.1, align: 'left' }),
   ];
+}
+
+/** Fiş yasal satırı → A4/A5 beyan cümlesi */
+export function sheetLegalSentence(legalLine: string): string {
+  if (/İADE/.test(legalLine)) return 'Yukarıdaki bedel karşılığında işlem iade edilmiştir.';
+  if (/İPTAL/.test(legalLine)) return 'Yukarıdaki bedel karşılığında işlem iptal edilmiştir.';
+  return 'Yukarıdaki bedel karşılığında mal veya hizmet aldım.';
 }
 
 export function resolveContentField(
@@ -423,6 +445,10 @@ export function resolveContentField(
     cardHolderName: string;
     holderPhone: string;
     identityNo: string;
+    customerTitle?: string;
+    customerAddress?: string;
+    customerPhone?: string;
+    threeDSecure?: boolean;
     bankName: string;
     cardMasked: string;
     cardBrand: string;
@@ -497,6 +523,19 @@ export function resolveContentField(
       return { text: ctx.legalLine, bold };
     case 'amountInWords':
       return { text: ctx.amountInWords || '—', bold };
+    case 'customerTitle':
+      return { text: ctx.customerTitle || '', bold };
+    case 'customerAddress':
+      return { text: ctx.customerAddress || '', bold };
+    case 'customerPhone':
+      return { text: ctx.customerPhone || '', bold };
+    case 'sheetLegalLine':
+      return { text: sheetLegalSentence(ctx.legalLine), bold };
+    case 'secureNote':
+      return {
+        text: ctx.threeDSecure ? 'Bu ödeme 3D Secure güvenli doğrulama ile yapılmıştır.' : '',
+        bold,
+      };
     case 'staticDocTitle':
       return { text: 'SANAL POS E-DEKONT', bold: true };
     case 'staticKeepSlip':
@@ -590,6 +629,9 @@ export const SAMPLE_DEKONT_CTX = (brandLogoUrl: string): DekontSampleContext => 
   dekontNo: '000014',
   identityNo: '123******90',
   holderPhone: '530 *** ** 50',
+  customerTitle: 'ÖRNEK MÜŞTERİ FİRMASI LTD. ŞTİ.',
+  customerAddress: 'Örnek Mah. Örnek Cad. No:1 Kepez / Antalya',
+  customerPhone: '532 *** ** 42',
   description: 'Örnek tahsilat',
   amountOnly: '1.000,00',
   commissionOnly: '53,40',

@@ -58,7 +58,30 @@ export type DekontRenderCtx = {
   commissionOnly: string;
   legalBox1: string;
   legalBox2: string;
+  customerTitle: string;
+  customerAddress: string;
+  customerPhone: string;
 };
+
+/** Yeni A4/A5 imza kutuları metni — #...# arası kalın */
+export function sheetLegalTexts(ctx: DekontRenderCtx): { holder: string; firm: string } {
+  const firm = ctx.merchantTitle || 'üye işyeri';
+  const cust =
+    ctx.customerTitle && ctx.customerTitle !== ctx.cardHolderName ? ctx.customerTitle : '';
+  const amount = ctx.amountTotal.replace(/ TL$/, ' ₺');
+  const words = ctx.amountInWords || '—';
+  return {
+    holder:
+      `Yukarıda bilgilerini vermiş olduğum kredi kartımdan; Rakamla #${amount}# Yazıyla #${words}# tutarın çekilmesini ve çekilen bu tutarın ` +
+      (cust ? `tarafımdan alacaklı olan #${cust}# firması adına ` : '') +
+      `#${firm}# firmasına ödenmiş bulunduğumu, ilgili firma ile aramda oluşabilecek anlaşmazlıklardan dolayı #${firm}# firmasını sorumlu tutmayacağımı beyan ve taahhüt ederim.`,
+    firm: `Yukarıda bilgileri verilen kredi kartından çekilen; Rakamla #${amount}# Yazıyla #${words}# tutara kart sahibinin isteği doğrultusunda banka tarafından bloke konulacağını ve #${firm}# firması hesaplarına aktarılmaması durumunda, ilgili tutarı her türlü gecikme faizleri ile birlikte #${firm}# firmasının talep ettiği tarihte nakit olarak #${firm}# firmasına ödeyeceğimi beyan ve taahhüt ederim.`,
+  };
+}
+
+function renderBold(text: string) {
+  return text.split('#').map((seg, i) => (i % 2 === 1 ? <strong key={i}>{seg}</strong> : <span key={i}>{seg}</span>));
+}
 
 export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknoloji'): DekontRenderCtx {
   return {
@@ -97,6 +120,9 @@ export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknol
     commissionOnly: s.commissionOnly,
     legalBox1: s.legalBox1,
     legalBox2: s.legalBox2,
+    customerTitle: s.customerTitle,
+    customerAddress: s.customerAddress,
+    customerPhone: s.customerPhone,
   };
 }
 
@@ -156,6 +182,9 @@ export function ctxFromTransaction(
     commissionOnly: formatMoneyDisplay(tx.commission),
     legalBox1: legal1,
     legalBox2: legal2,
+    customerTitle: d.customerTitle || d.cardHolderName || '',
+    customerAddress: d.customerAddress || '',
+    customerPhone: d.customerPhone || maskPhoneForDekont(d.cardHolderPhoneMasked || d.cardHolderPhone),
   };
 }
 
@@ -487,6 +516,7 @@ function BlockContent({
         </div>
       );
     case 'detailTable': {
+      const plain = block?.border === false;
       const left: [string, string][] = [
         ['ONAY ZAMANI', ctx.atLabel],
         ['REFERANS NO', ctx.referenceNo],
@@ -495,7 +525,7 @@ function BlockContent({
         ['TELEFONU', ctx.holderPhone],
         ['AÇIKLAMA', ctx.description],
       ];
-      const right: [string, string][] = [
+      let right: [string, string][] = [
         ['İŞLEM NO', ctx.transactionNo],
         ['ONAY KODU', ctx.authCode],
         ['BANKA', ctx.bankName],
@@ -507,16 +537,23 @@ function BlockContent({
         ['KOMİSYON', ctx.commissionOnly],
         ['TOPLAM', ctx.amountTotal],
       ];
+      // Yeni stil: marka/tür bilinmiyorsa satırı gösterme
+      if (plain) {
+        right = right.filter(([k, v]) => !((k === 'KART MARKASI' || k === 'KART TÜRÜ') && (!v || v === '—')));
+      }
       return (
-        <div className="h-full w-full overflow-hidden border border-[#444]" style={fs(10)}>
+        <div
+          className={['h-full w-full overflow-hidden', plain ? '' : 'border border-[#444]'].join(' ')}
+          style={fs(10)}
+        >
           <div className="grid h-full grid-cols-2">
-            <div className="border-r border-[#444]">
+            <div className={plain ? '' : 'border-r border-[#444]'}>
               {left.map(([k, v], i) => (
                 <div
                   key={k}
                   className={[
                     'flex gap-1 px-1.5 py-0.5',
-                    i < left.length - 1 ? 'border-b border-[#ddd]' : '',
+                    !plain && i < left.length - 1 ? 'border-b border-[#ddd]' : '',
                   ].join(' ')}
                 >
                   <span className="w-[5.5rem] shrink-0 font-semibold">{k}</span>
@@ -531,7 +568,7 @@ function BlockContent({
                   key={k}
                   className={[
                     'flex gap-1 px-1.5 py-0.5',
-                    i < right.length - 1 ? 'border-b border-[#ddd]' : '',
+                    !plain && i < right.length - 1 ? 'border-b border-[#ddd]' : '',
                     k === 'TOPLAM' ? 'font-bold' : '',
                   ].join(' ')}
                 >
@@ -541,6 +578,21 @@ function BlockContent({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      );
+    }
+    case 'legalBoxHolder':
+    case 'legalBoxFirm': {
+      const t = sheetLegalTexts(ctx);
+      const isHolder = type === 'legalBoxHolder';
+      const sign = isHolder ? ctx.cardHolderName : ctx.customerTitle || ctx.cardHolderName;
+      return (
+        <div className="flex h-full w-full flex-col justify-between overflow-hidden border border-[#444] p-2" style={fs(9)}>
+          <p className="leading-relaxed text-[#222]">{renderBold(isHolder ? t.holder : t.firm)}</p>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <span className="font-bold">{sign}</span>
+            <span className="mr-[12%] font-bold">İMZA</span>
           </div>
         </div>
       );

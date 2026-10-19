@@ -6,6 +6,10 @@ export type TxDekont = {
   merchantTitle: string;
   merchantAddress: string;
   merchantPhone: string;
+  /** Müşteri (cari) — yoksa kart sahibi */
+  customerTitle?: string;
+  customerAddress?: string;
+  customerPhone?: string;
   cardHolderName: string;
   cardHolderPhoneMasked: string;
   cardHolderPhone: string;

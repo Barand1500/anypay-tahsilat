@@ -22,6 +22,8 @@ export type DekontBlockType =
   | 'legalLine'
   | 'maliDeger'
   | 'musteriNushasi'
+  | 'legalBoxHolder'
+  | 'legalBoxFirm'
   | 'docTitle'
   | 'dekontNoDate'
   | 'partiesCards'
@@ -58,6 +60,11 @@ export type DekontContentField =
   | 'slipTitle'
   | 'legalLine'
   | 'amountInWords'
+  | 'customerTitle'
+  | 'customerAddress'
+  | 'customerPhone'
+  | 'sheetLegalLine'
+  | 'secureNote'
   | 'staticDocTitle'
   | 'staticKeepSlip'
   | 'staticApproved'
@@ -90,6 +97,11 @@ const CONTENT_FIELDS = new Set<DekontContentField>([
   'slipTitle',
   'legalLine',
   'amountInWords',
+  'customerTitle',
+  'customerAddress',
+  'customerPhone',
+  'sheetLegalLine',
+  'secureNote',
   'staticDocTitle',
   'staticKeepSlip',
   'staticApproved',
@@ -160,6 +172,8 @@ const BLOCK_TYPES = new Set<DekontBlockType>([
   'partiesCards',
   'detailTable',
   'legalBox',
+  'legalBoxHolder',
+  'legalBoxFirm',
   'amountWords',
   'emptyBox',
   'contentBox',
@@ -276,40 +290,35 @@ export function getDefaultFisBlocks(): DekontBlock[] {
   ];
 }
 
-/** A5/A4 — ayrı yönetilebilir kutular */
+/**
+ * A5/A4 varsayılan (yeni tasarım) — yüzde konumlar sayfaya göredir:
+ * logolar → başlık kutusu → dekont no/tarih → iki taraf kutusu →
+ * (detay tablosu + yalnız + beyan metni) tek çerçevede → iki imza kutusu.
+ * Kayıtlı (özelleştirilmiş) şablonlar bundan etkilenmez.
+ */
 export function getDefaultSheetBlocks(): DekontBlock[] {
   return [
-    block('brandLogo', { x: 4, y: 2, w: 30, h: 6, align: 'left', z: 2 }),
-    block('bankLogo', { x: 66, y: 2, w: 30, h: 6, align: 'right', z: 2 }),
-    block('docTitle', { x: 5, y: 10, w: 90, h: 4, fontScale: 1.1, align: 'center', z: 1 }),
-    block('dekontNoDate', { x: 5, y: 15, w: 90, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
+    block('brandLogo', { x: 3, y: 1.6, w: 28, h: 5.2, align: 'left', z: 2 }),
+    block('bankLogo', { x: 69, y: 1.6, w: 28, h: 5.2, align: 'right', z: 2 }),
+    block('docTitle', { x: 3, y: 7.8, w: 94, h: 3.6, fontScale: 1.1, align: 'center', z: 1 }),
+    block('dekontNoDate', { x: 3, y: 12.2, w: 94, h: 2.4, fontScale: 0.9, align: 'left', z: 1 }),
     block('contentBox', {
-      x: 5,
-      y: 19,
-      w: 44,
-      h: 11,
-      fontScale: 0.95,
-      align: 'left',
-      z: 1,
-      border: true,
+      x: 3, y: 14.2, w: 47, h: 13.4, fontScale: 1.1, align: 'left', z: 1, border: true,
       fields: ['merchantTitle', 'merchantAddress', 'merchantPhone'],
     }),
     block('contentBox', {
-      x: 51,
-      y: 19,
-      w: 44,
-      h: 11,
-      fontScale: 0.95,
-      align: 'left',
-      z: 1,
-      border: true,
-      fields: ['cardHolderName', 'holderPhone'],
+      x: 50, y: 14.2, w: 47, h: 13.4, fontScale: 1.1, align: 'left', z: 1, border: true,
+      fields: ['customerTitle', 'customerAddress', 'customerPhone'],
     }),
-    block('detailTable', { x: 5, y: 31.5, w: 90, h: 30, fontScale: 0.85, align: 'left', z: 1 }),
-    block('amountWords', { x: 5, y: 62.5, w: 90, h: 3, fontScale: 0.9, align: 'left', z: 1 }),
-    block('legalBox', { x: 5, y: 67, w: 90, h: 14, fontScale: 0.8, align: 'left', z: 1 }),
-    block('maliDeger', { x: 5, y: 83, w: 90, h: 3, fontScale: 0.95, align: 'center', z: 1 }),
-    block('musteriNushasi', { x: 5, y: 87, w: 90, h: 3, fontScale: 0.9, align: 'center', z: 1 }),
+    block('emptyBox', { x: 3, y: 29.2, w: 94, h: 27.3, align: 'left', z: 0, border: true }),
+    block('detailTable', { x: 3.5, y: 29.8, w: 93, h: 17, fontScale: 1.1, align: 'left', z: 1, border: false }),
+    block('amountWords', { x: 3.5, y: 46.8, w: 93, h: 2.2, fontScale: 1.1, align: 'left', z: 1 }),
+    block('contentBox', {
+      x: 3.5, y: 50, w: 93, h: 5, fontScale: 1.1, align: 'center', z: 1, border: false,
+      fields: ['sheetLegalLine', 'secureNote'],
+    }),
+    block('legalBoxHolder', { x: 3, y: 58.2, w: 94, h: 12, fontScale: 1.1, align: 'left', z: 1 }),
+    block('legalBoxFirm', { x: 3, y: 71.7, w: 94, h: 12, fontScale: 1.1, align: 'left', z: 1 }),
   ];
 }
 

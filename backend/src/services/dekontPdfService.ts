@@ -461,6 +461,9 @@ type FisPdfCtx = {
   merchantTitle: string;
   merchantAddress: string;
   merchantPhone: string;
+  customerTitle: string;
+  customerAddress: string;
+  customerPhone: string;
   date: string;
   time: string;
   atLabel: string;
@@ -590,6 +593,8 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
     case 'partiesCards':
     case 'detailTable':
     case 'legalBox':
+    case 'legalBoxHolder':
+    case 'legalBoxFirm':
       // Özel çizim (drawRichBlock)
       return [];
     case 'dekontNoDate':
@@ -656,7 +661,8 @@ function drawRichBlock(
   }
 
   if (block.type === 'detailTable') {
-    drawBorderBox(page, box);
+    const plain = block.border === false;
+    if (!plain) drawBorderBox(page, box);
     const gap = 0;
     const half = box.boxW / 2;
     const leftRows: [string, string][] = [
@@ -667,7 +673,7 @@ function drawRichBlock(
       ['TELEFONU', ctx.holderPhone],
       ['AÇIKLAMA', ctx.description],
     ];
-    const rightRows: [string, string][] = [
+    let rightRows: [string, string][] = [
       ['İŞLEM NO', ctx.transactionNo],
       ['ONAY KODU', ctx.authCode],
       ['BANKA', ctx.bankName],
@@ -679,14 +685,19 @@ function drawRichBlock(
       ['KOMİSYON', ctx.commissionOnly],
       ['TOPLAM', ctx.amountTotal],
     ];
-    page.drawRectangle({
-      x: box.x + half,
-      y: box.bottom,
-      width: 0.6,
-      height: box.boxH,
-      color: rgb(0.35, 0.35, 0.35),
-    });
-    const rowH = Math.min(12, box.boxH / Math.max(leftRows.length, rightRows.length));
+    if (plain) {
+      // Yeni stil: marka/tür bilinmiyorsa satırı gösterme
+      rightRows = rightRows.filter(([k, v]) => !((k === 'KART MARKASI' || k === 'KART TÜRÜ') && (!v || v === '—')));
+    } else {
+      page.drawRectangle({
+        x: box.x + half,
+        y: box.bottom,
+        width: 0.6,
+        height: box.boxH,
+        color: rgb(0.35, 0.35, 0.35),
+      });
+    }
+    const rowH = Math.min(plain ? 17 : 12, box.boxH / Math.max(leftRows.length, rightRows.length));
     const size = Math.min(8 * scale, rowH - 2);
     leftRows.forEach(([k, v], i) => {
       const yOff = 3 + i * rowH;
@@ -716,6 +727,19 @@ function drawRichBlock(
     return;
   }
 
+  if (block.type === 'legalBoxHolder' || block.type === 'legalBoxFirm') {
+    drawBorderBox(page, box);
+    const size = 7.5 * scale;
+    const texts = sheetLegalTexts(ctx);
+    const isHolder = block.type === 'legalBoxHolder';
+    const o = drawRichParagraph(page, font, bold, isHolder ? texts.holder : texts.firm, box, size, 6, 8);
+    const signName = isHolder ? ctx.cardHolderName : ctx.customerTitle || ctx.cardHolderName;
+    const signY = Math.max(o + 6, box.boxH - size - 10);
+    drawInBlock(page, bold, signName || '', box, size, 'left', signY, 8);
+    drawInBlock(page, bold, 'İMZA', box, size, 'right', signY, box.boxW * 0.12);
+    return;
+  }
+
   if (block.type === 'legalBox') {
     drawBorderBox(page, box);
     const size = 7 * scale;
@@ -730,6 +754,78 @@ function drawRichBlock(
     drawInBlock(page, bold, ctx.cardHolderName || '', box, size, 'left', signY, 4);
     drawInBlock(page, bold, 'İMZA', box, size, 'right', signY, 8);
   }
+}
+
+/** Fiş yasal satırı → A4/A5 cümlesi */
+function sheetLegalSentence(legalLine: string): string {
+  if (/İADE/.test(legalLine)) return 'Yukarıdaki bedel karşılığında işlem iade edilmiştir.';
+  if (/İPTAL/.test(legalLine)) return 'Yukarıdaki bedel karşılığında işlem iptal edilmiştir.';
+  return 'Yukarıdaki bedel karşılığında mal veya hizmet aldım.';
+}
+
+/** İmza kutuları metinleri — #...# arası kalın */
+function sheetLegalTexts(ctx: FisPdfCtx): { holder: string; firm: string } {
+  const firm = ctx.merchantTitle || 'üye işyeri';
+  const cust =
+    ctx.customerTitle && ctx.customerTitle !== ctx.cardHolderName ? ctx.customerTitle : '';
+  const amount = `${ctx.amountTotal}`;
+  const words = ctx.amountInWords;
+  return {
+    holder:
+      `Yukarıda bilgilerini vermiş olduğum kredi kartımdan; Rakamla #${amount}# Yazıyla #${words}# tutarın çekilmesini ve çekilen bu tutarın ` +
+      (cust ? `tarafımdan alacaklı olan #${cust}# firması adına ` : '') +
+      `#${firm}# firmasına ödenmiş bulunduğumu, ilgili firma ile aramda oluşabilecek anlaşmazlıklardan dolayı #${firm}# firmasını sorumlu tutmayacağımı beyan ve taahhüt ederim.`,
+    firm:
+      `Yukarıda bilgileri verilen kredi kartından çekilen; Rakamla #${amount}# Yazıyla #${words}# tutara kart sahibinin isteği doğrultusunda banka tarafından bloke konulacağını ve #${firm}# firması hesaplarına aktarılmaması durumunda, ilgili tutarı her türlü gecikme faizleri ile birlikte #${firm}# firmasının talep ettiği tarihte nakit olarak #${firm}# firmasına ödeyeceğimi beyan ve taahhüt ederim.`,
+  };
+}
+
+/** Kalın/normal karışık paragraf (#...# kalın), kutuya sarar. Yeni offset döner. */
+function drawRichParagraph(
+  page: PDFPage,
+  font: PDFFont,
+  bold: PDFFont,
+  text: string,
+  box: PdfBox,
+  size: number,
+  startOffset: number,
+  padX: number,
+): number {
+  const maxW = Math.max(20, box.boxW - padX * 2);
+  const toks: { w: string; b: boolean }[] = [];
+  text.split('#').forEach((seg, i) => {
+    for (const w of encodePdfText(seg).split(/\s+/).filter(Boolean)) toks.push({ w, b: i % 2 === 1 });
+  });
+  const space = font.widthOfTextAtSize(' ', size);
+  const lines: { w: string; b: boolean }[][] = [];
+  let cur: { w: string; b: boolean }[] = [];
+  let curW = 0;
+  for (const t of toks) {
+    const tw = (t.b ? bold : font).widthOfTextAtSize(t.w, size);
+    const add = cur.length ? space + tw : tw;
+    if (curW + add > maxW && cur.length) {
+      lines.push(cur);
+      cur = [t];
+      curW = tw;
+    } else {
+      cur.push(t);
+      curW += add;
+    }
+  }
+  if (cur.length) lines.push(cur);
+  let offset = startOffset;
+  for (const ln of lines) {
+    const y = box.top - size - 2 - offset;
+    if (offset + size > box.boxH - 1 || y < box.bottom) break;
+    let x = box.x + padX;
+    for (const t of ln) {
+      const f = t.b ? bold : font;
+      page.drawText(t.w, { x, y, size, font: f, color: rgb(0.08, 0.08, 0.08) });
+      x += f.widthOfTextAtSize(t.w, size) + space;
+    }
+    offset += size + 2.5;
+  }
+  return offset;
 }
 
 function fieldText(field: DekontContentField, ctx: FisPdfCtx): { text: string; bold: boolean } {
@@ -784,6 +880,19 @@ function fieldText(field: DekontContentField, ctx: FisPdfCtx): { text: string; b
       return { text: ctx.legalLine, bold: false };
     case 'amountInWords':
       return { text: ctx.amountInWords || '-', bold: false };
+    case 'customerTitle':
+      return { text: ctx.customerTitle, bold: true };
+    case 'customerAddress':
+      return { text: ctx.customerAddress, bold: false };
+    case 'customerPhone':
+      return { text: ctx.customerPhone, bold: false };
+    case 'sheetLegalLine':
+      return { text: sheetLegalSentence(ctx.legalLine), bold: false };
+    case 'secureNote':
+      return {
+        text: ctx.threeDSecure ? 'Bu ödeme 3D Secure güvenli doğrulama ile yapılmıştır.' : '',
+        bold: false,
+      };
     case 'staticDocTitle':
       return { text: 'SANAL POS E-DEKONT', bold: true };
     case 'staticKeepSlip':
@@ -852,6 +961,9 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     merchantTitle: d.merchantTitle || '',
     merchantAddress: d.merchantAddress || '',
     merchantPhone: d.merchantPhone || '',
+    customerTitle: d.customerTitle || '',
+    customerAddress: d.customerAddress || '',
+    customerPhone: d.customerPhone || '',
     date,
     time,
     atLabel: `${date} ${time}`,
@@ -911,7 +1023,9 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
       block.type === 'docTitle' ||
       block.type === 'partiesCards' ||
       block.type === 'detailTable' ||
-      block.type === 'legalBox'
+      block.type === 'legalBox' ||
+      block.type === 'legalBoxHolder' ||
+      block.type === 'legalBoxFirm'
     ) {
       drawRichBlock(page, block, box, ctx, font, bold, scale);
       continue;

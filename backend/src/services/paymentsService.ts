@@ -76,6 +76,10 @@ export type PublicPaymentRow = {
     merchantTitle: string;
     merchantAddress: string;
     merchantPhone: string;
+    /** Müşteri (cari) — yoksa kart sahibi */
+    customerTitle: string;
+    customerAddress: string;
+    customerPhone: string;
     cardHolderName: string;
     cardHolderPhoneMasked: string;
     cardHolderPhone: string;
@@ -337,7 +341,7 @@ async function hydrate(
     musteriIds.length
       ? prisma.musteri.findMany({
           where: { id: { in: musteriIds } },
-          select: { id: true, unvan: true },
+          select: { id: true, unvan: true, adres: true, telefon: true },
         })
       : Promise.resolve([]),
     userIds.length
@@ -424,6 +428,9 @@ async function hydrate(
         merchantTitle: merchant.merchantTitle,
         merchantAddress: merchant.merchantAddress,
         merchantPhone: merchant.merchantPhone,
+        customerTitle: (m?.unvan || r.adsoyad || '').trim() || '—',
+        customerAddress: (m?.adres || '').replace(/\s+/g, ' ').trim(),
+        customerPhone: maskPhone(((m?.telefon || '').trim() || phone)),
         cardHolderName: (r.adsoyad || '').trim() || '—',
         cardHolderPhoneMasked: maskPhone(phone),
         cardHolderPhone: maskPhone(phone),
