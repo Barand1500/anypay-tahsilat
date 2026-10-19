@@ -4,7 +4,6 @@ import {
   dekontSlipTitle,
   formatMoneyDisplay,
   formatMoneyTr,
-  formatTxDate,
   maskCardForDekont,
   maskIdentityForDekont,
   maskPhoneForDekont,
@@ -135,7 +134,16 @@ export function ctxFromTransaction(
   const total = tx.amount + tx.commission;
   const money = formatMoneyTr(total);
   const { date, time } = splitTxDateTime(tx.at);
-  const at = formatTxDate(tx.at);
+  const at = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(tx.at));
   const isCancelOrRefund = tx.status === 'cancelled' || tx.status === 'refunded';
   const legal1 = `Kredi kartımdan / banka kartımdan ${money} ₺ tutarın ${d.merchantTitle} adına çekilmesini ve ilgili tutarın üye işyerine aktarılmasını kabul ederim.`;
   const legal2 = `Banka veya kart kuruluşunun ödemeyi bloke etmesi, iade etmesi veya üye işyerine aktarmaması halinde ${money} ₺ tutarı ${d.merchantTitle}’ne bizzat ödemeyi taahhüt ederim.`;
@@ -269,10 +277,11 @@ function BlockContent({
     return (
       <div
         className={[
-          'flex h-full w-full flex-col justify-start gap-0.5 overflow-hidden p-1.5',
+          'flex h-full w-full flex-col justify-start overflow-hidden',
+          block?.gap ? 'p-2' : 'gap-0.5 p-1.5',
           bordered ? 'border border-[#444]' : '',
         ].join(' ')}
-        style={fs(10)}
+        style={{ ...fs(10), ...(block?.gap ? { gap: `${block.gap * 1.333 * 0.55}px` } : {}) }}
       >
         {fields.map((f) => {
           const line = resolveContentField(f, ctx);
@@ -280,7 +289,7 @@ function BlockContent({
           return (
             <p
               key={f}
-              className={['leading-snug', line.bold ? 'font-bold' : ''].join(' ')}
+              className={['leading-snug', line.bold ? 'font-bold' : '', block?.align === 'center' ? 'text-center' : ''].join(' ')}
             >
               {line.text}
             </p>
@@ -537,24 +546,48 @@ function BlockContent({
         ['KOMİSYON', ctx.commissionOnly],
         ['TOPLAM', ctx.amountTotal],
       ];
-      // Yeni stil: marka/tür bilinmiyorsa satırı gösterme
       if (plain) {
-        right = right.filter(([k, v]) => !((k === 'KART MARKASI' || k === 'KART TÜRÜ') && (!v || v === '—')));
+        right = right
+          .filter(([k, v]) => !((k === 'KART MARKASI' || k === 'KART TÜRÜ') && (!v || v === '—')))
+          .map(([k, v]): [string, string] => {
+            if (k === 'TUTAR' || k === 'KOMİSYON') return [k, `${v} ₺`];
+            if (k === 'TOPLAM') return [k, v.replace(/ TL$/, ' ₺')];
+            return [k, v];
+          });
+      }
+      if (plain) {
+        const rowPct = 100 / Math.max(left.length, right.length);
+        const money = new Set(['TUTAR', 'KOMİSYON', 'TOPLAM']);
+        const col = (rows: [string, string][]) => (
+          <div>
+            {rows.map(([k, v]) => (
+              <div key={k} className="flex items-center" style={{ height: `${rowPct}%`, minHeight: '1.3em' }}>
+                <span className="w-[6.9rem] shrink-0">{k}</span>
+                <span className="w-[0.9rem] shrink-0">:</span>
+                <span className={['min-w-0 flex-1 break-all tabular-nums', money.has(k) ? 'text-right' : ''].join(' ')}>
+                  {v || '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+        return (
+          <div className="h-full w-full overflow-hidden" style={fs(10)}>
+            <div className="grid h-full grid-cols-2">
+              {col(left)}
+              {col(right)}
+            </div>
+          </div>
+        );
       }
       return (
-        <div
-          className={['h-full w-full overflow-hidden', plain ? '' : 'border border-[#444]'].join(' ')}
-          style={fs(10)}
-        >
+        <div className="h-full w-full overflow-hidden border border-[#444]" style={fs(10)}>
           <div className="grid h-full grid-cols-2">
-            <div className={plain ? '' : 'border-r border-[#444]'}>
+            <div className="border-r border-[#444]">
               {left.map(([k, v], i) => (
                 <div
                   key={k}
-                  className={[
-                    'flex gap-1 px-1.5 py-0.5',
-                    !plain && i < left.length - 1 ? 'border-b border-[#ddd]' : '',
-                  ].join(' ')}
+                  className={['flex gap-1 px-1.5 py-0.5', i < left.length - 1 ? 'border-b border-[#ddd]' : ''].join(' ')}
                 >
                   <span className="w-[5.5rem] shrink-0 font-semibold">{k}</span>
                   <span>:</span>
@@ -568,7 +601,7 @@ function BlockContent({
                   key={k}
                   className={[
                     'flex gap-1 px-1.5 py-0.5',
-                    !plain && i < right.length - 1 ? 'border-b border-[#ddd]' : '',
+                    i < right.length - 1 ? 'border-b border-[#ddd]' : '',
                     k === 'TOPLAM' ? 'font-bold' : '',
                   ].join(' ')}
                 >
@@ -588,11 +621,11 @@ function BlockContent({
       const isHolder = type === 'legalBoxHolder';
       const sign = isHolder ? ctx.cardHolderName : ctx.customerTitle || ctx.cardHolderName;
       return (
-        <div className="flex h-full w-full flex-col justify-between overflow-hidden border border-[#444] p-2" style={fs(9)}>
-          <p className="leading-relaxed text-[#222]">{renderBold(isHolder ? t.holder : t.firm)}</p>
-          <div className="mt-2 flex items-end justify-between gap-2">
+        <div className="relative flex h-full w-full flex-col justify-between overflow-hidden border border-[#444] p-2.5" style={fs(9)}>
+          <p className="mt-1 leading-relaxed text-[#222]">{renderBold(isHolder ? t.holder : t.firm)}</p>
+          <div className="mb-2 mt-2 flex items-end justify-between gap-2">
             <span className="font-bold">{sign}</span>
-            <span className="mr-[12%] font-bold">İMZA</span>
+            <span className="absolute left-[81%]">İMZA</span>
           </div>
         </div>
       );

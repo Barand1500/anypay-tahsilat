@@ -122,6 +122,8 @@ export type DekontBlock = {
   border?: boolean;
   fields?: DekontContentField[];
   text?: string;
+  /** contentBox — alanlar arası boşluk (pt); >0 ise yeni stil iç boşluk */
+  gap?: number;
 };
 
 export type DekontFormatLayout = {
@@ -239,6 +241,9 @@ function block(
   if (typeof partial.text === 'string' && type !== 'customText') {
     b.text = partial.text.slice(0, 500);
   }
+  if (typeof partial.gap === 'number' && Number.isFinite(partial.gap)) {
+    b.gap = clamp(partial.gap, 0, 40);
+  }
   return b;
 }
 
@@ -291,34 +296,34 @@ export function getDefaultFisBlocks(): DekontBlock[] {
 }
 
 /**
- * A5/A4 varsayılan (yeni tasarım) — yüzde konumlar sayfaya göredir:
+ * A5/A4 varsayılan — referans dekont tasarımı (A4 sayfaya göre yüzde konumlar):
  * logolar → başlık kutusu → dekont no/tarih → iki taraf kutusu →
- * (detay tablosu + yalnız + beyan metni) tek çerçevede → iki imza kutusu.
+ * (detay tablosu + yalnız + beyan) tek çerçeve → iki imza kutusu.
  * Kayıtlı (özelleştirilmiş) şablonlar bundan etkilenmez.
  */
 export function getDefaultSheetBlocks(): DekontBlock[] {
   return [
-    block('brandLogo', { x: 3, y: 1.6, w: 28, h: 5.2, align: 'left', z: 2 }),
-    block('bankLogo', { x: 69, y: 1.6, w: 28, h: 5.2, align: 'right', z: 2 }),
-    block('docTitle', { x: 3, y: 7.8, w: 94, h: 3.6, fontScale: 1.1, align: 'center', z: 1 }),
-    block('dekontNoDate', { x: 3, y: 12.2, w: 94, h: 2.4, fontScale: 0.9, align: 'left', z: 1 }),
+    block('brandLogo', { x: 2.2, y: 1.4, w: 19, h: 5, align: 'left', z: 2 }),
+    block('bankLogo', { x: 76.2, y: 1.4, w: 19.8, h: 5, align: 'right', z: 2 }),
+    block('docTitle', { x: 2.2, y: 7.8, w: 95.6, h: 3.6, fontScale: 1.2, align: 'center', z: 1 }),
+    block('dekontNoDate', { x: 2.2, y: 12.2, w: 95.6, h: 2.4, fontScale: 1.05, align: 'left', z: 1 }),
     block('contentBox', {
-      x: 3, y: 14.2, w: 47, h: 13.4, fontScale: 1.1, align: 'left', z: 1, border: true,
+      x: 2.2, y: 14.2, w: 47.5, h: 13.4, fontScale: 1.1, align: 'left', z: 1, border: true, gap: 9.6,
       fields: ['merchantTitle', 'merchantAddress', 'merchantPhone'],
     }),
     block('contentBox', {
-      x: 50, y: 14.2, w: 47, h: 13.4, fontScale: 1.1, align: 'left', z: 1, border: true,
+      x: 50.7, y: 14.2, w: 47.1, h: 13.4, fontScale: 1.1, align: 'left', z: 1, border: true, gap: 9.6,
       fields: ['customerTitle', 'customerAddress', 'customerPhone'],
     }),
-    block('emptyBox', { x: 3, y: 29.2, w: 94, h: 27.3, align: 'left', z: 0, border: true }),
-    block('detailTable', { x: 3.5, y: 29.8, w: 93, h: 17, fontScale: 1.1, align: 'left', z: 1, border: false }),
-    block('amountWords', { x: 3.5, y: 46.8, w: 93, h: 2.2, fontScale: 1.1, align: 'left', z: 1 }),
+    block('emptyBox', { x: 2.2, y: 29.2, w: 95.6, h: 27.3, align: 'left', z: 0, border: true }),
+    block('detailTable', { x: 3.5, y: 29.6, w: 93, h: 17, fontScale: 1.1, align: 'left', z: 1, border: false }),
+    block('amountWords', { x: 3.5, y: 46.4, w: 93, h: 2.2, fontScale: 1.1, align: 'left', z: 1 }),
     block('contentBox', {
-      x: 3.5, y: 50, w: 93, h: 5, fontScale: 1.1, align: 'center', z: 1, border: false,
+      x: 3.5, y: 50.4, w: 93, h: 5.2, fontScale: 1.1, align: 'center', z: 1, border: false, gap: 8,
       fields: ['sheetLegalLine', 'secureNote'],
     }),
-    block('legalBoxHolder', { x: 3, y: 58.2, w: 94, h: 12, fontScale: 1.1, align: 'left', z: 1 }),
-    block('legalBoxFirm', { x: 3, y: 71.7, w: 94, h: 12, fontScale: 1.1, align: 'left', z: 1 }),
+    block('legalBoxHolder', { x: 2.2, y: 58.1, w: 95.6, h: 11.9, fontScale: 1.1, align: 'left', z: 1 }),
+    block('legalBoxFirm', { x: 2.2, y: 71.7, w: 95.6, h: 12, fontScale: 1.1, align: 'left', z: 1 }),
   ];
 }
 
@@ -366,6 +371,9 @@ function normalizeBlock(raw: unknown, i: number): DekontBlock | null {
   }
   if (typeof b.text === 'string' && type !== 'customText') {
     out.text = b.text.slice(0, 500);
+  }
+  if (typeof b.gap === 'number' && Number.isFinite(b.gap)) {
+    out.gap = clamp(b.gap, 0, 40);
   }
   return out;
 }

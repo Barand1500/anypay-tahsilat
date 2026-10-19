@@ -47,10 +47,13 @@ function asciiSafe(raw: string): string {
 }
 
 /** Unicode font varken kontrol karakterlerini temizle */
+/** Gömülü font ₺ (U+20BA) glifini içeriyorsa gerçek simge, yoksa 'TL' */
+let liraGlyphOk = false;
+
 function unicodeSafe(raw: string): string {
   return String(raw ?? '')
     .replace(/[—–−]/g, '-')
-    .replace(/₺/g, 'TL ')
+    .replace(/₺/g, liraGlyphOk ? '₺' : 'TL ')
     .replace(/[\u0000-\u001F]/g, '')
     .slice(0, 500);
 }
@@ -133,6 +136,12 @@ async function embedPdfFonts(doc: PDFDocument): Promise<{ font: PDFFont; bold: P
     try {
       const font = await doc.embedFont(regularBytes, { subset: true });
       const bold = await doc.embedFont(boldBytes, { subset: true });
+      try {
+        liraGlyphOk =
+          font.getCharacterSet().includes(0x20ba) && bold.getCharacterSet().includes(0x20ba);
+      } catch {
+        liraGlyphOk = false;
+      }
       encodePdfText = unicodeSafe;
       return { font, bold, unicode: true };
     } catch (err) {
@@ -183,6 +192,22 @@ function splitDateTime(iso: string): { date: string; time: string } {
     hour12: false,
   }).format(d);
   return { date, time };
+}
+
+/** 19.10.2026 10:43:19 (İstanbul) */
+function dateTimeWithSeconds(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return new Intl.DateTimeFormat('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
 }
 
 function localImageCandidates(urlOrPath: string): string[] {
@@ -589,6 +614,9 @@ function linesForBlock(type: DekontBlockType, ctx: FisPdfCtx): { text: string; b
       return [{ text: 'MALİ DEĞERİ YOKTUR', bold: true, size: 7 }];
     case 'musteriNushasi':
       return [{ text: 'MÜŞTERİ NÜSHASI', bold: true, size: 7 }];
+    case 'dekontNoDate':
+      // Özel çizim (drawRichBlock): solda no, sağda tarih
+      return [];
     case 'docTitle':
     case 'partiesCards':
     case 'detailTable':
@@ -619,6 +647,13 @@ function drawRichBlock(
   bold: PDFFont,
   scale: number,
 ) {
+  if (block.type === 'dekontNoDate') {
+    const size = 8 * scale;
+    drawInBlock(page, font, `Dekont No: ${ctx.dekontNo}`, box, size, 'left', 0, 0);
+    drawInBlock(page, font, ctx.atLabel, box, size, 'right', 0, 0);
+    return;
+  }
+
   if (block.type === 'docTitle') {
     drawBorderBox(page, box);
     const size = 11 * scale;
@@ -663,13 +698,12 @@ function drawRichBlock(
   if (block.type === 'detailTable') {
     const plain = block.border === false;
     if (!plain) drawBorderBox(page, box);
-    const gap = 0;
     const half = box.boxW / 2;
     const leftRows: [string, string][] = [
       ['ONAY ZAMANI', ctx.atLabel],
       ['REFERANS NO', ctx.referenceNo],
       ['ADI SOYADI', ctx.cardHolderName],
-      ['T.C. KİMLİK', ctx.identityNo],
+      ['T.C. KİMLİK NO', ctx.identityNo],
       ['TELEFONU', ctx.holderPhone],
       ['AÇIKLAMA', ctx.description],
     ];
@@ -686,8 +720,14 @@ function drawRichBlock(
       ['TOPLAM', ctx.amountTotal],
     ];
     if (plain) {
-      // Yeni stil: marka/tür bilinmiyorsa satırı gösterme
-      rightRows = rightRows.filter(([k, v]) => !((k === 'KART MARKASI' || k === 'KART TÜRÜ') && (!v || v === '—')));
+      // Yeni stil: marka/tür bilinmiyorsa satırı gösterme; tutarlar ₺ ile
+      rightRows = rightRows
+        .filter(([k, v]) => !((k === 'KART MARKASI' || k === 'KART TÜRÜ') && (!v || v === '—')))
+        .map(([k, v]): [string, string] => {
+          if (k === 'TUTAR' || k === 'KOMİSYON') return [k, `${v} ₺`];
+          if (k === 'TOPLAM') return [k, v.replace(/ TL$/, ' ₺')];
+          return [k, v];
+        });
     } else {
       page.drawRectangle({
         x: box.x + half,
@@ -699,27 +739,38 @@ function drawRichBlock(
     }
     const rowH = Math.min(plain ? 17 : 12, box.boxH / Math.max(leftRows.length, rightRows.length));
     const size = Math.min(8 * scale, rowH - 2);
+
+    if (plain) {
+      // Etiket | ":" | değer (iki nokta sütunu sabit); tutar satırları sağa yaslı
+      const colonAt = 83;
+      const rightAligned = new Set(['TUTAR', 'KOMİSYON', 'TOPLAM']);
+      const drawCol = (rows: [string, string][], x0: number) => {
+        const cell = { x: x0, boxW: half, top: box.top, boxH: box.boxH, bottom: box.bottom };
+        rows.forEach(([k, v], i) => {
+          const yOff = 3 + i * rowH;
+          drawInBlock(page, font, k, cell, size, 'left', yOff, 0);
+          drawInBlock(page, font, ':', cell, size, 'left', yOff, colonAt);
+          if (rightAligned.has(k)) {
+            drawInBlock(page, font, v || '—', cell, size, 'right', yOff, 4);
+          } else {
+            drawInBlock(page, font, v || '—', cell, size, 'left', yOff, colonAt + 7);
+          }
+        });
+      };
+      drawCol(leftRows, box.x);
+      drawCol(rightRows, box.x + half);
+      return;
+    }
+
     leftRows.forEach(([k, v], i) => {
       const yOff = 3 + i * rowH;
-      const cell = {
-        x: box.x,
-        boxW: half - gap,
-        top: box.top,
-        boxH: box.boxH,
-        bottom: box.bottom,
-      };
+      const cell = { x: box.x, boxW: half, top: box.top, boxH: box.boxH, bottom: box.bottom };
       drawInBlock(page, bold, `${k}:`, cell, size, 'left', yOff, 3);
       drawInBlock(page, font, v || '—', cell, size, 'left', yOff, 72);
     });
     rightRows.forEach(([k, v], i) => {
       const yOff = 3 + i * rowH;
-      const cell = {
-        x: box.x + half,
-        boxW: half,
-        top: box.top,
-        boxH: box.boxH,
-        bottom: box.bottom,
-      };
+      const cell = { x: box.x + half, boxW: half, top: box.top, boxH: box.boxH, bottom: box.bottom };
       const useBold = k === 'TOPLAM' ? bold : font;
       drawInBlock(page, bold, `${k}:`, cell, size, 'left', yOff, 3);
       drawInBlock(page, useBold, v || '—', cell, size, 'left', yOff, 62);
@@ -732,11 +783,11 @@ function drawRichBlock(
     const size = 7.5 * scale;
     const texts = sheetLegalTexts(ctx);
     const isHolder = block.type === 'legalBoxHolder';
-    const o = drawRichParagraph(page, font, bold, isHolder ? texts.holder : texts.firm, box, size, 6, 8);
+    drawRichParagraph(page, font, bold, isHolder ? texts.holder : texts.firm, box, size, 12, 7);
     const signName = isHolder ? ctx.cardHolderName : ctx.customerTitle || ctx.cardHolderName;
-    const signY = Math.max(o + 6, box.boxH - size - 10);
-    drawInBlock(page, bold, signName || '', box, size, 'left', signY, 8);
-    drawInBlock(page, bold, 'İMZA', box, size, 'right', signY, box.boxW * 0.12);
+    const signY = box.boxH - size - 19;
+    drawInBlock(page, bold, signName || '', box, size, 'left', signY, 7);
+    drawInBlock(page, font, 'İMZA', box, size, 'left', signY, box.boxW * 0.812);
     return;
   }
 
@@ -768,7 +819,7 @@ function sheetLegalTexts(ctx: FisPdfCtx): { holder: string; firm: string } {
   const firm = ctx.merchantTitle || 'üye işyeri';
   const cust =
     ctx.customerTitle && ctx.customerTitle !== ctx.cardHolderName ? ctx.customerTitle : '';
-  const amount = `${ctx.amountTotal}`;
+  const amount = ctx.amountTotal.replace(/ TL$/, ' ₺');
   const words = ctx.amountInWords;
   return {
     holder:
@@ -966,7 +1017,7 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
     customerPhone: d.customerPhone || '',
     date,
     time,
-    atLabel: `${date} ${time}`,
+    atLabel: dateTimeWithSeconds(tx.at),
     dekontNo: tx.id,
     transactionNo: d.transactionNo || tx.id,
     authCode: d.authCode || '',
@@ -1021,6 +1072,7 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
 
     if (
       block.type === 'docTitle' ||
+      block.type === 'dekontNoDate' ||
       block.type === 'partiesCards' ||
       block.type === 'detailTable' ||
       block.type === 'legalBox' ||
@@ -1040,6 +1092,8 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
           ? block.fields
           : (['merchantTitle', 'merchantAddress', 'merchantPhone'] as DekontContentField[]);
         let offset = 4;
+        const gap = block.gap && block.gap > 0 ? block.gap : 0;
+        const padX = gap > 0 ? 7 : 4;
         for (const f of fields) {
           const line = fieldText(f, ctx);
           if (!line.text) continue;
@@ -1052,8 +1106,9 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
             size,
             block.align,
             offset,
-            4,
+            padX,
           );
+          offset += gap;
         }
       }
       if (block.type === 'customText') {
