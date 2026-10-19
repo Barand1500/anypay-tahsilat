@@ -328,6 +328,7 @@ export default function ApiSettingsPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
+  const [excelProgress, setExcelProgress] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [locFocus, setLocFocus] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -784,12 +785,16 @@ export default function ApiSettingsPage() {
           setToast({ kind: 'err', text: 'Geçerli BIN satırı yok' });
           return;
         }
-        const created = await postBinsBulk(payload, token);
+        const created = await postBinsBulk(payload, token, (done, total) =>
+          setExcelProgress(`${done} / ${total}`),
+        );
+        setExcelProgress('');
         const next = [...bins, ...created];
         setBins(next);
         syncRuntimeBins(next);
         added = created.length;
       } catch (err) {
+        setExcelProgress('');
         setToast({
           kind: 'err',
           text: err instanceof Error ? err.message : 'BIN içe aktarılamadı',
@@ -1391,7 +1396,8 @@ export default function ApiSettingsPage() {
           sampleCsv={excel.sample}
           classify={classifyExcelRow}
           onClose={() => setExcelOpen(false)}
-          onConfirm={(rows) => void confirmExcelRows(rows)}
+          progress={excelProgress}
+          onConfirm={(rows) => confirmExcelRows(rows)}
         />
       ) : null}
 
@@ -1622,11 +1628,17 @@ export default function ApiSettingsPage() {
 /** Sunucu /api/bins/bulk tek istekte en fazla 20.000 satır kabul eder; büyük listeleri 2.000’lik parçalarla gönderir (zaman aşımı/ilerleme için) */
 const BIN_BULK_CHUNK = 2000;
 
-async function postBinsBulk(rows: unknown[], token: string | null | undefined): Promise<BinRow[]> {
+async function postBinsBulk(
+  rows: unknown[],
+  token: string | null | undefined,
+  onProgress?: (done: number, total: number) => void,
+): Promise<BinRow[]> {
   const out: BinRow[] = [];
+  onProgress?.(0, rows.length);
   for (let i = 0; i < rows.length; i += BIN_BULK_CHUNK) {
     try {
       out.push(...(await api.post<BinRow[]>('/api/bins/bulk', rows.slice(i, i + BIN_BULK_CHUNK), token)));
+      onProgress?.(Math.min(i + BIN_BULK_CHUNK, rows.length), rows.length);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'BIN toplu kayıt başarısız';
       throw new Error(out.length ? `${out.length} kayıt eklendi, sonra hata: ${msg}` : msg);

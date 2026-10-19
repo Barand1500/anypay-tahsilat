@@ -28,6 +28,8 @@ type Props = {
   classify: (cells: string[]) => { status: ImportStatus; note: string };
   onClose: () => void;
   onConfirm: (newRows: string[][]) => void | Promise<void>;
+  /** Toplu kayıt sırasında ilerleme metni (örn. "2000 / 10000") */
+  progress?: string;
 };
 
 /**
@@ -41,6 +43,7 @@ export function ApiExcelModal({
   classify,
   onClose,
   onConfirm,
+  progress = '',
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -49,6 +52,8 @@ export function ApiExcelModal({
   const [parseError, setParseError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [busy, setBusy] = useState(false);
+  /** Sisteme ekleme sürüyor — buton tekrar tıklanmasın, kullanıcı ilerlemeyi görsün */
+  const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<'all' | ImportStatus>('all');
 
   useEffect(() => {
@@ -132,10 +137,16 @@ export function ApiExcelModal({
     }
   }
 
-  function confirmImport() {
+  async function confirmImport() {
+    if (importing) return;
     const neu = drafts.filter((d) => d.status === 'new').map((d) => d.cells);
     if (!neu.length) return;
-    void onConfirm(neu);
+    setImporting(true);
+    try {
+      await onConfirm(neu);
+    } finally {
+      setImporting(false);
+    }
   }
 
   return createPortal(
@@ -344,7 +355,8 @@ export function ApiExcelModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)]"
+                disabled={importing}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--panel-muted)] disabled:opacity-45"
               >
                 İptal
               </button>
@@ -355,11 +367,21 @@ export function ApiExcelModal({
                 <button
                   type="button"
                   data-km-jump
-                  disabled={summary.neu === 0}
-                  onClick={confirmImport}
+                  disabled={summary.neu === 0 || importing}
+                  onClick={() => void confirmImport()}
                   className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-brand-600)] px-5 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  Sisteme Ekle ({summary.neu})
+                  {importing ? (
+                    <>
+                      <span
+                        className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                        aria-hidden
+                      />
+                      Ekleniyor… {progress}
+                    </>
+                  ) : (
+                    `Sisteme Ekle (${summary.neu})`
+                  )}
                 </button>
               </div>
             </div>
