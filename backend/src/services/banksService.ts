@@ -106,7 +106,7 @@ export async function listBanks(): Promise<PublicBank[]> {
         shortName: r.shortName,
         logo: r.logo || null,
         logoUrl: resolveBankLogoUrl(r.logo || null),
-        securityTypes: '',
+        securityTypes: r.securityTypes || '',
         gateway3dUrl: r.gateway3dUrl,
         apiUrl: r.apiUrl,
         xmlUrl: r.xmlUrl,

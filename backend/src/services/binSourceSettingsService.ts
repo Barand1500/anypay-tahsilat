@@ -126,6 +126,7 @@ export type RemoteBankRow = {
   gateway3dUrl: string;
   apiUrl: string;
   xmlUrl: string;
+  securityTypes: string;
 };
 
 export type CentralPaymentStartResult = {
@@ -470,6 +471,7 @@ function mapRemoteBanks(raw: Record<string, unknown>[]): RemoteBankRow[] {
       gateway3dUrl: pickField(flat, ['gateway3dsUrl', 'gateway3dUrl', 'sanalPos3dUrl']),
       apiUrl: pickField(flat, ['apiUrl', 'sanalPosApiUrl']),
       xmlUrl: pickField(flat, ['xmlUrl', 'sanalPosXmlUrl']),
+      securityTypes: pickField(flat, ['securityTypes', 'guvenlikTipleri']),
     });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
