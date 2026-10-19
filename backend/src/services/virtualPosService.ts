@@ -144,6 +144,9 @@ export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
       for (const row of localRows) {
         const mapped = await mapRow(row);
         const central = findRemoteBankByName(remoteBanks, mapped.bankName);
+        // Merkez banka kataloğunda olmayan banka için ödeme alınamaz → listede de gösterme
+        // (katalog okunamadıysa remoteBanks boş: hepsini göster)
+        if (remoteBanks.length && !central) continue;
         out.push({
           ...mapped,
           bankId: central?.id || mapped.bankId,
@@ -180,18 +183,23 @@ export async function getDefaultVirtualPosBrand(): Promise<{
   posName: string;
 } | null> {
   // Merkezi modda da ödeme yerel POS kayıtlarını kullanır: varsayılan → ilk aktif yerel POS.
-  let row = await prisma.sanalPosTanim.findFirst({
-    where: { varsayilan: true, aktif: { not: false }, ...notRemoved() },
-    orderBy: { id: 'asc' },
+  // Merkez banka kataloğunda olmayan bankaların POS'u ödemede kullanılamaz → logoda da çıkmaz.
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  const remoteBanks = (await isCentralRemoteActive()) ? await remoteBanksSafe() : [];
+  const candidates = await prisma.sanalPosTanim.findMany({
+    where: { aktif: { not: false }, ...notRemoved() },
+    orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
   });
-  if (!row) {
-    row = await prisma.sanalPosTanim.findFirst({
-      where: { aktif: { not: false }, ...notRemoved() },
-      orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
-    });
+  let row: (typeof candidates)[number] | null = null;
+  let mapped: PublicVirtualPos | null = null;
+  for (const cand of candidates) {
+    const m = await mapRow(cand);
+    if (remoteBanks.length && !findRemoteBankByName(remoteBanks, m.bankName)) continue;
+    row = cand;
+    mapped = m;
+    break;
   }
-  if (!row) return null;
-  const mapped = await mapRow(row);
+  if (!row || !mapped) return null;
   return {
     bankId: mapped.bankId,
     bankName: mapped.bankName,
