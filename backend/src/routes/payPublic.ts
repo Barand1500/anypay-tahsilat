@@ -16,6 +16,8 @@ import { PaymentsError } from '../services/paymentsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 /** Public ödeme linki — auth yok */
+import { clientIpOf } from '../utils/clientIp.js';
+
 export const payPublicRouter = Router();
 
 const paySchema = z.object({
@@ -138,6 +140,7 @@ payPublicRouter.post('/:token', async (req, res) => {
       installment: parsed.data.installment,
       amount: parsed.data.amount,
       note: parsed.data.note,
+      clientIp: clientIpOf(req),
     });
     return sendSuccess(
       res,

@@ -83,6 +83,7 @@ export type PayByTokenInput = {
   installment: number;
   amount?: number;
   note?: string;
+  clientIp?: string;
 };
 
 export type PublicPaymentRequest = {
@@ -604,6 +605,7 @@ export async function payPaymentRequestByToken(
       kullaniciId,
       parabirimiId: row.parabirimiId,
       istekNo: row.istekNo,
+      clientIp: input.clientIp,
     });
   } catch (err) {
     if (err instanceof PaymentsError) throw err;

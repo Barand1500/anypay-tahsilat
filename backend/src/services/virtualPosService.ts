@@ -72,84 +72,84 @@ async function mapRow(r: {
   };
 }
 
-async function assertLocalVirtualPosWritable() {
+type RemoteBankLite = { id: string; name: string; shortName: string; logo: string };
+
+async function remoteBanksSafe(): Promise<RemoteBankLite[]> {
+  try {
+    const { fetchRemoteBanks } = await import('./binSourceSettingsService.js');
+    return await fetchRemoteBanks();
+  } catch {
+    return [];
+  }
+}
+
+function findRemoteBankByName(banks: RemoteBankLite[], name: string): RemoteBankLite | undefined {
+  const key = normBankLabel(name);
+  if (!key) return undefined;
+  return (
+    banks.find((b) => normBankLabel(b.name) === key || normBankLabel(b.shortName) === key) ||
+    banks.find((b) => {
+      const n = normBankLabel(b.name);
+      return n && (n.includes(key) || key.includes(n));
+    })
+  );
+}
+
+/**
+ * Formdan gelen banka id → yerel banka id.
+ * Merkezi modda dropdown merkez id'leri taşır (yerel id'lerle çakışabilir) → ada göre eşle.
+ */
+async function resolveLocalBankId(raw: string): Promise<number> {
   const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
   if (await isCentralRemoteActive()) {
-    throw new VirtualPosError(
-      'Merkezi API açık — sanal POS salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
-    );
+    const remote = (await remoteBanksSafe()).find((b) => b.id === String(raw));
+    if (!remote) throw new VirtualPosError('Banka bulunamadı');
+    const locals = await prisma.banka.findMany({
+      where: notRemoved(),
+      select: { id: true, adi: true, kisaAdi: true },
+    });
+    const key = normBankLabel(remote.name);
+    const hit =
+      locals.find((b) => normBankLabel(b.adi) === key || normBankLabel(b.kisaAdi) === key) ||
+      locals.find((b) => {
+        const n = normBankLabel(b.adi);
+        return n && (n.includes(key) || key.includes(n));
+      });
+    if (!hit) {
+      throw new VirtualPosError(
+        `"${remote.name}" bankası bu firmada yerel olarak tanımlı değil. Önce Bankalar'dan yerel kaydı oluşturun.`,
+      );
+    }
+    return hit.id;
   }
+  const bankId = Number(raw);
+  if (!Number.isFinite(bankId)) throw new VirtualPosError('Banka seçiniz');
+  await assertBank(bankId);
+  return bankId;
 }
 
 export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
   try {
-    const { getBinSourceSettings, fetchRemoteVirtualPos } = await import(
-      './binSourceSettingsService.js'
-    );
+    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
     const src = await getBinSourceSettings();
     if (src.source === 'remote') {
-      const remote = await fetchRemoteVirtualPos();
-      // Merkez katalog + yerel varsayılan/aktif bayrakları (ödeme tenant POS kullanır)
+      // Ödeme firmanın kendi (yerel) POS kayıtlarını kullanır → liste de yerel kayıtlardır.
+      // Merkez yalnızca banka adı/logosu verir; id eşlemesi ada göre yapılır.
       const localRows = await prisma.sanalPosTanim.findMany({
         where: notRemoved(),
         orderBy: [{ varsayilan: 'desc' }, { id: 'asc' }],
       });
-      const localByBank = new Map<string, (typeof localRows)[number]>();
-      for (const row of localRows) {
-        const bank = await prisma.banka.findFirst({
-          where: { id: row.bankaId, ...notRemoved() },
-          select: { adi: true, kisaAdi: true },
-        });
-        const keys = [bank?.adi, bank?.kisaAdi]
-          .map((v) => normBankLabel(v))
-          .filter(Boolean);
-        for (const key of keys) {
-          if (!localByBank.has(key)) localByBank.set(key, row);
-        }
-      }
+      const remoteBanks = await remoteBanksSafe();
       const out: PublicVirtualPos[] = [];
-      const matchedLocalIds = new Set<number>();
-      for (const r of remote) {
-        const bankKey = normBankLabel(r.bank);
-        const local =
-          (bankKey && localByBank.get(bankKey)) ||
-          [...localByBank.entries()].find(
-            ([k]) => bankKey && (k.includes(bankKey) || bankKey.includes(k)),
-          )?.[1];
-        if (local) {
-          matchedLocalIds.add(local.id);
-          const mapped = await mapRow(local);
-          out.push({
-            ...mapped,
-            // Merkez adını göster; bayraklar yerel (toggle kalıcı olsun)
-            bankName: r.bank || mapped.bankName,
-            posName: r.name || mapped.posName,
-            infrastructureId: r.variables || mapped.infrastructureId,
-          });
-        } else {
-          out.push({
-            id: r.id,
-            bankId: '',
-            bankName: r.bank || '—',
-            bankLogoUrl: '',
-            posName: r.name,
-            infrastructureId: r.variables || '',
-            merchantId: '',
-            terminalSafeId: '',
-            securityKey: '',
-            terminalPassword: '',
-            securityType: '',
-            isDefault: false,
-            active: true,
-          });
-        }
-      }
-      // Merkez listesinde olmayan yerel POS kayıtları da görünsün: ödeme tenant DB'deki
-      // aktif POS'u kullanır, gizli kalırsa (örn. eski Akbank) kullanıcı kapatamaz.
-      for (const local of localRows) {
-        if (matchedLocalIds.has(local.id)) continue;
-        const mapped = await mapRow(local);
-        out.push({ ...mapped, posName: `${mapped.posName} (yerel kayıt)` });
+      for (const row of localRows) {
+        const mapped = await mapRow(row);
+        const central = findRemoteBankByName(remoteBanks, mapped.bankName);
+        out.push({
+          ...mapped,
+          bankId: central?.id || mapped.bankId,
+          bankName: central?.name || mapped.bankName,
+          bankLogoUrl: resolveBankLogoUrl(central?.logo || null) || mapped.bankLogoUrl,
+        });
       }
       return out;
     }
@@ -179,35 +179,7 @@ export async function getDefaultVirtualPosBrand(): Promise<{
   bankLogoUrl: string;
   posName: string;
 } | null> {
-  const { getBinSourceSettings, fetchRemoteVirtualPos } = await import('./binSourceSettingsService.js');
-  const source = await getBinSourceSettings();
-  if (source.source === 'remote') {
-    // Önce yerel varsayılan POS (logo / ödeme ekranı)
-    const localDefault = await prisma.sanalPosTanim.findFirst({
-      where: { varsayilan: true, aktif: { not: false }, ...notRemoved() },
-      orderBy: { id: 'asc' },
-    });
-    if (localDefault) {
-      const mapped = await mapRow(localDefault);
-      return {
-        bankId: mapped.bankId,
-        bankName: mapped.bankName,
-        bankLogoUrl: mapped.bankLogoUrl,
-        posName: mapped.posName,
-      };
-    }
-    const remote = await fetchRemoteVirtualPos();
-    const preferred = remote[0];
-    if (!preferred) return null;
-    const banks = await import('./banksService.js');
-    const bank = (await banks.listBanks()).find((item) => item.name === preferred.bank);
-    return {
-      bankId: bank?.id || '',
-      bankName: preferred.bank || bank?.name || '—',
-      bankLogoUrl: bank?.logoUrl || '',
-      posName: preferred.name,
-    };
-  }
+  // Merkezi modda da ödeme yerel POS kayıtlarını kullanır: varsayılan → ilk aktif yerel POS.
   let row = await prisma.sanalPosTanim.findFirst({
     where: { varsayilan: true, aktif: { not: false }, ...notRemoved() },
     orderBy: { id: 'asc' },
@@ -334,10 +306,7 @@ function assertCredentials(input: {
 }
 
 export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicVirtualPos> {
-  await assertLocalVirtualPosWritable();
-  const bankId = Number(input.bankId);
-  if (!Number.isFinite(bankId)) throw new VirtualPosError('Banka seçiniz');
-  await assertBank(bankId);
+  const bankId = await resolveLocalBankId(input.bankId);
 
   const infra = input.infrastructureId.trim();
   const posName = input.posName.trim();
@@ -396,15 +365,12 @@ export async function updateVirtualPos(
   id: number,
   input: VirtualPosUpsert,
 ): Promise<PublicVirtualPos> {
-  await assertLocalVirtualPosWritable();
   const existing = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },
   });
   if (!existing) throw new VirtualPosError('Sanal POS bulunamadı');
 
-  const bankId = Number(input.bankId);
-  if (!Number.isFinite(bankId)) throw new VirtualPosError('Banka seçiniz');
-  await assertBank(bankId);
+  const bankId = await resolveLocalBankId(input.bankId);
 
   const infra = input.infrastructureId.trim();
   const posName = input.posName.trim();
@@ -500,7 +466,6 @@ export async function patchVirtualPosFlags(
 }
 
 export async function softDeleteVirtualPos(id: number): Promise<void> {
-  await assertLocalVirtualPosWritable();
   const existing = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },
   });

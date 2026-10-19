@@ -16,6 +16,7 @@ import { buildDekontPdf, parseDekontFormat } from '../services/dekontPdfService.
 import { sendMail } from '../lib/mail.js';
 import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
+import { clientIpOf } from '../utils/clientIp.js';
 
 export const paymentsRouter = Router();
 paymentsRouter.use(requireAuth);
@@ -111,7 +112,7 @@ paymentsRouter.post('/', async (req: AuthedRequest, res) => {
       parabirimiId: parsed.data.parabirimiId ?? null,
       bankId: parsed.data.bankId ?? null,
       kullaniciId: req.auth!.sub,
-      clientIp: req.ip || req.socket.remoteAddress || undefined,
+      clientIp: clientIpOf(req),
     });
     // Kaynak (Merkezi API / Yerel POS) createPayment içinde log’a yazıldı
     return sendSuccess(

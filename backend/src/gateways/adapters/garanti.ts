@@ -413,7 +413,7 @@ export const garantiGateway: PaymentGateway = {
     const eci = (raw.eci || raw.Eci || '').trim();
     const xid = (raw.xid || raw.Xid || raw.XID || '').trim();
     const mdToken = (raw.md || raw.MD || '').trim();
-    const ip = (input.clientIp || raw.customeripaddress || '127.0.0.1').replace(/^::ffff:/, '');
+    const ip = ipv4Of(input.clientIp || raw.customeripaddress);
     const email = (raw.customeremailaddress || 'musteri@anypay.com.tr').trim();
     const apiUrl = resolveGvpsUrl(input.pos);
 
@@ -540,7 +540,7 @@ export const garantiGateway: PaymentGateway = {
     const mode = resolveMode(input.pos.gateway3dUrl);
     const orderNo = (input.bankOrderId || input.orderId || '').trim();
     const amount = amountCents(input.amount ?? 0);
-    const ipAddress = (input.clientIp || '127.0.0.1').replace(/^::ffff:/, '');
+    const ipAddress = ipv4Of(input.clientIp);
     const refNum = (input.referenceCode || '').trim();
 
     if (!merchantId || !terminalId || !password) {
