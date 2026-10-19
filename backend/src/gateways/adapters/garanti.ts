@@ -536,7 +536,8 @@ export const garantiGateway: PaymentGateway = {
     const terminalId =
       input.pos.terminalSafeId.replace(/\D/g, '').trim() || input.pos.terminalSafeId.trim();
     const password = input.pos.terminalPassword.trim();
-    const apiUrl = (input.pos.apiUrl || input.pos.xmlUrl || '').trim();
+    const apiUrl = resolveGvpsUrl(input.pos);
+    const mode = resolveMode(input.pos.gateway3dUrl);
     const orderNo = (input.bankOrderId || input.orderId || '').trim();
     const amount = amountCents(input.amount ?? 0);
     const ipAddress = (input.clientIp || '127.0.0.1').replace(/^::ffff:/, '');
@@ -561,7 +562,7 @@ export const garantiGateway: PaymentGateway = {
       input.kind === 'void'
         ? `<?xml version="1.0" encoding="ISO-8859-9"?>
 <GVPSRequest>
-  <Mode>PROD</Mode>
+  <Mode>${mode}</Mode>
   <Version>v0.01</Version>
   <ChannelCode></ChannelCode>
   <Terminal>
@@ -591,7 +592,7 @@ export const garantiGateway: PaymentGateway = {
 </GVPSRequest>`
         : `<?xml version="1.0" encoding="ISO-8859-9"?>
 <GVPSRequest>
-  <Mode>PROD</Mode>
+  <Mode>${mode}</Mode>
   <Version>v0.01</Version>
   <Terminal>
     <ProvUserID>PROVRFN</ProvUserID>

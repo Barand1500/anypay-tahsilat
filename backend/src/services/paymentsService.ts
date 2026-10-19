@@ -1038,8 +1038,8 @@ export async function reversePayment(
     }
   }
 
-  if (paymentMeta.source === 'central') {
-    // Merkez oturumu — banka reverse merkez API üzerinden
+  // Merkez oturumu — banka reverse merkez API üzerinden
+  const reverseViaCentral = async () => {
     try {
       const { reverseCentralPayment } = await import('./binSourceSettingsService.js');
       const central = await reverseCentralPayment({
@@ -1072,6 +1072,14 @@ export async function reversePayment(
       if (err instanceof SettingsError) throw new PaymentsError(err.message);
       throw err;
     }
+  };
+
+  // Para iadesi bankaya gitmeden hareketi "iptal/iade" yapma: banka onayı şart
+  const noBankMsg =
+    'Banka iptal/iade işlemi yapılamadı: bu ödemenin sanal POS bilgisi bulunamadı. Hareket iptal edilmedi.';
+
+  if (paymentMeta.source === 'central' || paymentMeta.centralSessionId) {
+    await reverseViaCentral();
   } else if (bankId != null) {
     try {
       const pos = await resolvePosForPayment({
@@ -1079,42 +1087,51 @@ export async function reversePayment(
         cardDigits: '0000000000000000',
       });
       const gw = (adapterId ? getGatewayById(adapterId) : null) ?? pickGateway(pos);
-      if (gw?.reverse) {
-        const result = await gw.reverse({
-          pos,
-          orderId: row.odemeNo,
-          kind,
-          amount: Number(row.gercekTutar ?? row.tutar) || undefined,
-          clientIp: row.ip || undefined,
-          referenceCode: paymentMeta.referenceCode,
-          bankOrderId: paymentMeta.bankOrderId || row.odemeNo,
-        });
-        bankReverse = {
-          success: result.success,
-          message: result.message,
-          responseCode: result.responseCode,
-          referenceCode: result.referenceCode,
-        };
-        if (!result.success) {
-          await writePanelLog(
-            actorUserId,
-            `Ödeme - Yerel POS HATA · iptal/iade · #${row.odemeNo} · ${result.message.slice(0, 400)}`,
-          );
-          throw new PaymentsError(result.message || 'Banka iptal/iade reddetti');
-        }
-        await writePanelLog(
-          actorUserId,
-          `Ödeme - Yerel POS · ${kind === 'void' ? 'iptal' : 'iade'} · #${row.odemeNo} · adapter=${gw.id}`,
+      if (!gw?.reverse) {
+        throw new PaymentsError(
+          'Bu sanal POS altyapısı için otomatik iptal/iade desteklenmiyor. Hareket iptal edilmedi; işlemi bankanın panelinden yapın.',
         );
       }
+      const result = await gw.reverse({
+        pos,
+        orderId: row.odemeNo,
+        kind,
+        amount: Number(row.gercekTutar ?? row.tutar) || undefined,
+        clientIp: row.ip || undefined,
+        referenceCode: paymentMeta.referenceCode,
+        bankOrderId: paymentMeta.bankOrderId || row.odemeNo,
+      });
+      bankReverse = {
+        success: result.success,
+        message: result.message,
+        responseCode: result.responseCode,
+        referenceCode: result.referenceCode,
+      };
+      if (!result.success) {
+        await writePanelLog(
+          actorUserId,
+          `Ödeme - Yerel POS HATA · iptal/iade · #${row.odemeNo} · ${result.message.slice(0, 400)}`,
+        );
+        throw new PaymentsError(result.message || 'Banka iptal/iade reddetti');
+      }
+      await writePanelLog(
+        actorUserId,
+        `Ödeme - Yerel POS · ${kind === 'void' ? 'iptal' : 'iade'} · #${row.odemeNo} · adapter=${gw.id}`,
+      );
     } catch (err) {
       if (err instanceof PaymentsError) throw err;
       if (err instanceof PosResolveError) {
-        console.info(`[payment-reverse] pos-resolve-skip: ${err.message}`);
+        console.info(`[payment-reverse] pos-resolve-fail: ${err.message}`);
+        // Merkez yazdığı kayıtta kaynak bilgisi olmayabilir: merkez açıksa orada dene
+        const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+        if (await isCentralRemoteActive()) await reverseViaCentral();
+        else throw new PaymentsError(noBankMsg);
       } else {
         throw err;
       }
     }
+  } else {
+    throw new PaymentsError(noBankMsg);
   }
 
   const entry = {
