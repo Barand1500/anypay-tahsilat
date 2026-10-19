@@ -1619,8 +1619,8 @@ export default function ApiSettingsPage() {
   );
 }
 
-/** Sunucu /api/bins/bulk tek istekte en fazla 200 satır kabul eder; büyük listeleri parçalayıp sırayla gönderir */
-const BIN_BULK_CHUNK = 200;
+/** Sunucu /api/bins/bulk tek istekte en fazla 20.000 satır kabul eder; büyük listeleri 2.000’lik parçalarla gönderir (zaman aşımı/ilerleme için) */
+const BIN_BULK_CHUNK = 2000;
 
 async function postBinsBulk(rows: unknown[], token: string | null | undefined): Promise<BinRow[]> {
   const out: BinRow[] = [];

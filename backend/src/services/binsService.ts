@@ -316,6 +316,85 @@ export async function createBin(input: BinUpsert): Promise<PublicBin> {
   }
 }
 
+/**
+ * Toplu BIN ekleme (Excel / API içe aktarma). Tek tek createBin her satırda tüm tabloyu
+ * okuduğu için binlerce satırda çok yavaş; burada tablo ve bankalar bir kez okunur,
+ * kayıtlar parçalar halinde eklenir. Geçersiz ve zaten kayıtlı BIN'ler atlanır.
+ */
+export async function createBinsBulk(
+  inputs: BinUpsert[],
+): Promise<{ created: PublicBin[]; skipped: number }> {
+  await assertLocalBinsWritable();
+  await ensureBinKayitlariTable();
+
+  const existing = new Set((await listBins()).map((b) => b.bin));
+  const banks = await prisma.banka.findMany({
+    where: notRemoved(),
+    select: { id: true, adi: true, kisaAdi: true },
+  });
+  const normBanks = banks.map((b) => ({
+    id: b.id,
+    name: (b.adi || b.kisaAdi || '').trim(),
+    blob: normalizeBankText(`${b.adi} ${b.kisaAdi}`),
+  }));
+  const byId = new Map(normBanks.map((b) => [String(b.id), b]));
+  const byName = new Map<string, { id: number | null; name: string }>();
+
+  const resolve = (bankId: string | null | undefined, bankName: string) => {
+    const id = bankId != null ? String(bankId).trim() : '';
+    const hitId = id ? byId.get(id) : undefined;
+    if (hitId) return { id: hitId.id, name: hitId.name };
+    const name = bankName.trim();
+    if (!name) return null;
+    const cached = byName.get(name);
+    if (cached) return cached;
+    const needle = normalizeBankText(name);
+    const hit = normBanks.find((b) => b.blob === needle || b.blob.includes(needle) || needle.includes(b.blob));
+    const out = hit ? { id: hit.id, name: hit.name } : { id: null, name };
+    byName.set(name, out);
+    return out;
+  };
+
+  const seen = new Set<string>();
+  const rows: {
+    bankaId: number | null;
+    bankaAdi: string;
+    bin: string;
+    tip: string | null;
+    marka: string | null;
+    tur: string | null;
+    remove: boolean;
+  }[] = [];
+  let skipped = 0;
+  for (const input of inputs) {
+    const code = String(input.bin || '').replace(/D/g, '').slice(0, 8);
+    const bank = resolve(input.bankId, input.bank || '');
+    if (code.length < 4 || !bank || existing.has(code) || seen.has(code)) {
+      skipped += 1;
+      continue;
+    }
+    seen.add(code);
+    rows.push({
+      bankaId: bank.id,
+      bankaAdi: bank.name.slice(0, 255),
+      bin: code,
+      tip: (input.type || '').trim().slice(0, 64) || null,
+      marka: (input.brand || '').trim().slice(0, 64) || null,
+      tur: (input.kind || '').trim().slice(0, 64) || null,
+      remove: false,
+    });
+  }
+
+  const CHUNK = 1000;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await prisma.binKayit.createMany({ data: rows.slice(i, i + CHUNK), skipDuplicates: true });
+  }
+
+  const added = new Set(rows.map((r) => r.bin));
+  const created = added.size ? (await listBins()).filter((b) => added.has(b.bin)) : [];
+  return { created, skipped: skipped + (rows.length - created.length) };
+}
+
 export async function updateBin(id: number, input: BinUpsert): Promise<PublicBin> {
   await assertLocalBinsWritable();
   await ensureBinKayitlariTable();

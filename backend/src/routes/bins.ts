@@ -5,6 +5,7 @@ import { requireModuleWrite } from '../middleware/permissions.js';
 import {
   BinsError,
   createBin,
+  createBinsBulk,
   listBinCatalog,
   listBins,
   lookupBinByCard,
@@ -89,17 +90,22 @@ binsRouter.post('/', async (req: AuthedRequest, res) => {
 });
 
 binsRouter.post('/bulk', async (req: AuthedRequest, res) => {
-  const parsed = z.array(upsertSchema).min(1).max(200).safeParse(req.body);
+  const parsed = z.array(upsertSchema).min(1).max(20000).safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   }
   try {
-    const created = [];
-    for (const row of parsed.data) {
-      created.push(await createBin(row));
-    }
-    await writePanelLog(req.auth!.sub, `${created.length} BIN eklendi`);
-    return sendSuccess(res, created, `${created.length} BIN kaydedildi`, 201);
+    const { created, skipped } = await createBinsBulk(parsed.data);
+    await writePanelLog(
+      req.auth!.sub,
+      `${created.length} BIN eklendi${skipped ? ` (${skipped} atlandı)` : ''}`,
+    );
+    return sendSuccess(
+      res,
+      created,
+      `${created.length} BIN kaydedildi${skipped ? `, ${skipped} atlandı (kayıtlı/geçersiz)` : ''}`,
+      201,
+    );
   } catch (err) {
     if (err instanceof BinsError) return sendError(res, 400, err.message);
     console.error(err);
