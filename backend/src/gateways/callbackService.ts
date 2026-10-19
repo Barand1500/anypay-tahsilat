@@ -339,6 +339,12 @@ export async function handleThreeDCallback(
 
   // Yerel 3DS sonucu — Log Kayıtları (Api kapalı yolu) — teşhis alanları
   const resultMsg = success ? 'Ödeme onaylandı' : parsed.message || 'Ödeme reddedildi';
+  // Bankanın kendi hata metni (msg/message alanları) — teşhis için kısa
+  const bankMsg = Object.entries(parsed.raw)
+    .filter(([k, v]) => /msg|message/i.test(k) && !/card|cvv/i.test(k) && String(v || '').trim())
+    .map(([k, v]) => `${k}:${String(v).trim()}`)
+    .join(' | ')
+    .slice(0, 220);
   const detail = [
     `adapter=${gw.id}`,
     `outcome=${outcome}`,
@@ -347,6 +353,7 @@ export async function handleThreeDCallback(
     `auth=${authCode ? 'var' : 'yok'}`,
     `ref=${referenceCode ? 'var' : 'yok'}`,
     `reason=${diagReason}`,
+    ...(!success && bankMsg ? [`bank=${bankMsg}`] : []),
   ].join(' · ');
   await writePanelLog(
     row.kullaniciId,

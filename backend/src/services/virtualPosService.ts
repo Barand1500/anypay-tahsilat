@@ -108,6 +108,7 @@ export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
         }
       }
       const out: PublicVirtualPos[] = [];
+      const matchedLocalIds = new Set<number>();
       for (const r of remote) {
         const bankKey = normBankLabel(r.bank);
         const local =
@@ -116,6 +117,7 @@ export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
             ([k]) => bankKey && (k.includes(bankKey) || bankKey.includes(k)),
           )?.[1];
         if (local) {
+          matchedLocalIds.add(local.id);
           const mapped = await mapRow(local);
           out.push({
             ...mapped,
@@ -141,6 +143,13 @@ export async function listVirtualPos(): Promise<PublicVirtualPos[]> {
             active: true,
           });
         }
+      }
+      // Merkez listesinde olmayan yerel POS kayıtları da görünsün: ödeme tenant DB'deki
+      // aktif POS'u kullanır, gizli kalırsa (örn. eski Akbank) kullanıcı kapatamaz.
+      for (const local of localRows) {
+        if (matchedLocalIds.has(local.id)) continue;
+        const mapped = await mapRow(local);
+        out.push({ ...mapped, posName: `${mapped.posName} (yerel kayıt)` });
       }
       return out;
     }

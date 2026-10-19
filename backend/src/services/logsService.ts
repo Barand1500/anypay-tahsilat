@@ -286,7 +286,12 @@ export async function listLogs(query: ListLogsQuery): Promise<{ items: PublicLog
     const parsed = classifyIslem(row.islem);
     return {
       id: row.id,
-      userName: (u?.adsoyad || u?.email || 'Bilinmeyen').trim(),
+      // Kullanıcısız kayıt = otomatik sistem işlemi (banka dönüşü, merkezi API vb.)
+      userName: (
+        u?.adsoyad ||
+        u?.email ||
+        (row.kullaniciId == null ? 'Sistem' : 'Silinmiş kullanıcı')
+      ).trim(),
       userEmail: u?.email || '',
       at: row.tarih.toISOString(),
       kind: parsed.kind,
