@@ -11,6 +11,7 @@ import PaymentCollectPage from './pages/payments/PaymentCollectPage';
 import PaymentRequestPage from './pages/payments/PaymentRequestPage';
 import QuickPayPage from './pages/payments/QuickPayPage';
 import PublicPayPage from './pages/payments/PublicPayPage';
+import { PaymentResultOverlay } from './components/payments/PaymentResultOverlay';
 import TransactionsPage from './pages/transactions/TransactionsPage';
 import TransactionDetailPage from './pages/transactions/TransactionDetailPage';
 import PaymentRequestsPage from './pages/payment-requests/PaymentRequestsPage';
@@ -113,6 +114,8 @@ function GuestOnly({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
+    <>
+    <PaymentResultOverlay />
     <Routes>
       <Route
         path="/login"
@@ -203,5 +206,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

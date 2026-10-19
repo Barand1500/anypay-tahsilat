@@ -101,7 +101,13 @@ async function markPaymentRequestPaid(
 export async function handleThreeDCallback(
   body: Record<string, unknown>,
   outcome: 'ok' | 'fail',
-): Promise<{ odemeNo: string; success: boolean; message: string; redirectPath: string }> {
+): Promise<{
+  odemeNo: string;
+  success: boolean;
+  message: string;
+  redirectPath: string;
+  amount: number;
+}> {
   const orderId = pickOrderId(body);
   if (!orderId) throw new GatewayCallbackError('Sipariş numarası yok');
 
@@ -110,6 +116,7 @@ export async function handleThreeDCallback(
 
   const odemeNo = row.odemeNo;
   const redirectPath = redirectForPayment(row.istekNo);
+  const amount = Number(row.gercekTutar ?? row.tutar) || 0;
 
   // Zaten sonuçlanmışsa tekrar işleme
   if (row.durum === 1 || row.durum === 2 || row.durum === 0 || row.durum === -1) {
@@ -119,6 +126,7 @@ export async function handleThreeDCallback(
       success: row.durum === 1,
       message: row.durum === 1 ? 'Ödeme zaten onaylı' : 'Ödeme zaten sonuçlanmış',
       redirectPath,
+      amount,
     };
   }
 
@@ -269,6 +277,7 @@ export async function handleThreeDCallback(
       success: false,
       message: parsed.message || 'Ödeme sonucu banka bildirimi ile kesinleşecek',
       redirectPath,
+      amount,
     };
   }
 
@@ -311,6 +320,7 @@ export async function handleThreeDCallback(
       success: false,
       message: '3D doğrulandı; provizyon tamamlanacak',
       redirectPath,
+      amount,
     };
   }
 
@@ -350,5 +360,6 @@ export async function handleThreeDCallback(
     success,
     message: resultMsg,
     redirectPath,
+    amount,
   };
 }

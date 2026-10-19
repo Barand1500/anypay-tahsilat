@@ -33,6 +33,12 @@ function currencyCode(code: string): string {
   return /^\d+$/.test(u) ? u : '949';
 }
 
+/** ::ffff:1.2.3.4 → 1.2.3.4; IPv4 değilse (::1 vb.) güvenli varsayılan */
+function ipv4Of(raw?: string): string {
+  const ip = String(raw || '').trim().replace(/^::ffff:/i, '');
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(ip) ? ip : '127.0.0.1';
+}
+
 function padTerminalId9(raw: string): string {
   return String(raw).replace(/\D/g, '').padStart(9, '0').slice(-9);
 }
@@ -208,7 +214,7 @@ export const garantiGateway: PaymentGateway = {
       successurl: successUrl,
       errorurl: failUrl,
       customeremailaddress: input.email || 'musteri@anypay.com.tr',
-      customeripaddress: input.clientIp || '127.0.0.1',
+      customeripaddress: ipv4Of(input.clientIp),
       secure3dhash,
     };
 
