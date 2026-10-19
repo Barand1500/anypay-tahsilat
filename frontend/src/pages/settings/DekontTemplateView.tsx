@@ -62,7 +62,7 @@ export type DekontRenderCtx = {
   customerPhone: string;
 };
 
-/** Yeni A4/A5 imza kutuları metni — #...# arası kalın */
+/** Yeni A4/A5 imza kutuları metni — **...** arası kalın; # karakterleri görünür */
 export function sheetLegalTexts(ctx: DekontRenderCtx): { holder: string; firm: string } {
   const firm = ctx.merchantTitle || 'üye işyeri';
   const cust =
@@ -71,15 +71,15 @@ export function sheetLegalTexts(ctx: DekontRenderCtx): { holder: string; firm: s
   const words = ctx.amountInWords || '—';
   return {
     holder:
-      `Yukarıda bilgilerini vermiş olduğum kredi kartımdan; Rakamla #${amount}# Yazıyla #${words}# tutarın çekilmesini ve çekilen bu tutarın ` +
-      (cust ? `tarafımdan alacaklı olan #${cust}# firması adına ` : '') +
-      `#${firm}# firmasına ödenmiş bulunduğumu, ilgili firma ile aramda oluşabilecek anlaşmazlıklardan dolayı #${firm}# firmasını sorumlu tutmayacağımı beyan ve taahhüt ederim.`,
-    firm: `Yukarıda bilgileri verilen kredi kartından çekilen; Rakamla #${amount}# Yazıyla #${words}# tutara kart sahibinin isteği doğrultusunda banka tarafından bloke konulacağını ve #${firm}# firması hesaplarına aktarılmaması durumunda, ilgili tutarı her türlü gecikme faizleri ile birlikte #${firm}# firmasının talep ettiği tarihte nakit olarak #${firm}# firmasına ödeyeceğimi beyan ve taahhüt ederim.`,
+      `Yukarıda bilgilerini vermiş olduğum kredi kartımdan; Rakamla **#${amount}#** Yazıyla **#${words}#** tutarın çekilmesini ve çekilen bu tutarın ` +
+      (cust ? `tarafımdan alacaklı olan **${cust}** firması adına ` : '') +
+      `**${firm}** firmasına ödenmiş bulunduğumu, ilgili firma ile aramda oluşabilecek anlaşmazlıklardan dolayı **${firm}** firmasını sorumlu tutmayacağımı beyan ve taahhüt ederim.`,
+    firm: `Yukarıda bilgileri verilen kredi kartından çekilen; Rakamla **#${amount}#** Yazıyla **#${words}#** tutara kart sahibinin isteği doğrultusunda banka tarafından bloke konulacağını ve **${firm}** firması hesaplarına aktarılmaması durumunda, ilgili tutarı her türlü gecikme faizleri ile birlikte **${firm}** firmasının talep ettiği tarihte nakit olarak **${firm}** firmasına ödeyeceğimi beyan ve taahhüt ederim.`,
   };
 }
 
 function renderBold(text: string) {
-  return text.split('#').map((seg, i) => (i % 2 === 1 ? <strong key={i}>{seg}</strong> : <span key={i}>{seg}</span>));
+  return text.split('**').map((seg, i) => (i % 2 === 1 ? <strong key={i}>{seg}</strong> : <span key={i}>{seg}</span>));
 }
 
 export function ctxFromSample(s: DekontSampleContext, brandName = 'Güzel Teknoloji'): DekontRenderCtx {
@@ -565,7 +565,7 @@ function BlockContent({
                 <span className="w-[6.9rem] shrink-0">{k}</span>
                 <span className="w-[0.9rem] shrink-0">:</span>
                 <span className={['min-w-0 flex-1 break-all tabular-nums', money.has(k) ? 'text-right' : ''].join(' ')}>
-                  {v || '—'}
+                  {k === 'T.C. KİMLİK NO' ? v : v || '—'}
                 </span>
               </div>
             ))}

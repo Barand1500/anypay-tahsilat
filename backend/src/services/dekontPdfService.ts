@@ -753,7 +753,7 @@ function drawRichBlock(
           if (rightAligned.has(k)) {
             drawInBlock(page, font, v || '—', cell, size, 'right', yOff, 4);
           } else {
-            drawInBlock(page, font, v || '—', cell, size, 'left', yOff, colonAt + 7);
+            drawInBlock(page, font, k === 'T.C. KİMLİK NO' ? v : v || '—', cell, size, 'left', yOff, colonAt + 7);
           }
         });
       };
@@ -814,7 +814,7 @@ function sheetLegalSentence(legalLine: string): string {
   return 'Yukarıdaki bedel karşılığında mal veya hizmet aldım.';
 }
 
-/** İmza kutuları metinleri — #...# arası kalın */
+/** İmza kutuları metinleri — **...** arası kalın; # karakterleri metinde görünür */
 function sheetLegalTexts(ctx: FisPdfCtx): { holder: string; firm: string } {
   const firm = ctx.merchantTitle || 'üye işyeri';
   const cust =
@@ -823,15 +823,15 @@ function sheetLegalTexts(ctx: FisPdfCtx): { holder: string; firm: string } {
   const words = ctx.amountInWords;
   return {
     holder:
-      `Yukarıda bilgilerini vermiş olduğum kredi kartımdan; Rakamla #${amount}# Yazıyla #${words}# tutarın çekilmesini ve çekilen bu tutarın ` +
-      (cust ? `tarafımdan alacaklı olan #${cust}# firması adına ` : '') +
-      `#${firm}# firmasına ödenmiş bulunduğumu, ilgili firma ile aramda oluşabilecek anlaşmazlıklardan dolayı #${firm}# firmasını sorumlu tutmayacağımı beyan ve taahhüt ederim.`,
+      `Yukarıda bilgilerini vermiş olduğum kredi kartımdan; Rakamla **#${amount}#** Yazıyla **#${words}#** tutarın çekilmesini ve çekilen bu tutarın ` +
+      (cust ? `tarafımdan alacaklı olan **${cust}** firması adına ` : '') +
+      `**${firm}** firmasına ödenmiş bulunduğumu, ilgili firma ile aramda oluşabilecek anlaşmazlıklardan dolayı **${firm}** firmasını sorumlu tutmayacağımı beyan ve taahhüt ederim.`,
     firm:
-      `Yukarıda bilgileri verilen kredi kartından çekilen; Rakamla #${amount}# Yazıyla #${words}# tutara kart sahibinin isteği doğrultusunda banka tarafından bloke konulacağını ve #${firm}# firması hesaplarına aktarılmaması durumunda, ilgili tutarı her türlü gecikme faizleri ile birlikte #${firm}# firmasının talep ettiği tarihte nakit olarak #${firm}# firmasına ödeyeceğimi beyan ve taahhüt ederim.`,
+      `Yukarıda bilgileri verilen kredi kartından çekilen; Rakamla **#${amount}#** Yazıyla **#${words}#** tutara kart sahibinin isteği doğrultusunda banka tarafından bloke konulacağını ve **${firm}** firması hesaplarına aktarılmaması durumunda, ilgili tutarı her türlü gecikme faizleri ile birlikte **${firm}** firmasının talep ettiği tarihte nakit olarak **${firm}** firmasına ödeyeceğimi beyan ve taahhüt ederim.`,
   };
 }
 
-/** Kalın/normal karışık paragraf (#...# kalın), kutuya sarar. Yeni offset döner. */
+/** Kalın/normal karışık paragraf (**...** kalın), kutuya sarar. Yeni offset döner. */
 function drawRichParagraph(
   page: PDFPage,
   font: PDFFont,
@@ -844,7 +844,7 @@ function drawRichParagraph(
 ): number {
   const maxW = Math.max(20, box.boxW - padX * 2);
   const toks: { w: string; b: boolean }[] = [];
-  text.split('#').forEach((seg, i) => {
+  text.split('**').forEach((seg, i) => {
     for (const w of encodePdfText(seg).split(/\s+/).filter(Boolean)) toks.push({ w, b: i % 2 === 1 });
   });
   const space = font.widthOfTextAtSize(' ', size);
