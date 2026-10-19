@@ -154,41 +154,7 @@ function mapRow(r: DbRow): PublicContract {
   };
 }
 
-async function assertLocalContractsWritable() {
-  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-  if (await isCentralRemoteActive()) {
-    throw new ContractsError(
-      'Merkezi API açık — sözleşmeler salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
-    );
-  }
-}
-
 export async function listContracts(): Promise<PublicContract[]> {
-  try {
-    const { getBinSourceSettings, fetchRemoteNamedResource } = await import(
-      './binSourceSettingsService.js'
-    );
-    const src = await getBinSourceSettings();
-    if (src.source === 'remote') {
-      const remote = await fetchRemoteNamedResource('contracts');
-      return remote.map((r, i) => ({
-        id: r.id,
-        name: r.name,
-        body: '',
-        link: 'none',
-        order: i,
-      }));
-    }
-  } catch (err) {
-    if (err instanceof ContractsError) throw err;
-    const { getBinSourceSettings } = await import('./binSourceSettingsService.js');
-    const src = await getBinSourceSettings().catch(() => null);
-    if (src?.source === 'remote') {
-      throw new ContractsError(
-        err instanceof Error ? err.message : 'Merkezi sözleşmeler yüklenemedi',
-      );
-    }
-  }
   const rows = await prisma.sozlesme.findMany({
     where: notRemoved(),
     orderBy: [{ sira: 'asc' }, { id: 'asc' }],
@@ -239,7 +205,6 @@ export async function createContract(input: {
   body: string;
   link?: string;
 }): Promise<PublicContract> {
-  await assertLocalContractsWritable();
   const name = input.name.trim();
   if (!name) throw new ContractsError('Ad gerekli');
 
@@ -268,7 +233,6 @@ export async function updateContract(
   id: number,
   input: { name?: string; body?: string; link?: string },
 ): Promise<PublicContract> {
-  await assertLocalContractsWritable();
   const existing = await prisma.sozlesme.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -293,7 +257,6 @@ export async function updateContract(
 }
 
 export async function softDeleteContract(id: number): Promise<void> {
-  await assertLocalContractsWritable();
   const existing = await prisma.sozlesme.findFirst({
     where: { id, ...notRemoved() },
   });
@@ -302,7 +265,6 @@ export async function softDeleteContract(id: number): Promise<void> {
 }
 
 export async function reorderContracts(ids: number[]): Promise<PublicContract[]> {
-  await assertLocalContractsWritable();
   const existing = await prisma.sozlesme.findMany({
     where: { id: { in: ids }, ...notRemoved() },
     select: { id: true },

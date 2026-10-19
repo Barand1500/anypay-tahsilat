@@ -92,51 +92,8 @@ async function getRow() {
   return getOrCreateAyarlarRow();
 }
 
-async function remoteSmtpStored(): Promise<StoredSmtp | null> {
-  const { getBinSourceSettings, fetchRemoteEmailSettings } = await import(
-    './binSourceSettingsService.js'
-  );
-  const src = await getBinSourceSettings();
-  if (src.source !== 'remote') return null;
-  const rows = await fetchRemoteEmailSettings();
-  const first = rows[0];
-  if (!first?.host || !first.address) return null;
-  const port = Number(first.port) || 587;
-  const sslOn = /^(1|true|evet|on)$/i.test(first.ssl) || port === 465;
-  const tlsOn = first.tls === '' ? !sslOn : /^(1|true|evet|on)$/i.test(first.tls);
-  return {
-    host: first.host.slice(0, 255),
-    port,
-    email: first.address.slice(0, 255),
-    password: (first.password || '').replace(/\s+/g, ''),
-    ssl: sslOn,
-    tls: tlsOn,
-    from: first.address.slice(0, 255),
-  };
-}
-
 /** Gönderim için tam config — DB, yoksa .env */
 export async function resolveSmtpConfig(): Promise<SmtpConfig> {
-  try {
-    const remote = await remoteSmtpStored();
-    if (remote?.host && remote.email && remote.password) {
-      return {
-        host: remote.host,
-        port: remote.port,
-        email: remote.email,
-        password: remote.password,
-        ssl: remote.ssl || remote.port === 465,
-        tls: remote.tls,
-        from: (remote.from || remote.email).trim(),
-      };
-    }
-  } catch (err) {
-    if (err instanceof SettingsError && /bulunamadı/i.test(err.message)) throw err;
-    const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-    if (await isCentralRemoteActive().catch(() => false)) {
-      throw new SettingsError('Merkezi e-posta ayarları yüklenemedi; yerel ayarlar kullanılmadı');
-    }
-  }
   const row = await getRow();
   const stored = parseStored(row.smtpAyarlar);
   const cfg = stored?.password ? stored : fromEnvFallback();
@@ -155,29 +112,6 @@ export async function resolveSmtpConfig(): Promise<SmtpConfig> {
 }
 
 export async function getSmtpSettings(): Promise<PublicSmtpSettings> {
-  try {
-    const remote = await remoteSmtpStored();
-    if (remote) {
-      return {
-        host: remote.host,
-        port: String(remote.port),
-        email: remote.email,
-        password: '',
-        passwordSet: Boolean(remote.password),
-        ssl: remote.ssl,
-        tls: remote.tls,
-      };
-    }
-    const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-    if (await isCentralRemoteActive()) {
-      throw new SettingsError('Merkezi e-posta ayarı bulunamadı');
-    }
-  } catch (err) {
-    if (err instanceof SettingsError && /bulunamadı/i.test(err.message)) throw err;
-    const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-    if (await isCentralRemoteActive().catch(() => false)) throw err;
-  }
-
   const row = await getRow();
   let stored = parseStored(row.smtpAyarlar);
 
@@ -214,12 +148,6 @@ export async function updateSmtpSettings(input: {
   ssl: boolean;
   tls: boolean;
 }): Promise<PublicSmtpSettings> {
-  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
-  if (await isCentralRemoteActive()) {
-    throw new SettingsError(
-      'Merkezi API açık — e-posta ayarları salt okunur. Düzenlemek için Api Ayarları’nda merkezi kaynağı kapatın.',
-    );
-  }
   const host = input.host.trim();
   const email = input.email.trim().toLowerCase();
   const portNum = Number(String(input.port).replace(/\D/g, ''));
