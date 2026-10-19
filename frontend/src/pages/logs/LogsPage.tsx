@@ -44,8 +44,9 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [queryDebounced, setQueryDebounced] = useState('');
+  // Sonuç ekranından gelen /log-kayitlari?q=<işlem no> aramayı otomatik doldurur
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get('q')?.trim() || '');
+  const [queryDebounced, setQueryDebounced] = useState(() => new URLSearchParams(window.location.search).get('q')?.trim() || '');
   const [kind, setKind] = useState<KindFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');

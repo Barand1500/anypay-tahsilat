@@ -1,7 +1,9 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
+import { usePermission } from '../../permissions/PermissionContext';
 import { api } from '../../lib/api';
 
 type PayResult = {
@@ -63,6 +65,11 @@ export function PaymentResultOverlay() {
   // İlk render'da yakala: sayfa bileşenleri parametreyi silse bile ekran kalsın
   const [result, setResult] = useState<PayResult | null>(() => parseResult(window.location.search));
   const reduced = useReducedMotion();
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const { canViewNavItem } = usePermission();
+  // Yalnızca panel kullanıcısı (giriş yapmış + log yetkisi) log kaydına gidebilir; müşteri göremez
+  const canOpenLogs = Boolean(token) && canViewNavItem('/log-kayitlari');
 
   useEffect(() => {
     const parsed = parseResult(searchParams.toString());
@@ -217,6 +224,19 @@ export function PaymentResultOverlay() {
               <p className="mt-3 inline-block rounded-full bg-[var(--panel-surface)] px-3 py-1 text-xs font-semibold text-[var(--panel-muted)]">
                 İşlem No: #{result.odemeNo}
               </p>
+            )}
+
+            {!ok && canOpenLogs && (
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  navigate(`/log-kayitlari${result.odemeNo ? `?q=${encodeURIComponent(result.odemeNo)}` : ''}`);
+                }}
+                className="mt-4 text-xs font-semibold underline decoration-dotted underline-offset-2 text-[var(--panel-muted)] transition hover:text-[var(--panel-ink)]"
+              >
+                Hata ayrıntısı için Log Kayıtları'na git
+              </button>
             )}
 
             <button

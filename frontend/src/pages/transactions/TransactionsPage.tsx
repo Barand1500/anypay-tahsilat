@@ -210,7 +210,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 2200);
+    const t = window.setTimeout(() => setToast(null), toast.length > 60 ? 7000 : 2200);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -324,8 +324,8 @@ export default function TransactionsPage() {
       });
       flash(
         updated.status === 'cancelled'
-          ? `İptal edildi — ${updated.id}`
-          : `İade edildi — ${updated.id}`,
+          ? `İptal bankaya iletildi, onaylandı — ${updated.id}. Karta yansıması bankaya göre 1-3 iş günü sürebilir.`
+          : `İade bankaya iletildi, onaylandı — ${updated.id}. Karta yansıması bankaya göre 1-7 iş günü sürebilir.`,
       );
     } catch (err) {
       flash(err instanceof Error ? err.message : 'İptal/iade yapılamadı');
@@ -850,8 +850,8 @@ function ReverseTxModal({
         </p>
         <p className="mt-2 text-center text-[12px] leading-snug text-[var(--panel-muted)]">
           {asVoid
-            ? 'Aynı gün (gün sonu öncesi) işlemler iptal edilir; kart ekstresinde görünmez.'
-            : 'Gün sonu geçmiş işlemler iade edilir; tutar kartına birkaç iş gününde yansır.'}
+            ? 'Aynı gün (gün sonu öncesi) işlemler iptal edilir. Banka iptali anında onaylar; tutarın kartın limitine dönmesi kart bankasına göre birkaç saatten 1-3 iş gününe kadar sürebilir.'
+            : 'Gün sonu geçmiş işlemler iade edilir. Banka isteği anında kabul eder; tutarın karta yansıması kart bankasına göre genellikle 1-7 iş günü sürer.'}
         </p>
         <div className="mt-5 flex gap-2">
           <button
