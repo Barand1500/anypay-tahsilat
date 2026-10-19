@@ -464,7 +464,7 @@ export default function ApiSettingsPage() {
         await loadTaxOffices();
       } else if (category === 'bin') {
         const payload = (rows as Record<string, unknown>[]).map(value => ({ bank: read(value, ['bank', 'banka']), bin: read(value, ['bin', 'iin']).replace(/\D/g, '').slice(0, 8), type: read(value, ['type', 'tip']) || 'Credit', brand: read(value, ['brand', 'marka']) || 'Visa', kind: read(value, ['kind', 'tür', 'tur']) || 'Bireysel' })).filter(value => value.bank && value.bin.length >= 4);
-        if (payload.length) { const created = await api.post<BinRow[]>('/api/bins/bulk', payload, token); setBins(current => [...current, ...created]); syncRuntimeBins([...bins, ...created]); added = created.length; }
+        if (payload.length) { const created = await postBinsBulk(payload, token); setBins(current => [...current, ...created]); syncRuntimeBins([...bins, ...created]); added = created.length; }
       }
       setToast({ kind: added ? 'ok' : 'err', text: added ? `API bağlantısı başarılı; ${added} kayıt içe aktarıldı.` : 'Bağlantı başarılı fakat kayıtlar beklenen alanlarla eşleşmedi. API alan adlarını kontrol edin.' });
     } catch (err) {
@@ -784,7 +784,7 @@ export default function ApiSettingsPage() {
           setToast({ kind: 'err', text: 'Geçerli BIN satırı yok' });
           return;
         }
-        const created = await api.post<BinRow[]>('/api/bins/bulk', payload, token);
+        const created = await postBinsBulk(payload, token);
         const next = [...bins, ...created];
         setBins(next);
         syncRuntimeBins(next);
@@ -1557,7 +1557,7 @@ export default function ApiSettingsPage() {
                       ? [
                           await api.post<BinRow>('/api/bins', rows[0], token),
                         ]
-                      : await api.post<BinRow[]>('/api/bins/bulk', rows, token);
+                      : await postBinsBulk(rows, token);
                   const next = [...bins, ...created];
                   setBins(next);
                   syncRuntimeBins(next);
@@ -1617,6 +1617,22 @@ export default function ApiSettingsPage() {
         : null}
     </div>
   );
+}
+
+/** Sunucu /api/bins/bulk tek istekte en fazla 200 satır kabul eder; büyük listeleri parçalayıp sırayla gönderir */
+const BIN_BULK_CHUNK = 200;
+
+async function postBinsBulk(rows: unknown[], token: string | null | undefined): Promise<BinRow[]> {
+  const out: BinRow[] = [];
+  for (let i = 0; i < rows.length; i += BIN_BULK_CHUNK) {
+    try {
+      out.push(...(await api.post<BinRow[]>('/api/bins/bulk', rows.slice(i, i + BIN_BULK_CHUNK), token)));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'BIN toplu kayıt başarısız';
+      throw new Error(out.length ? `${out.length} kayıt eklendi, sonra hata: ${msg}` : msg);
+    }
+  }
+  return out;
 }
 
 function CategoryTable({
