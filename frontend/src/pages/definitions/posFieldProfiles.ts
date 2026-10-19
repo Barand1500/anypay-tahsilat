@@ -4,7 +4,8 @@ export type PosFieldSlot =
   | 'merchantId'
   | 'terminalSafeId'
   | 'securityKey'
-  | 'terminalPassword';
+  | 'terminalPassword'
+  | 'refundPassword';
 
 export type PosFieldDef = {
   slot: PosFieldSlot;
@@ -50,6 +51,8 @@ const GARANTI: PosFieldProfile = {
     f('terminalSafeId', 'Terminal No'),
     f('securityKey', 'Mağaza Anahtarı'),
     f('terminalPassword', 'Terminal Şifresi'),
+    // İptal/iade için ayrı kullanıcı; boşsa terminal şifresi denenir
+    f('refundPassword', 'İade Kullanıcı Şifresi', false),
   ],
   showSecurityType: false,
   securityTypeRequired: false,
@@ -270,5 +273,78 @@ export function emptyPosFieldValues(): Record<PosFieldSlot, string> {
     terminalSafeId: '',
     securityKey: '',
     terminalPassword: '',
+    refundPassword: '',
   };
+}
+
+const normLabel = (s: string) =>
+  s
+    .toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+/** Merkezdeki değişken adı → kayıt alanı (altyapı profilinde karşılığı yoksa) */
+const CENTRAL_LABEL_SLOT: Record<string, PosFieldSlot> = {
+  isyerinumarasi: 'merchantId',
+  isyerino: 'merchantId',
+  guvenliisyerinumarasi: 'merchantId',
+  uyeisyerino: 'merchantId',
+  clientid: 'merchantId',
+  merchantid: 'merchantId',
+  magazano: 'merchantId',
+  terminalno: 'terminalSafeId',
+  terminalsafeid: 'terminalSafeId',
+  terminalid: 'terminalSafeId',
+  apiuser: 'terminalSafeId',
+  apikullaniciadi: 'terminalSafeId',
+  kullanicikodu: 'terminalSafeId',
+  merchantsalt: 'terminalSafeId',
+  magazaanahtari: 'securityKey',
+  guvenliganahtari: 'securityKey',
+  guvenlikanahtari: 'securityKey',
+  apipass: 'securityKey',
+  posnetid: 'securityKey',
+  merchantkey: 'securityKey',
+  merchantpassword: 'securityKey',
+  terminalsifresi: 'terminalPassword',
+  encanahtari: 'terminalPassword',
+  apikullanicisifresi: 'terminalPassword',
+  apisifresi: 'terminalPassword',
+  iadekullanicisifresi: 'refundPassword',
+  iadesifresi: 'refundPassword',
+  provrfnsifresi: 'refundPassword',
+};
+
+/**
+ * Merkezi API'deki "Değişkenler" (virgülle ayrık etiketler) → form alanları.
+ * Her etiket önce altyapı profilindeki etiketle, sonra genel sözlükle eşlenir.
+ * Tanınmayan / çakışan bir etiket varsa sabit profile dönülür (form bozulmaz).
+ */
+export function profileFromVariables(
+  base: PosFieldProfile,
+  variables: string | null | undefined,
+): PosFieldProfile {
+  const tokens = String(variables || '')
+    .split(/[,;\n]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (!tokens.length) return base;
+  const baseByLabel = new Map(base.fields.map((fd) => [normLabel(fd.label), fd]));
+  const used = new Set<PosFieldSlot>();
+  const fields: PosFieldDef[] = [];
+  for (const token of tokens) {
+    const key = normLabel(token);
+    const fromBase = baseByLabel.get(key);
+    const slot = fromBase?.slot ?? CENTRAL_LABEL_SLOT[key];
+    if (!slot || used.has(slot)) return base;
+    used.add(slot);
+    fields.push({
+      slot,
+      label: token,
+      required: fromBase ? fromBase.required : slot !== 'terminalPassword' && slot !== 'refundPassword',
+    });
+  }
+  return { ...base, id: `${base.id}+central`, fields };
 }

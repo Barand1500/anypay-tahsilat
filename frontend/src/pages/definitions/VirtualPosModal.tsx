@@ -6,6 +6,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { VIRTUAL_POS_INFRASTRUCTURES, type VirtualPosRow } from './mockPos';
 import {
   emptyPosFieldValues,
+  profileFromVariables,
   resolvePosFieldProfile,
   type PosFieldSlot,
 } from './posFieldProfiles';
@@ -16,9 +17,22 @@ export type VirtualPosModalMode =
 
 type BankOption = { id: string; name: string; securityTypes: string };
 
+/** Merkezi API Ana Sanal Pos şablonu: hangi bankada hangi alanlar */
+export type PosTemplate = { id: string; bank: string; name: string; variables: string };
+
+const normBank = (s: string) =>
+  s
+    .toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
 type Props = {
   mode: VirtualPosModalMode;
   banks: BankOption[];
+  /** Merkezi API açıkken form alanlarını belirleyen şablonlar (yoksa boş) */
+  templates?: PosTemplate[];
   /** Aynı banka+altyapı çifti engeli */
   existingKeys: string[];
   onClose: () => void;
@@ -31,12 +45,13 @@ type Props = {
     terminalSafeId: string;
     securityKey: string;
     terminalPassword: string;
+    refundPassword: string;
     securityType: string;
   }) => Promise<void>;
 };
 
 /** Sanal POS ekle / düzenle — Esc / X / Kapat; altyapıya göre dinamik alanlar */
-export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: Props) {
+export function VirtualPosModal({ mode, banks, templates = [], existingKeys, onClose, onSave }: Props) {
   const isEdit = mode.type === 'edit';
   const row = isEdit ? mode.row : null;
 
@@ -47,6 +62,7 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
     terminalSafeId: row?.terminalSafeId ?? '',
     securityKey: row?.securityKey ?? '',
     terminalPassword: row?.terminalPassword ?? '',
+    refundPassword: row?.refundPassword ?? '',
   }));
   const [securityType, setSecurityType] = useState<string | null>(row?.securityType || null);
   const [error, setError] = useState('');
@@ -64,10 +80,18 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
   );
 
   const selectedBankName = banks.find((b) => b.id === bankId)?.name ?? row?.bankName ?? '';
-  const profile = useMemo(
-    () => resolvePosFieldProfile(infraId, selectedBankName),
-    [infraId, selectedBankName],
-  );
+  const profile = useMemo(() => {
+    const base = resolvePosFieldProfile(infraId, selectedBankName);
+    // Merkezde bu banka için tanımlı değişkenler varsa alanları onlar belirler
+    const key = normBank(selectedBankName);
+    const template = key
+      ? templates.find((t) => {
+          const tk = normBank(t.bank);
+          return tk && (tk === key || tk.includes(key) || key.includes(tk));
+        })
+      : undefined;
+    return template ? profileFromVariables(base, template.variables) : base;
+  }, [infraId, selectedBankName, templates]);
 
   const securityOptions = useMemo(() => {
     const bank = banks.find((b) => b.id === bankId);
@@ -174,6 +198,7 @@ export function VirtualPosModal({ mode, banks, existingKeys, onClose, onSave }: 
         terminalSafeId: values.terminalSafeId.trim(),
         securityKey: values.securityKey.trim(),
         terminalPassword: values.terminalPassword.trim(),
+        refundPassword: values.refundPassword.trim(),
         securityType:
           securityType ||
           profile.defaultSecurityType ||

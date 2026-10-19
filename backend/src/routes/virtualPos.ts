@@ -8,6 +8,7 @@ import {
   createVirtualPos,
   getVirtualPos,
   listVirtualPos,
+  listVirtualPosTemplates,
   patchVirtualPosFlags,
   softDeleteVirtualPos,
   updateVirtualPos,
@@ -37,9 +38,11 @@ const upsertSchema = z.object({
   infrastructureId: z.string().min(1).max(64),
   posName: z.string().min(1).max(255),
   merchantId: z.string().min(1).max(255),
-  terminalSafeId: z.string().min(1).max(255),
+  // Merkezdeki değişkenlere göre bazı alanlar hiç gösterilmeyebilir; zorunluluk altyapıya göre serviste
+  terminalSafeId: z.string().max(255).optional().default(''),
   securityKey: z.string().min(1).max(512),
   terminalPassword: z.string().max(255).optional().default(''),
+  refundPassword: z.string().max(255).optional(),
   securityType: z.string().min(1).max(64),
   isDefault: z.boolean().optional(),
   active: z.boolean().optional(),
@@ -56,6 +59,16 @@ virtualPosRouter.get('/', async (_req, res) => {
   } catch (err) {
     console.error(err);
     return sendError(res, 500, 'Sanal POS listesi yüklenemedi');
+  }
+});
+
+/** Merkezi API açıkken: bankaya göre form değişkenleri (Ana Sanal Poslar) */
+virtualPosRouter.get('/templates', async (_req, res) => {
+  try {
+    return sendSuccess(res, await listVirtualPosTemplates());
+  } catch (err) {
+    console.error(err);
+    return sendError(res, 500, 'Şablonlar yüklenemedi');
   }
 });
 

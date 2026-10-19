@@ -535,7 +535,8 @@ export const garantiGateway: PaymentGateway = {
     const merchantId = input.pos.merchantId.trim();
     const terminalId =
       input.pos.terminalSafeId.replace(/\D/g, '').trim() || input.pos.terminalSafeId.trim();
-    const password = input.pos.terminalPassword.trim();
+    // İptal/iade ayrı kullanıcı (PROVRFN) ve şifresiyle yapılır; tanımlı değilse terminal şifresi
+    const password = (input.pos.refundPassword || input.pos.terminalPassword).trim();
     const apiUrl = resolveGvpsUrl(input.pos);
     const mode = resolveMode(input.pos.gateway3dUrl);
     const orderNo = (input.bankOrderId || input.orderId || '').trim();

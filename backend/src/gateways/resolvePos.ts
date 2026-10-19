@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { readRefundPassword } from '../lib/posRefund.js';
 import { looksLikeAkbankV2 } from './adapters/akbankV2.js';
 import { looksLikeGaranti } from './adapters/garanti.js';
 import { looksLikeHalkode } from './adapters/halkode.js';
@@ -256,6 +257,7 @@ async function loadPosForBank(
   }
 
   const creds = mapPos(bank, pos);
+  creds.refundPassword = await readRefundPassword(pos.id);
   assertReady(creds);
   return creds;
 }

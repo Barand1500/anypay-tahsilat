@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { resolveBankLogoUrl } from './banksService.js';
+import { readRefundPassword, writeRefundPassword } from '../lib/posRefund.js';
 
 export class VirtualPosError extends Error {
   constructor(message: string) {
@@ -19,6 +20,8 @@ export type PublicVirtualPos = {
   terminalSafeId: string;
   securityKey: string;
   terminalPassword: string;
+  /** Garanti PROVRFN iptal/iade şifresi */
+  refundPassword: string;
   securityType: string;
   isDefault: boolean;
   active: boolean;
@@ -66,6 +69,7 @@ async function mapRow(r: {
     terminalSafeId: r.terminalSafeId || '',
     securityKey: r.guvenlikAnahtari || '',
     terminalPassword: r.terminalSifresi || '',
+    refundPassword: await readRefundPassword(r.id),
     securityType: r.guvenlikTipi || '',
     isDefault: Boolean(r.varsayilan),
     active: r.aktif !== false,
@@ -208,6 +212,20 @@ export async function getDefaultVirtualPosBrand(): Promise<{
   };
 }
 
+/** Merkezi API'deki Ana Sanal Pos şablonları: hangi banka için hangi değişkenler (form alanları) */
+export type VirtualPosTemplate = { id: string; bank: string; name: string; variables: string };
+
+export async function listVirtualPosTemplates(): Promise<VirtualPosTemplate[]> {
+  try {
+    const { isCentralRemoteActive, fetchRemoteVirtualPos } = await import('./binSourceSettingsService.js');
+    if (!(await isCentralRemoteActive())) return [];
+    const rows = await fetchRemoteVirtualPos();
+    return rows.map((r) => ({ id: r.id, bank: r.bank, name: r.name, variables: r.variables }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getVirtualPos(id: number): Promise<PublicVirtualPos | null> {
   const row = await prisma.sanalPosTanim.findFirst({
     where: { id, ...notRemoved() },
@@ -224,6 +242,7 @@ export type VirtualPosUpsert = {
   terminalSafeId?: string;
   securityKey?: string;
   terminalPassword?: string;
+  refundPassword?: string;
   securityType?: string;
   isDefault?: boolean;
   active?: boolean;
@@ -366,6 +385,7 @@ export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicV
       remove: false,
     },
   });
+  if (input.refundPassword !== undefined) await writeRefundPassword(row.id, input.refundPassword);
   return mapRow(row);
 }
 
@@ -431,6 +451,7 @@ export async function updateVirtualPos(
       aktif: wantDefault ? true : input.active !== false,
     },
   });
+  if (input.refundPassword !== undefined) await writeRefundPassword(row.id, input.refundPassword);
   return mapRow(row);
 }
 

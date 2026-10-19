@@ -11,6 +11,8 @@ export type PosCredentials = {
   securityKey: string;
   /** NestPay terminal / provizyon şifresi */
   terminalPassword: string;
+  /** Garanti PROVRFN iptal/iade kullanıcı şifresi (boşsa terminalPassword) */
+  refundPassword?: string;
   securityType: string;
   gateway3dUrl: string;
   apiUrl: string;

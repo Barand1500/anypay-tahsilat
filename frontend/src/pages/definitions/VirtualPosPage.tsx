@@ -9,13 +9,14 @@ import { api } from '../../lib/api';
 import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import type { BankDef } from './bankTypes';
 import { setVirtualPosList, type VirtualPosRow } from './mockPos';
-import { VirtualPosModal, type VirtualPosModalMode } from './VirtualPosModal';
+import { VirtualPosModal, type PosTemplate, type VirtualPosModalMode } from './VirtualPosModal';
 
 /** Tanımlamalar › POS › Sanal POS Tanımları — API */
 export default function VirtualPosPage() {
   const { token } = useAuth();
   const [rows, setRows] = useState<VirtualPosRow[]>([]);
   const [banks, setBanks] = useState<BankDef[]>([]);
+  const [templates, setTemplates] = useState<PosTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -33,10 +34,13 @@ export default function VirtualPosPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [list, bankList] = await Promise.all([
+      const [list, bankList, tpl] = await Promise.all([
         api.get<VirtualPosRow[]>('/api/virtual-pos', token),
         api.get<BankDef[]>('/api/banks', token),
+        // Şablon yüklenemezse form sabit alanlarla çalışır
+        api.get<PosTemplate[]>('/api/virtual-pos/templates', token).catch(() => [] as PosTemplate[]),
       ]);
+      setTemplates(tpl);
       setRows(list);
       setVirtualPosList(list);
       setBanks(bankList);
@@ -136,6 +140,7 @@ export default function VirtualPosPage() {
     terminalSafeId: string;
     securityKey: string;
     terminalPassword: string;
+    refundPassword: string;
     securityType: string;
   }) {
     if (!token) throw new Error('Oturum gerekli');
@@ -148,6 +153,7 @@ export default function VirtualPosPage() {
       terminalSafeId: data.terminalSafeId,
       securityKey: data.securityKey,
       terminalPassword: data.terminalPassword,
+      refundPassword: data.refundPassword,
       securityType: data.securityType,
     };
     if (modal?.type === 'edit') {
@@ -313,6 +319,7 @@ export default function VirtualPosPage() {
         <VirtualPosModal
           mode={modal}
           banks={bankOptions}
+          templates={templates}
           existingKeys={existingKeys}
           onClose={() => setModal(null)}
           onSave={saveRow}

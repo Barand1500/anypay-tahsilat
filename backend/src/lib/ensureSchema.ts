@@ -315,7 +315,30 @@ export async function ensureBankPosColumns(): Promise<void> {
   }
 }
 
+/**
+ * sanal_pos_tanimlari.iade_sifresi — Garanti PROVRFN (iptal/iade) kullanıcı şifresi.
+ * Prisma modeline bilerek eklenmedi: sütun henüz yoksa mevcut sorgular bozulmasın;
+ * okuma/yazma ham SQL ile ve hataya dayanıklı yapılır.
+ */
+export async function ensureSanalPosRefundColumn(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ COLUMN_NAME: string }[]>`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sanal_pos_tanimlari' AND COLUMN_NAME = 'iade_sifresi'
+      LIMIT 1
+    `;
+    if (rows.length) return;
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE `sanal_pos_tanimlari` ADD COLUMN `iade_sifresi` VARCHAR(255) NULL',
+    );
+    console.log('[schema] sanal_pos_tanimlari.iade_sifresi eklendi');
+  } catch (err) {
+    console.warn('[schema] iade_sifresi sütunu eklenemedi (iptal/iade şifresi kullanılamaz):', err);
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
+  await ensureSanalPosRefundColumn();
   await ensurePayRequestDosyaColumn();
   await ensureGonderimGecmisiTable();
   await ensureUserBranchIdsColumn();

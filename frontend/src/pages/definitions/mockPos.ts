@@ -13,6 +13,8 @@ export type VirtualPosRow = {
   securityKey: string;
   /** NestPay / Garanti terminal şifresi */
   terminalPassword: string;
+  /** Garanti PROVRFN iptal/iade şifresi */
+  refundPassword?: string;
   securityType: string;
   isDefault: boolean;
   active: boolean;
