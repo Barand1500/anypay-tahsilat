@@ -313,19 +313,29 @@ export default function PublicPayPage() {
   const cvcOk = cvcLen >= 3;
   const cvcFaulty = cvcLen > 0 && cvcLen < 3;
 
+  // cardBank her tuşta yeni nesne üretir; sorguyu yalnızca değerleri değişince yenile (titremeyi önler)
+  const rateQuery = ratesBankQuery(cardBank, rateBin);
+  const hasRateBank = Boolean(cardBank);
+  const rateBankKey = `${rateQuery.bankId ?? ''}|${rateQuery.bankName ?? ''}`;
+  const prevRateBankKey = useRef(rateBankKey);
+
   useEffect(() => {
     let cancelled = false;
-    if (!payToken || !view || view.status !== 'pending' || !cardBank || !rateBin || payableAmount <= 0) {
+    if (!payToken || !view || view.status !== 'pending' || !hasRateBank || !rateBin || payableAmount <= 0) {
       setInstallmentRates([]);
       setRatesLoading(false);
       setRatesError(false);
       return;
     }
 
-    setInstallmentRates([]);
+    // Banka değiştiyse eski bankanın oranlarını gösterme; aynı bankada eski kartlar yenisi gelene kadar kalsın
+    if (prevRateBankKey.current !== rateBankKey) {
+      setInstallmentRates([]);
+      prevRateBankKey.current = rateBankKey;
+    }
     setRatesLoading(true);
     setRatesError(false);
-    const q = ratesBankQuery(cardBank, rateBin);
+    const q = rateQuery;
     const query = new URLSearchParams({ amount: String(payableAmount) });
     if (q.bin) query.set('bin', q.bin.length >= 8 ? q.bin.slice(0, 8) : q.bin.slice(0, 6));
     else query.set('bin', rateBin);
@@ -342,7 +352,7 @@ export default function PublicPayPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [payToken, view?.status, cardBank, rateBin, payableAmount]);
+  }, [payToken, view?.status, hasRateBank, rateBankKey, rateBin, payableAmount]);
 
   const pricedInstallments = useMemo(
     () =>

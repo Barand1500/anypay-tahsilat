@@ -67,7 +67,8 @@ export function ratesBankQuery(
   return {
     bankName: bank?.name || bank?.fullName || null,
     bankId: numericId,
-    bin: digits.length >= 6 ? digits : null,
+    // Sunucu en fazla 8 haneyi kullanır; her tuşta değişmesin diye 6 / 8 haneye sabitle (gereksiz yeniden sorgu ve titreme olmasın)
+    bin: digits.length >= 8 ? digits.slice(0, 8) : digits.length >= 6 ? digits.slice(0, 6) : null,
   };
 }
 

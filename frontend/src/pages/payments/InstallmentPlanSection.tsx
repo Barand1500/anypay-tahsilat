@@ -56,7 +56,8 @@ export function InstallmentPlanSection({
         <p className="text-xs text-[var(--panel-muted)]">Tutara göre hesaplandı.</p>
       </div>
 
-      {loading ? (
+      {/* Yenilenirken mevcut kartlar yerinde kalır (kutu kaybolup geri gelmesin); yalnızca hiç satır yoksa "yükleniyor" yazılır */}
+      {loading && !visibleRows.length ? (
         <p className="mb-3 text-xs text-[var(--panel-muted)]">Taksitler yükleniyor…</p>
       ) : null}
       {!loading && ratesError ? (
@@ -71,10 +72,12 @@ export function InstallmentPlanSection({
         <p className="mb-3 text-xs text-[var(--panel-muted)]">{emptyMessage}</p>
       ) : null}
 
-      {!loading && !ratesError && visibleRows.length > 0 ? (
+      {!ratesError && visibleRows.length > 0 ? (
         <div
+          aria-busy={loading}
           className={[
-            'grid gap-3',
+            'grid gap-3 transition-opacity duration-200',
+            loading ? 'opacity-60' : 'opacity-100',
             density === 'dense'
               ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
               : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4',
