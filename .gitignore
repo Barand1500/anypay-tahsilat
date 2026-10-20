@@ -31,3 +31,6 @@ Thumbs.db
 
 # Uploads (canlıda kalır, repoda değil)
 uploads/
+
+# API servisi ayrı bir depo (api-guzelteknoloji) — bu depoya girmesin
+api-guzelteknoloji/

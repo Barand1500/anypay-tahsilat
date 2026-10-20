@@ -17,8 +17,30 @@ import { sendError, sendSuccess } from '../utils/response.js';
 
 /** Public ödeme linki — auth yok */
 import { clientIpOf } from '../utils/clientIp.js';
+import { createRateLimiter, rateLimitIp } from '../middleware/rateLimit.js';
 
 export const payPublicRouter = Router();
+
+/**
+ * Kart bilgisi alan herkese açık uç — kart deneme (carding) saldırısına karşı.
+ * Başarısız denemeler sayılır: aynı link için 10, aynı IP için 40 deneme / 10 dk.
+ */
+const payTokenLimit = createRateLimiter({
+  name: 'pay-token',
+  windowMs: 10 * 60_000,
+  max: 10,
+  key: (req) => `${rateLimitIp(req)}:${String(req.params.token || '').slice(0, 64)}`,
+  message: 'Çok fazla ödeme denemesi. Lütfen birkaç dakika sonra tekrar deneyin.',
+  skipSuccessful: true,
+});
+const payIpLimit = createRateLimiter({
+  name: 'pay-ip',
+  windowMs: 10 * 60_000,
+  max: 40,
+  key: rateLimitIp,
+  message: 'Çok fazla ödeme denemesi. Lütfen birkaç dakika sonra tekrar deneyin.',
+  skipSuccessful: true,
+});
 
 const paySchema = z.object({
   holder: z.string().min(1).max(255),
@@ -122,7 +144,7 @@ payPublicRouter.get('/:token', async (req, res) => {
   }
 });
 
-payPublicRouter.post('/:token', async (req, res) => {
+payPublicRouter.post('/:token', payIpLimit, payTokenLimit, async (req, res) => {
   const token = String(req.params.token || '').trim();
   if (!token || token.length > 64) return sendError(res, 400, 'Geçersiz link');
   const parsed = paySchema.safeParse(req.body);

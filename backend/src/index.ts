@@ -111,4 +111,7 @@ void ensureSchema()
     void import('./services/paymentReminderService.js')
       .then(({ startPaymentReminderScheduler }) => startPaymentReminderScheduler())
       .catch((err) => console.warn('[reminder] scheduler start failed', err));
+    void import('./services/currenciesService.js')
+      .then(({ startCurrencyRateScheduler }) => startCurrencyRateScheduler())
+      .catch((err) => console.warn('[currency-auto] scheduler start failed', err));
   });

@@ -23,6 +23,8 @@ export type CurrencyDef = {
   autoUpdate: boolean;
   apiUrl: string;
   status: CurrencyStatus;
+  /** Merkezi API listesinden gelen kayıt — ad / kısa ad / sembol değiştirilemez */
+  central?: boolean;
 };
 
 export const DEFINITIONS_SUBNAV = [

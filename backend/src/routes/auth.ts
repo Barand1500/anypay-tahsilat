@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { bodyEmailKey, createRateLimiter, rateLimitIp } from '../middleware/rateLimit.js';
 import {
   AuthError,
   getUserById,
@@ -17,6 +18,16 @@ import { writePanelLog } from '../services/logsService.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 export const authRouter = Router();
+
+const MIN = 60_000;
+/** Parola / kod denemeleri: IP ve e-posta başına; yalnızca başarısız denemeler sayılır */
+const loginIpLimit = createRateLimiter({ name: 'login-ip', windowMs: 15 * MIN, max: 20, key: rateLimitIp, skipSuccessful: true });
+const loginEmailLimit = createRateLimiter({ name: 'login-email', windowMs: 15 * MIN, max: 15, key: bodyEmailKey, skipSuccessful: true });
+const verifyIpLimit = createRateLimiter({ name: 'verify-ip', windowMs: 15 * MIN, max: 30, key: rateLimitIp, skipSuccessful: true });
+const verifyEmailLimit = createRateLimiter({ name: 'verify-email', windowMs: 15 * MIN, max: 10, key: bodyEmailKey, skipSuccessful: true });
+/** Kod gönderme (e-posta): her istek sayılır — e-posta yağdırma ve kod yenileyerek deneme hakkı sıfırlama engellenir */
+const sendIpLimit = createRateLimiter({ name: 'send-ip', windowMs: 15 * MIN, max: 10, key: rateLimitIp });
+const sendEmailLimit = createRateLimiter({ name: 'send-email', windowMs: 10 * MIN, max: 3, key: bodyEmailKey });
 
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta girin'),
@@ -56,7 +67,7 @@ const profileSchema = z.object({
   resimDataUrl: z.string().max(5_000_000).nullable().optional(),
 });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', loginIpLimit, loginEmailLimit, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -74,7 +85,7 @@ authRouter.post('/login', async (req, res) => {
   }
 });
 
-authRouter.post('/login/mfa/verify', async (req, res) => {
+authRouter.post('/login/mfa/verify', verifyIpLimit, async (req, res) => {
   const parsed = mfaVerifySchema.safeParse(req.body);
   if (!parsed.success) return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
   try {
@@ -87,7 +98,7 @@ authRouter.post('/login/mfa/verify', async (req, res) => {
   }
 });
 
-authRouter.post('/otp/request', async (req, res) => {
+authRouter.post('/otp/request', sendIpLimit, sendEmailLimit, async (req, res) => {
   const parsed = emailSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -105,7 +116,7 @@ authRouter.post('/otp/request', async (req, res) => {
   }
 });
 
-authRouter.post('/login-otp', async (req, res) => {
+authRouter.post('/login-otp', verifyIpLimit, verifyEmailLimit, async (req, res) => {
   const parsed = otpLoginSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -123,7 +134,7 @@ authRouter.post('/login-otp', async (req, res) => {
   }
 });
 
-authRouter.post('/forgot/request', async (req, res) => {
+authRouter.post('/forgot/request', sendIpLimit, sendEmailLimit, async (req, res) => {
   const parsed = emailSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -141,7 +152,7 @@ authRouter.post('/forgot/request', async (req, res) => {
   }
 });
 
-authRouter.post('/forgot/verify', async (req, res) => {
+authRouter.post('/forgot/verify', verifyIpLimit, verifyEmailLimit, async (req, res) => {
   const parsed = forgotVerifySchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');
@@ -159,7 +170,7 @@ authRouter.post('/forgot/verify', async (req, res) => {
   }
 });
 
-authRouter.post('/forgot/reset', async (req, res) => {
+authRouter.post('/forgot/reset', verifyIpLimit, async (req, res) => {
   const parsed = forgotResetSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendError(res, 400, parsed.error.issues[0]?.message || 'Geçersiz istek');

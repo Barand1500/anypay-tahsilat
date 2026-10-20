@@ -1,14 +1,26 @@
 /**
- * Test kullanıcı: 21baran51@gmail.com / 123456 — ROLE_YONETICI
- * Çalıştır: npx tsx scripts/seed-test-user.ts
+ * Yönetici kullanıcı oluştur / şifresini güncelle — ROLE_YONETICI
+ *
+ * E-posta ve şifre koda yazılmaz; çalıştırırken verilir:
+ *   SEED_ADMIN_EMAIL=ad@firma.com SEED_ADMIN_PASSWORD='en-az-12-karakter' npx tsx scripts/seed-test-user.ts
  * (backend/.env içinde DATABASE_URL gerekli)
  */
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 
-const EMAIL = '21baran51@gmail.com';
-const PASSWORD = '123456';
+const EMAIL = (process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase();
+const PASSWORD = process.env.SEED_ADMIN_PASSWORD || '';
+
+if (!/^\S+@\S+\.\S+$/.test(EMAIL)) {
+  console.error('SEED_ADMIN_EMAIL geçerli bir e-posta olmalı.');
+  process.exit(1);
+}
+if (PASSWORD.length < 12) {
+  console.error('SEED_ADMIN_PASSWORD en az 12 karakter olmalı.');
+  process.exit(1);
+}
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -23,7 +35,7 @@ async function main() {
         isVerified: true,
         isPassword: true,
         roles: ['ROLE_YONETICI'],
-        adsoyad: existing.adsoyad || 'Baran',
+        adsoyad: existing.adsoyad || 'Yönetici',
         unvan: 'Yönetici',
         remove: null,
         rolId: 2,
@@ -39,7 +51,7 @@ async function main() {
         isVerified: true,
         isPassword: true,
         roles: ['ROLE_YONETICI'],
-        adsoyad: 'Baran',
+        adsoyad: 'Yönetici',
         unvan: 'Yönetici',
         telefon: '000 000 00 00',
         rolId: 2,

@@ -218,12 +218,10 @@ export default function CurrenciesPage() {
   }
 
   function openEdit(row: CurrencyDef, focusField?: CurrencyFocusField | null) {
-    if (remoteSource) return;
     setModal({ type: 'edit', currency: row, focusField: focusField ?? 'name' });
   }
 
   function onRowDoubleClick(row: CurrencyDef, e: ReactMouseEvent) {
-    if (remoteSource) return;
     const col = (e.target as HTMLElement)
       .closest('[data-currency-col]')
       ?.getAttribute('data-currency-col');
@@ -277,17 +275,15 @@ export default function CurrenciesPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDropdown onCsv={exportCsv} onCopy={copyList} />
-          {!remoteSource ? (
-            <button
-              type="button"
-              data-km-jump
-              onClick={() => setModal({ type: 'create' })}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-            >
-              <span className="text-lg leading-none">+</span>
-              Ekle
-            </button>
-          ) : null}
+          <button
+            type="button"
+            data-km-jump
+            onClick={() => setModal({ type: 'create' })}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+          >
+            <span className="text-lg leading-none">+</span>
+            Ekle
+          </button>
         </div>
       </div>
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
@@ -346,11 +342,12 @@ export default function CurrenciesPage() {
                   data-km-row
                   tabIndex={-1}
                   onDoubleClick={(e) => onRowDoubleClick(r, e)}
-                  title={remoteSource ? 'Merkezi kayıt — salt okunur' : 'Çift tıkla: düzenle'}
-                  className={[
-                    'grid grid-cols-[minmax(140px,1.2fr)_80px_72px_minmax(120px,1fr)_100px_140px_88px_44px] items-center gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45',
-                    remoteSource ? 'cursor-default' : 'cursor-pointer',
-                  ].join(' ')}
+                  title={
+                    r.central
+                      ? 'Merkezi kayıt — çift tıkla: kur / oto güncelleme düzenle (ad ve sembol merkezden)'
+                      : 'Çift tıkla: düzenle'
+                  }
+                  className="grid cursor-pointer grid-cols-[minmax(140px,1.2fr)_80px_72px_minmax(120px,1fr)_100px_140px_88px_44px] items-center gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45"
                 >
                   <span
                     data-currency-col="name"
@@ -416,17 +413,15 @@ export default function CurrenciesPage() {
                     {r.status}
                   </span>
                   <div className="flex justify-end">
-                    {!remoteSource ? (
-                      <button
-                        type="button"
-                        data-currency-menu-btn
-                        aria-label="İşlemler"
-                        onClick={(e) => openMenu(e, r.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
-                      >
-                        <DotsIcon />
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      data-currency-menu-btn
+                      aria-label="İşlemler"
+                      onClick={(e) => openMenu(e, r.id)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+                    >
+                      <DotsIcon />
+                    </button>
                   </div>
                 </div>
               ))
@@ -499,17 +494,20 @@ export default function CurrenciesPage() {
               >
                 Düzenle
               </button>
-              <CanRemove><button
-                type="button"
-                className="flex w-full px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-500/10"
-                onClick={() => {
-                  const row = rows.find((x) => x.id === menu.id);
-                  setMenu(null);
-                  if (row) setDeleteTarget(row);
-                }}
-              >
-                Sil
-              </button></CanRemove>
+              {/* Merkezi API açıkken silme yok (sunucu da reddeder) */}
+              {!remoteSource ? (
+                <CanRemove><button
+                  type="button"
+                  className="flex w-full px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-500/10"
+                  onClick={() => {
+                    const row = rows.find((x) => x.id === menu.id);
+                    setMenu(null);
+                    if (row) setDeleteTarget(row);
+                  }}
+                >
+                  Sil
+                </button></CanRemove>
+              ) : null}
             </div>,
             document.body,
           )

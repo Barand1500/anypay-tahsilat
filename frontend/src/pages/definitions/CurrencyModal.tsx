@@ -45,6 +45,8 @@ function parseRateInput(raw: string): number {
 export function CurrencyModal({ mode, onClose, onSave, focusField = null }: Props) {
   const isEdit = mode.type === 'edit';
   const src = isEdit ? mode.currency : null;
+  /** Merkezden gelen kayıt: ad / kısa ad / sembol kilitli, kur ve oto güncelleme serbest */
+  const locked = Boolean(src?.central);
 
   const [name, setName] = useState(src?.name ?? '');
   const [shortName, setShortName] = useState(src?.shortName ?? '');
@@ -186,6 +188,7 @@ export function CurrencyModal({ mode, onClose, onSave, focusField = null }: Prop
                     ref={symbolRef}
                     data-km-jump
                     label="Sembol *"
+                    disabled={locked}
                     value={symbol}
                     onChange={(e) => setSymbol(e.target.value.slice(0, 6))}
                     error={errors.symbol}
@@ -195,6 +198,7 @@ export function CurrencyModal({ mode, onClose, onSave, focusField = null }: Prop
                         type="button"
                         data-km-jump
                         aria-label="Sembol seç"
+                        disabled={locked}
                         title="Sembol seç"
                         onClick={() => setSymbolPickerOpen((v) => !v)}
                         className={[
@@ -214,6 +218,7 @@ export function CurrencyModal({ mode, onClose, onSave, focusField = null }: Prop
                     ref={nameRef}
                     data-km-jump
                     label="Adı *"
+                    disabled={locked}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     error={errors.name}
@@ -225,6 +230,7 @@ export function CurrencyModal({ mode, onClose, onSave, focusField = null }: Prop
                     ref={shortNameRef}
                     data-km-jump
                     label="Kısa Adı *"
+                    disabled={locked}
                     value={shortName}
                     onChange={(e) => setShortName(e.target.value.toUpperCase().slice(0, 8))}
                     error={errors.shortName}

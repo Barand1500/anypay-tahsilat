@@ -2,8 +2,16 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 
 const PREFIX = 'v1:';
 
+let warnedVaultKey = false;
+
 function encKey(): Buffer {
-  const raw = process.env.VAULT_ENC_KEY || process.env.JWT_SECRET || 'anypay-vault-dev-key';
+  // Önce VAULT_ENC_KEY; yoksa (eski kayıtlar bununla şifrelenmiş olabilir) JWT_SECRET. Koda yazılı yedek anahtar yok.
+  const raw = process.env.VAULT_ENC_KEY || process.env.JWT_SECRET;
+  if (!raw) throw new Error('VAULT_ENC_KEY veya JWT_SECRET tanımlı değil');
+  if (!process.env.VAULT_ENC_KEY && process.env.NODE_ENV === 'production' && !warnedVaultKey) {
+    warnedVaultKey = true;
+    console.warn('[vault] VAULT_ENC_KEY tanımlı değil, JWT_SECRET kullanılıyor — ayrı bir VAULT_ENC_KEY tanımlayın');
+  }
   return createHash('sha256').update(raw).digest();
 }
 
