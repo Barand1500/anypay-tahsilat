@@ -13,6 +13,7 @@ import { usePermission } from '../../permissions/PermissionContext';
 import { useCustomersList } from '../customers/useCustomersList';
 import { getDefaultFiltersOpen } from '../settings/defaultsStore';
 import { DekontModal } from './DekontModal';
+import { DeleteTransactionsMenu } from './DeleteTransactionsMenu';
 import {
   formatMoneyTr, formatMoneyDisplay,
   formatTxDate,
@@ -592,6 +593,13 @@ export default function TransactionsPage() {
               />
             </div>
             <ExportDropdown onCsv={exportCsv} onCopy={copyList} />
+            <DeleteTransactionsMenu
+              token={token}
+              onDeleted={(message) => {
+                flash(message);
+                void reload();
+              }}
+            />
           </div>
         </div>
 

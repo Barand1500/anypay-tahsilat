@@ -1200,3 +1200,86 @@ export async function listPaymentBanks(opts?: {
   }
   return list;
 }
+
+// ---------- Hareketleri toplu silme (Log Kayıtları'ndaki gibi kapsam seçerek) ----------
+
+export type DeletePaymentsScope = 'day' | 'day2' | 'week' | 'month' | 'range' | 'all';
+
+const DELETE_SCOPE_DAYS: Record<string, number> = { day: 1, day2: 2, week: 7, month: 30 };
+
+const DELETE_SCOPE_LABEL: Record<DeletePaymentsScope, string> = {
+  day: 'Son 1 Gün',
+  day2: 'Son 2 Gün',
+  week: 'Son 1 Hafta',
+  month: 'Son 1 Ay',
+  range: 'Tarih Aralığı',
+  all: 'Tüm Kayıtlar',
+};
+
+async function paymentsInDeleteScope(input: {
+  scope: DeletePaymentsScope;
+  from?: string;
+  to?: string;
+}) {
+  const and: Record<string, unknown>[] = [];
+  const days = DELETE_SCOPE_DAYS[input.scope];
+  if (days) {
+    and.push({ tarih: { gte: new Date(Date.now() - days * 86_400_000) } });
+  } else if (input.scope === 'range') {
+    const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+    if (!input.from || !input.to || !isoDay.test(input.from) || !isoDay.test(input.to)) {
+      throw new PaymentsError('Geçerli tarih aralığı seçin');
+    }
+    const from = parseDayStart(input.from);
+    const to = parseDayEnd(input.to);
+    if (from.getTime() > to.getTime()) throw new PaymentsError('Başlangıç bitişten sonra olamaz');
+    and.push({ tarih: { gte: from, lte: to } });
+  } else if (input.scope !== 'all') {
+    throw new PaymentsError('Geçersiz silme kapsamı');
+  }
+  // Bankada devam eden 3D oturumu (son 1 saat) silinmez — dönüşte kayıt bulunamaz
+  and.push({
+    NOT: { AND: [{ durum: 3 }, { tarih: { gte: new Date(Date.now() - 3_600_000) } }] },
+  });
+  return prisma.odeme.findMany({
+    where: { AND: and },
+    select: { id: true, durum: true, gercekTutar: true, tutar: true },
+  });
+}
+
+/** Silmeden önce kaç hareket etkilenecek (ödenmiş olanlar ayrıca) */
+export async function previewDeletePayments(input: {
+  scope: DeletePaymentsScope;
+  from?: string;
+  to?: string;
+}): Promise<{ count: number; paid: number; paidAmount: number }> {
+  const rows = await paymentsInDeleteScope(input);
+  const paid = rows.filter((r) => r.durum === 1);
+  return {
+    count: rows.length,
+    paid: paid.length,
+    paidAmount: paid.reduce((sum, r) => sum + (Number(r.gercekTutar ?? r.tutar) || 0), 0),
+  };
+}
+
+export async function deletePayments(
+  actorUserId: number,
+  input: { scope: DeletePaymentsScope; from?: string; to?: string },
+): Promise<{ deleted: number; paid: number }> {
+  const rows = await paymentsInDeleteScope(input);
+  if (!rows.length) return { deleted: 0, paid: 0 };
+  const ids = rows.map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 1000) {
+    await prisma.odeme.deleteMany({ where: { id: { in: ids.slice(i, i + 1000) } } });
+  }
+  const paid = rows.filter((r) => r.durum === 1).length;
+  const label =
+    input.scope === 'range'
+      ? `${input.from} / ${input.to} Aralığı`
+      : DELETE_SCOPE_LABEL[input.scope];
+  await writePanelLog(
+    actorUserId,
+    `Hareketler - ${label} Silindi · ${ids.length} kayıt (${paid} ödenmiş)`,
+  );
+  return { deleted: ids.length, paid };
+}

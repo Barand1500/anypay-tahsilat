@@ -4,10 +4,12 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { requireModulePerm } from '../middleware/permissions.js';
 import {
   createPayment,
+  deletePayments,
   getPayment,
   listPaymentBanks,
   listPayments,
   PaymentsError,
+  previewDeletePayments,
   reversePayment,
   setPaymentArchived,
   type TxStatus,
@@ -50,6 +52,39 @@ const listSchema = z.object({
   to: z.string().optional(),
   q: z.string().optional(),
   take: z.coerce.number().int().positive().optional(),
+});
+
+const deleteSchema = z.object({
+  scope: z.enum(['day', 'day2', 'week', 'month', 'range', 'all']),
+  from: z.string().optional(),
+  to: z.string().optional(),
+});
+
+/** Silmeden önce etkilenecek hareket sayısı — /:id yollarından önce tanımlı */
+paymentsRouter.get('/delete-preview', async (req, res) => {
+  const parsed = deleteSchema.safeParse(req.query);
+  if (!parsed.success) return sendError(res, 400, 'Geçersiz silme kapsamı');
+  try {
+    return sendSuccess(res, await previewDeletePayments(parsed.data));
+  } catch (err) {
+    if (err instanceof PaymentsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Silinecek kayıtlar hesaplanamadı');
+  }
+});
+
+/** Toplu silme (kapsama göre) — DELETE: "remove" yetkisi gerekir */
+paymentsRouter.delete('/', async (req: AuthedRequest, res) => {
+  const parsed = deleteSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 400, 'Geçersiz silme kapsamı');
+  try {
+    const data = await deletePayments(req.auth!.sub, parsed.data);
+    return sendSuccess(res, data, data.deleted ? 'Hareketler silindi' : 'Silinecek kayıt yok');
+  } catch (err) {
+    if (err instanceof PaymentsError) return sendError(res, 400, err.message);
+    console.error(err);
+    return sendError(res, 500, 'Hareketler silinemedi');
+  }
 });
 
 paymentsRouter.get('/banks', async (req, res) => {
