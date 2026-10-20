@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { LiveCentralBadge } from '../../components/ui/LiveCentralBadge';
 import { api } from '../../lib/api';
 import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { SimpleNameModal } from './SimpleNameModal';
@@ -141,7 +142,10 @@ export function CardListPage(config: Config) {
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">{config.title}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">{config.title}</h1>
+          {remoteSource ? <LiveCentralBadge /> : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDropdown onCsv={exportCsv} />
           {!remoteSource ? (
@@ -157,13 +161,6 @@ export function CardListPage(config: Config) {
           ) : null}
         </div>
       </div>
-
-      {remoteSource ? (
-        <p className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
-          Merkezi API açık — yalnızca Güzel Teknoloji’deki kayıtlar listelenir (boşsa boş kalır). Yerel
-          ekle / düzenle kapalı.
-        </p>
-      ) : null}
 
       {loadError ? (
         <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600">

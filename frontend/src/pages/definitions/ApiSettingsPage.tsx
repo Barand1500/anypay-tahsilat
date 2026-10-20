@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
 import { FloatingSearchSelect } from '../../components/ui/FloatingSearchSelect';
+import { LiveCentralBadge } from '../../components/ui/LiveCentralBadge';
 import { TextInput } from '../../components/ui/TextInput';
 import { setRuntimeBins } from '../../lib/binStore';
 import { reloadRuntimeBins } from '../../hooks/useLoadBins';
@@ -60,19 +61,7 @@ export default function ApiSettingsPage() {
   const [binRemoteKey, setBinRemoteKey] = useState('');
   const [remoteApiKeyConfigured, setRemoteApiKeyConfigured] = useState(false);
   const [binSourceBusy, setBinSourceBusy] = useState(false);
-  const [centralLogOpen, setCentralLogOpen] = useState(false);
-  const [centralLogBusy, setCentralLogBusy] = useState(false);
   const [centralCatalogRefreshBusy, setCentralCatalogRefreshBusy] = useState(false);
-  const [centralLogRows, setCentralLogRows] = useState<
-    {
-      id: string;
-      resource: string;
-      action: string;
-      rowId: string;
-      summary: string;
-      createdAt: string;
-    }[]
-  >([]);
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [taxOffices, setTaxOffices] = useState<TaxOfficeRow[]>([]);
@@ -186,32 +175,6 @@ export default function ApiSettingsPage() {
     }
   }, [token]);
 
-  const loadCentralLog = useCallback(async () => {
-    if (!token) return;
-    setCentralLogBusy(true);
-    try {
-      const list = await api.get<
-        {
-          id: string;
-          resource: string;
-          action: string;
-          rowId: string;
-          summary: string;
-          createdAt: string;
-        }[]
-      >('/api/settings/central-changelog?limit=100', token);
-      setCentralLogRows(Array.isArray(list) ? list : []);
-    } catch (err) {
-      setToast({
-        kind: 'err',
-        text: err instanceof Error ? err.message : 'Merkezi log yüklenemedi',
-      });
-      setCentralLogRows([]);
-    } finally {
-      setCentralLogBusy(false);
-    }
-  }, [token]);
-
   async function refreshCentralCatalog() {
     if (!token) return;
     setCentralCatalogRefreshBusy(true);
@@ -281,11 +244,6 @@ export default function ApiSettingsPage() {
       if (category === 'tax-offices') {
         void loadTaxOffices();
         void loadLocations();
-      }
-      if (data.source === 'remote' && centralLogOpen) void loadCentralLog();
-      if (data.source !== 'remote') {
-        setCentralLogOpen(false);
-        setCentralLogRows([]);
       }
     } catch (err) {
       setToast({
@@ -899,10 +857,7 @@ export default function ApiSettingsPage() {
                 Güzel Teknoloji merkezi API
               </p>
               <p className="mt-1 text-xs leading-relaxed text-[var(--panel-muted)]">
-                Açıkken bankalar, BIN, sanal POS, para birimleri, sözleşmeler, vergi daireleri, kart
-                tipi/tür/marka, iller/ilçeler, modüller, şablon değişkenleri, e-posta ve sürümler
-                merkezden gelir (boşsa boş). Yeni kayıt için API’yi yeniden bağlamaya gerek yok —
-                yaklaşık 1 dk içinde yenilenir. Kapalıysa yerel listeler kullanılır.
+                Açıkken ortak tanımlar merkezden gelir; kapalıysa yerel listeler kullanılır.
               </p>
             </div>
             <button
@@ -950,71 +905,25 @@ export default function ApiSettingsPage() {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {remoteBinsActive ? (
               <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                Aktif — ortak veriler merkezden geliyor (salt okunur).
+                Aktif — salt okunur
               </p>
             ) : (
-              <p className="text-[11px] text-[var(--panel-muted)]">
-                Kapalı — yerel veri kullanılır.
-              </p>
+              <p className="text-[11px] text-[var(--panel-muted)]">Kapalı — yerel veri</p>
             )}
-            {!remoteBinsActive ? <button
-              type="button"
-              disabled={binSourceBusy}
-              onClick={() => {
-                if (!binRemoteUrl.trim()) setBinRemoteUrl(DEFAULT_GTK_TAHSILAT_URL);
-                void saveBinSource('local');
-              }}
-              className="text-[11px] font-semibold text-[var(--panel-muted)] underline-offset-2 hover:underline disabled:opacity-50"
-            >
-              Yol / anahtarı kaydet
-            </button> : null}
-            {remoteBinsActive ? (
+            {!remoteBinsActive ? (
               <button
                 type="button"
-                disabled={centralLogBusy}
+                disabled={binSourceBusy}
                 onClick={() => {
-                  const next = !centralLogOpen;
-                  setCentralLogOpen(next);
-                  if (next) void loadCentralLog();
+                  if (!binRemoteUrl.trim()) setBinRemoteUrl(DEFAULT_GTK_TAHSILAT_URL);
+                  void saveBinSource('local');
                 }}
-                className="rounded-lg border border-emerald-600/35 bg-emerald-600/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition hover:bg-emerald-600/15 disabled:opacity-50 dark:text-emerald-300"
+                className="text-[11px] font-semibold text-[var(--panel-muted)] underline-offset-2 hover:underline disabled:opacity-50"
               >
-                {centralLogBusy ? 'Log…' : centralLogOpen ? 'Logu gizle' : 'Log'}
+                Yol / anahtarı kaydet
               </button>
             ) : null}
           </div>
-          {remoteBinsActive && centralLogOpen ? (
-            <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-emerald-600/20 bg-[var(--panel-elevated)]">
-              {centralLogRows.length === 0 ? (
-                <p className="px-3 py-4 text-center text-xs text-[var(--panel-muted)]">
-                  {centralLogBusy
-                    ? 'Yükleniyor…'
-                    : 'Henüz merkezi değişiklik yok. Tahsilat panelinde kayıt eklenince burada görünür.'}
-                </p>
-              ) : (
-                <ul className="divide-y divide-[var(--panel-line)]">
-                  {centralLogRows.map((row) => (
-                    <li key={row.id} className="px-3 py-2.5 text-xs">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="font-semibold text-[var(--panel-ink)]">
-                          {row.summary || `${row.resource} · ${row.action}`}
-                        </span>
-                        <span className="tabular-nums text-[var(--panel-muted)]">
-                          {row.createdAt
-                            ? new Date(row.createdAt).toLocaleString('tr-TR')
-                            : ''}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[10px] text-[var(--panel-muted)]">
-                        {row.resource}
-                        {row.rowId ? ` · #${row.rowId}` : ''} · {row.action}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : null}
         </div>
 
         <div
@@ -1050,14 +959,33 @@ export default function ApiSettingsPage() {
               data-anim
               data-km-jump
               onClick={() => openCategory(c.id)}
-              className="group flex aspect-square flex-col items-center justify-center gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-6 text-center shadow-[var(--panel-shadow)] transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_45%,var(--panel-line))] hover:shadow-md"
+              className={[
+                'group relative flex aspect-square flex-col items-center justify-center gap-4 rounded-2xl border p-6 text-center transition hover:-translate-y-0.5',
+                remoteBinsActive
+                  ? 'border-emerald-500/45 bg-gradient-to-b from-emerald-500/15 to-[var(--panel-elevated)] shadow-[0_10px_28px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.35)] hover:border-emerald-500/70'
+                  : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)] hover:border-[color-mix(in_srgb,var(--color-brand-500)_45%,var(--panel-line))] hover:shadow-md',
+              ].join(' ')}
             >
-              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--color-brand-500)_12%,var(--panel-bg))] text-[var(--color-brand-600)] transition group-hover:scale-105">
+              {remoteBinsActive ? <LiveCentralBadge className="absolute right-3 top-3" /> : null}
+              <span
+                className={[
+                  'flex h-16 w-16 items-center justify-center rounded-2xl transition group-hover:scale-105',
+                  remoteBinsActive
+                    ? 'bg-gradient-to-b from-emerald-400/25 to-emerald-600/10 text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] dark:text-emerald-300'
+                    : 'bg-[color-mix(in_srgb,var(--color-brand-500)_12%,var(--panel-bg))] text-[var(--color-brand-600)]',
+                ].join(' ')}
+              >
                 <CategoryIcon id={c.id} />
               </span>
               <span>
                 <span className="block text-base font-bold text-[var(--panel-ink)]">{c.label}</span>
-                <span className="mt-1 block text-xs text-[var(--panel-muted)]">{c.description}</span>
+                {remoteBinsActive ? (
+                  <span className="mt-1.5 block text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                    API&apos;den geliyor
+                  </span>
+                ) : (
+                  <span className="mt-1 block text-xs text-[var(--panel-muted)]">{c.description}</span>
+                )}
               </span>
             </button>
           ))}
@@ -1084,10 +1012,11 @@ export default function ApiSettingsPage() {
         >
           <BackIcon />
         </button>
-        <div>
+        <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-2xl font-bold leading-none tracking-tight text-[var(--panel-ink)]">
             {meta?.label}
           </h1>
+          {remoteCatalogLocked ? <LiveCentralBadge /> : null}
         </div>
       </div>
 
@@ -1252,9 +1181,13 @@ export default function ApiSettingsPage() {
           </div>
         </div>
       </div> : (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
-          <span>Merkezi API aktif. Katalog salt okunur olarak merkezden yükleniyor.</span>
-          <button type="button" disabled={centralCatalogRefreshBusy} onClick={() => void refreshCentralCatalog()} className="rounded-xl border border-emerald-600/35 bg-emerald-600/10 px-3 py-2 text-xs font-semibold disabled:opacity-50">
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            disabled={centralCatalogRefreshBusy}
+            onClick={() => void refreshCentralCatalog()}
+            className="rounded-xl border border-emerald-600/35 bg-emerald-600/10 px-3 py-2 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-600/15 disabled:opacity-50 dark:text-emerald-300"
+          >
             {centralCatalogRefreshBusy ? 'Yenileniyor…' : 'Merkezi verileri yenile'}
           </button>
         </div>

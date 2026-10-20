@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { LiveCentralBadge } from '../../components/ui/LiveCentralBadge';
 import { api } from '../../lib/api';
 import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { BankModal } from './BankModal';
@@ -246,16 +247,12 @@ export default function BanksPage() {
         </p>
       ) : null}
 
-      {remoteSource ? (
-        <p className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
-          Merkezi API açık — listede yalnızca Güzel Teknoloji’deki bankalar var (ör. Yunus Bank). Yerel
-          ekle / düzenle kapalı. Kapatınca yerel veritabanı yeniden kullanılır.
-        </p>
-      ) : null}
-
       <section className="overflow-hidden rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
-          <h1 className="text-lg font-bold text-[var(--panel-ink)]">Bankalar</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-lg font-bold text-[var(--panel-ink)]">Bankalar</h1>
+            {remoteSource ? <LiveCentralBadge /> : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {!remoteSource ? <button
               type="button"
