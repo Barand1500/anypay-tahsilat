@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { LiveCentralBadge } from '../../components/ui/LiveCentralBadge';
 import { api } from '../../lib/api';
 import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { CurrencyModal, type CurrencyFocusField } from './CurrencyModal';
@@ -36,6 +37,7 @@ export default function CurrenciesPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [remoteSource, setRemoteSource] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -56,7 +58,13 @@ export default function CurrenciesPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const list = await api.get<CurrencyDef[]>('/api/currencies', token);
+      const [src, list] = await Promise.all([
+        api
+          .get<{ source: 'local' | 'remote' }>('/api/settings/bin-source', token)
+          .catch(() => ({ source: 'local' as const })),
+        api.get<CurrencyDef[]>('/api/currencies', token),
+      ]);
+      setRemoteSource(src.source === 'remote');
       setRows(list);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Para birimleri yüklenemedi');
@@ -210,10 +218,12 @@ export default function CurrenciesPage() {
   }
 
   function openEdit(row: CurrencyDef, focusField?: CurrencyFocusField | null) {
+    if (remoteSource) return;
     setModal({ type: 'edit', currency: row, focusField: focusField ?? 'name' });
   }
 
   function onRowDoubleClick(row: CurrencyDef, e: ReactMouseEvent) {
+    if (remoteSource) return;
     const col = (e.target as HTMLElement)
       .closest('[data-currency-col]')
       ?.getAttribute('data-currency-col');
@@ -260,6 +270,26 @@ export default function CurrenciesPage() {
           {actionError}
         </p>
       ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">Para Birimleri</h1>
+          {remoteSource ? <LiveCentralBadge /> : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportDropdown onCsv={exportCsv} onCopy={copyList} />
+          {!remoteSource ? (
+            <button
+              type="button"
+              data-km-jump
+              onClick={() => setModal({ type: 'create' })}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+            >
+              <span className="text-lg leading-none">+</span>
+              Ekle
+            </button>
+          ) : null}
+        </div>
+      </div>
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-line)] px-4 py-3 sm:px-5">
           <label className="flex items-center gap-2 text-sm text-[var(--panel-muted)]">
@@ -290,16 +320,6 @@ export default function CurrenciesPage() {
                 className="w-44 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] py-2 pl-9 pr-3 text-sm text-[var(--panel-ink)] outline-none focus:border-[var(--color-brand-500)] sm:w-56"
               />
             </div>
-            <ExportDropdown onCsv={exportCsv} onCopy={copyList} />
-            <button
-              type="button"
-              data-km-jump
-              onClick={() => setModal({ type: 'create' })}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-            >
-              <span className="text-lg leading-none">+</span>
-              Ekle
-            </button>
           </div>
         </div>
 
@@ -326,8 +346,11 @@ export default function CurrenciesPage() {
                   data-km-row
                   tabIndex={-1}
                   onDoubleClick={(e) => onRowDoubleClick(r, e)}
-                  title="Çift tıkla: düzenle"
-                  className="grid cursor-pointer grid-cols-[minmax(140px,1.2fr)_80px_72px_minmax(120px,1fr)_100px_140px_88px_44px] items-center gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45"
+                  title={remoteSource ? 'Merkezi kayıt — salt okunur' : 'Çift tıkla: düzenle'}
+                  className={[
+                    'grid grid-cols-[minmax(140px,1.2fr)_80px_72px_minmax(120px,1fr)_100px_140px_88px_44px] items-center gap-3 border-b border-[var(--panel-line)] px-5 py-3.5 transition last:border-b-0 hover:bg-[var(--panel-hover)]/45',
+                    remoteSource ? 'cursor-default' : 'cursor-pointer',
+                  ].join(' ')}
                 >
                   <span
                     data-currency-col="name"
@@ -393,15 +416,17 @@ export default function CurrenciesPage() {
                     {r.status}
                   </span>
                   <div className="flex justify-end">
-                    <button
-                      type="button"
-                      data-currency-menu-btn
-                      aria-label="İşlemler"
-                      onClick={(e) => openMenu(e, r.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
-                    >
-                      <DotsIcon />
-                    </button>
+                    {!remoteSource ? (
+                      <button
+                        type="button"
+                        data-currency-menu-btn
+                        aria-label="İşlemler"
+                        onClick={(e) => openMenu(e, r.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--panel-muted)] transition hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]"
+                      >
+                        <DotsIcon />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ))

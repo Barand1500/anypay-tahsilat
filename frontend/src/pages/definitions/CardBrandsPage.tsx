@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { LiveCentralBadge } from '../../components/ui/LiveCentralBadge';
 import { api } from '../../lib/api';
 import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import { CardBrandModal, type CardBrandModalMode } from './CardBrandModal';
@@ -16,6 +17,7 @@ export default function CardBrandsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [remoteSource, setRemoteSource] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -30,9 +32,15 @@ export default function CardBrandsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const list = await api.get<
-        { id: string; name: string; logoUrl?: string; logo?: string | null; initials?: string }[]
-      >('/api/card-brands', token);
+      const [src, list] = await Promise.all([
+        api
+          .get<{ source: 'local' | 'remote' }>('/api/settings/bin-source', token)
+          .catch(() => ({ source: 'local' as const })),
+        api.get<
+          { id: string; name: string; logoUrl?: string; logo?: string | null; initials?: string }[]
+        >('/api/card-brands', token),
+      ]);
+      setRemoteSource(src.source === 'remote');
       setRows(
         list.map((r) => ({
           id: r.id,
@@ -167,18 +175,23 @@ export default function CardBrandsPage() {
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">Kart Markaları</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">Kart Markaları</h1>
+          {remoteSource ? <LiveCentralBadge /> : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDropdown onCsv={exportCsv} />
-          <button
-            type="button"
-            data-km-jump
-            onClick={() => setModal({ type: 'create' })}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-          >
-            <span className="text-lg leading-none">+</span>
-            Ekle
-          </button>
+          {!remoteSource ? (
+            <button
+              type="button"
+              data-km-jump
+              onClick={() => setModal({ type: 'create' })}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+            >
+              <span className="text-lg leading-none">+</span>
+              Ekle
+            </button>
+          ) : null}
         </div>
       </div>
 

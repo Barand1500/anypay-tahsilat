@@ -959,33 +959,15 @@ export default function ApiSettingsPage() {
               data-anim
               data-km-jump
               onClick={() => openCategory(c.id)}
-              className={[
-                'group relative flex aspect-square flex-col items-center justify-center gap-4 rounded-2xl border p-6 text-center transition hover:-translate-y-0.5',
-                remoteBinsActive
-                  ? 'border-emerald-500/45 bg-gradient-to-b from-emerald-500/15 to-[var(--panel-elevated)] shadow-[0_10px_28px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.35)] hover:border-emerald-500/70'
-                  : 'border-[var(--panel-line)] bg-[var(--panel-elevated)] shadow-[var(--panel-shadow)] hover:border-[color-mix(in_srgb,var(--color-brand-500)_45%,var(--panel-line))] hover:shadow-md',
-              ].join(' ')}
+              className="group relative flex aspect-square flex-col items-center justify-center gap-4 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-6 text-center shadow-[var(--panel-shadow)] transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-brand-500)_45%,var(--panel-line))] hover:shadow-md"
             >
               {remoteBinsActive ? <LiveCentralBadge className="absolute right-3 top-3" /> : null}
-              <span
-                className={[
-                  'flex h-16 w-16 items-center justify-center rounded-2xl transition group-hover:scale-105',
-                  remoteBinsActive
-                    ? 'bg-gradient-to-b from-emerald-400/25 to-emerald-600/10 text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] dark:text-emerald-300'
-                    : 'bg-[color-mix(in_srgb,var(--color-brand-500)_12%,var(--panel-bg))] text-[var(--color-brand-600)]',
-                ].join(' ')}
-              >
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--color-brand-500)_12%,var(--panel-bg))] text-[var(--color-brand-600)] transition group-hover:scale-105">
                 <CategoryIcon id={c.id} />
               </span>
               <span>
                 <span className="block text-base font-bold text-[var(--panel-ink)]">{c.label}</span>
-                {remoteBinsActive ? (
-                  <span className="mt-1.5 block text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                    API&apos;den geliyor
-                  </span>
-                ) : (
-                  <span className="mt-1 block text-xs text-[var(--panel-muted)]">{c.description}</span>
-                )}
+                <span className="mt-1 block text-xs text-[var(--panel-muted)]">{c.description}</span>
               </span>
             </button>
           ))}

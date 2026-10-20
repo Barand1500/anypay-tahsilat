@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { ExportDropdown } from '../../components/ui/ExportDropdown';
+import { LiveCentralBadge } from '../../components/ui/LiveCentralBadge';
 import { api } from '../../lib/api';
 import { onCentralCatalogChange } from '../../lib/centralCatalogEvents';
 import type { BankDef } from './bankTypes';
@@ -20,6 +21,7 @@ export default function VirtualPosPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [remoteSource, setRemoteSource] = useState(false);
   const [query, setQuery] = useState('');
   const [pageSizeText, setPageSizeText] = useState('10');
   const [pageSize, setPageSize] = useState(10);
@@ -34,12 +36,16 @@ export default function VirtualPosPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [list, bankList, tpl] = await Promise.all([
+      const [src, list, bankList, tpl] = await Promise.all([
+        api
+          .get<{ source: 'local' | 'remote' }>('/api/settings/bin-source', token)
+          .catch(() => ({ source: 'local' as const })),
         api.get<VirtualPosRow[]>('/api/virtual-pos', token),
         api.get<BankDef[]>('/api/banks', token),
         // Şablon yüklenemezse form sabit alanlarla çalışır
         api.get<PosTemplate[]>('/api/virtual-pos/templates', token).catch(() => [] as PosTemplate[]),
       ]);
+      setRemoteSource(src.source === 'remote');
       setTemplates(tpl);
       setRows(list);
       setVirtualPosList(list);
@@ -229,9 +235,12 @@ export default function VirtualPosPage() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">
-          Sanal POS Tanımları
-        </h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--panel-ink)]">
+            Sanal POS Tanımları
+          </h1>
+          {remoteSource ? <LiveCentralBadge /> : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDropdown onCsv={exportCsv} />
           <button
