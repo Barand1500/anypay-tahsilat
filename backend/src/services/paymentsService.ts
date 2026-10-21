@@ -207,6 +207,52 @@ export function parseCardBinMeta(
   return read(bankaCevabi);
 }
 
+/** Ödeme anında anlaşmadan alınan tahsil/bloke snapshot’ı kilitli mi? */
+function settlementSnapshotted(taksitDetay: string | null | undefined): boolean {
+  if (!taksitDetay?.trim()) return false;
+  try {
+    const j = JSON.parse(taksitDetay) as Record<string, unknown>;
+    return j.settlementSnapshotted === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Snapshot yok / boş → bir kez anlaşmadan doldur; kilitliyse bir daha dokunma */
+function needsSettlementBackfill(
+  tahsilGunu: string | null | undefined,
+  blokeGunu: string | null | undefined,
+  taksitDetay: string | null | undefined,
+): boolean {
+  if (settlementSnapshotted(taksitDetay)) return false;
+  const a = (tahsilGunu || '').trim();
+  const b = (blokeGunu || '').trim();
+  // Hiç yazılmamış
+  if (!a && !b) return true;
+  // Eski varsayılan 0/0 (oran bulunamayınca yazılmış) — bir kez düzelt, sonra kilitle
+  if (a === '0' && b === '0') return true;
+  return false;
+}
+
+function mergeSettlementIntoDetay(
+  taksitDetay: string | null | undefined,
+  collectionDay: string,
+  blockDay: string,
+): string | null {
+  const base: Record<string, unknown> = {};
+  if (taksitDetay?.trim()) {
+    try {
+      Object.assign(base, JSON.parse(taksitDetay) as Record<string, unknown>);
+    } catch {
+      /* bozuk JSON — yeni meta yaz */
+    }
+  }
+  base.collectionDay = collectionDay;
+  base.blockDay = blockDay;
+  base.settlementSnapshotted = true;
+  return JSON.stringify(base);
+}
+
 /** iptal_iade_hareket JSON → detay satırları (kronolojik: ÖDEME + İPTAL/İADE) */
 function buildOperationHistory(
   r: {
@@ -646,11 +692,13 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   const apiBase = publicApiBase();
 
   // Vade farkı: kart BIN bankası (UI / Taksit Seçenekleri ile aynı). POS yalnızca geçit.
+  // Tahsil/bloke: ödeme anında anlaşmadan snapshot; sonraki anlaşma değişimi eski hareketi etkilemez.
   let commissionPct = 0;
   let cardSegment: 'bireysel' | 'ticari' | null = null;
   let cardBrand = '';
-  let collectionDay = '0';
-  let blockDay = '0';
+  let collectionDay: string | null = null;
+  let blockDay: string | null = null;
+  let settlementLocked = false;
   try {
     const cardBank = await lookupBinByCard(digits);
     cardSegment = cardBank?.segment ?? null;
@@ -667,19 +715,21 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     const hit = rates.rows.find((r) => r.n === installment);
     if (hit) {
       commissionPct = hit.commissionPct;
-      collectionDay = hit.collectionDay || '0';
-      blockDay = hit.blockDay || '0';
+      collectionDay = String(hit.collectionDay ?? '0').trim() || '0';
+      blockDay = String(hit.blockDay ?? '0').trim() || '0';
+      settlementLocked = true;
     }
   } catch {
-    /* oran yoksa 0 */
+    /* oran yoksa tahsil/bloke boş kalsın; detayda bir kez backfill denenebilir */
   }
 
   const cardBinMeta = JSON.stringify({
     cardSegment,
     cardBrand,
     cardSegmentLabel: segmentLabelTr(cardSegment),
-    collectionDay,
-    blockDay,
+    ...(collectionDay != null ? { collectionDay } : {}),
+    ...(blockDay != null ? { blockDay } : {}),
+    settlementSnapshotted: settlementLocked,
   });
 
   const chargedAmount = input.commissionIncluded
@@ -752,8 +802,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         taksitOran: commissionPct || null,
         taksitDetay: cardBinMeta,
         bankaKomisyonu: commissionPct || null,
-        tahsilGunu: collectionDay.slice(0, 255),
-        blokeGunu: blockDay.slice(0, 255),
+        tahsilGunu: collectionDay?.slice(0, 255) ?? null,
+        blokeGunu: blockDay?.slice(0, 255) ?? null,
         odemeNo,
         durum: 3,
         bankaCevabi: pendingMeta,
@@ -910,8 +960,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       taksitOran: commissionPct || null,
       taksitDetay: cardBinMeta,
       bankaKomisyonu: commissionPct || null,
-      tahsilGunu: collectionDay.slice(0, 255),
-      blokeGunu: blockDay.slice(0, 255),
+      tahsilGunu: collectionDay?.slice(0, 255) ?? null,
+      blokeGunu: blockDay?.slice(0, 255) ?? null,
       odemeNo,
       durum: 3,
       bankaCevabi: pendingMeta,
@@ -1099,61 +1149,48 @@ export async function getPayment(id: number): Promise<PublicPaymentRow> {
   const merchant = await merchantDefaults();
   const [hit] = await hydrate([row as OdemeRow], merchant);
 
-  // Tahsil/bloke: güncel kart anlaşmasından göster (eski 0/0 kayıtlar dahil).
-  // Önceki koşul `"0"` değerini dolu sayıyordu; anlaşma hiç okunmuyordu.
-  try {
-    const digits = (row.kartNo || '').replace(/\D/g, '');
-    const cardBank = digits.length >= 6 ? await lookupBinByCard(digits).catch(() => null) : null;
-    const meta = parseCardBinMeta(row.taksitDetay, row.bankaCevabi);
-    const segFromMeta =
-      meta.cardSegment === 'Ticari'
-        ? ('ticari' as const)
-        : meta.cardSegment === 'Bireysel'
-          ? ('bireysel' as const)
-          : null;
-    const code = await getCustomerAgreementCode(row.musteriId);
-    const rates = await resolveAgreementRates({
-      agreementCode: code,
-      bankId: cardBank?.bankId ?? row.bankaId ?? row.sanalposBankaId ?? null,
-      bankName: cardBank?.bankName ?? null,
-      segment: cardBank?.segment ?? segFromMeta ?? 'bireysel',
-      amount: Number(row.tutar) || hit.amount || 1,
-    });
-    const n = row.taksit && row.taksit > 0 ? row.taksit : 1;
-    const rate = rates.rows.find((r) => r.n === n) ?? rates.rows[0];
-    if (rate) {
-      const collectionDay = String(rate.collectionDay ?? '0').trim() || '0';
-      const blockDay = String(rate.blockDay ?? '0').trim() || '0';
-      const changed =
-        hit.detail.collectionDay !== collectionDay || hit.detail.blockDay !== blockDay;
-      hit.detail.collectionDay = collectionDay;
-      hit.detail.blockDay = blockDay;
-      if (changed) {
-        let nextDetay = row.taksitDetay;
-        if (row.taksitDetay?.trim()) {
-          try {
-            const j = JSON.parse(row.taksitDetay) as Record<string, unknown>;
-            j.collectionDay = collectionDay;
-            j.blockDay = blockDay;
-            nextDetay = JSON.stringify(j);
-          } catch {
-            /* taksitDetay bozuksa kolona dokunma */
-          }
-        }
+  // Snapshot kilitliyse kayıtlı değeri göster. Yalnızca boş / eski 0/0 → bir kez anlaşmadan doldur + kilitle.
+  if (needsSettlementBackfill(row.tahsilGunu, row.blokeGunu, row.taksitDetay)) {
+    try {
+      const digits = (row.kartNo || '').replace(/\D/g, '');
+      const cardBank = digits.length >= 6 ? await lookupBinByCard(digits).catch(() => null) : null;
+      const meta = parseCardBinMeta(row.taksitDetay, row.bankaCevabi);
+      const segFromMeta =
+        meta.cardSegment === 'Ticari'
+          ? ('ticari' as const)
+          : meta.cardSegment === 'Bireysel'
+            ? ('bireysel' as const)
+            : null;
+      const code = await getCustomerAgreementCode(row.musteriId);
+      const rates = await resolveAgreementRates({
+        agreementCode: code,
+        bankId: cardBank?.bankId ?? row.bankaId ?? row.sanalposBankaId ?? null,
+        bankName: cardBank?.bankName ?? null,
+        segment: cardBank?.segment ?? segFromMeta ?? 'bireysel',
+        amount: Number(row.tutar) || hit.amount || 1,
+      });
+      const n = row.taksit && row.taksit > 0 ? row.taksit : 1;
+      const rate = rates.rows.find((r) => r.n === n) ?? rates.rows[0];
+      if (rate) {
+        const collectionDay = String(rate.collectionDay ?? '0').trim() || '0';
+        const blockDay = String(rate.blockDay ?? '0').trim() || '0';
+        hit.detail.collectionDay = collectionDay;
+        hit.detail.blockDay = blockDay;
+        const nextDetay = mergeSettlementIntoDetay(row.taksitDetay, collectionDay, blockDay);
         await prisma.odeme
           .update({
             where: { id: row.id },
             data: {
               tahsilGunu: collectionDay.slice(0, 255),
               blokeGunu: blockDay.slice(0, 255),
-              ...(nextDetay !== row.taksitDetay ? { taksitDetay: nextDetay } : {}),
+              ...(nextDetay ? { taksitDetay: nextDetay } : {}),
             },
           })
           .catch(() => undefined);
       }
+    } catch {
+      /* anlaşma yoksa kayıtlı / boş kalsın */
     }
-  } catch {
-    /* anlaşma yoksa kayıtlı değer kalsın */
   }
 
   return hit;
