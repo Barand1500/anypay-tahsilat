@@ -26,7 +26,21 @@ function Value({ label, value }: { label: string; value: string }) {
 
 /** Başlık ve satır aynı iz — Tutar / İşlem No yan yana yapışmasın */
 const historyGrid =
-  'grid grid-cols-[13.5rem_6.25rem_8.75rem_7.5rem_minmax(9.5rem,1fr)_minmax(10rem,1.15fr)_8rem] items-center gap-x-6';
+  'grid grid-cols-[15.5rem_6.25rem_8.75rem_7.5rem_minmax(9.5rem,1fr)_minmax(10rem,1.15fr)_8rem] items-center gap-x-6';
+
+/** Tarih solda, saat sabit 8ch — 16:08:54 ile 16:13:19 aynı kolonda */
+function HistoryStamp({ iso }: { iso: string }) {
+  const full = formatTxDate(iso);
+  const cut = full.lastIndexOf(' ');
+  const date = cut > 0 ? full.slice(0, cut) : full;
+  const time = cut > 0 ? full.slice(cut + 1) : '';
+  return (
+    <span className="grid w-full grid-cols-[minmax(0,1fr)_8ch] items-baseline gap-x-2 font-mono text-[13px] tabular-nums tracking-normal text-[var(--panel-ink)]">
+      <span className="truncate">{date}</span>
+      <span>{time}</span>
+    </span>
+  );
+}
 
 function Section({ title, children, className = '', bodyClassName = 'space-y-2.5' }: {
   title: string;
@@ -165,9 +179,7 @@ export default function TransactionDetailPage() {
                   key={`${entry.operation}-${entry.at}-${index}`}
                   className={`${historyGrid} border-b border-[var(--panel-line)]/70 py-3 last:border-0`}
                 >
-                  <span className="whitespace-nowrap tabular-nums text-[var(--panel-ink)]">
-                    {formatTxDate(entry.at)}
-                  </span>
+                  <HistoryStamp iso={entry.at} />
                   <span className="whitespace-nowrap font-semibold text-sky-600">{entry.operation}</span>
                   <span
                     className={[
