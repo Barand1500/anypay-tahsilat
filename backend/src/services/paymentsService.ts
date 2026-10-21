@@ -1099,39 +1099,61 @@ export async function getPayment(id: number): Promise<PublicPaymentRow> {
   const merchant = await merchantDefaults();
   const [hit] = await hydrate([row as OdemeRow], merchant);
 
-  // Eski kayıtlarda tahsil/bloke boşsa kart anlaşmasından bir kez doldur (görüntü + DB)
-  if (!(hit.detail.collectionDay || hit.detail.blockDay)) {
-    try {
-      const digits = (row.kartNo || '').replace(/\D/g, '');
-      const cardBank = digits.length >= 6 ? await lookupBinByCard(digits).catch(() => null) : null;
-      const code = await getCustomerAgreementCode(row.musteriId);
-      const rates = await resolveAgreementRates({
-        agreementCode: code,
-        bankId: row.bankaId ?? row.sanalposBankaId ?? cardBank?.bankId ?? null,
-        bankName: cardBank?.bankName ?? null,
-        segment: cardBank?.segment ?? 'bireysel',
-        amount: Number(row.tutar) || hit.amount || 1,
-      });
-      const n = row.taksit && row.taksit > 0 ? row.taksit : 1;
-      const rate = rates.rows.find((r) => r.n === n) ?? rates.rows[0];
-      if (rate) {
-        const collectionDay = rate.collectionDay || '0';
-        const blockDay = rate.blockDay || '0';
-        hit.detail.collectionDay = collectionDay;
-        hit.detail.blockDay = blockDay;
+  // Tahsil/bloke: güncel kart anlaşmasından göster (eski 0/0 kayıtlar dahil).
+  // Önceki koşul `"0"` değerini dolu sayıyordu; anlaşma hiç okunmuyordu.
+  try {
+    const digits = (row.kartNo || '').replace(/\D/g, '');
+    const cardBank = digits.length >= 6 ? await lookupBinByCard(digits).catch(() => null) : null;
+    const meta = parseCardBinMeta(row.taksitDetay, row.bankaCevabi);
+    const segFromMeta =
+      meta.cardSegment === 'Ticari'
+        ? ('ticari' as const)
+        : meta.cardSegment === 'Bireysel'
+          ? ('bireysel' as const)
+          : null;
+    const code = await getCustomerAgreementCode(row.musteriId);
+    const rates = await resolveAgreementRates({
+      agreementCode: code,
+      bankId: cardBank?.bankId ?? row.bankaId ?? row.sanalposBankaId ?? null,
+      bankName: cardBank?.bankName ?? null,
+      segment: cardBank?.segment ?? segFromMeta ?? 'bireysel',
+      amount: Number(row.tutar) || hit.amount || 1,
+    });
+    const n = row.taksit && row.taksit > 0 ? row.taksit : 1;
+    const rate = rates.rows.find((r) => r.n === n) ?? rates.rows[0];
+    if (rate) {
+      const collectionDay = String(rate.collectionDay ?? '0').trim() || '0';
+      const blockDay = String(rate.blockDay ?? '0').trim() || '0';
+      const changed =
+        hit.detail.collectionDay !== collectionDay || hit.detail.blockDay !== blockDay;
+      hit.detail.collectionDay = collectionDay;
+      hit.detail.blockDay = blockDay;
+      if (changed) {
+        let nextDetay = row.taksitDetay;
+        if (row.taksitDetay?.trim()) {
+          try {
+            const j = JSON.parse(row.taksitDetay) as Record<string, unknown>;
+            j.collectionDay = collectionDay;
+            j.blockDay = blockDay;
+            nextDetay = JSON.stringify(j);
+          } catch {
+            /* taksitDetay bozuksa kolona dokunma */
+          }
+        }
         await prisma.odeme
           .update({
             where: { id: row.id },
             data: {
               tahsilGunu: collectionDay.slice(0, 255),
               blokeGunu: blockDay.slice(0, 255),
+              ...(nextDetay !== row.taksitDetay ? { taksitDetay: nextDetay } : {}),
             },
           })
           .catch(() => undefined);
       }
-    } catch {
-      /* anlaşma yoksa boş kalsın */
     }
+  } catch {
+    /* anlaşma yoksa kayıtlı değer kalsın */
   }
 
   return hit;
