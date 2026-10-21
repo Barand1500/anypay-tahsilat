@@ -591,14 +591,19 @@ export async function resolveAgreementRates(opts: {
       const totalAmount = amount * (1 + commissionPct / 100);
       const n = r.taksit;
       const segKey = effectiveKey === 'tumu' ? 'all' : effectiveKey;
-      const extraRaw = pickExtraInstallment(selected, posDetailFor(n), segKey);
+      const posItem = posDetailFor(n);
+      const extraRaw = pickExtraInstallment(selected, posItem, segKey);
       const plusN = configuredFor(r, effectiveKey)
         ? Math.max(0, Math.min(36 - n, Math.round(extraRaw)))
         : 0;
       const totalInstallments = n + plusN;
       const minLimit = rowMinLimit(r, selected);
-      const collectionDay = String(selected?.collectionDay ?? '0').trim() || '0';
-      const blockDay = String(selected?.blockDay ?? '0').trim() || '0';
+      // Tahsil/bloke Sanal POS banka kart anlaşmasında (UI); ek taksit gibi POS detayından tamamla
+      const posSelected = posItem?.[segKey];
+      const collectionDay =
+        String(posSelected?.collectionDay ?? selected?.collectionDay ?? '0').trim() || '0';
+      const blockDay =
+        String(posSelected?.blockDay ?? selected?.blockDay ?? '0').trim() || '0';
       return {
         n,
         plusN,

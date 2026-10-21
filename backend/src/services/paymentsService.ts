@@ -207,30 +207,38 @@ export function parseCardBinMeta(
   return read(bankaCevabi);
 }
 
-/** Ödeme anında anlaşmadan alınan tahsil/bloke snapshot’ı kilitli mi? */
-function settlementSnapshotted(taksitDetay: string | null | undefined): boolean {
-  if (!taksitDetay?.trim()) return false;
+function readSettlementMeta(taksitDetay: string | null | undefined): {
+  snapshotted: boolean;
+  repaired: boolean;
+} {
+  if (!taksitDetay?.trim()) return { snapshotted: false, repaired: false };
   try {
     const j = JSON.parse(taksitDetay) as Record<string, unknown>;
-    return j.settlementSnapshotted === true;
+    return {
+      snapshotted: j.settlementSnapshotted === true,
+      repaired: j.settlementRepaired === true,
+    };
   } catch {
-    return false;
+    return { snapshotted: false, repaired: false };
   }
 }
 
-/** Snapshot yok / boş → bir kez anlaşmadan doldur; kilitliyse bir daha dokunma */
+/**
+ * Snapshot yok / boş / (yanlış kaynakla kilitlenmiş 0/0) → bir kez anlaşmadan doldur.
+ * settlementRepaired sonrası bir daha dokunulmaz (meşru 0/0 dahil).
+ */
 function needsSettlementBackfill(
   tahsilGunu: string | null | undefined,
   blokeGunu: string | null | undefined,
   taksitDetay: string | null | undefined,
 ): boolean {
-  if (settlementSnapshotted(taksitDetay)) return false;
+  const meta = readSettlementMeta(taksitDetay);
+  if (meta.repaired) return false;
   const a = (tahsilGunu || '').trim();
   const b = (blokeGunu || '').trim();
-  // Hiç yazılmamış
   if (!a && !b) return true;
-  // Eski varsayılan 0/0 (oran bulunamayınca yazılmış) — bir kez düzelt, sonra kilitle
   if (a === '0' && b === '0') return true;
+  if (meta.snapshotted) return false;
   return false;
 }
 
@@ -250,6 +258,7 @@ function mergeSettlementIntoDetay(
   base.collectionDay = collectionDay;
   base.blockDay = blockDay;
   base.settlementSnapshotted = true;
+  base.settlementRepaired = true;
   return JSON.stringify(base);
 }
 
@@ -730,6 +739,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     ...(collectionDay != null ? { collectionDay } : {}),
     ...(blockDay != null ? { blockDay } : {}),
     settlementSnapshotted: settlementLocked,
+    settlementRepaired: settlementLocked,
   });
 
   const chargedAmount = input.commissionIncluded
