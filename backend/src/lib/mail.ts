@@ -246,44 +246,6 @@ export async function sendPasswordResetOtpMail(
   return sendMail({ to, subject, html, text });
 }
 
-/** Kasa şifresi unuttum — OTP */
-export async function sendVaultOtpMail(to: string, adsoyad: string | null, code: string) {
-  const name = adsoyad?.trim() || 'Kullanıcı';
-  const subject = `${code} — Kasa şifreniz`;
-  const safeName = escapeHtml(name);
-  const safeCode = escapeHtml(code);
-
-  const html = `<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="utf-8"/><title>Kasa şifresi</title></head>
-<body style="margin:0;padding:0;background:#0b1220;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;padding:32px 12px;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;border-radius:20px;overflow:hidden;background:#111827;border:1px solid #1f2937;">
-        <tr>
-          <td style="padding:24px 28px;background:linear-gradient(135deg,#f59e0b 0%,#b45309 60%,#0f172a 100%);">
-            <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.8);font-weight:700;">GÜZEL Teknoloji</p>
-            <h1 style="margin:0;font-size:22px;color:#fff;font-weight:800;">Kasa doğrulama kodu</h1>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:28px;">
-            <p style="margin:0 0 12px;font-size:15px;color:#e5e7eb;">Merhaba <strong style="color:#fff;">${safeName}</strong>,</p>
-            <p style="margin:0 0 20px;font-size:14px;color:#9ca3af;line-height:1.5;">Kasanızı açmak için tek kullanımlık kodunuz:</p>
-            <p style="margin:0 0 20px;text-align:center;font-size:36px;letter-spacing:0.28em;font-weight:800;color:#f8fafc;font-family:Consolas,Monaco,monospace;">${safeCode}</p>
-            <p style="margin:0;font-size:12px;color:#64748b;">Kod 2 dakika geçerlidir. Bu isteği siz yapmadıysanız yok sayın.</p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-
-  const text = `Kasa doğrulama kodu: ${code}\nMerhaba ${name},\nKod 2 dakika geçerlidir.`;
-  return sendMail({ to, subject, html, text });
-}
-
 /** Müşteri panel girişi — e-posta + geçici şifre */
 export async function sendCustomerCredentialsMail(
   to: string,

@@ -740,39 +740,6 @@ export async function fetchRemoteCardBrands(force = false): Promise<RemoteCardBr
   return out.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 }
 
-export type RemoteModuleRow = {
-  id: string;
-  name: string;
-  code: string;
-  icon: string;
-  sortOrder: number;
-  parentId: string;
-  parentName: string;
-};
-
-export async function fetchRemoteModules(force = false): Promise<RemoteModuleRow[]> {
-  if (!(await isCentralRemoteActive())) return [];
-  const raw = await fetchRemoteTahsilatResource('modules', force);
-  const out: RemoteModuleRow[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const flat = flattenRemoteItem(item);
-    const name = pickField(flat, ['name', 'adi']);
-    if (!name) continue;
-    const sortRaw = pickField(flat, ['sortOrder', 'sira']);
-    out.push({
-      id: flat.id != null ? String(flat.id) : `mod-${name}`,
-      name,
-      code: pickField(flat, ['code', 'kod']),
-      icon: pickField(flat, ['icon', 'ikon']),
-      sortOrder: Number(sortRaw) || 0,
-      parentId: pickField(flat, ['parentId']),
-      parentName: pickField(flat, ['parentName']),
-    });
-  }
-  return out.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'tr'));
-}
-
 export type RemoteTemplateVarRow = {
   id: string;
   name: string;

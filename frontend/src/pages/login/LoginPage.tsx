@@ -11,8 +11,9 @@ export default function LoginPage() {
   const { login, verifyTwoFactor, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
     useAuth();
   const { logoUrl, systemName } = useBrand();
-  const brandLogo = logoUrl || '/brand/logo.png';
-  const brandLogoWhite = '/brand/logo-white.png';
+  /** Ayarlar’dan yüklenen şirket logosu — yoksa varsayılan */
+  const brandLogo = logoUrl || '/brand/logo-full.png';
+  const loginArt = '/illustrations/login-tahsilat.jpg';
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -45,7 +46,7 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen bg-[#eef2f7] lg:grid-cols-[3fr_1fr]">
-      {/* Sol — tam ekran marka / logo (3 birim) */}
+      {/* Sol — şirket logosu + tahsilat görseli (3 birim) */}
       <aside className="relative hidden min-h-screen overflow-hidden lg:block">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0b2545] via-[#164e7a] to-[#2f7fbf]" />
         <div
@@ -55,13 +56,21 @@ export default function LoginPage() {
               'radial-gradient(circle at 18% 22%, #fff 0, transparent 40%), radial-gradient(circle at 82% 78%, #93c5fd 0, transparent 48%)',
           }}
         />
-        <div className="relative z-[1] flex h-full min-h-screen flex-col items-center justify-center px-12 xl:px-20">
+        <div className="relative z-[1] flex h-full min-h-screen flex-col items-center justify-center gap-10 px-12 xl:gap-14 xl:px-20">
+          <div className="flex w-full max-w-[min(480px,52vw)] items-center justify-center rounded-2xl bg-white/95 px-8 py-6 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+            <img
+              src={brandLogo}
+              alt={systemName}
+              className="h-auto max-h-24 w-full object-contain sm:max-h-28"
+            />
+          </div>
           <img
-            src={brandLogoWhite}
-            alt={systemName}
-            className="h-auto w-full max-w-[min(520px,55vw)] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
+            src={loginArt}
+            alt=""
+            className="h-auto w-full max-w-[min(640px,62vw)] rounded-2xl object-contain shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
+            draggable={false}
           />
-          <p className="mt-10 max-w-md text-center text-base text-white/75">
+          <p className="max-w-md text-center text-base text-white/75">
             Güvenli, hızlı ve sade tahsilat yönetimi.
           </p>
         </div>

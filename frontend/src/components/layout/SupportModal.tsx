@@ -34,7 +34,7 @@ const CHANNELS: {
   hint: string;
   icon: 'mail' | 'sms' | 'wp';
 }[] = [
-  { id: 'email', label: 'E-posta', hint: 'guzelteknoloji50@gmail.com', icon: 'mail' },
+  { id: 'email', label: 'E-posta', hint: 'destek@guzelteknoloji.com', icon: 'mail' },
   { id: 'whatsapp', label: 'WhatsApp', hint: '0540 885 12 60', icon: 'wp' },
   { id: 'sms', label: 'SMS', hint: '0540 885 12 60', icon: 'sms' },
 ];
@@ -134,6 +134,7 @@ export function SupportModal({ onClose }: Props) {
 
   const channelMeta = CHANNELS.find((c) => c.id === channel)!;
   const apiOn = channels?.[channel]?.api;
+  const channelTo = channels?.[channel]?.to || channelMeta.hint;
 
   const subtitle =
     step === 'details'
@@ -280,7 +281,9 @@ export function SupportModal({ onClose }: Props) {
                           <span className="block text-sm font-bold text-[var(--panel-ink)]">
                             {c.label}
                           </span>
-                          <span className="block text-xs text-[var(--panel-muted)]">{c.hint}</span>
+                          <span className="block text-xs text-[var(--panel-muted)]">
+                            {channels?.[c.id]?.to || c.hint}
+                          </span>
                         </span>
                         <span
                           className={[
@@ -325,7 +328,7 @@ export function SupportModal({ onClose }: Props) {
                   <Row label="Kanal">
                     {channelMeta.label}
                     <span className="ml-2 text-[11px] text-[var(--panel-muted)]">
-                      ({apiOn ? 'entegrasyon' : 'istemci'}) → {channelMeta.hint}
+                      ({apiOn ? 'entegrasyon' : 'istemci'}) → {channelTo}
                     </span>
                   </Row>
                   <Row label="Konu">{subject.trim()}</Row>
