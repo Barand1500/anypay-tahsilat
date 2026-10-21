@@ -43,6 +43,9 @@ export type AgreementRateRow = {
   installmentAmount: number;
   totalAmount: number;
   minLimit: number;
+  /** Kart anlaşması — tahsil / bloke günü (string sayı, örn. "0") */
+  collectionDay: string;
+  blockDay: string;
 };
 export type AgreementSegment = 'tumu' | 'bireysel' | 'ticari';
 
@@ -469,6 +472,8 @@ export async function resolveAgreementRates(opts: {
     bankCommission?: string;
     customerCommission?: string;
     extraInstallment?: string;
+    collectionDay?: string;
+    blockDay?: string;
   };
   let agreementItems: Array<{
     n?: number;
@@ -592,6 +597,8 @@ export async function resolveAgreementRates(opts: {
         : 0;
       const totalInstallments = n + plusN;
       const minLimit = rowMinLimit(r, selected);
+      const collectionDay = String(selected?.collectionDay ?? '0').trim() || '0';
+      const blockDay = String(selected?.blockDay ?? '0').trim() || '0';
       return {
         n,
         plusN,
@@ -599,6 +606,8 @@ export async function resolveAgreementRates(opts: {
         installmentAmount: totalAmount / totalInstallments,
         totalAmount,
         minLimit,
+        collectionDay,
+        blockDay,
       };
     });
   const rowsBySegment = opts.allowAllFallback === false ? {

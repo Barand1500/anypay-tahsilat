@@ -172,13 +172,14 @@ function bankResponseDetails(raw: string | null | undefined) {
   };
 }
 
-/** Ödeme meta — taksitDetay / bankaCevabi JSON’dan kart segmenti + marka */
+/** Ödeme meta — taksitDetay / bankaCevabi JSON’dan kart segmenti + marka (+ tahsil/bloke) */
 export function parseCardBinMeta(
   taksitDetay: string | null | undefined,
   bankaCevabi?: string | null,
-): { cardSegment: string; cardBrand: string } {
+): { cardSegment: string; cardBrand: string; collectionDay: string; blockDay: string } {
+  const empty = { cardSegment: '', cardBrand: '', collectionDay: '', blockDay: '' };
   const read = (raw: string | null | undefined) => {
-    if (!raw?.trim()) return { cardSegment: '', cardBrand: '' };
+    if (!raw?.trim()) return { ...empty };
     try {
       const j = JSON.parse(raw) as Record<string, unknown>;
       const segRaw = String(j.cardSegment ?? j.segment ?? '').trim();
@@ -189,14 +190,107 @@ export function parseCardBinMeta(
       else if (/ticari/i.test(segRaw)) cardSegment = 'Ticari';
       else if (/bireysel/i.test(segRaw)) cardSegment = 'Bireysel';
       else if (segRaw === 'Ticari' || segRaw === 'Bireysel') cardSegment = segRaw;
-      return { cardSegment, cardBrand: brand };
+      return {
+        cardSegment,
+        cardBrand: brand,
+        collectionDay: String(j.collectionDay ?? j.tahsilGunu ?? '').trim(),
+        blockDay: String(j.blockDay ?? j.blokeGunu ?? '').trim(),
+      };
     } catch {
-      return { cardSegment: '', cardBrand: '' };
+      return { ...empty };
     }
   };
   const fromDetay = read(taksitDetay);
-  if (fromDetay.cardSegment || fromDetay.cardBrand) return fromDetay;
+  if (fromDetay.cardSegment || fromDetay.cardBrand || fromDetay.collectionDay || fromDetay.blockDay) {
+    return fromDetay;
+  }
   return read(bankaCevabi);
+}
+
+/** iptal_iade_hareket JSON → detay satırları (kronolojik: ÖDEME + İPTAL/İADE) */
+function buildOperationHistory(
+  r: {
+    durum: number;
+    iptalIadeHareket: string | null;
+    tarih: Date | null;
+    tutar: number;
+  },
+  referenceNo: string,
+  authCode: string,
+): PublicPaymentRow['detail']['operationHistory'] {
+  const at = r.tarih ? r.tarih.toISOString() : new Date(0).toISOString();
+  const amount = Number(r.tutar) || 0;
+  const st = statusOf(r.durum, r.iptalIadeHareket);
+  const out: PublicPaymentRow['detail']['operationHistory'] = [];
+
+  if (st === 'paid' || st === 'cancelled' || st === 'refunded') {
+    out.push({
+      at,
+      operation: 'ÖDEME',
+      status: 'BAŞARILI',
+      amount,
+      referenceNo,
+      authCode,
+    });
+  } else if (st === 'pending') {
+    out.push({
+      at,
+      operation: 'ÖDEME',
+      status: 'BEKLEMEDE',
+      amount,
+      referenceNo,
+      authCode,
+    });
+  } else {
+    out.push({
+      at,
+      operation: 'ÖDEME',
+      status: 'BAŞARISIZ',
+      amount,
+      referenceNo,
+      authCode,
+    });
+  }
+
+  let prev: Array<{
+    tip?: string;
+    tarih?: string;
+    bankRef?: string;
+    bankCode?: string;
+    bankSuccess?: boolean;
+  }> = [];
+  if (r.iptalIadeHareket) {
+    try {
+      const parsed = JSON.parse(r.iptalIadeHareket) as unknown;
+      if (Array.isArray(parsed)) prev = parsed as typeof prev;
+    } catch {
+      prev = [];
+    }
+  }
+  // Kayıt newest-first → ekranda eski→yeni
+  for (const e of [...prev].reverse()) {
+    const tip = String(e.tip ?? '1');
+    out.push({
+      at: typeof e.tarih === 'string' && e.tarih.trim() ? e.tarih : at,
+      operation: tip === '2' ? 'İADE' : 'İPTAL',
+      status: e.bankSuccess === false ? 'BAŞARISIZ' : 'TAMAMLANDI',
+      amount,
+      referenceNo: (e.bankRef || referenceNo || '').trim(),
+      authCode: (e.bankCode || authCode || '').trim(),
+    });
+  }
+  // Eski iptaller: durum=2 ama iptal_iade_hareket boş → yine ikinci satır
+  if (prev.length === 0 && (st === 'cancelled' || st === 'refunded')) {
+    out.push({
+      at,
+      operation: st === 'refunded' ? 'İADE' : 'İPTAL',
+      status: 'TAMAMLANDI',
+      amount,
+      referenceNo,
+      authCode,
+    });
+  }
+  return out;
 }
 
 function makeOdemeNo(): string {
@@ -398,13 +492,16 @@ async function hydrate(
       const hit = matchBinPrefix((r.kartNo || '').trim());
       if (hit) {
         cardBin = {
+          ...cardBin,
           cardSegment: segmentLabelTr(segmentFromBinKind(hit.kind)) || '',
           cardBrand: (hit.brand || '').trim(),
         };
       }
     }
     const customerCommission = Math.max(0, amount - Number(r.gercekTutar ?? r.tutar ?? 0));
-    const historyStatus = statusOf(r.durum, r.iptalIadeHareket);
+    const collectionDay =
+      (r.tahsilGunu || '').trim() || cardBin.collectionDay || '';
+    const blockDay = (r.blokeGunu || '').trim() || cardBin.blockDay || '';
 
     return {
       dbId: r.id,
@@ -450,18 +547,11 @@ async function hydrate(
         customerCommission,
         bankCommission: commission,
         ip: (r.ip || '').trim(),
-        collectionDay: (r.tahsilGunu || '').trim(),
-        blockDay: (r.blokeGunu || '').trim(),
+        collectionDay,
+        blockDay,
         referenceNo,
         authCode,
-        operationHistory: [{
-          at,
-          operation: historyStatus === 'cancelled' ? 'İPTAL' : historyStatus === 'refunded' ? 'İADE' : 'ÖDEME',
-          status: historyStatus === 'paid' ? 'BAŞARILI' : historyStatus === 'pending' ? 'BEKLEMEDE' : historyStatus === 'failed' ? 'BAŞARISIZ' : 'TAMAMLANDI',
-          amount: Number(r.tutar) || 0,
-          referenceNo,
-          authCode,
-        }],
+        operationHistory: buildOperationHistory(r, referenceNo, authCode),
       },
     };
   });
@@ -559,6 +649,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   let commissionPct = 0;
   let cardSegment: 'bireysel' | 'ticari' | null = null;
   let cardBrand = '';
+  let collectionDay = '0';
+  let blockDay = '0';
   try {
     const cardBank = await lookupBinByCard(digits);
     cardSegment = cardBank?.segment ?? null;
@@ -573,7 +665,11 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       amount: input.amount,
     });
     const hit = rates.rows.find((r) => r.n === installment);
-    if (hit) commissionPct = hit.commissionPct;
+    if (hit) {
+      commissionPct = hit.commissionPct;
+      collectionDay = hit.collectionDay || '0';
+      blockDay = hit.blockDay || '0';
+    }
   } catch {
     /* oran yoksa 0 */
   }
@@ -582,6 +678,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     cardSegment,
     cardBrand,
     cardSegmentLabel: segmentLabelTr(cardSegment),
+    collectionDay,
+    blockDay,
   });
 
   const chargedAmount = input.commissionIncluded
@@ -654,6 +752,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         taksitOran: commissionPct || null,
         taksitDetay: cardBinMeta,
         bankaKomisyonu: commissionPct || null,
+        tahsilGunu: collectionDay.slice(0, 255),
+        blokeGunu: blockDay.slice(0, 255),
         odemeNo,
         durum: 3,
         bankaCevabi: pendingMeta,
@@ -810,6 +910,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       taksitOran: commissionPct || null,
       taksitDetay: cardBinMeta,
       bankaKomisyonu: commissionPct || null,
+      tahsilGunu: collectionDay.slice(0, 255),
+      blokeGunu: blockDay.slice(0, 255),
       odemeNo,
       durum: 3,
       bankaCevabi: pendingMeta,
@@ -996,6 +1098,42 @@ export async function getPayment(id: number): Promise<PublicPaymentRow> {
   if (!row) throw new PaymentsError('Hareket bulunamadı');
   const merchant = await merchantDefaults();
   const [hit] = await hydrate([row as OdemeRow], merchant);
+
+  // Eski kayıtlarda tahsil/bloke boşsa kart anlaşmasından bir kez doldur (görüntü + DB)
+  if (!(hit.detail.collectionDay || hit.detail.blockDay)) {
+    try {
+      const digits = (row.kartNo || '').replace(/\D/g, '');
+      const cardBank = digits.length >= 6 ? await lookupBinByCard(digits).catch(() => null) : null;
+      const code = await getCustomerAgreementCode(row.musteriId);
+      const rates = await resolveAgreementRates({
+        agreementCode: code,
+        bankId: row.bankaId ?? row.sanalposBankaId ?? cardBank?.bankId ?? null,
+        bankName: cardBank?.bankName ?? null,
+        segment: cardBank?.segment ?? 'bireysel',
+        amount: Number(row.tutar) || hit.amount || 1,
+      });
+      const n = row.taksit && row.taksit > 0 ? row.taksit : 1;
+      const rate = rates.rows.find((r) => r.n === n) ?? rates.rows[0];
+      if (rate) {
+        const collectionDay = rate.collectionDay || '0';
+        const blockDay = rate.blockDay || '0';
+        hit.detail.collectionDay = collectionDay;
+        hit.detail.blockDay = blockDay;
+        await prisma.odeme
+          .update({
+            where: { id: row.id },
+            data: {
+              tahsilGunu: collectionDay.slice(0, 255),
+              blokeGunu: blockDay.slice(0, 255),
+            },
+          })
+          .catch(() => undefined);
+      }
+    } catch {
+      /* anlaşma yoksa boş kalsın */
+    }
+  }
+
   return hit;
 }
 

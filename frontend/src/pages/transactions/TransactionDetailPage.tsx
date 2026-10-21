@@ -24,15 +24,16 @@ function Value({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Section({ title, children, className = '' }: {
+function Section({ title, children, className = '', bodyClassName = 'space-y-2.5' }: {
   title: string;
   children: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   return (
     <section className={`rounded-xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-5 shadow-[var(--panel-shadow)] ${className}`}>
       <h2 className="mb-5 text-base font-semibold text-[var(--panel-ink)]">{title}</h2>
-      <div className="space-y-2.5">{children}</div>
+      <div className={bodyClassName}>{children}</div>
     </section>
   );
 }
@@ -138,26 +139,58 @@ export default function TransactionDetailPage() {
         </Section>
       </div>
 
-      <Section title="HAREKETLER" className="!p-0">
+      <Section title="Hareketler" bodyClassName="">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[780px] text-left text-sm">
             <thead>
-              <tr className="border-b border-[var(--panel-line)] text-[11px] font-semibold uppercase text-[var(--panel-muted)]">
-                <th className="px-4 py-3">İşlem Zamanı</th><th className="px-4 py-3">İşlem</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3 text-right">Tutar</th><th className="px-4 py-3">İşlem No</th><th className="px-4 py-3">Referans No</th><th className="px-4 py-3">Onay Kodu</th>
+              <tr className="border-b border-[var(--panel-line)] text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
+                <th className="px-1 pb-2.5 pt-0 font-semibold">İşlem Zamanı</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold">İşlem</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold">Durum</th>
+                <th className="px-1 pb-2.5 pt-0 text-right font-semibold">Tutar</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold">İşlem No</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold">Referans No</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold">Onay Kodu</th>
               </tr>
             </thead>
             <tbody>
-              {tx.detail.operationHistory.map((entry, index) => (
-                <tr key={`${entry.at}-${index}`} className="border-b border-[var(--panel-line)] last:border-0">
-                  <td className="px-4 py-3">{formatTxDate(entry.at)}</td>
-                  <td className="px-4 py-3 text-sky-600">{entry.operation}</td>
-                  <td className="px-4 py-3 text-emerald-600">{entry.status}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatMoneyDisplay(entry.amount)}</td>
-                  <td className="px-4 py-3">{tx.id}</td>
-                  <td className="px-4 py-3">{entry.referenceNo || '—'}</td>
-                  <td className="px-4 py-3">{entry.authCode || '—'}</td>
+              {tx.detail.operationHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-1 py-4 text-[var(--panel-muted)]">
+                    Henüz işlem kaydı yok.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                tx.detail.operationHistory.map((entry, index) => (
+                  <tr
+                    key={`${entry.operation}-${entry.at}-${index}`}
+                    className="border-b border-[var(--panel-line)]/70 last:border-0"
+                  >
+                    <td className="px-1 py-3 whitespace-nowrap text-[var(--panel-ink)]">
+                      {formatTxDate(entry.at)}
+                    </td>
+                    <td className="px-1 py-3 font-semibold text-sky-600">{entry.operation}</td>
+                    <td
+                      className={[
+                        'px-1 py-3 font-semibold',
+                        entry.status === 'BAŞARILI' || entry.status === 'TAMAMLANDI'
+                          ? 'text-emerald-600'
+                          : entry.status === 'BAŞARISIZ'
+                            ? 'text-rose-600'
+                            : 'text-amber-600',
+                      ].join(' ')}
+                    >
+                      {entry.status}
+                    </td>
+                    <td className="px-1 py-3 text-right tabular-nums text-[var(--panel-ink)]">
+                      {formatMoneyDisplay(entry.amount)}
+                    </td>
+                    <td className="px-1 py-3 text-[var(--panel-ink)]">{tx.id}</td>
+                    <td className="px-1 py-3 text-[var(--panel-ink)]">{entry.referenceNo || '—'}</td>
+                    <td className="px-1 py-3 text-[var(--panel-ink)]">{entry.authCode || '—'}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

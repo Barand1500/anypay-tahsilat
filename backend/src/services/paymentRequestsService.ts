@@ -466,7 +466,16 @@ export async function getPaymentRequestInstallmentRates(
   const allowed = configured.length ? configured : [1];
   const rows = rates.rows.filter((rate) => allowed.includes(rate.n));
   if (allowed.includes(1) && !rows.some((rate) => rate.n === 1)) {
-    rows.unshift({ n: 1, plusN: 0, commissionPct: 0, installmentAmount: amount, totalAmount: amount, minLimit: 0 });
+    rows.unshift({
+      n: 1,
+      plusN: 0,
+      commissionPct: 0,
+      installmentAmount: amount,
+      totalAmount: amount,
+      minLimit: 0,
+      collectionDay: '0',
+      blockDay: '0',
+    });
   }
   return rows;
 }
