@@ -24,6 +24,10 @@ function Value({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Başlık ve satır aynı iz — Tutar / İşlem No yan yana yapışmasın */
+const historyGrid =
+  'grid grid-cols-[13.5rem_6.25rem_8.75rem_7.5rem_minmax(9.5rem,1fr)_minmax(10rem,1.15fr)_8rem] items-center gap-x-6';
+
 function Section({ title, children, className = '', bodyClassName = 'space-y-2.5' }: {
   title: string;
   children: React.ReactNode;
@@ -141,68 +145,52 @@ export default function TransactionDetailPage() {
 
       <Section title="Hareketler" bodyClassName="">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] table-fixed text-left text-sm">
-            <colgroup>
-              {/* Tarih sabit genişlik — başlık ile satır aynı uzunlukta hizalanır */}
-              <col className="w-[11.75rem]" />
-              <col className="w-[5.5rem]" />
-              <col className="w-[7rem]" />
-              <col className="w-[5.5rem]" />
-              <col />
-              <col />
-              <col className="w-[6.5rem]" />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-[var(--panel-line)] text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">İşlem Zamanı</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">İşlem</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">Durum</th>
-                <th className="px-1 pb-2.5 pt-0 text-right font-semibold whitespace-nowrap">Tutar</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">İşlem No</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">Referans No</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">Onay Kodu</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tx.detail.operationHistory.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-1 py-4 text-[var(--panel-muted)]">
-                    Henüz işlem kaydı yok.
-                  </td>
-                </tr>
-              ) : (
-                tx.detail.operationHistory.map((entry, index) => (
-                  <tr
-                    key={`${entry.operation}-${entry.at}-${index}`}
-                    className="border-b border-[var(--panel-line)]/70 last:border-0"
+          <div className="min-w-[980px] text-sm">
+            <div
+              className={`${historyGrid} border-b border-[var(--panel-line)] pb-2.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]`}
+            >
+              <span className="whitespace-nowrap">İşlem Zamanı</span>
+              <span className="whitespace-nowrap">İşlem</span>
+              <span className="whitespace-nowrap">Durum</span>
+              <span className="whitespace-nowrap">Tutar</span>
+              <span className="whitespace-nowrap">İşlem No</span>
+              <span className="whitespace-nowrap">Referans No</span>
+              <span className="whitespace-nowrap">Onay Kodu</span>
+            </div>
+            {tx.detail.operationHistory.length === 0 ? (
+              <p className="py-4 text-[var(--panel-muted)]">Henüz işlem kaydı yok.</p>
+            ) : (
+              tx.detail.operationHistory.map((entry, index) => (
+                <div
+                  key={`${entry.operation}-${entry.at}-${index}`}
+                  className={`${historyGrid} border-b border-[var(--panel-line)]/70 py-3 last:border-0`}
+                >
+                  <span className="whitespace-nowrap tabular-nums text-[var(--panel-ink)]">
+                    {formatTxDate(entry.at)}
+                  </span>
+                  <span className="whitespace-nowrap font-semibold text-sky-600">{entry.operation}</span>
+                  <span
+                    className={[
+                      'whitespace-nowrap font-semibold',
+                      entry.status === 'BAŞARILI' || entry.status === 'TAMAMLANDI'
+                        ? 'text-emerald-600'
+                        : entry.status === 'BAŞARISIZ'
+                          ? 'text-rose-600'
+                          : 'text-amber-600',
+                    ].join(' ')}
                   >
-                    <td className="px-1 py-3 whitespace-nowrap tabular-nums tracking-tight text-[var(--panel-ink)]">
-                      {formatTxDate(entry.at)}
-                    </td>
-                    <td className="px-1 py-3 font-semibold text-sky-600">{entry.operation}</td>
-                    <td
-                      className={[
-                        'px-1 py-3 font-semibold',
-                        entry.status === 'BAŞARILI' || entry.status === 'TAMAMLANDI'
-                          ? 'text-emerald-600'
-                          : entry.status === 'BAŞARISIZ'
-                            ? 'text-rose-600'
-                            : 'text-amber-600',
-                      ].join(' ')}
-                    >
-                      {entry.status}
-                    </td>
-                    <td className="px-1 py-3 text-right tabular-nums text-[var(--panel-ink)]">
-                      {formatMoneyDisplay(entry.amount)}
-                    </td>
-                    <td className="px-1 py-3 text-[var(--panel-ink)]">{tx.id}</td>
-                    <td className="px-1 py-3 text-[var(--panel-ink)]">{entry.referenceNo || '—'}</td>
-                    <td className="px-1 py-3 text-[var(--panel-ink)]">{entry.authCode || '—'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    {entry.status}
+                  </span>
+                  <span className="whitespace-nowrap tabular-nums text-[var(--panel-ink)]">
+                    {formatMoneyDisplay(entry.amount)}
+                  </span>
+                  <span className="whitespace-nowrap text-[var(--panel-ink)]">{tx.id}</span>
+                  <span className="whitespace-nowrap text-[var(--panel-ink)]">{entry.referenceNo || '—'}</span>
+                  <span className="whitespace-nowrap text-[var(--panel-ink)]">{entry.authCode || '—'}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </Section>
     </div>
