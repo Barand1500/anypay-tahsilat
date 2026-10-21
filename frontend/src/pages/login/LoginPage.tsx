@@ -56,33 +56,16 @@ export default function LoginPage() {
               'radial-gradient(circle at 18% 22%, #fff 0, transparent 40%), radial-gradient(circle at 82% 78%, #93c5fd 0, transparent 48%)',
           }}
         />
-        <div className="relative z-[1] flex h-full min-h-screen flex-col items-center justify-center gap-10 px-12 xl:gap-14 xl:px-20">
-          <div className="relative flex w-full max-w-[min(520px,56vw)] items-center justify-center px-6 py-5">
-            <svg
-              className="pointer-events-none absolute inset-x-[-4%] inset-y-[-18%] h-[136%] w-[108%]"
-              viewBox="0 0 520 140"
-              preserveAspectRatio="none"
-              aria-hidden
-            >
-              <path
-                d="M18 78c42-38 96-52 168-58 78-6 148 8 210 28 46 15 78 28 106 22 8-2 12 8 4 14-28 22-78 18-132 12-86-10-168-8-248 10-42 10-78 18-96 8-10-6-14-22-12-36z"
-                fill="rgba(255,255,255,0.88)"
-              />
-              <path
-                d="M34 92c48-22 118-34 188-30 72 4 138 22 196 18 8-.6 10 10 2 14-36 16-92 8-148 2-78-8-152-2-212 14-18 5-36 6-32-6 2-6 4-10 6-12z"
-                fill="rgba(255,255,255,0.55)"
-              />
-            </svg>
-            <img
-              src={brandLogo}
-              alt={systemName}
-              className="relative z-[1] h-auto max-h-28 w-full object-contain sm:max-h-32"
-            />
-          </div>
+        <div className="relative z-[1] flex h-full min-h-screen flex-col items-center justify-center gap-8 px-10 py-12 xl:gap-12 xl:px-16">
+          <img
+            src={brandLogo}
+            alt={systemName}
+            className="h-auto max-h-36 w-full max-w-[min(560px,58vw)] object-contain drop-shadow-[0_14px_32px_rgba(0,0,0,0.35)] sm:max-h-40 xl:max-h-44"
+          />
           <img
             src={loginArt}
             alt=""
-            className="h-auto w-full max-w-[min(640px,62vw)] translate-x-[7%] self-end object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.28)] xl:translate-x-[9%]"
+            className="h-auto w-full max-w-[min(680px,70vw)] object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
             draggable={false}
           />
           <p className="max-w-md text-center text-base text-white/75">
