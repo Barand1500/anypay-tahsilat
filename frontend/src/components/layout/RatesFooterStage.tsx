@@ -1,7 +1,5 @@
 import gsap from 'gsap';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useDockMode } from './DockModeContext';
-import { GestureWindSettingsButton, useGestureWind } from './GestureWindContext';
 import { RatesGearModal } from './RatesGearModal';
 import { RatesTickerBar } from './RatesTickerBar';
 import { useRates } from './RatesContext';
@@ -11,23 +9,15 @@ type Props = {
 };
 
 /**
- * Footer sahnesi — sidebar Kurlar ikonu → ok+dişli + mouse → footer sola kayar, şerit gelir.
+ * Footer sahnesi — sidebar Kurlar ikonu → ok+dişli → footer sola kayar, şerit gelir.
  */
 export function RatesFooterStage({ children }: Props) {
   const { phase, onArrowClick, setGearOpen, arrowBtnRef, loading } = useRates();
-  const { enabled: dockOn } = useDockMode();
-  const { enabled: gwOn } = useGestureWind();
   const footerPaneRef = useRef<HTMLDivElement>(null);
   const tickerPaneRef = useRef<HTMLDivElement>(null);
   const open = phase === 'open';
   const showChrome = phase === 'armed' || phase === 'open';
-  const showGwInFooter = gwOn && dockOn;
-  const showLeft = showChrome || showGwInFooter;
-  const leftPad = showGwInFooter && !showChrome
-    ? 'pl-[7.5rem] sm:pl-[8.5rem]'
-    : showLeft
-      ? 'pl-[5.5rem] sm:pl-[7.5rem]'
-      : 'pl-0';
+  const leftPad = showChrome ? 'pl-[5.5rem] sm:pl-[7.5rem]' : 'pl-0';
 
   useEffect(() => {
     const footer = footerPaneRef.current;
@@ -49,44 +39,38 @@ export function RatesFooterStage({ children }: Props) {
 
   return (
     <div className="relative h-16 w-full shrink-0 overflow-hidden border-t border-[var(--panel-line)] bg-[var(--panel-header)]">
-      {showLeft ? (
+      {showChrome ? (
         <div className="absolute left-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1 sm:left-3">
-          {showChrome ? (
-            <>
-              <button
-                ref={arrowBtnRef}
-                type="button"
-                data-rates-arrow
-                data-km-jump
-                onClick={onArrowClick}
-                title={open ? 'Footer’a dön' : 'Kur şeridini aç'}
-                className={[
-                  'flex h-9 w-9 items-center justify-center rounded-xl border transition',
-                  open
-                    ? 'border-[var(--color-brand-500)]/50 bg-[var(--brand-soft-bg)] text-[var(--brand-on-soft)]'
-                    : 'border-[var(--color-brand-500)]/40 bg-[var(--panel-elevated)] text-[var(--brand-on-soft)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)]',
-                ].join(' ')}
-              >
-                <ArrowIcon flipped={open} />
-              </button>
-              <button
-                type="button"
-                data-km-jump
-                onClick={() => setGearOpen(true)}
-                title="Hangi kurlar görünsün"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--panel-muted)] transition hover:border-[var(--color-brand-500)]/40 hover:text-[var(--panel-ink)]"
-              >
-                <GearIcon />
-              </button>
-              {loading && open ? (
-                <span className="hidden text-[10px] font-medium text-[var(--panel-muted)] sm:inline">
-                  Güncelleniyor…
-                </span>
-              ) : null}
-            </>
+          <button
+            ref={arrowBtnRef}
+            type="button"
+            data-rates-arrow
+            data-km-jump
+            onClick={onArrowClick}
+            title={open ? 'Footer’a dön' : 'Kur şeridini aç'}
+            className={[
+              'flex h-9 w-9 items-center justify-center rounded-xl border transition',
+              open
+                ? 'border-[var(--color-brand-500)]/50 bg-[var(--brand-soft-bg)] text-[var(--brand-on-soft)]'
+                : 'border-[var(--color-brand-500)]/40 bg-[var(--panel-elevated)] text-[var(--brand-on-soft)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-brand-500)_18%,transparent)]',
+            ].join(' ')}
+          >
+            <ArrowIcon flipped={open} />
+          </button>
+          <button
+            type="button"
+            data-km-jump
+            onClick={() => setGearOpen(true)}
+            title="Hangi kurlar görünsün"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] text-[var(--panel-muted)] transition hover:border-[var(--color-brand-500)]/40 hover:text-[var(--panel-ink)]"
+          >
+            <GearIcon />
+          </button>
+          {loading && open ? (
+            <span className="hidden text-[10px] font-medium text-[var(--panel-muted)] sm:inline">
+              Güncelleniyor…
+            </span>
           ) : null}
-          {/* Dock açıkken jest ayarı footer’da */}
-          {showGwInFooter ? <GestureWindSettingsButton /> : null}
         </div>
       ) : null}
 
@@ -132,7 +116,6 @@ function ArrowIcon({ flipped }: { flipped?: boolean }) {
   );
 }
 
-/** Dişli — kur seçimi ayarı (güneş/ışın değil) */
 function GearIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>

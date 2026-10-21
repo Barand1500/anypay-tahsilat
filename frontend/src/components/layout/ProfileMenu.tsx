@@ -49,7 +49,7 @@ function initialsOf(name: string) {
 
 /**
  * Profil menüsü — panel body’ye portal (header overflow-hidden kesmesin).
- * Footer / dock’ta aşağıda yer yoksa Sözleşmeler gibi yukarı açılır.
+ * Aşağıda yer yoksa Sözleşmeler gibi yukarı açılır.
  */
 export function ProfileMenu() {
   const { user, logout } = useAuth();

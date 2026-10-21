@@ -249,7 +249,6 @@ const prioritySchema = z.object({
 });
 
 const defaultsSchema = z.object({
-  loginTheme: z.enum(['classic', 'globe']),
   panelTheme: z.enum(['light', 'dark']),
   landingPath: z.string().max(128),
   payType: z.enum(['ch', 'fatura']),

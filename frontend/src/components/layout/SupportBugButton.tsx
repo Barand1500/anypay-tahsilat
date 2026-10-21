@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { SupportHeadsetIcon } from './SupportHeadsetIcon';
 import { SupportModal } from './SupportModal';
 
-/** Header / dock — destek talebi */
+/** Header — destek talebi */
 export function SupportBugButton() {
   const [open, setOpen] = useState(false);
 

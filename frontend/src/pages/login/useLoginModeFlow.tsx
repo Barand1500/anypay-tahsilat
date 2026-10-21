@@ -357,14 +357,12 @@ export function LoginModeActions({
   onQuick,
   onPassword,
   onBack,
-  variant,
 }: {
   mode: LoginMode;
   loading: boolean;
   onQuick: () => void;
   onPassword: () => void;
   onBack: () => void;
-  variant: 'globe' | 'classic';
 }) {
   if (mode === 'forgot') return null;
 
@@ -374,11 +372,7 @@ export function LoginModeActions({
         type="button"
         disabled={loading}
         onClick={onBack}
-        className={
-          variant === 'globe'
-            ? 'text-xs font-medium text-white/55 transition hover:text-white disabled:opacity-50'
-            : 'text-xs font-medium text-muted transition hover:text-ink disabled:opacity-50'
-        }
+        className="text-xs font-medium text-muted transition hover:text-ink disabled:opacity-50"
       >
         ← Geri
       </button>

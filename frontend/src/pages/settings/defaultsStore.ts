@@ -1,11 +1,5 @@
 /** Panel varsayılanları — localStorage; sayfalar buradan okur */
 
-import {
-  getLoginTheme,
-  getStoredLoginTheme,
-  setLoginTheme,
-  type LoginTheme,
-} from '../login/loginTheme';
 import type { ThemeMode } from '../../theme/ThemeProvider';
 
 const KEY = 'anypay_tahsilat_defaults';
@@ -38,7 +32,6 @@ export const FILTER_PAGE_KEYS = [
 export type FilterPageKey = (typeof FILTER_PAGE_KEYS)[number]['key'];
 
 export type AppDefaults = {
-  loginTheme: LoginTheme;
   panelTheme: ThemeMode;
   landingPath: string;
   payType: PayTypeDefault;
@@ -111,11 +104,6 @@ export const PANEL_THEME_OPTIONS = [
   { value: 'dark', label: 'Gece (Koyu)' },
 ];
 
-export const LOGIN_THEME_OPTIONS = [
-  { value: 'classic', label: 'Klasik' },
-  { value: 'globe', label: 'Dünya' },
-];
-
 export const FILTER_STATE_OPTIONS = [
   { value: 'open', label: 'Açık' },
   { value: 'closed', label: 'Kapalı' },
@@ -136,7 +124,6 @@ function defaultFilterOpen(): Record<FilterPageKey, boolean> {
 
 export function defaultAppDefaults(): AppDefaults {
   return {
-    loginTheme: getLoginTheme(),
     panelTheme: (localStorage.getItem('anypay_tahsilat_theme') === 'dark' ? 'dark' : 'light') as ThemeMode,
     landingPath: '/',
     payType: 'ch',
@@ -169,21 +156,18 @@ export function getAppDefaults(): AppDefaults {
 
 export function setAppDefaults(
   next: AppDefaults,
-  options: { syncLoginTheme?: boolean } = {},
 ) {
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
   } catch {
     /* ignore */
   }
-  if (options.syncLoginTheme !== false) setLoginTheme(next.loginTheme);
   window.dispatchEvent(new CustomEvent('anypay:defaults', { detail: next }));
 }
 
 /** Sunucudan çekip local cache’e yazar — AppShell açılışında */
 export async function hydrateAppDefaults(token: string): Promise<AppDefaults | null> {
   try {
-    const hasLocalLoginTheme = getStoredLoginTheme() !== null;
     const { api } = await import('../../lib/api');
     const saved = await api.get<AppDefaults>('/api/settings/defaults', token);
     const next: AppDefaults = {
@@ -194,9 +178,7 @@ export async function hydrateAppDefaults(token: string): Promise<AppDefaults | n
         ...(saved.filterOpen ?? {}),
       },
     };
-    // Profilde seçilen tarayıcı tercihi, sunucu varsayılanı yüklenirken ezilmez.
-    // Henüz yerel seçim yoksa sunucu varsayılanı ilk değeri belirler.
-    setAppDefaults(next, { syncLoginTheme: !hasLocalLoginTheme });
+    setAppDefaults(next);
     return next;
   } catch {
     return null;

@@ -4,7 +4,7 @@ import { findNavItem } from './navItems';
 import { NavIcon } from './NavIcon';
 import { useQuickAccess } from './QuickAccessContext';
 
-/** Header / dock sürükle-bırak hızlı erişim yuvaları */
+/** Header sürükle-bırak hızlı erişim yuvaları */
 export function QuickAccessSlots() {
   const { slots, config, drag, setSlot, endDrag, moveDrag } = useQuickAccess();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);

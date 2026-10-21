@@ -15,7 +15,6 @@ import {
   FILTER_PAGE_KEYS,
   FILTER_STATE_OPTIONS,
   LANDING_OPTIONS,
-  LOGIN_THEME_OPTIONS,
   PANEL_THEME_OPTIONS,
   PAY_TYPE_OPTIONS,
   setAppDefaults,
@@ -78,8 +77,7 @@ export default function DefaultsSettingsPage() {
       };
       setDraft(next);
       setBaseline({ ...next, filterOpen: { ...next.filterOpen } });
-      // Sayfayı yalnızca açmak mevcut giriş ekranı tercihini değiştirmemeli.
-      setAppDefaults(next, { syncLoginTheme: false });
+      setAppDefaults(next);
 
       setAccountOptions([
         { value: '', label: 'Belirtilmemiş' },
@@ -230,13 +228,6 @@ export default function DefaultsSettingsPage() {
           hint="Tema, giriş ekranı, açılış sayfası ve pencere modu"
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <FloatingSearchSelect
-              label="Varsayılan Giriş Ekranı"
-              options={LOGIN_THEME_OPTIONS}
-              value={draft.loginTheme}
-              onChange={(v) => v && patch('loginTheme', v as AppDefaults['loginTheme'])}
-              kmJump
-            />
             <FloatingSearchSelect
               label="Varsayılan Panel Teması"
               options={PANEL_THEME_OPTIONS}

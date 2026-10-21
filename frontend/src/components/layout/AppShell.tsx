@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { useLoadBins } from '../../hooks/useLoadBins';
@@ -11,38 +11,24 @@ import {
 } from '../../pages/settings/defaultsStore';
 import { RouteViewGate } from '../../permissions/RouteViewGate';
 import { useTheme } from '../../theme/ThemeProvider';
-import { DockModeProvider, useDockMode } from './DockModeContext';
 import { Footer } from './Footer';
-import {
-  GestureWindProvider,
-} from './GestureWindContext';
-import { GestureWindListener } from './GestureWindListener';
-import { GestureWindSettingsModal } from './GestureWindSettings';
 import { GlobalSearch } from './GlobalSearch';
 import { Header } from './Header';
 import { QuickAccessProvider } from './QuickAccessContext';
-import { RatesProvider, useRates } from './RatesContext';
+import { RatesProvider } from './RatesContext';
 import { Sidebar } from './Sidebar';
-import { VaultProvider } from './VaultContext';
-import { VaultHost } from './VaultWidget';
 
 const HEADER_H = 64;
 const FOOTER_H = 64;
 
-/** Panel kabuğu — sidebar + dock + kur + jest rüzgarı */
+/** Panel kabuğu — sidebar + header + footer + canlı kur şeridi */
 export function AppShell() {
   return (
     <QuickAccessProvider>
       <KeyboardModeProvider>
-        <DockModeProvider>
-          <RatesProvider>
-            <GestureWindProvider>
-              <VaultProvider>
-                <AppShellInner />
-              </VaultProvider>
-            </GestureWindProvider>
-          </RatesProvider>
-        </DockModeProvider>
+        <RatesProvider>
+          <AppShellInner />
+        </RatesProvider>
       </KeyboardModeProvider>
     </QuickAccessProvider>
   );
@@ -54,9 +40,6 @@ function AppShellInner() {
   const navigate = useNavigate();
   useLoadBins();
 
-  // AnyPay tabs poll the server-side proxy (never the central API key) while
-  // central mode is enabled. A changed changelog head busts server caches and
-  // notifies mounted catalog screens to reload their current data.
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
@@ -97,7 +80,7 @@ function AppShellInner() {
           }),
         );
       } catch {
-        // Keep the last head so a transient failure is retried on the next tick.
+        /* retry next tick */
       } finally {
         polling = false;
       }
@@ -105,7 +88,6 @@ function AppShellInner() {
 
     void poll();
     const timer = window.setInterval(() => {
-      // Recheck source periodically so a mode toggle takes effect without reload.
       remoteEnabled = false;
       void poll();
     }, 20_000);
@@ -116,44 +98,12 @@ function AppShellInner() {
       document.removeEventListener('visibilitychange', poll);
     };
   }, [token]);
+
   const { applyTheme } = useTheme();
-  const { enabled: dockOn, animating } = useDockMode();
-  const { phase: ratesPhase } = useRates();
   const [collapsed, setCollapsed] = useState(false);
-  const [headerAutoHide, setHeaderAutoHide] = useState(false);
-  const [headerPeek, setHeaderPeek] = useState(false);
-  const [footerAutoHide, setFooterAutoHide] = useState(false);
-  const [footerPeek, setFooterPeek] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const changingTemporaryPassword =
     location.pathname === '/profil' && new URLSearchParams(location.search).get('changePassword') === '1';
-
-  // Dock / kur şeridi açıkken footer görünür
-  const headerOpen = dockOn ? false : !headerAutoHide || headerPeek;
-  const footerOpen =
-    dockOn || ratesPhase !== 'idle' ? true : !footerAutoHide || footerPeek;
-
-  useEffect(() => {
-    if (dockOn || ratesPhase !== 'idle') {
-      setFooterAutoHide(false);
-      setFooterPeek(false);
-    }
-  }, [dockOn, ratesPhase]);
-
-  useEffect(() => {
-    if (dockOn) {
-      setHeaderAutoHide(false);
-      setHeaderPeek(false);
-    }
-  }, [dockOn]);
-
-  useEffect(() => {
-    if (!headerAutoHide) setHeaderPeek(false);
-  }, [headerAutoHide]);
-
-  useEffect(() => {
-    if (!footerAutoHide) setFooterPeek(false);
-  }, [footerAutoHide]);
 
   useEffect(() => {
     void applyDisplayMode(getAppDefaults().displayMode);
@@ -203,34 +153,6 @@ function AppShellInner() {
     };
   }, []);
 
-  function onHeaderDoubleClick(e: MouseEvent) {
-    if (dockOn || animating) return;
-    const t = e.target as HTMLElement;
-    if (t.closest('button, input, a, select, textarea, label, [data-quick-slot]')) return;
-
-    if (!headerAutoHide) {
-      setHeaderAutoHide(true);
-      setHeaderPeek(false);
-      return;
-    }
-    setHeaderAutoHide(false);
-    setHeaderPeek(false);
-  }
-
-  function onFooterDoubleClick(e: MouseEvent) {
-    if (dockOn || animating) return;
-    const t = e.target as HTMLElement;
-    if (t.closest('button, input, a, select, textarea, label')) return;
-
-    if (!footerAutoHide) {
-      setFooterAutoHide(true);
-      setFooterPeek(false);
-      return;
-    }
-    setFooterAutoHide(false);
-    setFooterPeek(false);
-  }
-
   return (
     <>
       <div
@@ -238,71 +160,30 @@ function AppShellInner() {
         className="flex h-screen overflow-hidden bg-[var(--panel-bg)] text-[var(--panel-ink)]"
         style={
           {
-            ['--app-footer-offset']: footerOpen ? `${FOOTER_H}px` : '0px',
+            ['--app-footer-offset']: `${FOOTER_H}px`,
           } as CSSProperties
         }
       >
         <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
-          {!dockOn && headerAutoHide && !headerPeek ? (
-            <div
-              className="absolute inset-x-0 top-0 z-50 h-3"
-              onMouseEnter={() => setHeaderPeek(true)}
-              title="Header’ı göstermek için fareyi yukarı getir"
-            />
-          ) : null}
-
-          <div
-            className="shrink-0 overflow-hidden transition-[height] duration-300 ease-out"
-            style={{ height: headerOpen ? HEADER_H : 0 }}
-            onMouseLeave={() => {
-              if (headerAutoHide && !dockOn) setHeaderPeek(false);
-            }}
-          >
-            {!dockOn ? (
-              <Header
-                autoHide={headerAutoHide}
-                onHeaderDoubleClick={onHeaderDoubleClick}
-                onOpenSearch={() => setSearchOpen(true)}
-              />
-            ) : null}
+          <div className="shrink-0 overflow-hidden" style={{ height: HEADER_H }}>
+            <Header onOpenSearch={() => setSearchOpen(true)} />
           </div>
 
-          <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 transition-[padding] duration-300 sm:p-5 lg:p-6">
+          <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-5 lg:p-6">
             <RouteViewGate>
               <Outlet />
             </RouteViewGate>
           </main>
 
-          {!dockOn && footerAutoHide && !footerPeek ? (
-            <div
-              className="absolute inset-x-0 bottom-0 z-50 h-3"
-              onMouseEnter={() => setFooterPeek(true)}
-              title="Footer’ı göstermek için fareyi aşağı getir"
-            />
-          ) : null}
-
-          <div
-            className="shrink-0 overflow-hidden transition-[height] duration-300 ease-out"
-            style={{ height: footerOpen ? FOOTER_H : 0 }}
-            onMouseLeave={() => {
-              if (footerAutoHide && !dockOn) setFooterPeek(false);
-            }}
-          >
-            <Footer
-              autoHide={footerAutoHide}
-              onFooterDoubleClick={onFooterDoubleClick}
-              onOpenSearch={() => setSearchOpen(true)}
-            />
+          <div className="shrink-0 overflow-hidden" style={{ height: FOOTER_H }}>
+            <Footer />
           </div>
         </div>
       </div>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <GestureWindListener onOpenSearch={() => setSearchOpen(true)} />
-      <GestureWindSettingsModal />
-      <VaultHost />
       {user?.mustChangePassword && !changingTemporaryPassword ? (
         <div className="fixed inset-0 z-[10080] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
           <section

@@ -9,14 +9,6 @@ import {
   formatPhoneLive,
   normalizePhoneInput,
 } from '../customers/mockCustomers';
-import {
-  getLoginTheme,
-  setLoginTheme,
-  getLoginBrandWords,
-  setLoginBrandWords,
-  type LoginTheme,
-  type LoginBrandWords,
-} from '../login/loginTheme';
 
 type ProfileDraft = {
   adsoyad: string;
@@ -62,10 +54,6 @@ export default function ProfilePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [loginTheme, setLoginThemeDraft] = useState<LoginTheme>(() => getLoginTheme());
-  const [loginThemeBase, setLoginThemeBase] = useState<LoginTheme>(() => getLoginTheme());
-  const [brandWords, setBrandWordsDraft] = useState<LoginBrandWords>(() => getLoginBrandWords());
-  const [brandWordsBase, setBrandWordsBase] = useState<LoginBrandWords>(() => getLoginBrandWords());
   const forcePasswordFocus = new URLSearchParams(location.search).get('changePassword') === '1';
 
   // /me veya login sonrası user gelince formu doldur
@@ -90,10 +78,7 @@ export default function ProfilePage() {
     draft.email !== baseline.email ||
     draft.telefon !== baseline.telefon ||
     draft.sifre !== '' ||
-    draft.twoFa !== baseline.twoFa ||
-    loginTheme !== loginThemeBase ||
-    brandWords.word1 !== brandWordsBase.word1 ||
-    brandWords.word2 !== brandWordsBase.word2;
+    draft.twoFa !== baseline.twoFa;
 
   const showSaveBar = dirty || saveSuccess || !!saveError;
 
@@ -154,11 +139,6 @@ export default function ProfilePage() {
       if (forcePasswordFocus && !updated.mustChangePassword) {
         navigate('/profil', { replace: true });
       }
-
-      setLoginTheme(loginTheme);
-      setLoginThemeBase(loginTheme);
-      setLoginBrandWords(brandWords);
-      setBrandWordsBase({ ...brandWords });
 
       setSaveSuccess(true);
       window.setTimeout(() => setSaveSuccess(false), 1800);
@@ -369,75 +349,6 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Giriş teması — sonra Ayarlar’a taşınacak */}
-        <div
-          data-anim
-          className="mb-6 rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)] sm:p-5"
-        >
-          <h2 className="mb-1 text-sm font-semibold text-[var(--panel-ink)]">Giriş ekranı teması</h2>
-          <p className="mb-4 text-xs text-[var(--panel-muted)]">
-            Çıkış sonrası giriş sayfasında görünür. Şimdilik bu cihazda saklanır.
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {(
-              [
-                { id: 'classic' as const, title: 'Klasik', hint: 'Maskotlu açık tema' },
-                { id: 'globe' as const, title: 'Dünya', hint: 'Canlı 3D küre' },
-              ] as const
-            ).map((opt) => {
-              const active = loginTheme === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  data-km-jump
-                  onClick={() => setLoginThemeDraft(opt.id)}
-                  className={[
-                    'rounded-xl border px-4 py-3 text-left transition',
-                    active
-                      ? 'border-[var(--color-brand-500)] bg-[color-mix(in_srgb,var(--color-brand-500)_14%,var(--panel-elevated))]'
-                      : 'border-[var(--panel-line)] bg-[var(--panel-surface)] hover:border-[var(--color-brand-500)]/40',
-                  ].join(' ')}
-                >
-                  <p className="text-sm font-semibold text-[var(--panel-ink)]">{opt.title}</p>
-                  <p className="mt-0.5 text-xs text-[var(--panel-muted)]">{opt.hint}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          {loginTheme === 'globe' ? (
-            <div className="mt-4 rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)] p-3 sm:p-4">
-              <p className="mb-1 text-sm font-semibold text-[var(--panel-ink)]">Yan şerit yazısı</p>
-              <p className="mb-3 text-xs text-[var(--panel-muted)]">
-                Girişte solda kayan iki kelime. Kaydet’e basınca uygulanır.
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextInput
-                  label="1. kelime"
-                  name="brand-word-1"
-                  value={brandWords.word1}
-                  maxLength={16}
-                  data-km-jump
-                  onChange={(e) =>
-                    setBrandWordsDraft((prev) => ({ ...prev, word1: e.target.value.slice(0, 16) }))
-                  }
-                />
-                <TextInput
-                  label="2. kelime"
-                  name="brand-word-2"
-                  value={brandWords.word2}
-                  maxLength={16}
-                  data-km-jump
-                  onChange={(e) =>
-                    setBrandWordsDraft((prev) => ({ ...prev, word2: e.target.value.slice(0, 16) }))
-                  }
-                />
-              </div>
-            </div>
-          ) : null}
         </div>
 
         {/* Kaydet */}

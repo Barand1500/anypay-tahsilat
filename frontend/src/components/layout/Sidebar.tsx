@@ -13,14 +13,10 @@ import { useBrand } from '../../brand/BrandContext';
 import { useKeyboardMode } from '../../keyboard/KeyboardModeContext';
 import { usePermission } from '../../permissions/PermissionContext';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useDockMode } from './DockModeContext';
-import { useGestureWind } from './GestureWindContext';
 import { NAV_ITEMS, type NavItem } from './navItems';
 import { NavIcon } from './NavIcon';
 import { useQuickAccess } from './QuickAccessContext';
 import { useRates } from './RatesContext';
-import { useVault } from './VaultContext';
-import { SafeIcon } from './VaultWidget';
 
 type Props = {
   collapsed: boolean;
@@ -44,21 +40,10 @@ function KeyboardIcon() {
   );
 }
 
-function DockIcon() {
+function BoltIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 6.5h16M4 12h16M4 17.5h10"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-      <path
-        d="M17 15.5v4M15 17.5h4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M13 2 4 14h7l-1 8 10-14h-7l1-6Z" />
     </svg>
   );
 }
@@ -83,42 +68,14 @@ function RatesIcon() {
   );
 }
 
-function WindIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 8h10a3 3 0 1 0-3-3M4 12h14a3 3 0 1 1-3 3M4 16h8a2.5 2.5 0 1 1-2.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-/** Kasa — kilitli dolap */
-function VaultSidebarIcon() {
-  return <SafeIcon />;
-}
-
-function BoltIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M13 2 4 14h7l-1 8 10-14h-7l1-6Z" />
-    </svg>
-  );
-}
-
 export function Sidebar({ collapsed, onToggle }: Props) {
   const { theme } = useTheme();
   const { logoUrl, faviconUrl, systemName } = useBrand();
   const { startDrag, drag, config: quickAccess } = useQuickAccess();
   const { enabled: kmOn, toggle: toggleKm } = useKeyboardMode();
-  const { enabled: dockOn, toggle: toggleDock, animating: dockAnimating } = useDockMode();
   const { phase: ratesPhase, toggleFromSidebar } = useRates();
-  const { enabled: gwOn, toggle: toggleGw } = useGestureWind();
-  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const ratesOn = ratesPhase !== 'idle';
+  const { canViewNavItem, permPagesReady, rolesLoading } = usePermission();
   const location = useLocation();
   const collapsedLogo = faviconUrl || '/brand/logo-icon.png';
   const expandedLogo = logoUrl || '/brand/logo-full.png';
@@ -132,10 +89,9 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   const resizing = useRef(false);
   const open = !collapsed;
   const settingsActive = location.pathname.startsWith('/ayarlar');
-  /** 0 klavye · 1 kurlar · 2 jest · 3 dock · 4 kasa · 5 ayarlar */
+  /** 0 klavye · 1 kurlar · 2 ayarlar */
   const [footerSlot, setFooterSlot] = useState(0);
   const footerSlotRef = useRef<HTMLDivElement>(null);
-  const { open: vaultOpen, openVault, closeVault, sidebarBtnRef } = useVault();
 
   // Yetki yüklenene kadar menüyü boş tut — yetkisiz öğe flaşını önle
   const navItems =
@@ -144,7 +100,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
       : [];
 
   useEffect(() => {
-    if (settingsActive) setFooterSlot(5);
+    if (settingsActive) setFooterSlot(2);
   }, [settingsActive]);
 
   useEffect(() => {
@@ -374,13 +330,10 @@ export function Sidebar({ collapsed, onToggle }: Props) {
 
   const kmBtnClass = [footerBtnBase, kmOn ? footerOn : footerIdle].join(' ');
   const ratesBtnClass = [footerBtnBase, ratesOn ? footerOn : footerIdle].join(' ');
-  const gwBtnClass = [footerBtnBase, gwOn ? footerOn : footerIdle].join(' ');
-  const dockBtnClass = [footerBtnBase, dockOn ? footerOn : footerIdle].join(' ');
   const settingsBtnClass = [
     footerBtnBase,
     settingsActive ? footerOn : footerIdle,
   ].join(' ');
-  const vaultBtnClass = [footerBtnBase, vaultOpen ? footerOn : footerIdle].join(' ');
 
   const kmButton = (
     <button
@@ -419,73 +372,6 @@ export function Sidebar({ collapsed, onToggle }: Props) {
     </button>
   );
 
-  const gwButton = (
-    <button
-      type="button"
-      data-gw-toggle
-      aria-pressed={gwOn}
-      aria-label="Jest Rüzgarı"
-      title={gwOn ? 'Jest Rüzgarı açık — kapatmak için tıkla' : 'Jest Rüzgarı — serbest fare jestleri'}
-      onClick={(e) => {
-        e.stopPropagation();
-        toggleGw();
-      }}
-      className={gwBtnClass}
-    >
-      <WindIcon />
-      {gwOn ? (
-        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
-      ) : null}
-    </button>
-  );
-
-  const dockButton = (
-    <button
-      type="button"
-      data-dock-toggle
-      aria-pressed={dockOn}
-      aria-label="Alt çubuk (dock) modu"
-      disabled={dockAnimating}
-      title={
-        dockOn
-          ? 'Dock açık — header araçları altta; kapatınca varsayılana döner'
-          : 'Header’ı alta taşı (dock)'
-      }
-      onClick={(e) => {
-        e.stopPropagation();
-        toggleDock();
-      }}
-      className={[dockBtnClass, dockAnimating ? 'pointer-events-none opacity-60' : ''].join(' ')}
-    >
-      <DockIcon />
-      {dockOn ? (
-        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
-      ) : null}
-    </button>
-  );
-
-  const vaultButton = (
-    <button
-      ref={sidebarBtnRef}
-      type="button"
-      data-vault-slot
-      aria-pressed={vaultOpen}
-      aria-label="Kasa"
-      title={vaultOpen ? 'Kasayı kapat' : 'Kasa — gizli notlar / IBAN / kart'}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (vaultOpen) closeVault();
-        else openVault();
-      }}
-      className={vaultBtnClass}
-    >
-      <VaultSidebarIcon />
-      {vaultOpen ? (
-        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.15)]" />
-      ) : null}
-    </button>
-  );
-
   const settingsLink =
     permPagesReady && !rolesLoading && canViewNavItem('/ayarlar') ? (
     <Link
@@ -501,12 +387,9 @@ export function Sidebar({ collapsed, onToggle }: Props) {
   ) : null;
 
   const footerBar = open ? (
-    <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--panel-line)] px-1.5">
+    <div className="mt-auto flex h-16 w-full shrink-0 items-center justify-evenly border-t border-[var(--panel-line)] px-3">
       {kmButton}
       {ratesButton}
-      {gwButton}
-      {dockButton}
-      {vaultButton}
       {settingsLink}
     </div>
   ) : (
@@ -518,7 +401,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
         if (Math.abs(e.deltaY) < 4 && Math.abs(e.deltaX) < 4) return;
         e.preventDefault();
         const dir = e.deltaY > 0 || e.deltaX > 0 ? 1 : -1;
-        setFooterSlot((s) => (s + dir + 6) % 6);
+        setFooterSlot((s) => (s + dir + 3) % 3);
       }}
     >
       <div ref={footerSlotRef} className="flex justify-center">
@@ -526,13 +409,7 @@ export function Sidebar({ collapsed, onToggle }: Props) {
           ? kmButton
           : footerSlot === 1
             ? ratesButton
-            : footerSlot === 2
-              ? gwButton
-              : footerSlot === 3
-                ? dockButton
-                : footerSlot === 4
-                  ? vaultButton
-                  : settingsLink}
+            : settingsLink ?? kmButton}
       </div>
     </div>
   );

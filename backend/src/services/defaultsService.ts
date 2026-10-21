@@ -2,7 +2,6 @@ import { prisma } from '../lib/prisma.js';
 import { getOrCreateAyarlarRow, SettingsError } from './settingsService.js';
 
 export type PublicAppDefaults = {
-  loginTheme: 'classic' | 'globe';
   panelTheme: 'light' | 'dark';
   landingPath: string;
   payType: 'ch' | 'fatura';
@@ -47,7 +46,6 @@ function defaultFilterOpen(): Record<string, boolean> {
 
 export function defaultAppDefaults(): PublicAppDefaults {
   return {
-    loginTheme: 'classic',
     panelTheme: 'light',
     landingPath: '/',
     payType: 'ch',
@@ -77,7 +75,6 @@ export function normalizeDefaults(raw: unknown): PublicAppDefaults {
   if (!raw || typeof raw !== 'object') return base;
   const p = raw as Partial<PublicAppDefaults> & { filterOpen?: unknown };
 
-  const loginTheme = p.loginTheme === 'globe' ? 'globe' : 'classic';
   const panelTheme = p.panelTheme === 'dark' ? 'dark' : 'light';
   const payType = p.payType === 'fatura' ? 'fatura' : 'ch';
   const customerKind =
@@ -90,7 +87,6 @@ export function normalizeDefaults(raw: unknown): PublicAppDefaults {
       : '/';
 
   return {
-    loginTheme,
     panelTheme,
     landingPath,
     payType,

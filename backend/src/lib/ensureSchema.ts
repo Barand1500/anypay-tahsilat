@@ -366,7 +366,7 @@ export async function ensureSchema(): Promise<void> {
   await ensureOrtakSanalPosTable();
   await ensureKartDefsTables();
   await ensureKartAnlasmalariTable();
-  await ensureKasaTables();
+  await dropLegacyKasaTables();
   await ensureOtpChallengeTable();
   await ensureSozlesmelerTable();
   await ensureOdemeIstekNoColumn();
@@ -595,7 +595,7 @@ export async function ensureSozlesmelerTable(): Promise<void> {
   }
 }
 
-/** OTP — login / reset / vault */
+/** OTP — login / reset */
 export async function ensureOtpChallengeTable(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(`
@@ -615,36 +615,17 @@ export async function ensureOtpChallengeTable(): Promise<void> {
   }
 }
 
-/** Kullanıcı kasası */
-export async function ensureKasaTables(): Promise<void> {
+/**
+ * Kaldırılan Kasa özelliğinin kalıntıları: tablolar ve kasa OTP kayıtları silinir (kalıcı).
+ * Tablolar yoksa hiçbir şey yapmaz; birkaç sürüm sonra bu fonksiyon kaldırılabilir.
+ */
+export async function dropLegacyKasaTables(): Promise<void> {
   try {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS \`kasa_ayar\` (
-        \`id\` INT NOT NULL AUTO_INCREMENT,
-        \`kullanici_id\` INT NOT NULL,
-        \`sifre_hash\` VARCHAR(255) NULL,
-        \`remove\` TINYINT(1) NULL,
-        PRIMARY KEY (\`id\`),
-        UNIQUE KEY \`kasa_ayar_kullanici_id_key\` (\`kullanici_id\`)
-      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS \`kasa_kayitlari\` (
-        \`id\` INT NOT NULL AUTO_INCREMENT,
-        \`kullanici_id\` INT NOT NULL,
-        \`tip\` VARCHAR(32) NOT NULL,
-        \`etiket\` VARCHAR(64) NOT NULL,
-        \`baslik\` VARCHAR(255) NOT NULL,
-        \`deger\` LONGTEXT NOT NULL,
-        \`sira\` INT NOT NULL DEFAULT 0,
-        \`remove\` TINYINT(1) NULL,
-        \`olusturma\` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
-        PRIMARY KEY (\`id\`),
-        INDEX \`kasa_kayitlari_kullanici_id_idx\` (\`kullanici_id\`)
-      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-    `);
+    await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS `kasa_kayitlari`');
+    await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS `kasa_ayar`');
+    await prisma.$executeRawUnsafe("DELETE FROM `otp_challenge` WHERE `scope` LIKE 'vault%'").catch(() => undefined);
   } catch (err) {
-    console.warn('[schema] kasa tabloları oluşturma atlandı:', err);
+    console.warn('[schema] eski kasa tabloları silinemedi:', err);
   }
 }
 

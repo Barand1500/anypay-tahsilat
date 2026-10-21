@@ -1,22 +1,15 @@
 type Props = {
   onOpen?: () => void;
-  /** Header / footer ölçüm etiketleri */
-  dockAttr?: 'source' | 'target';
   className?: string;
 };
 
 /**
- * Global ara tetikleyici — header ve dock footer’da aynı görünüm.
+ * Global ara tetikleyici.
  */
-export function SearchTrigger({ onOpen, dockAttr, className }: Props) {
+export function SearchTrigger({ onOpen, className }: Props) {
   return (
     <button
       type="button"
-      {...(dockAttr === 'source'
-        ? { 'data-dock-source': 'search' }
-        : dockAttr === 'target'
-          ? { 'data-dock-target': 'search' }
-          : {})}
       onClick={onOpen}
       className={[
         'group relative w-full max-w-[220px] shrink-0 text-left sm:max-w-[280px]',
