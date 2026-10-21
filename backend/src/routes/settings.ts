@@ -864,12 +864,15 @@ const dekontBlockTypeEnum = z.enum([
   'partiesCards',
   'detailTable',
   'legalBox',
+  'legalBoxHolder',
+  'legalBoxFirm',
   'amountWords',
   'emptyBox',
   'contentBox',
   'customText',
 ] as [DekontBlockType, ...DekontBlockType[]]);
 
+/** dekontSettingsService CONTENT_FIELDS ile aynı — A4/A5 varsayılanında customer* / sheetLegalLine var */
 const dekontContentFieldEnum = z.enum([
   'merchantTitle',
   'merchantAddress',
@@ -896,6 +899,11 @@ const dekontContentFieldEnum = z.enum([
   'slipTitle',
   'legalLine',
   'amountInWords',
+  'customerTitle',
+  'customerAddress',
+  'customerPhone',
+  'sheetLegalLine',
+  'secureNote',
   'staticDocTitle',
   'staticKeepSlip',
   'staticApproved',
@@ -916,6 +924,7 @@ const dekontBlockSchema = z.object({
   border: z.boolean().optional(),
   fields: z.array(dekontContentFieldEnum).max(24).optional(),
   text: z.string().max(500).optional(),
+  gap: z.number().min(0).max(40).optional(),
 });
 
 const dekontLayoutSchema = z.object({
