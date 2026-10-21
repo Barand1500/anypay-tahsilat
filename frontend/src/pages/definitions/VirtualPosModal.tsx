@@ -33,6 +33,11 @@ type Props = {
   banks: BankOption[];
   /** Merkezi API açıkken form alanlarını belirleyen şablonlar (yoksa boş) */
   templates?: PosTemplate[];
+  /**
+   * Merkezi API açıkken düzenlemede işyeri/terminal/anahtar/güvenlik tipi gizlenir
+   * (kimlik merkezden gelir; yerelde yalnızca banka eşlemesi).
+   */
+  hideCredentials?: boolean;
   /** Aynı banka+altyapı çifti engeli */
   existingKeys: string[];
   onClose: () => void;
@@ -51,9 +56,19 @@ type Props = {
 };
 
 /** Sanal POS ekle / düzenle — Esc / X / Kapat; altyapıya göre dinamik alanlar */
-export function VirtualPosModal({ mode, banks, templates = [], existingKeys, onClose, onSave }: Props) {
+export function VirtualPosModal({
+  mode,
+  banks,
+  templates = [],
+  hideCredentials = false,
+  existingKeys,
+  onClose,
+  onSave,
+}: Props) {
   const isEdit = mode.type === 'edit';
   const row = isEdit ? mode.row : null;
+  /** API açık + düzenle: credential alanları gösterme / zorunlu tutma */
+  const credentialsLocked = hideCredentials && isEdit;
 
   const [bankId, setBankId] = useState<string | null>(row?.bankId ?? null);
   const [infraId, setInfraId] = useState<string | null>(row?.infrastructureId ?? null);
@@ -160,16 +175,18 @@ export function VirtualPosModal({ mode, banks, templates = [], existingKeys, onC
       return;
     }
 
-    for (const field of profile.fields) {
-      if (field.required && !values[field.slot].trim()) {
-        setError(`${field.label} gerekli`);
+    if (!credentialsLocked) {
+      for (const field of profile.fields) {
+        if (field.required && !values[field.slot].trim()) {
+          setError(`${field.label} gerekli`);
+          return;
+        }
+      }
+
+      if (profile.securityTypeRequired && !securityType) {
+        setError('Güvenlik tipi seçiniz');
         return;
       }
-    }
-
-    if (profile.securityTypeRequired && !securityType) {
-      setError('Güvenlik tipi seçiniz');
-      return;
     }
 
     const key = `${bankId}|${infraId}`;
@@ -189,21 +206,32 @@ export function VirtualPosModal({ mode, banks, templates = [], existingKeys, onC
     setSaving(true);
     setError('');
     try {
+      // API açık düzenlemede mevcut kimlikleri koru (formda yok; bozulmasın)
       await onSave({
         bankId: bank.id,
         bankName: bank.name,
         infrastructureId: infra.id,
         posName: infra.label,
-        merchantId: values.merchantId.trim(),
-        terminalSafeId: values.terminalSafeId.trim(),
-        securityKey: values.securityKey.trim(),
-        terminalPassword: values.terminalPassword.trim(),
-        refundPassword: values.refundPassword.trim(),
-        securityType:
-          securityType ||
-          profile.defaultSecurityType ||
-          securityOptions[0]?.value ||
-          '3D_PAY',
+        merchantId: credentialsLocked ? (row?.merchantId ?? '').trim() : values.merchantId.trim(),
+        terminalSafeId: credentialsLocked
+          ? (row?.terminalSafeId ?? '').trim()
+          : values.terminalSafeId.trim(),
+        securityKey: credentialsLocked ? (row?.securityKey ?? '').trim() : values.securityKey.trim(),
+        terminalPassword: credentialsLocked
+          ? (row?.terminalPassword ?? '').trim()
+          : values.terminalPassword.trim(),
+        refundPassword: credentialsLocked
+          ? (row?.refundPassword ?? '').trim()
+          : values.refundPassword.trim(),
+        securityType: credentialsLocked
+          ? row?.securityType ||
+            profile.defaultSecurityType ||
+            securityOptions[0]?.value ||
+            '3D_PAY'
+          : securityType ||
+            profile.defaultSecurityType ||
+            securityOptions[0]?.value ||
+            '3D_PAY',
       });
       onClose();
     } catch (err) {
@@ -264,32 +292,41 @@ export function VirtualPosModal({ mode, banks, templates = [], existingKeys, onC
               placeholder="Alt yapı seçiniz."
             />
 
-            {profile.fields.map((field) => (
-              <TextInput
-                key={`${profile.id}-${field.slot}`}
-                data-km-jump
-                label={field.required ? `${field.label} *` : field.label}
-                value={values[field.slot]}
-                onChange={(e) => setSlot(field.slot, e.target.value)}
-                required={field.required}
-                autoComplete="off"
-              />
-            ))}
+            {credentialsLocked ? (
+              <p className="rounded-xl border border-[var(--panel-line)] bg-[var(--panel-surface)]/60 px-3.5 py-3 text-sm text-[var(--panel-muted)]">
+                Merkezi API açık: işyeri no, terminal, güvenlik anahtarı ve güvenlik tipi merkezden
+                gelir; burada düzenlenmez.
+              </p>
+            ) : (
+              <>
+                {profile.fields.map((field) => (
+                  <TextInput
+                    key={`${profile.id}-${field.slot}`}
+                    data-km-jump
+                    label={field.required ? `${field.label} *` : field.label}
+                    value={values[field.slot]}
+                    onChange={(e) => setSlot(field.slot, e.target.value)}
+                    required={field.required}
+                    autoComplete="off"
+                  />
+                ))}
 
-            {profile.showSecurityType ? (
-              <FloatingSearchSelect
-                label="Güvenlik Tipi"
-                required={profile.securityTypeRequired}
-                kmJump
-                options={securityOptions}
-                value={securityType}
-                onChange={(v) => {
-                  setSecurityType(v);
-                  setError('');
-                }}
-                placeholder="Seçiniz"
-              />
-            ) : null}
+                {profile.showSecurityType ? (
+                  <FloatingSearchSelect
+                    label="Güvenlik Tipi"
+                    required={profile.securityTypeRequired}
+                    kmJump
+                    options={securityOptions}
+                    value={securityType}
+                    onChange={(v) => {
+                      setSecurityType(v);
+                      setError('');
+                    }}
+                    placeholder="Seçiniz"
+                  />
+                ) : null}
+              </>
+            )}
             {error ? <p className="text-sm text-rose-500">{error}</p> : null}
           </div>
 

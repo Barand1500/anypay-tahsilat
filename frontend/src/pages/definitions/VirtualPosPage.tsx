@@ -353,6 +353,7 @@ export default function VirtualPosPage() {
           mode={modal}
           banks={bankOptions}
           templates={templates}
+          hideCredentials={remoteSource}
           existingKeys={existingKeys}
           onClose={() => setModal(null)}
           onSave={saveRow}

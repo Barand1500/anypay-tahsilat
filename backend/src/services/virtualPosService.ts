@@ -443,6 +443,32 @@ export async function updateVirtualPos(
   if (!infra) throw new VirtualPosError('Sanal POS alt yapısı seçiniz');
   if (!posName) throw new VirtualPosError('POS adı gerekli');
 
+  const { isCentralRemoteActive } = await import('./binSourceSettingsService.js');
+  const centralOpen = await isCentralRemoteActive();
+
+  // Merkez açık: kimlik alanlarına dokunma (formda da gizlenir); yalnızca banka/altyapı
+  if (centralOpen) {
+    const clash = await prisma.sanalPosTanim.findFirst({
+      where: {
+        bankaId: bankId,
+        altyapiKodu: infra,
+        ...notRemoved(),
+        NOT: { id },
+      },
+    });
+    if (clash) throw new VirtualPosError('Bu banka ve alt yapı zaten tanımlı');
+
+    const row = await prisma.sanalPosTanim.update({
+      where: { id },
+      data: {
+        bankaId: bankId,
+        altyapiKodu: infra.slice(0, 64),
+        posAdi: posName.slice(0, 255),
+      },
+    });
+    return mapRow(row);
+  }
+
   const merchantId = (input.merchantId || '').trim();
   const terminalSafeId = (input.terminalSafeId || '').trim();
   const securityKey = (input.securityKey || '').trim();
