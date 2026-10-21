@@ -368,9 +368,9 @@ function drawStatusStamp(
   const text = encodePdfText(label);
   if (!text) return;
   const diag = Math.hypot(pageW, pageH);
-  let size = diag / (text.length * 0.52);
-  size = Math.min(size, Math.min(pageW, pageH) * 0.48);
-  size = Math.max(size, Math.min(pageW, pageH) * 0.26);
+  let size = diag / (text.length * 0.72);
+  size = Math.min(size, Math.min(pageW, pageH) * 0.34);
+  size = Math.max(size, Math.min(pageW, pageH) * 0.18);
 
   const tw = font.widthOfTextAtSize(text, size);
   const angleDeg = -38;

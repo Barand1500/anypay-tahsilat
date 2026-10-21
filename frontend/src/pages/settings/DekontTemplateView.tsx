@@ -808,16 +808,16 @@ export function DekontTemplateView({
               'rounded-[0.06em] leading-none',
             ].join(' ')}
             style={{
-              /* Kağıt köşeden köşeye — fiş / A5 / A4 */
+              /* Çapraz damga — fiş / A5 / A4 (biraz daha küçük) */
               fontSize:
                 format === 'fis'
-                  ? 'min(48cqw, 36cqh)'
+                  ? 'min(34cqw, 26cqh)'
                   : format === 'a5'
-                    ? 'min(42cqw, 30cqh)'
-                    : 'min(38cqw, 28cqh)',
-              borderWidth: '0.05em',
+                    ? 'min(30cqw, 22cqh)'
+                    : 'min(26cqw, 20cqh)',
+              borderWidth: '0.045em',
               padding: '0.04em 0.16em',
-              transform: 'rotate(-38deg) scale(1.55)',
+              transform: 'rotate(-38deg) scale(1.2)',
               boxShadow: 'inset 0 0 0 0.02em rgba(225, 29, 72, 0.3)',
             }}
           >
