@@ -795,6 +795,27 @@ export function DekontTemplateView({
           Yalnız; {ctx.amountInWords}
         </p>
       ) : null}
+      {(ctx.status === 'cancelled' || ctx.status === 'refunded') && (
+        <div
+          className="pointer-events-none absolute inset-0 z-[80] flex items-center justify-center overflow-hidden"
+          aria-hidden
+        >
+          <span
+            className={[
+              'select-none font-black uppercase tracking-[0.18em]',
+              'border-[3px] border-rose-600/75 text-rose-600/70',
+              'rounded-md px-[0.35em] py-[0.08em] leading-none',
+              format === 'fis' ? 'text-[22px]' : format === 'a5' ? 'text-[52px]' : 'text-[72px]',
+            ].join(' ')}
+            style={{
+              transform: 'rotate(-28deg)',
+              boxShadow: 'inset 0 0 0 1px rgba(225, 29, 72, 0.25)',
+            }}
+          >
+            {ctx.status === 'refunded' ? 'İADE' : 'İPTAL'}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
