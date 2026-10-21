@@ -24,20 +24,20 @@ function Value({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Başlık ve satır aynı iz — Tutar / İşlem No yan yana yapışmasın */
+/** Saat tarihin yanında; sütunlar eşit pay, aralarındaki boşluk aynı */
 const historyGrid =
-  'grid grid-cols-[15.5rem_6.25rem_8.75rem_7.5rem_minmax(9.5rem,1fr)_minmax(10rem,1.15fr)_8rem] items-center gap-x-6';
+  'grid grid-cols-[12.5rem_repeat(6,minmax(7.25rem,1fr))] items-center gap-x-8';
 
-/** Tarih solda, saat sabit 8ch — 16:08:54 ile 16:13:19 aynı kolonda */
+/** Tarihin hemen yanında saat — panel fontu, rakamlar hizalı */
 function HistoryStamp({ iso }: { iso: string }) {
   const full = formatTxDate(iso);
   const cut = full.lastIndexOf(' ');
   const date = cut > 0 ? full.slice(0, cut) : full;
   const time = cut > 0 ? full.slice(cut + 1) : '';
   return (
-    <span className="grid w-full grid-cols-[minmax(0,1fr)_8ch] items-baseline gap-x-2 font-mono text-[13px] tabular-nums tracking-normal text-[var(--panel-ink)]">
-      <span className="truncate">{date}</span>
-      <span>{time}</span>
+    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap tabular-nums text-[var(--panel-ink)]">
+      <span>{date}</span>
+      <span className="inline-block w-[4.75rem] text-left">{time}</span>
     </span>
   );
 }
@@ -159,7 +159,7 @@ export default function TransactionDetailPage() {
 
       <Section title="Hareketler" bodyClassName="">
         <div className="overflow-x-auto">
-          <div className="min-w-[980px] text-sm">
+          <div className="min-w-[920px] text-sm">
             <div
               className={`${historyGrid} border-b border-[var(--panel-line)] pb-2.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]`}
             >
