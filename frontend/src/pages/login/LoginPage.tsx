@@ -13,7 +13,7 @@ export default function LoginPage() {
   const { logoUrl, systemName } = useBrand();
   /** Ayarlar’dan yüklenen şirket logosu — yoksa varsayılan */
   const brandLogo = logoUrl || '/brand/logo-full.png';
-  const loginArt = '/illustrations/login-tahsilat.jpg';
+  const loginArt = '/illustrations/login-tahsilat.svg';
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -57,17 +57,15 @@ export default function LoginPage() {
           }}
         />
         <div className="relative z-[1] flex h-full min-h-screen flex-col items-center justify-center gap-10 px-12 xl:gap-14 xl:px-20">
-          <div className="flex w-full max-w-[min(480px,52vw)] items-center justify-center rounded-2xl bg-white/95 px-8 py-6 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-sm">
-            <img
-              src={brandLogo}
-              alt={systemName}
-              className="h-auto max-h-24 w-full object-contain sm:max-h-28"
-            />
-          </div>
+          <img
+            src={brandLogo}
+            alt={systemName}
+            className="h-auto max-h-28 w-full max-w-[min(480px,52vw)] object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.35)] sm:max-h-32"
+          />
           <img
             src={loginArt}
             alt=""
-            className="h-auto w-full max-w-[min(640px,62vw)] rounded-2xl object-contain shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
+            className="h-auto w-full max-w-[min(640px,62vw)] object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
             draggable={false}
           />
           <p className="max-w-md text-center text-base text-white/75">

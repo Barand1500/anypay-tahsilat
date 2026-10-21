@@ -1,7 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import {
+  PDFDocument,
+  StandardFonts,
+  degrees,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from 'pdf-lib';
 import sharp from 'sharp';
 import {
   clampFisHeightMm,
@@ -347,6 +355,41 @@ function blockBox(pageW: number, pageH: number, b: DekontBlock): PdfBox {
   const boxW = (b.w / 100) * pageW;
   const top = pageH - (b.y / 100) * pageH;
   return { x, boxW, boxH, top, bottom: top - boxH };
+}
+
+/** İPTAL / İADE — kağıdı çapraz kaplayan damga */
+function drawStatusStamp(
+  page: PDFPage,
+  font: PDFFont,
+  pageW: number,
+  pageH: number,
+  label: string,
+) {
+  const text = encodePdfText(label);
+  if (!text) return;
+  const diag = Math.hypot(pageW, pageH);
+  let size = diag / (text.length * 0.52);
+  size = Math.min(size, Math.min(pageW, pageH) * 0.48);
+  size = Math.max(size, Math.min(pageW, pageH) * 0.26);
+
+  const tw = font.widthOfTextAtSize(text, size);
+  const angleDeg = -38;
+  const angle = (angleDeg * Math.PI) / 180;
+  const cx = pageW / 2;
+  const cy = pageH / 2;
+  const midY = size * 0.35;
+  const x = cx - (tw / 2) * Math.cos(angle) + midY * Math.sin(angle);
+  const y = cy - (tw / 2) * Math.sin(angle) - midY * Math.cos(angle);
+
+  page.drawText(text, {
+    x,
+    y,
+    size,
+    font,
+    color: rgb(0.88, 0.12, 0.28),
+    opacity: 0.42,
+    rotate: degrees(angleDeg),
+  });
 }
 
 function drawInBlock(
@@ -1134,6 +1177,16 @@ async function buildBlocksPdf(tx: PublicPaymentRow, format: DekontPdfFormat): Pr
         2,
       );
     }
+  }
+
+  if (tx.status === 'cancelled' || tx.status === 'refunded') {
+    drawStatusStamp(
+      page,
+      bold,
+      w,
+      h,
+      tx.status === 'refunded' ? 'İADE' : 'İPTAL',
+    );
   }
 
   const bytes = await doc.save();

@@ -749,6 +749,7 @@ export function DekontTemplateView({
         aspectRatio: paper.aspectRatio,
         maxWidth: '100%',
         colorScheme: 'light',
+        containerType: 'size',
         ...style,
       }}
       onPointerDown={mode === 'edit' ? () => onSelect?.(null) : undefined}
@@ -802,14 +803,22 @@ export function DekontTemplateView({
         >
           <span
             className={[
-              'select-none font-black uppercase tracking-[0.18em]',
-              'border-[3px] border-rose-600/75 text-rose-600/70',
-              'rounded-md px-[0.35em] py-[0.08em] leading-none',
-              format === 'fis' ? 'text-[22px]' : format === 'a5' ? 'text-[52px]' : 'text-[72px]',
+              'select-none whitespace-nowrap font-black uppercase tracking-[0.12em]',
+              'border-rose-600/80 text-rose-600/55',
+              'rounded-[0.06em] leading-none',
             ].join(' ')}
             style={{
-              transform: 'rotate(-28deg)',
-              boxShadow: 'inset 0 0 0 1px rgba(225, 29, 72, 0.25)',
+              /* Kağıt köşeden köşeye — fiş / A5 / A4 */
+              fontSize:
+                format === 'fis'
+                  ? 'min(48cqw, 36cqh)'
+                  : format === 'a5'
+                    ? 'min(42cqw, 30cqh)'
+                    : 'min(38cqw, 28cqh)',
+              borderWidth: '0.05em',
+              padding: '0.04em 0.16em',
+              transform: 'rotate(-38deg) scale(1.55)',
+              boxShadow: 'inset 0 0 0 0.02em rgba(225, 29, 72, 0.3)',
             }}
           >
             {ctx.status === 'refunded' ? 'İADE' : 'İPTAL'}
