@@ -141,16 +141,26 @@ export default function TransactionDetailPage() {
 
       <Section title="Hareketler" bodyClassName="">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-sm">
+          <table className="w-full min-w-[780px] table-fixed text-left text-sm">
+            <colgroup>
+              {/* Tarih sabit genişlik — başlık ile satır aynı uzunlukta hizalanır */}
+              <col className="w-[11.75rem]" />
+              <col className="w-[5.5rem]" />
+              <col className="w-[7rem]" />
+              <col className="w-[5.5rem]" />
+              <col />
+              <col />
+              <col className="w-[6.5rem]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-[var(--panel-line)] text-[11px] font-semibold uppercase tracking-wide text-[var(--panel-muted)]">
-                <th className="px-1 pb-2.5 pt-0 font-semibold">İşlem Zamanı</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold">İşlem</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold">Durum</th>
-                <th className="px-1 pb-2.5 pt-0 text-right font-semibold">Tutar</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold">İşlem No</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold">Referans No</th>
-                <th className="px-1 pb-2.5 pt-0 font-semibold">Onay Kodu</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">İşlem Zamanı</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">İşlem</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">Durum</th>
+                <th className="px-1 pb-2.5 pt-0 text-right font-semibold whitespace-nowrap">Tutar</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">İşlem No</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">Referans No</th>
+                <th className="px-1 pb-2.5 pt-0 font-semibold whitespace-nowrap">Onay Kodu</th>
               </tr>
             </thead>
             <tbody>
@@ -166,7 +176,7 @@ export default function TransactionDetailPage() {
                     key={`${entry.operation}-${entry.at}-${index}`}
                     className="border-b border-[var(--panel-line)]/70 last:border-0"
                   >
-                    <td className="px-1 py-3 whitespace-nowrap text-[var(--panel-ink)]">
+                    <td className="px-1 py-3 whitespace-nowrap tabular-nums tracking-tight text-[var(--panel-ink)]">
                       {formatTxDate(entry.at)}
                     </td>
                     <td className="px-1 py-3 font-semibold text-sky-600">{entry.operation}</td>
