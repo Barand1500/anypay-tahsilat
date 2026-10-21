@@ -256,6 +256,42 @@ async function assertBank(bankId: number) {
   if (!bank) throw new VirtualPosError('Banka bulunamadı');
 }
 
+/**
+ * Çok bankalı ödeme araçları (Tosla / iyzico / PayTR / Halkode).
+ * Bunlar aktif olunca diğer Sanal POS kayıtları pasife alınır.
+ */
+function isMultiBankPaymentTool(infrastructureId: string, posName = ''): boolean {
+  const blob = `${infrastructureId} ${posName}`.toLocaleLowerCase('tr');
+  return (
+    blob.includes('tosla') ||
+    blob.includes('iyzico') ||
+    blob.includes('iyzi') ||
+    blob.includes('paytr') ||
+    blob.includes('halkode') ||
+    blob.includes('halk öde') ||
+    blob.includes('halk ode')
+  );
+}
+
+async function deactivateOtherVirtualPos(exceptId: number): Promise<void> {
+  await prisma.sanalPosTanim.updateMany({
+    where: { ...notRemoved(), NOT: { id: exceptId } },
+    data: { aktif: false },
+  });
+}
+
+/** Çok bankalı araç açılınca diğer POS’ları pasife al (yalnızca aktif=true) */
+async function exclusiveActivateIfMultiBank(
+  id: number,
+  infrastructureId: string,
+  posName: string,
+  becomingActive: boolean,
+): Promise<void> {
+  if (!becomingActive) return;
+  if (!isMultiBankPaymentTool(infrastructureId, posName)) return;
+  await deactivateOtherVirtualPos(id);
+}
+
 /** Altyapıya göre zorunlu alanlar (frontend profili ile uyumlu) */
 function assertCredentials(input: {
   infrastructureId: string;
@@ -370,6 +406,7 @@ export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicV
     });
   }
 
+  const becomingActive = input.active !== false;
   const row = await prisma.sanalPosTanim.create({
     data: {
       bankaId: bankId,
@@ -381,10 +418,11 @@ export async function createVirtualPos(input: VirtualPosUpsert): Promise<PublicV
       terminalSifresi: terminalPassword.slice(0, 255) || null,
       guvenlikTipi: securityType.slice(0, 64),
       varsayilan: wantDefault,
-      aktif: input.active !== false,
+      aktif: becomingActive,
       remove: false,
     },
   });
+  await exclusiveActivateIfMultiBank(row.id, infra, posName, becomingActive);
   if (input.refundPassword !== undefined) await writeRefundPassword(row.id, input.refundPassword);
   return mapRow(row);
 }
@@ -436,6 +474,7 @@ export async function updateVirtualPos(
     });
   }
 
+  const becomingActive = wantDefault ? true : input.active !== false;
   const row = await prisma.sanalPosTanim.update({
     where: { id },
     data: {
@@ -448,9 +487,10 @@ export async function updateVirtualPos(
       terminalSifresi: terminalPassword.slice(0, 255) || null,
       guvenlikTipi: securityType.slice(0, 64),
       varsayilan: wantDefault,
-      aktif: wantDefault ? true : input.active !== false,
+      aktif: becomingActive,
     },
   });
+  await exclusiveActivateIfMultiBank(row.id, infra, posName, becomingActive);
   if (input.refundPassword !== undefined) await writeRefundPassword(row.id, input.refundPassword);
   return mapRow(row);
 }
@@ -491,6 +531,12 @@ export async function patchVirtualPosFlags(
     where: { id },
     data: { varsayilan, aktif },
   });
+  await exclusiveActivateIfMultiBank(
+    row.id,
+    row.altyapiKodu || existing.altyapiKodu,
+    row.posAdi || existing.posAdi,
+    aktif !== false,
+  );
   return mapRow(row);
 }
 

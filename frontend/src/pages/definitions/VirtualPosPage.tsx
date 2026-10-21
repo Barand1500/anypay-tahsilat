@@ -12,6 +12,29 @@ import type { BankDef } from './bankTypes';
 import { setVirtualPosList, type VirtualPosRow } from './mockPos';
 import { VirtualPosModal, type PosTemplate, type VirtualPosModalMode } from './VirtualPosModal';
 
+/** Tosla / iyzico / PayTR / Halkode — aktif olunca diğerleri pasif (backend ile aynı) */
+function isMultiBankPaymentTool(infrastructureId: string, posName = ''): boolean {
+  const blob = `${infrastructureId} ${posName}`.toLocaleLowerCase('tr');
+  return (
+    blob.includes('tosla') ||
+    blob.includes('iyzico') ||
+    blob.includes('iyzi') ||
+    blob.includes('paytr') ||
+    blob.includes('halkode') ||
+    blob.includes('halk öde') ||
+    blob.includes('halk ode')
+  );
+}
+
+function mergePosExclusiveActive(list: VirtualPosRow[], updated: VirtualPosRow): VirtualPosRow[] {
+  const hub = updated.active && isMultiBankPaymentTool(updated.infrastructureId, updated.posName);
+  return list.map((r) => {
+    if (r.id === updated.id) return updated;
+    if (hub) return { ...r, active: false };
+    return r;
+  });
+}
+
 /** Tanımlamalar › POS › Sanal POS Tanımları — API */
 export default function VirtualPosPage() {
   const { token } = useAuth();
@@ -109,12 +132,13 @@ export default function VirtualPosPage() {
         { isDefault: !target.isDefault },
         token,
       );
-      setRows((list) =>
-        list.map((r) => {
+      setRows((list) => {
+        const next = mergePosExclusiveActive(list, updated);
+        return next.map((r) => {
           if (r.id === updated.id) return updated;
           return updated.isDefault ? { ...r, isDefault: false } : r;
-        }),
-      );
+        });
+      });
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Güncellenemedi');
     }
@@ -131,7 +155,7 @@ export default function VirtualPosPage() {
         { active: !target.active },
         token,
       );
-      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+      setRows((list) => mergePosExclusiveActive(list, updated));
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Güncellenemedi');
     }
@@ -168,10 +192,10 @@ export default function VirtualPosPage() {
         body,
         token,
       );
-      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+      setRows((list) => mergePosExclusiveActive(list, updated));
     } else {
       const created = await api.post<VirtualPosRow>('/api/virtual-pos', body, token);
-      setRows((list) => [...list, created]);
+      setRows((list) => mergePosExclusiveActive([...list, created], created));
     }
   }
 
