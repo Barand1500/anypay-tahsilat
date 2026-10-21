@@ -1,7 +1,7 @@
 import { SettingsError } from './settingsService.js';
 
 /** Destek paneline düşecek sabit alıcılar */
-export const SUPPORT_EMAIL = 'guzelteknoloji50@gmail.com';
+export const SUPPORT_EMAIL = 'destek@guzelteknoloji.com';
 export const SUPPORT_PHONE = '05408851260';
 
 export type SupportChannel = 'email' | 'sms' | 'whatsapp';
