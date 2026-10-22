@@ -149,8 +149,8 @@ export type DekontSettings = {
   a4: DekontFormatLayout | null;
 };
 
-/** 80mm termal fiş — Enpara tipi varsayılan boy */
-export const DEFAULT_FIS_HEIGHT_MM = 190;
+/** 80×170 mm termal fiş */
+export const DEFAULT_FIS_HEIGHT_MM = 170;
 export const FIS_HEIGHT_MM_MIN = 120;
 export const FIS_HEIGHT_MM_MAX = 400;
 
@@ -353,30 +353,29 @@ export function newDekontBlock(
 }
 
 /**
- * Varsayılan 80mm fiş — termal slip sırası:
- * işyeri → adres → vergi → tarih/işlem → satış tipi → kart → tutar →
- * onaylandı → onay/ref → yasal → mali değeri yoktur → müşteri nüshası →
- * saklayınız → banka logosu
+ * Varsayılan 80×170 mm fiş — termal slip:
+ * işyeri, adres, vergi, işlem meta, satış tipi, kart, tutar,
+ * onaylandı, onay/ref, yasal, mali değeri yoktur, müşteri nüshası,
+ * saklayınız, banka logosu
  */
 export function getDefaultFisBlocks(): DekontBlock[] {
   return [
-    newDekontBlock('merchantTitle', { x: 4, y: 1.2, w: 92, h: 4.5, fontScale: 1.15 }),
-    newDekontBlock('merchantAddress', { x: 4, y: 6.2, w: 92, h: 6, fontScale: 0.85 }),
-    newDekontBlock('merchantPhone', { x: 4, y: 12.6, w: 92, h: 3.2, fontScale: 0.85 }),
-    newDekontBlock('dateTimeRow', { x: 6, y: 16.4, w: 88, h: 9, fontScale: 0.95, align: 'left' }),
-    newDekontBlock('txnMeta', { x: 4, y: 26, w: 92, h: 8.5, fontScale: 0.8, align: 'left' }),
-    newDekontBlock('slipTitle', { x: 4, y: 35.2, w: 92, h: 4, fontScale: 1.3 }),
-    newDekontBlock('cardMasked', { x: 4, y: 39.6, w: 92, h: 4.2, fontScale: 1.05 }),
-    newDekontBlock('cardBrand', { x: 30, y: 44.2, w: 40, h: 5.5, z: 2 }),
-    newDekontBlock('cardSegment', { x: 4, y: 50.2, w: 92, h: 3, fontScale: 0.95 }),
-    newDekontBlock('amountBlock', { x: 4, y: 53.8, w: 92, h: 9, fontScale: 1.25 }),
-    newDekontBlock('approvedLine', { x: 4, y: 63.4, w: 92, h: 3.5, fontScale: 1.1 }),
-    newDekontBlock('authRef', { x: 4, y: 67.4, w: 92, h: 7, fontScale: 0.85 }),
-    newDekontBlock('legalLine', { x: 4, y: 75, w: 92, h: 4.2, fontScale: 0.8 }),
-    newDekontBlock('maliDeger', { x: 4, y: 79.6, w: 92, h: 2.8, fontScale: 0.95 }),
-    newDekontBlock('musteriNushasi', { x: 4, y: 82.8, w: 92, h: 2.8, fontScale: 0.9 }),
-    newDekontBlock('keepSlip', { x: 4, y: 86, w: 92, h: 2.8, fontScale: 0.85 }),
-    newDekontBlock('bankLogo', { x: 22, y: 89.4, w: 56, h: 8, z: 2 }),
+    newDekontBlock('merchantTitle', { x: 4, y: 1, w: 92, h: 4.2, fontScale: 1.15 }),
+    newDekontBlock('merchantAddress', { x: 4, y: 5.6, w: 92, h: 5, fontScale: 0.85 }),
+    newDekontBlock('merchantPhone', { x: 4, y: 11, w: 92, h: 3, fontScale: 0.85 }),
+    newDekontBlock('txnMeta', { x: 4, y: 15.5, w: 92, h: 11, fontScale: 0.85, align: 'left' }),
+    newDekontBlock('slipTitle', { x: 4, y: 28, w: 92, h: 4.2, fontScale: 1.3 }),
+    newDekontBlock('cardMasked', { x: 4, y: 33, w: 92, h: 6.5, fontScale: 1.05 }),
+    newDekontBlock('cardBrand', { x: 30, y: 40.2, w: 40, h: 5.5, z: 2 }),
+    newDekontBlock('cardSegment', { x: 4, y: 46.5, w: 92, h: 3, fontScale: 0.95 }),
+    newDekontBlock('amountBlock', { x: 4, y: 50.2, w: 92, h: 11, fontScale: 1.25 }),
+    newDekontBlock('approvedLine', { x: 4, y: 62, w: 92, h: 3.4, fontScale: 1.1 }),
+    newDekontBlock('authRef', { x: 4, y: 66.2, w: 92, h: 9, fontScale: 0.85 }),
+    newDekontBlock('legalLine', { x: 4, y: 76, w: 92, h: 4, fontScale: 0.8 }),
+    newDekontBlock('maliDeger', { x: 4, y: 80.8, w: 92, h: 2.6, fontScale: 0.95 }),
+    newDekontBlock('musteriNushasi', { x: 4, y: 84, w: 92, h: 2.6, fontScale: 0.9 }),
+    newDekontBlock('keepSlip', { x: 4, y: 87.2, w: 92, h: 2.6, fontScale: 0.85 }),
+    newDekontBlock('bankLogo', { x: 22, y: 91, w: 56, h: 7.5, z: 2 }),
   ];
 }
 
