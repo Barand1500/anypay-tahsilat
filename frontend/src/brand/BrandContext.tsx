@@ -22,6 +22,8 @@ const DEFAULT_BRAND: BrandAssets = {
 };
 
 type BrandContextValue = BrandAssets & {
+  /** Marka API yanıtı gelene kadar false — varsayılan logo flaş etmesin */
+  brandReady: boolean;
   refreshBrand: () => Promise<void>;
   applyBrand: (partial: Partial<BrandAssets>) => void;
 };
@@ -44,6 +46,7 @@ function setDocumentFavicon(href: string) {
 
 export function BrandProvider({ children }: { children: ReactNode }) {
   const [brand, setBrand] = useState<BrandAssets>(DEFAULT_BRAND);
+  const [brandReady, setBrandReady] = useState(false);
 
   const refreshBrand = useCallback(async () => {
     try {
@@ -55,6 +58,8 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       });
     } catch {
       /* API yoksa varsayılan marka */
+    } finally {
+      setBrandReady(true);
     }
   }, []);
 
@@ -71,8 +76,8 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   }, [brand.faviconUrl]);
 
   const value = useMemo(
-    () => ({ ...brand, refreshBrand, applyBrand }),
-    [brand, refreshBrand, applyBrand],
+    () => ({ ...brand, brandReady, refreshBrand, applyBrand }),
+    [brand, brandReady, refreshBrand, applyBrand],
   );
 
   return <BrandContext.Provider value={value}>{children}</BrandContext.Provider>;

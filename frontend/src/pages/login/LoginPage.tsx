@@ -10,9 +10,9 @@ import { TwoFactorStep } from './TwoFactorStep';
 export default function LoginPage() {
   const { login, verifyTwoFactor, requestOtp, loginWithOtp, requestPasswordReset, verifyPasswordReset, resetPassword } =
     useAuth();
-  const { logoUrl, systemName } = useBrand();
-  /** Ayarlar’dan yüklenen şirket logosu — yoksa varsayılan */
-  const brandLogo = logoUrl || '/brand/logo-full.png';
+  const { logoUrl, systemName, brandReady } = useBrand();
+  /** Marka gelene kadar boş; sonra şirket logosu (yoksa varsayılan) */
+  const brandLogo = brandReady ? logoUrl || '/brand/logo-full.png' : '';
   const loginArt = '/illustrations/login-tahsilat.svg';
 
   const [showPassword, setShowPassword] = useState(false);
@@ -57,11 +57,15 @@ export default function LoginPage() {
           }}
         />
         <div className="relative z-[1] flex h-full min-h-screen flex-col items-center justify-center gap-8 px-10 py-12 xl:gap-12 xl:px-16">
-          <img
-            src={brandLogo}
-            alt={systemName}
-            className="h-auto max-h-36 w-full max-w-[min(560px,58vw)] object-contain drop-shadow-[0_14px_32px_rgba(0,0,0,0.35)] sm:max-h-40 xl:max-h-44"
-          />
+          {brandLogo ? (
+            <img
+              src={brandLogo}
+              alt={systemName}
+              className="h-auto max-h-36 w-full max-w-[min(560px,58vw)] object-contain drop-shadow-[0_14px_32px_rgba(0,0,0,0.35)] sm:max-h-40 xl:max-h-44"
+            />
+          ) : (
+            <div className="h-36 w-full max-w-[min(560px,58vw)] sm:h-40 xl:h-44" aria-hidden />
+          )}
           <img
             src={loginArt}
             alt=""
@@ -78,11 +82,15 @@ export default function LoginPage() {
       <div className="flex min-h-screen items-center justify-center px-6 py-12 sm:px-10 [--input-notch:#eef2f7]">
         <div className="w-full max-w-[400px]">
           <div className="mb-9 flex flex-col items-center text-center">
-            <img
-              src={brandLogo}
-              alt={systemName}
-              className="mb-6 h-14 w-auto max-w-[240px] object-contain lg:hidden"
-            />
+            {brandLogo ? (
+              <img
+                src={brandLogo}
+                alt={systemName}
+                className="mb-6 h-14 w-auto max-w-[240px] object-contain lg:hidden"
+              />
+            ) : (
+              <div className="mb-6 h-14 w-full max-w-[240px] lg:hidden" aria-hidden />
+            )}
             <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[1.85rem]">
               {flow.mode === 'forgot'
                 ? 'Şifre Yenile'
