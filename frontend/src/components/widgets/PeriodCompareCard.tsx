@@ -1,3 +1,4 @@
+import { Pin } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export type PeriodBank = {
@@ -37,6 +38,25 @@ export function PeriodCompareCard({
   const up = changePct >= 0;
   const [displayPct, setDisplayPct] = useState(changePct);
   const raf = useRef(0);
+  const many = banks.length > 3 || previousBanks.length > 3;
+  const pinKey = `anypay.periodPin.${title}`;
+  const [pinned, setPinned] = useState(() => {
+    try {
+      return localStorage.getItem(pinKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [hover, setHover] = useState(false);
+  const open = many && (pinned || hover);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(pinKey, pinned ? '1' : '0');
+    } catch {
+      /* yoksay */
+    }
+  }, [pinKey, pinned]);
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -76,7 +96,22 @@ export function PeriodCompareCard({
         {current}
       </p>
       <p className="mt-1 text-sm text-[var(--panel-muted)]">Önceki: <strong className="text-base font-extrabold tabular-nums text-[var(--panel-ink)]">{previous}</strong></p>
-      <div className="mt-3 border-t border-[var(--panel-line)] pt-2">
+      <div
+        className="relative mt-3 border-t border-[var(--panel-line)] pt-2"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        {many ? (
+          <button
+            type="button"
+            aria-pressed={pinned}
+            title={pinned ? 'Sabiti kaldır' : 'Listeyi sabitle'}
+            onClick={() => setPinned((v) => !v)}
+            className={`absolute right-0 top-1.5 z-20 grid h-6 w-6 place-items-center rounded-md border border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-muted)] transition hover:text-[var(--panel-ink)] ${pinned ? 'text-[var(--color-brand-700)]' : ''}`}
+          >
+            <Pin size={13} className={pinned ? 'fill-current' : ''} />
+          </button>
+        ) : null}
         <div className="relative grid grid-cols-2 gap-2.5">
           <span className="pointer-events-none absolute bottom-1 left-1/2 top-1 w-px bg-[var(--panel-line)]" aria-hidden />
           {[
@@ -84,8 +119,8 @@ export function PeriodCompareCard({
             { label: currentBankLabel, rows: banks },
           ].map((column) => (
             <div key={column.label} className="min-w-0">
-              <p className="mb-1 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
-              <ul className="max-h-[90px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
+              <p className="mb-1 truncate pr-6 text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
+              <ul className={open ? 'min-w-0 space-y-1.5 pr-1' : 'max-h-[90px] min-w-0 space-y-1.5 overflow-y-auto pr-1'}>
                 {column.rows.length ? (
                   column.rows.map((b) => <BankRow key={b.id || b.name} bank={b} />)
                 ) : (
