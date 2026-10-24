@@ -13,6 +13,7 @@ import { useCustomersList } from '../customers/useCustomersList';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { formatMoneyTr, formatMoneyDisplay, maskMoneyInput, parseTrMoney } from './mockBanks';
 import { InstallmentPaintGrid } from './InstallmentPaintGrid';
+import { FxNote } from './FxNote';
 import { loadReadyDescriptions } from './mockReadyDescriptions';
 import { ReadyDescriptionsModal } from './ReadyDescriptionsModal';
 
@@ -727,6 +728,7 @@ export default function PaymentRequestPage({ forPanel = false }: { forPanel?: bo
                 {errors.amount || errors.currency ? (
                   <p className="mt-1 text-xs text-rose-500">{errors.amount || errors.currency}</p>
                 ) : null}
+                {payType !== 'serbest' ? (<div className="mt-1"><FxNote amount={amount} rate={selectedCurrency?.rate} symbol={currencySymbol} shortName={selectedCurrency?.shortName} /></div>) : null}
               </div>
 
               <label className="flex items-center gap-2.5 text-sm text-[var(--panel-ink)]">
