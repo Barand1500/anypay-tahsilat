@@ -80,8 +80,8 @@ export function PeriodCompareCard({
         <div className="relative grid grid-cols-2 gap-2.5">
           <span className="pointer-events-none absolute bottom-1 left-1/2 top-1 w-px bg-[var(--panel-line)]" aria-hidden />
           {[
-            { label: currentBankLabel, rows: banks },
             { label: previousBankLabel, rows: previousBanks },
+            { label: currentBankLabel, rows: banks },
           ].map((column) => (
             <div key={column.label} className="min-w-0">
               <p className="mb-1 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
