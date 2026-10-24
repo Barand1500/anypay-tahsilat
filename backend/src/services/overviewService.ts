@@ -665,7 +665,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
   const pieDatasets: OverviewPieDataset[] = [
     {
       id: 'payment_status',
-      label: 'Ödeme durumu',
+      label: 'Ödeme Durumu',
       slices:
         statusSlices.length > 0
           ? statusSlices
@@ -673,7 +673,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
     },
     {
       id: 'banks',
-      label: 'Banka payı',
+      label: 'Banka Bazlı',
       slices:
         bankSlices.length > 0
           ? bankSlices
@@ -681,7 +681,7 @@ export async function getOverview(q: OverviewQuery): Promise<OverviewPayload> {
     },
     {
       id: 'branches',
-      label: 'Şube payı',
+      label: 'Şube Bazlı',
       slices:
         branchSlices.length > 0
           ? branchSlices

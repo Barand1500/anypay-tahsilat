@@ -87,7 +87,7 @@ export function PieChartPanel({ datasets }: Props) {
                 className="transition-[opacity] hover:opacity-90"
               >
                 <title>
-                  {a.label}: {a.value} ({a.pct}%)
+                  {a.label}: {a.value} (%{a.pct})
                 </title>
               </path>
             ))}
@@ -122,7 +122,7 @@ export function PieChartPanel({ datasets }: Props) {
                 aria-hidden
               />
               <span className="min-w-0 flex-1 truncate text-[var(--panel-ink)]">{a.label}</span>
-              <span className="tabular-nums text-[var(--panel-muted)]">{a.pct}%</span>
+              <span className="tabular-nums text-[var(--panel-muted)]">%{a.pct}</span>
             </li>
           ))}
         </ul>

@@ -1,4 +1,3 @@
-import { Pin } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export type PeriodBank = {
@@ -109,7 +108,14 @@ export function PeriodCompareCard({
             onClick={() => setPinned((v) => !v)}
             className={`absolute right-0 top-1.5 z-20 grid h-6 w-6 place-items-center rounded-md border border-[var(--panel-line)] bg-[var(--panel-elevated)] text-[var(--panel-muted)] transition hover:text-[var(--panel-ink)] ${pinned ? 'text-[var(--color-brand-700)]' : ''}`}
           >
-            <Pin size={13} className={pinned ? 'fill-current' : ''} />
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill={pinned ? 'currentColor' : 'none'} aria-hidden>
+              <path
+                d="M9 4.5 14.5 10l1.2-1.2a1.5 1.5 0 0 1 2.1 0l.4.4-4.2 4.2 1.5 1.5-1.1 1.1-1.5-1.5-4.6 4.6-.9-.9 4.6-4.6-1.5-1.5 1.1-1.1 1.5 1.5 4.2-4.2-.4-.4a1.5 1.5 0 0 0-2.1 0L14 9.5 8.5 4l.5-.5Z"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         ) : null}
         <div className="relative grid grid-cols-2 gap-2.5">
