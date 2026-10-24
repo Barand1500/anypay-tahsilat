@@ -109,7 +109,7 @@ export function PeriodCompareCard({
             <div key={column.label} className="min-w-0">
               <div className="mb-1 flex items-center justify-between gap-1">
                 <p className="min-w-0 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
-                {column.pin && many ? (
+                {column.pin && many && (hover || pinned) ? (
                   <button
                     type="button"
                     aria-pressed={pinned}
@@ -120,7 +120,7 @@ export function PeriodCompareCard({
                         : 'text-[var(--panel-muted)] hover:text-[var(--panel-ink)]'
                     }`}
                   >
-                    {pinned ? 'Sabit' : 'Sabitle'}
+                    {pinned ? 'Sabitlendi' : 'Sabitle'}
                   </button>
                 ) : null}
               </div>
