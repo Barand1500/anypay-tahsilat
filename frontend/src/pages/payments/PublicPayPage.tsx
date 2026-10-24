@@ -880,6 +880,8 @@ export default function PublicPayPage() {
                       )}
                     </div>
 
+                    <FxNote amount={payableAmount} rate={view.currencyRate} symbol={view.currencySymbol || '₺'} shortName={view.currencyShortName} />
+
                     <div>
                       <p className="text-[11px] font-semibold text-[var(--panel-ink)]">
                         {view.commissionIncluded ? 'Komisyon ödeme tutarına eklenir.' : 'Komisyon ödeme tutarına eklenmez.'}
