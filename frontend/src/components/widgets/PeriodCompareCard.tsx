@@ -103,13 +103,29 @@ export function PeriodCompareCard({
         <div className="relative grid grid-cols-2 gap-2.5">
           <span className="pointer-events-none absolute bottom-1 left-1/2 top-1 w-px bg-[var(--panel-line)]" aria-hidden />
           {[
-            { label: previousBankLabel, rows: previousBanks },
-            { label: currentBankLabel, rows: banks },
+            { label: previousBankLabel, rows: previousBanks, pin: false },
+            { label: currentBankLabel, rows: banks, pin: true },
           ].map((column) => (
             <div key={column.label} className="min-w-0">
-              <p className="mb-1 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
+              <div className="mb-1 flex items-center justify-between gap-1">
+                <p className="min-w-0 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
+                {column.pin && many ? (
+                  <button
+                    type="button"
+                    aria-pressed={pinned}
+                    onClick={() => setPinned((v) => !v)}
+                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition duration-300 ${
+                      pinned
+                        ? 'bg-[var(--color-brand-600)] text-white'
+                        : 'text-[var(--panel-muted)] hover:text-[var(--panel-ink)]'
+                    }`}
+                  >
+                    {pinned ? 'Sabit' : 'Sabitle'}
+                  </button>
+                ) : null}
+              </div>
               <ul
-                className={`min-w-0 space-y-1.5 overflow-hidden pr-1 transition-[max-height] duration-300 ease-out ${open ? 'max-h-[2400px]' : 'max-h-[4.7rem]'}`}
+                className={`min-w-0 space-y-1 overflow-hidden transition-[max-height] duration-300 ease-out ${open ? 'max-h-[2400px]' : 'max-h-[5.15rem]'}`}
               >
                 {column.rows.length ? (
                   column.rows.map((b) => <BankRow key={b.id || b.name} bank={b} />)
@@ -120,30 +136,8 @@ export function PeriodCompareCard({
             </div>
           ))}
         </div>
-        {many ? (
-          <div className="mt-1.5 flex items-center justify-between gap-2">
-            <p
-              className={`inline-flex items-center gap-1 text-[10px] font-medium text-[var(--panel-muted)] transition-opacity duration-300 ${open ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
-            >
-              <span className={open ? '' : 'inline-block animate-bounce'}>↓</span>
-              devamı var…
-            </p>
-            <button
-              type="button"
-              aria-pressed={pinned}
-              onClick={() => setPinned((v) => !v)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold transition duration-300 ${
-                pinned
-                  ? 'bg-[var(--color-brand-600)] text-white shadow-sm'
-                  : 'text-[var(--panel-muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--panel-ink)]'
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full transition-transform duration-300 ${pinned ? 'scale-110 bg-white' : 'scale-75 bg-[var(--color-brand-500)]'}`}
-              />
-              {pinned ? 'Sabit' : 'Sabitle'}
-            </button>
-          </div>
+        {many && !open ? (
+          <p className="mt-1 text-[10px] font-medium text-[var(--panel-muted)]">devamı var…</p>
         ) : null}
       </div>
       {footer ? (
