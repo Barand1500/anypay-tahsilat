@@ -23,7 +23,17 @@ type Props = {
   footer?: ReactNode;
 };
 
-export function PeriodCompareCard({ title, current, previous, changePct, footer }: Props) {
+export function PeriodCompareCard({
+  title,
+  current,
+  previous,
+  changePct,
+  banks,
+  previousBanks,
+  currentBankLabel,
+  previousBankLabel,
+  footer,
+}: Props) {
   const up = changePct >= 0;
   const [displayPct, setDisplayPct] = useState(changePct);
   const raf = useRef(0);
@@ -66,6 +76,26 @@ export function PeriodCompareCard({ title, current, previous, changePct, footer 
         {current}
       </p>
       <p className="mt-1 text-sm text-[var(--panel-muted)]">Önceki: <strong className="text-base font-extrabold tabular-nums text-[var(--panel-ink)]">{previous}</strong></p>
+      <div className="mt-3 border-t border-[var(--panel-line)] pt-2">
+        <div className="relative grid grid-cols-2 gap-2.5">
+          <span className="pointer-events-none absolute bottom-1 left-1/2 top-1 w-px bg-[var(--panel-line)]" aria-hidden />
+          {[
+            { label: currentBankLabel, rows: banks },
+            { label: previousBankLabel, rows: previousBanks },
+          ].map((column) => (
+            <div key={column.label} className="min-w-0">
+              <p className="mb-1 truncate text-[10px] font-bold text-[var(--color-brand-700)]">{column.label}</p>
+              <ul className="max-h-[90px] min-w-0 space-y-1.5 overflow-y-auto pr-1">
+                {column.rows.length ? (
+                  column.rows.map((b) => <BankRow key={b.id || b.name} bank={b} />)
+                ) : (
+                  <li className="text-[10px] text-[var(--panel-muted)]">İşlem yok</li>
+                )}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
       {footer ? (
         <div className="mt-auto flex min-h-0 flex-col justify-end pt-3">{footer}</div>
       ) : null}
@@ -89,6 +119,34 @@ function TrendArrow({ up }: { up: boolean }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function BankRow({ bank }: { bank: PeriodBank }) {
+  const src = (bank.logo || '').trim();
+  const [broken, setBroken] = useState(false);
+
+  return (
+    <li className="flex min-w-0 items-center justify-between gap-1.5" title={`${bank.name} — ${bank.amount}`}>
+      <span className="flex min-w-0 items-center">
+        {src && !broken ? (
+          <span className="flex h-6 w-14 shrink-0 items-center justify-start overflow-hidden rounded-md bg-[var(--panel-surface)] px-0.5 ring-1 ring-[var(--panel-line)] sm:w-16">
+            <img
+              src={src}
+              alt={bank.name}
+              className="max-h-5 w-auto max-w-full object-contain object-left"
+              loading="lazy"
+              onError={() => setBroken(true)}
+            />
+          </span>
+        ) : (
+          <span className="truncate text-[10px] font-semibold text-[var(--panel-ink)]">{bank.name}</span>
+        )}
+      </span>
+      <span className="min-w-0 truncate text-right text-[11px] font-extrabold tabular-nums text-[var(--panel-ink)]">
+        {bank.amount}
+      </span>
+    </li>
   );
 }
 
