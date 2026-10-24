@@ -26,10 +26,15 @@ export function FxNote({
   if (isTryCurrency(shortName) || !rate || rate <= 0 || !(amount > 0)) return null;
   const rateText = rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   return (
-    <p className="text-xs leading-relaxed text-[var(--panel-muted)]">
-      {symbol} 1 = ₺{rateText} · {formatMoneyDisplay(amount, symbol)} × {rateText} ={' '}
-      <span className="font-semibold text-[var(--panel-ink)]">{formatMoneyDisplay(fxChargeAmount(amount, rate, shortName), '₺')}</span>{' '}
-      karttan TL olarak çekilecek.
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-relaxed text-[var(--panel-muted)]">
+      <span className="rounded-md bg-[color-mix(in_srgb,var(--color-brand-500)_14%,transparent)] px-1.5 py-0.5 font-semibold text-[var(--color-brand-600)]">
+        {symbol} 1 = ₺{rateText}
+      </span>
+      <span>
+        {formatMoneyDisplay(amount, symbol)} × {rateText} ={' '}
+        <span className="font-semibold text-[var(--panel-ink)]">{formatMoneyDisplay(fxChargeAmount(amount, rate, shortName), '₺')}</span>{' '}
+        karttan TL olarak çekilecek.
+      </span>
     </p>
   );
 }
