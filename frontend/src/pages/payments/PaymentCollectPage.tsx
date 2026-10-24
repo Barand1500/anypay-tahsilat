@@ -109,7 +109,6 @@ export default function PaymentCollectPage() {
     if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
   }, [currencyId, defaultCurrencyId]);
 
-  const currencySymbol = selectedCurrency?.symbol || '₺';
 
   useEffect(() => {
     const el = rootRef.current;
@@ -147,6 +146,7 @@ export default function PaymentCollectPage() {
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
   const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
   const chargeAmount = fxChargeAmount(amount, selectedCurrency?.rate, selectedCurrency?.shortName);
+  const currencySymbol = selectedCurrency?.symbol || '₺';
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   /** Banka & Taksit: yönlendirme → hedef; yoksa varsayılan Sanal POS */
