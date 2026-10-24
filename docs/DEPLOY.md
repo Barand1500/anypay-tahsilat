@@ -83,7 +83,6 @@ bash /home/anypay-tahsilat/apps/anypay-tahsilat/scripts/server-deploy.sh
 - API yokken veya HTML dönerse `ApiUnavailableError` (`frontend/src/lib/api.ts`).
 - Backend port: CloudPanel genelde **3012**; lokal default **3010** — vhost ile eşleştir.
 - Sağlık: `GET /api/health`
-- Kasa değer şifreleme: `VAULT_ENC_KEY` (yoksa `JWT_SECRET`) — production’da ayrı uzun bir secret koy; değiştirince eski kayıtlar çözülemez.
 - Profil foto: `uploads/` altında; site kökünde `uploads` yazılabilir olmalı.
 
 ---

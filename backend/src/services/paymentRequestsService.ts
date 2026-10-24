@@ -59,6 +59,8 @@ export type PublicPayView = {
   currencyId: string;
   currencySymbol: string;
   currencyShortName: string;
+  /** 1 birim = kaç TL (TL için 1) */
+  currencyRate: number;
   /** Varsayılan Sanal POS banka logosu (kart yokken yer tutucu) */
   posBankName: string | null;
   posBankLogo: string | null;
@@ -374,7 +376,7 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
 
   const currency = await prisma.parabirimi.findFirst({
     where: { id: row.parabirimiId },
-    select: { id: true, sembol: true, kisaAdi: true },
+    select: { id: true, sembol: true, kisaAdi: true, kur: true },
   });
 
   const posBrand = await getDefaultVirtualPosBrand();
@@ -402,6 +404,7 @@ export async function getPaymentRequestByToken(token: string): Promise<PublicPay
     currencyId: String(row.parabirimiId),
     currencySymbol: currency?.sembol || '₺',
     currencyShortName: currency?.kisaAdi || 'TL',
+    currencyRate: Number(currency?.kur) || 1,
     posBankName: posBrand?.bankName ?? null,
     posBankLogo: posBrand?.bankLogoUrl || null,
     posName: posBrand?.posName ?? null,

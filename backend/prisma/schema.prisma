@@ -355,33 +355,7 @@ model Odeme {
   @@map("odemeler")
 }
 
-/** Kullanıcı kasası — şifre ayarı */
-model KasaAyar {
-  id          Int     @id @default(autoincrement())
-  kullaniciId Int     @unique @map("kullanici_id")
-  sifreHash   String? @map("sifre_hash") @db.VarChar(255)
-  remove      Boolean?
-
-  @@map("kasa_ayar")
-}
-
-/** Kasa kayıtları — IBAN / kart vb. */
-model KasaKayit {
-  id          Int       @id @default(autoincrement())
-  kullaniciId Int       @map("kullanici_id")
-  tip         String    @db.VarChar(32)
-  etiket      String    @db.VarChar(64)
-  baslik      String    @db.VarChar(255)
-  deger       String    @db.LongText
-  sira        Int       @default(0)
-  remove      Boolean?
-  olusturma   DateTime? @default(now()) @map("olusturma")
-
-  @@index([kullaniciId])
-  @@map("kasa_kayitlari")
-}
-
-/** OTP — login / şifre sıfırlama / kasa (çok process güvenli) */
+/** OTP — login / şifre sıfırlama (çok process güvenli) */
 model OtpChallenge {
   id        Int      @id @default(autoincrement())
   scope     String   @db.VarChar(64)

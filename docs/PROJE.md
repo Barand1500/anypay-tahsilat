@@ -116,10 +116,9 @@ Akış (özet): `git pull` (apps) → npm install → frontend/backend build →
 | Proje bilgi / kural dosyaları | Tamam |
 | Repo iskeleti (frontend + backend) | Tamam |
 | Login (şifre + OTP + unuttum) | Tamam |
-| Panel kabuğu + yetki + kasa | Tamam |
+| Panel kabuğu + yetki | Tamam |
 | Özet / müşteri / hareket / ödeme / rapor / tanımlama / ayar | Tamam |
 | Sözleşmeler API, dekont PDF/mail, profil foto | Tamam |
-| Kasa (vault) AES-GCM + panel kilidi | Tamam |
 | Favori müşteri yuvaları (müşteri API + LS tercihler) | Tamam |
 | Gateway (Akbank V2 + NestPay) | Tamam (diğer altyapılar ayrı adapter) |
 | ERP canlı bakiye | Bekliyor (entegrasyon) |

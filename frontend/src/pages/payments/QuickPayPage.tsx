@@ -19,6 +19,7 @@ import { normalizePhoneInput } from '../customers/mockCustomers';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { FxNote, fxChargeAmount } from './FxNote';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
 import { SelectedInstallmentSummary } from './installmentDisplay';
 import { PaymentCardFields } from '../../components/payments/PaymentCardFields';
@@ -120,6 +121,8 @@ export default function QuickPayPage() {
   const posRedirectRev = usePosRedirectsRevision();
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
+  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
+  const chargeAmount = fxChargeAmount(amount, selectedCurrency?.rate, selectedCurrency?.shortName);
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   /** Banka & Taksit: yönlendirme → hedef; yoksa varsayılan Sanal POS */
@@ -133,7 +136,7 @@ export default function QuickPayPage() {
   );
   const rateQ = useMemo(() => ratesBankQuery(cardBank, cardDigits), [cardBank, cardDigits]);
   const { rows: bankInstallmentRows, loading: ratesLoading } = useAgreementRates({
-    amount,
+    amount: chargeAmount,
     bankName: rateQ.bankName,
     bankId: rateQ.bankId,
     bin: rateQ.bin,
@@ -142,11 +145,11 @@ export default function QuickPayPage() {
   const availableBankRows = useMemo(
     () =>
       buildPricedInstallments({
-        amount,
+        amount: chargeAmount,
         rates: bankInstallmentRows,
         allowedNs: allowedInstallments,
       }),
-    [amount, bankInstallmentRows, allowedInstallments],
+    [chargeAmount, bankInstallmentRows, allowedInstallments],
   );
   const selectedRate = pickedInstall && pickedInstall.bank.id === bank?.id
     ? availableBankRows.find((row) => row.n === pickedInstall.n)
@@ -229,7 +232,6 @@ export default function QuickPayPage() {
     if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
   }, [currencyId, defaultCurrencyId]);
 
-  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
   const currencySymbol = selectedCurrency?.symbol || '₺';
 
   useEffect(() => {
@@ -500,6 +502,7 @@ export default function QuickPayPage() {
             {errors.amount || errors.currency ? (
               <p className="text-xs text-rose-500">{errors.amount || errors.currency}</p>
             ) : null}
+            <FxNote amount={amount} rate={selectedCurrency?.rate} symbol={currencySymbol} shortName={selectedCurrency?.shortName} />
 
             <label className="flex items-center gap-2.5 text-sm">
               <button
@@ -600,7 +603,7 @@ export default function QuickPayPage() {
               {pickedInstall && bank && selectedRate && cardDigits.length >= 6 ? (
                 <SelectedInstallmentSummary
                   rate={selectedRate}
-                  baseAmount={amount}
+                  baseAmount={chargeAmount}
                   commissionIncluded
                   formatMoney={(v) => formatMoneyDisplay(v)}
                   formatPct={formatMoneyTr}
@@ -617,7 +620,7 @@ export default function QuickPayPage() {
               rows={availableBankRows}
               selectedN={pickedInstall?.bank.id === bank.id ? pickedInstall.n : null}
               onSelect={(n) => setPickedInstall({ n, bank })}
-              baseAmount={amount}
+              baseAmount={chargeAmount}
               commissionIncluded
               loading={ratesLoading}
               allowedInstallments={allowedInstallments}
@@ -672,7 +675,7 @@ export default function QuickPayPage() {
       ) : null}
       {installOpen ? (
         <InstallmentOptionsModal
-          amount={amount}
+          amount={chargeAmount}
           preferredBankId={bank?.id}
           allowedInstallments={allowedInstallments}
           onClose={() => setInstallOpen(false)}

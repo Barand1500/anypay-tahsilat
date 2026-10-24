@@ -185,6 +185,8 @@ export async function getCurrencyById(id: number): Promise<PublicCurrency | null
 export async function resolveCurrencyId(raw?: number | null): Promise<{
   id: number;
   kur: number;
+  /** Veritabanındaki ham kur (0 = henüz çekilmemiş) */
+  rawKur: number;
   symbol: string;
   shortName: string;
 }> {
@@ -199,6 +201,7 @@ export async function resolveCurrencyId(raw?: number | null): Promise<{
       return {
         id: row.id,
         kur: Number(row.kur) || 1,
+        rawKur: Number(row.kur) || 0,
         symbol: row.sembol,
         shortName: row.kisaAdi,
       };
@@ -218,6 +221,7 @@ export async function resolveCurrencyId(raw?: number | null): Promise<{
   return {
     id: fallback.id,
     kur: Number(fallback.kur) || 1,
+    rawKur: Number(fallback.kur) || 0,
     symbol: fallback.sembol,
     shortName: fallback.kisaAdi,
   };

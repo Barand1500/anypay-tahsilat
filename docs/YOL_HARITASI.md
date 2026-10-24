@@ -37,7 +37,7 @@ Küçük adımlarla ilerliyoruz. Bir adım bitmeden sonrakine geçilmez (kullan�
 ## Faz 3 — Shell (layout)
 
 - [x] Sidebar / Header / Footer
-- [x] Tema, kur şeridi, jest rüzgarı, kasa (vault)
+- [x] Tema, kur şeridi
 - [x] Yetki (FE PermissionContext + BE `requireModulePerm`)
 
 ---
@@ -67,7 +67,6 @@ Küçük adımlarla ilerliyoruz. Bir adım bitmeden sonrakine geçilmez (kullan�
 
 - ERP canlı bakiye (entegrasyon bekliyor)
 - OTP DB’de (`otp_challenge`) — tamam
-- Vault değer şifreleme (AES-GCM, `VAULT_ENC_KEY`) — tamam
 - Profil foto (uploads + menü avatar) — tamam
 - Favori müşteri yuvaları (gerçek müşteri listesi) — tamam
 - Dekont PDF indirme + e-posta eki — tamam

@@ -31,6 +31,9 @@ type Props = {
   amountText: string;
   onAmountText: (v: string) => void;
   payableAmount: number;
+  /** Yabancı para biriminde TL karşılığı (taksit planı bunun üzerinden) */
+  chargeAmount?: number;
+  fxNote?: ReactNode;
   fixedAmount: number;
   description: string;
   files?: { name: string; path: string; url: string }[];
@@ -87,6 +90,8 @@ export function PublicPayMobileHero(props: Props) {
     amountText,
     onAmountText,
     payableAmount,
+    chargeAmount,
+    fxNote,
     fixedAmount,
     description,
     files,
@@ -240,6 +245,8 @@ export function PublicPayMobileHero(props: Props) {
         />
       </section>
 
+      {fxNote ? <div className="px-1">{fxNote}</div> : null}
+
       {/* Banka + kutulu taksit planı */}
       <section className="rounded-2xl border border-[var(--panel-line)] bg-[var(--panel-elevated)] p-4 shadow-[var(--panel-shadow)]">
         <div className="flex items-center gap-3">
@@ -266,7 +273,7 @@ export function PublicPayMobileHero(props: Props) {
             rows={pricedInstallments}
             selectedN={installment}
             onSelect={onInstallment}
-            baseAmount={payableAmount}
+            baseAmount={chargeAmount ?? payableAmount}
             commissionIncluded={commissionIncluded}
             loading={ratesLoading}
             ratesError={ratesError}

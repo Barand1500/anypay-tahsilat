@@ -684,6 +684,14 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
     throw err;
   }
 
+  // Yabancı para birimi: müşteriden TL karşılığı çekilir (tutar × kur). TL için oran 1.
+  const isTry = ['TL', 'TRY'].includes((currency.shortName || '').trim().toUpperCase());
+  if (!isTry && !(currency.rawKur > 0)) {
+    throw new PaymentsError(`${currency.shortName || 'Seçilen para birimi'} için güncel kur bulunamadı; Para Birimleri sayfasından kuru güncelleyin`);
+  }
+  const fxRate = isTry ? 1 : currency.rawKur;
+  const amountTry = isTry ? input.amount : Math.round(input.amount * fxRate * 100) / 100;
+
   try {
     const allowed = await resolveAllowedInstallments({
       kullaniciId: input.kullaniciId,
@@ -719,7 +727,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       bankName: cardBank?.bankName ?? null,
       // BIN Tür (ticari/bireysel); yoksa bireysel
       segment: cardBank?.segment ?? 'bireysel',
-      amount: input.amount,
+      amount: amountTry,
     });
     const hit = rates.rows.find((r) => r.n === installment);
     if (hit) {
@@ -743,8 +751,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
   });
 
   const chargedAmount = input.commissionIncluded
-    ? input.amount * (1 + commissionPct / 100)
-    : input.amount;
+    ? amountTry * (1 + commissionPct / 100)
+    : amountTry;
 
   const istekNo = (input.istekNo || '').trim() || null;
 
@@ -800,7 +808,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         parabirimiId: currency.id,
         musteriId: input.musteriId,
         tutar: input.amount,
-        kur: currency.kur,
+        kur: fxRate,
         gercekTutar: chargedAmount,
         komisyonDahil: input.commissionIncluded,
         aciklama: (input.note || '').trim() || null,
@@ -834,10 +842,8 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
         orderId: odemeNo,
         bankName: centralBankName,
         amount: chargedAmount,
-        // Merkez ISO kod ister; eski UI'da TL → TRY
-        currencyCode: currency.shortName?.trim().toUpperCase() === 'TL'
-          ? 'TRY'
-          : currency.shortName || 'TRY',
+        // Karttan her zaman TL çekilir (yabancı para birimi tutar × kur ile TL'ye çevrildi)
+        currencyCode: 'TRY',
         installment,
         card: { number: digits, holder: input.holder.trim(), expiry, cvc },
         clientIp: input.clientIp,
@@ -958,7 +964,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       parabirimiId: currency.id,
       musteriId: input.musteriId,
       tutar: input.amount,
-      kur: currency.kur,
+      kur: fxRate,
       gercekTutar: chargedAmount,
       komisyonDahil: input.commissionIncluded,
       aciklama: (input.note || '').trim() || null,
@@ -992,7 +998,7 @@ export async function createPayment(input: CreatePaymentInput): Promise<PublicPa
       pos,
       orderId: odemeNo,
       amount: chargedAmount,
-      currencyCode: currency.shortName || 'TRY',
+      currencyCode: 'TRY',
       installment,
       card: { number: digits, holder: input.holder.trim(), expiry, cvc },
       okUrl: `${apiBase}/api/payments/3d/ok`,

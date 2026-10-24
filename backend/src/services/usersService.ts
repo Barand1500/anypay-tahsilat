@@ -446,8 +446,6 @@ export async function deletePanelUser(id: number): Promise<void> {
   if (!existing) throw new UsersError('Kullanıcı bulunamadı');
 
   await prisma.$transaction([
-    prisma.kasaKayit.deleteMany({ where: { kullaniciId: id } }),
-    prisma.kasaAyar.deleteMany({ where: { kullaniciId: id } }),
     // Geçmiş işlemler korunur; kullanıcıya olan opsiyonel bağlantıları kaldırılır.
     prisma.log.updateMany({ where: { kullaniciId: id }, data: { kullaniciId: null } }),
     prisma.odeme.updateMany({ where: { kullaniciId: id }, data: { kullaniciId: null } }),

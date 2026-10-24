@@ -46,6 +46,7 @@ import {
   type InstallmentRow,
 } from './mockBanks';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { FxNote, fxChargeAmount } from './FxNote';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
 import { SelectedInstallmentSummary } from './installmentDisplay';
 import { PublicPayMobileHero } from './PublicPayMobileHero';
@@ -77,6 +78,7 @@ type PublicPayView = {
   currencyId?: string;
   currencySymbol?: string;
   currencyShortName?: string;
+  currencyRate?: number;
   posBankName?: string | null;
   posBankLogo?: string | null;
   posName?: string | null;
@@ -285,6 +287,8 @@ export default function PublicPayPage() {
   }, [view]);
   const variableAmount = view?.type === 'serbest' && view.amount <= 0;
   const payableAmount = variableAmount ? parseTrMoney(amountText) : view?.amount ?? 0;
+  // Yabancı para biriminde taksit / komisyon TL karşılığı üzerinden hesaplanır
+  const chargeAmount = fxChargeAmount(payableAmount, view?.currencyRate, view?.currencyShortName);
 
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
@@ -336,7 +340,7 @@ export default function PublicPayPage() {
     setRatesLoading(true);
     setRatesError(false);
     const q = rateQuery;
-    const query = new URLSearchParams({ amount: String(payableAmount) });
+    const query = new URLSearchParams({ amount: String(chargeAmount) });
     if (q.bin) query.set('bin', q.bin.length >= 8 ? q.bin.slice(0, 8) : q.bin.slice(0, 6));
     else query.set('bin', rateBin);
     if (q.bankId) query.set('bankId', q.bankId);
@@ -352,16 +356,16 @@ export default function PublicPayPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [payToken, view?.status, hasRateBank, rateBankKey, rateBin, payableAmount]);
+  }, [payToken, view?.status, hasRateBank, rateBankKey, rateBin, chargeAmount]);
 
   const pricedInstallments = useMemo(
     () =>
       buildPricedInstallments({
-        amount: payableAmount,
+        amount: chargeAmount,
         rates: installmentRates,
         allowedNs: installmentOpts,
       }),
-    [installmentOpts, installmentRates, payableAmount],
+    [installmentOpts, installmentRates, chargeAmount],
   );
 
   const selectedRate = useMemo(
@@ -702,6 +706,8 @@ export default function PublicPayPage() {
                   amountText={amountText}
                   onAmountText={setAmountText}
                   payableAmount={payableAmount}
+                  chargeAmount={chargeAmount}
+                  fxNote={<FxNote amount={payableAmount} rate={view.currencyRate} symbol={view.currencySymbol || '₺'} shortName={view.currencyShortName} />}
                   fixedAmount={view.amount}
                   description={view.description || ''}
                   files={view.files}
@@ -791,6 +797,9 @@ export default function PublicPayPage() {
                           {formatMoneyDisplay(view.amount, view.currencySymbol || '₺')}
                         </p>
                       )}
+                      <div className="mt-2">
+                        <FxNote amount={payableAmount} rate={view.currencyRate} symbol={view.currencySymbol || '₺'} shortName={view.currencyShortName} />
+                      </div>
                       <p className="mt-2 text-xs text-[var(--panel-muted)]">
                         {view.commissionIncluded
                           ? 'Komisyon ödeme tutarına eklenir.'
@@ -995,7 +1004,7 @@ export default function PublicPayPage() {
                       {summaryRate ? (
                         <SelectedInstallmentSummary
                           rate={summaryRate}
-                          baseAmount={payableAmount}
+                          baseAmount={chargeAmount}
                           commissionIncluded={view.commissionIncluded}
                           formatMoney={(v) => formatMoneyDisplay(v)}
                           formatPct={formatMoneyTr}
@@ -1012,7 +1021,7 @@ export default function PublicPayPage() {
                   rows={pricedInstallments}
                   selectedN={installment}
                   onSelect={pickInstallment}
-                  baseAmount={payableAmount}
+                  baseAmount={chargeAmount}
                   commissionIncluded={view.commissionIncluded}
                   loading={ratesLoading}
                   ratesError={ratesError}
@@ -1052,7 +1061,7 @@ export default function PublicPayPage() {
 
       {compareOpen && payableAmount > 0 && payToken ? (
         <InstallmentOptionsModal
-          amount={payableAmount}
+          amount={chargeAmount}
           preferredBankId={bank?.id}
           allowedInstallments={installmentOpts}
           publicToken={payToken}

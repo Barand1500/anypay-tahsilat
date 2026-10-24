@@ -19,6 +19,7 @@ import { useCustomer } from '../customers/useCustomer';
 import { getDefaultPayType } from '../settings/defaultsStore';
 import { CollectionContractModal } from './CollectionContractModal';
 import { InstallmentOptionsModal } from './InstallmentOptionsModal';
+import { FxNote, fxChargeAmount } from './FxNote';
 import { InstallmentPlanSection } from './InstallmentPlanSection';
 import { SelectedInstallmentSummary } from './installmentDisplay';
 import {
@@ -108,7 +109,6 @@ export default function PaymentCollectPage() {
     if (!currencyId && defaultCurrencyId) setCurrencyId(defaultCurrencyId);
   }, [currencyId, defaultCurrencyId]);
 
-  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
   const currencySymbol = selectedCurrency?.symbol || '₺';
 
   useEffect(() => {
@@ -145,6 +145,8 @@ export default function PaymentCollectPage() {
   }, []);
 
   const amount = useMemo(() => parseTrMoney(amountText), [amountText]);
+  const selectedCurrency = currencies.find((c) => c.id === currencyId) ?? null;
+  const chargeAmount = fxChargeAmount(amount, selectedCurrency?.rate, selectedCurrency?.shortName);
   const cardDigits = digitsOnly(card);
   const cardBank = useMemo(() => detectBank(cardDigits), [cardDigits, binsRev]);
   /** Banka & Taksit: yönlendirme → hedef; yoksa varsayılan Sanal POS */
@@ -160,7 +162,7 @@ export default function PaymentCollectPage() {
   // Oran sorgusu kart bankası + BIN (sunucu yönlendirmeyi uygular)
   const rateQ = useMemo(() => ratesBankQuery(cardBank, cardDigits), [cardBank, cardDigits]);
   const { rows: agreementRows, loading: ratesLoading } = useAgreementRates({
-    amount: amount || 0,
+    amount: chargeAmount || 0,
     bankName: rateQ.bankName,
     bankId: rateQ.bankId,
     bin: rateQ.bin,
@@ -171,11 +173,11 @@ export default function PaymentCollectPage() {
   const installmentRows = useMemo(
     () =>
       buildPricedInstallments({
-        amount,
+        amount: chargeAmount,
         rates: agreementRows,
         allowedNs: allowedInstallments,
       }),
-    [amount, agreementRows, allowedInstallments],
+    [chargeAmount, agreementRows, allowedInstallments],
   );
 
   const cardFaulty = cardChecked &&
@@ -518,6 +520,9 @@ export default function PaymentCollectPage() {
                     {errors.amount || errors.currency}
                   </p>
                 ) : null}
+                <div className="mt-1">
+                  <FxNote amount={amount} rate={selectedCurrency?.rate} symbol={currencySymbol} shortName={selectedCurrency?.shortName} />
+                </div>
               </div>
 
               <label className="flex items-center gap-2.5 text-sm text-[var(--panel-ink)]">
@@ -632,7 +637,7 @@ export default function PaymentCollectPage() {
                 {selected && bank && installmentTouched && cardDigits.length >= 6 ? (
                   <SelectedInstallmentSummary
                     rate={selected}
-                    baseAmount={amount}
+                    baseAmount={chargeAmount}
                     commissionIncluded={commissionIncluded}
                     formatMoney={(v) => formatMoneyDisplay(v)}
                     formatPct={formatMoneyTr}
@@ -648,7 +653,7 @@ export default function PaymentCollectPage() {
             rows={installmentRows}
             selectedN={installment}
             onSelect={pickInstallment}
-            baseAmount={amount}
+            baseAmount={chargeAmount}
             commissionIncluded={commissionIncluded}
             loading={ratesLoading}
             allowedInstallments={allowedInstallments}
@@ -700,7 +705,7 @@ export default function PaymentCollectPage() {
 
       {compareOpen ? (
         <InstallmentOptionsModal
-          amount={amount}
+          amount={chargeAmount}
           preferredBankId={bank?.id}
           allowedInstallments={allowedInstallments}
           musteriId={customer?.id ? Number(customer.id) : null}
